@@ -158,7 +158,7 @@ function createJob(data) {
 // ── Close a completed Simpro job ──────────────────────────────────────────────
 function closeJob(jobId) {
   const resp = simproFetch(
-    '/companies/' + SIMPRO_COMPANY + '/jobs/' + jobId + '/',
+    '/companies/' + SIMPRO_COMPANY + '/jobs/' + jobId,
     'patch',
     { Stage: 'Complete' }
   );
@@ -169,7 +169,7 @@ function closeJob(jobId) {
 // ── Update an existing Simpro job ─────────────────────────────────────────────
 function updateJob(jobId, data) {
   const resp = simproFetch(
-    '/companies/' + SIMPRO_COMPANY + '/jobs/' + jobId + '/',
+    '/companies/' + SIMPRO_COMPANY + '/jobs/' + jobId,
     'patch',
     {
       Name:        'Demo Loan - ' + (data.loanTo || 'Unknown'),
@@ -198,12 +198,13 @@ function writeJobIdToFirebase(pdfKey, jobId) {
 
 // ── Simpro API helper ─────────────────────────────────────────────────────────
 function simproFetch(path, method, body) {
-  const resp = UrlFetchApp.fetch(SIMPRO_BASE_URL + path, {
+  var options = {
     method: method,
     headers: API_HEADERS,
-    payload: JSON.stringify(body),
     muteHttpExceptions: true
-  });
+  };
+  if (method !== 'get') options.payload = JSON.stringify(body);
+  const resp = UrlFetchApp.fetch(SIMPRO_BASE_URL + path, options);
   const code = resp.getResponseCode();
   const text = resp.getContentText();
   var json = null;
