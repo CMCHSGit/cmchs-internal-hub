@@ -160,11 +160,9 @@ function closeJob(jobId) {
   const resp = simproFetch(
     '/companies/' + SIMPRO_COMPANY + '/jobs/' + jobId + '/',
     'patch',
-    {
-      Stage:  'Complete',
-      Status: 'Job : Completed'
-    }
+    { Stage: 'Complete' }
   );
+  Logger.log('Job close (' + jobId + '): ' + resp.code + ' ' + resp.body);
   if (!resp.ok) Logger.log('Job close failed (' + resp.code + '): ' + resp.body);
 }
 
