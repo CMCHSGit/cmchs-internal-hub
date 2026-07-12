@@ -15,6 +15,14 @@
  *   4. Click Deploy, authorise when prompted
  *   5. Copy the Web App URL into the tracker's SIMPRO_PROXY_URL constant
  *   6. After any code change: Deploy → Manage deployments → Edit → New version → Deploy
+ *
+ * DEMO REMINDER SETUP (one-off, run manually from the Apps Script editor):
+ *   Run the installDemoReminderTrigger() function once to install a daily
+ *   time-driven trigger. It emails an .ics calendar invite (Outlook/Gmail/
+ *   Apple Calendar all recognise it) to DEMO_REMINDER_RECIPIENTS as soon as
+ *   a Demo-type loan enters its 2-business-day notice window — mirrors the
+ *   tracker's own isStartingSoon() so a Monday start notifies Friday, not
+ *   mid-weekend.
  */
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -24,6 +32,8 @@ const SIMPRO_COMPANY  = 3;
 const SIMPRO_SITE_ID  = 2377;
 const SIMPRO_CUSTOMER = 2027;
 const SIMPRO_COST_CTR = 15;
+
+const DEMO_REMINDER_RECIPIENTS = ['jonathan@cass.co.nz', 'peter@cass.co.nz'];
 
 const SIMPRO_CUSTOM_FIELDS_STATIC = [
   [8, 'Standard'],
@@ -178,6 +188,177 @@ function updateJob(jobId, data) {
     }
   );
   if (!resp.ok) Logger.log('Job update failed (' + resp.code + '): ' + resp.body);
+}
+
+// ── Demo reminder — daily check + .ics calendar invite ─────────────────────────
+// Run installDemoReminderTrigger() once (from the Apps Script editor) to schedule this.
+function installDemoReminderTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'sendDemoReminders') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendDemoReminders')
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .inTimezone('Pacific/Auckland')
+    .create();
+  Logger.log('Daily demo reminder trigger installed (8am NZ time).');
+}
+
+function sendDemoReminders() {
+  const todayStr = today();
+  const raw = fetchFirebaseJson('/equipment.json') || {};
+  const items = Array.isArray(raw) ? raw : Object.values(raw);
+
+  const groups = {};
+  items.filter(function(e) {
+    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate &&
+      isStartingSoonBusinessDays(todayStr, e.LoanStartDate);
+  }).forEach(function(e) {
+    const key = e.OnLoanTo + '|||' + e.LoanStartDate;
+    if (!groups[key]) groups[key] = { loanTo: e.OnLoanTo, startDate: e.LoanStartDate, batchId: e.BatchID || null, items: [] };
+    groups[key].items.push(e);
+  });
+
+  Object.keys(groups).forEach(function(key) {
+    const g = groups[key];
+    try {
+      if (fetchFirebaseJson('/demoReminders/' + encodeURIComponent(key) + '.json')) {
+        Logger.log('Demo reminder already sent for ' + key);
+        return;
+      }
+      const loanDoc = g.batchId ? (fetchFirebaseJson('/loanDocs/' + encodeURIComponent(g.batchId) + '.json') || {}) : {};
+      const jobType = (loanDoc.jobType && loanDoc.jobType.trim()) ? loanDoc.jobType.trim() : SIMPRO_JOB_TYPE_DEFAULT;
+      if (jobType !== 'Demo') {
+        Logger.log('Skipping non-demo job for ' + key + ' (' + jobType + ')');
+        return;
+      }
+      sendDemoReminderInvite(g, loanDoc);
+      putFirebaseJson('/demoReminders/' + encodeURIComponent(key) + '.json', { sentAt: new Date().toISOString() });
+      Logger.log('Demo reminder sent for ' + g.loanTo + ' starting ' + g.startDate);
+    } catch (err) {
+      Logger.log('Demo reminder failed for ' + key + ': ' + err);
+    }
+  });
+}
+
+function sendDemoReminderInvite(g, loanDoc) {
+  const itemLines = g.items.map(function(i) {
+    return '- ' + (i.Model || i.Description || i.CHSAssetNo || '');
+  });
+  const descLines = ['Demo equipment loan starting for ' + g.loanTo];
+  if (loanDoc.accountManager) descLines.push('Account Manager: ' + loanDoc.accountManager);
+  if (loanDoc.location) descLines.push('Location: ' + loanDoc.location);
+  if (itemLines.length) descLines.push('', 'Items:', itemLines.join('\n'));
+  const description = descLines.join('\n');
+
+  const uid = 'demo-' + g.loanTo.replace(/[^a-zA-Z0-9]/g, '') + '-' + g.startDate + '@chsnz.co.nz';
+  const ics = buildDemoICS({
+    uid: uid,
+    summary: 'Demo starting: ' + g.loanTo,
+    description: description,
+    location: loanDoc.location || '',
+    dateStr: g.startDate,
+    attendees: DEMO_REMINDER_RECIPIENTS,
+    organizerEmail: Session.getEffectiveUser().getEmail()
+  });
+  const icsBlob = Utilities.newBlob(ics, 'text/calendar; charset=UTF-8; method=REQUEST', 'invite.ics');
+
+  MailApp.sendEmail({
+    to: DEMO_REMINDER_RECIPIENTS.join(','),
+    subject: 'Upcoming Demo: ' + g.loanTo + ' — starts ' + fmtDate(g.startDate),
+    body: description,
+    attachments: [icsBlob]
+  });
+}
+
+function buildDemoICS(o) {
+  const dt = o.dateStr.replace(/-/g, '');
+  const dtEnd = addDaysICS(dt, 1);
+  const now = Utilities.formatDate(new Date(), 'Etc/UTC', "yyyyMMdd'T'HHmmss'Z'");
+  const attendeeLines = (o.attendees || []).map(function(email) {
+    return 'ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=' + email + ':mailto:' + email;
+  });
+
+  return [
+    'BEGIN:VCALENDAR',
+    'PRODID:-//CHS Equipment Tracker//Demo Reminders//EN',
+    'VERSION:2.0',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    'UID:' + o.uid,
+    'DTSTAMP:' + now,
+    'DTSTART;VALUE=DATE:' + dt,
+    'DTEND;VALUE=DATE:' + dtEnd,
+    'SUMMARY:' + icsEscape(o.summary),
+    'DESCRIPTION:' + icsEscape(o.description),
+    o.location ? 'LOCATION:' + icsEscape(o.location) : null,
+    'ORGANIZER;CN=CHS Equipment Tracker:mailto:' + o.organizerEmail
+  ].concat(attendeeLines).concat([
+    'STATUS:CONFIRMED',
+    'SEQUENCE:0',
+    'BEGIN:VALARM',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Demo reminder',
+    'TRIGGER:-P2D',
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ]).filter(Boolean).join('\r\n');
+}
+
+function icsEscape(s) {
+  return String(s || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n');
+}
+
+// Mirrors the tracker's client-side isStartingSoon(): counts weekdays
+// between today and startDate (inclusive of startDate) so a Monday start
+// enters the notice window on the preceding Friday, not over the weekend.
+// Ported here to keep the two in lockstep — see index.html's isStartingSoon().
+function isStartingSoonBusinessDays(todayStr, startDateStr) {
+  if (!startDateStr || startDateStr <= todayStr) return false; // no advance notice for same-day/past starts
+  let businessDays = 0;
+  let cur = todayStr;
+  while (cur < startDateStr) {
+    const p = cur.split('-').map(Number);
+    const next = new Date(Date.UTC(p[0], p[1] - 1, p[2] + 1));
+    cur = Utilities.formatDate(next, 'Etc/UTC', 'yyyy-MM-dd');
+    const dow = next.getUTCDay();
+    if (dow !== 0 && dow !== 6) businessDays++;
+  }
+  return businessDays <= 2;
+}
+
+function addDaysICS(yyyymmdd, days) {
+  const y = +yyyymmdd.slice(0, 4), m = +yyyymmdd.slice(4, 6) - 1, d = +yyyymmdd.slice(6, 8);
+  const dt = new Date(Date.UTC(y, m, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return Utilities.formatDate(dt, 'Etc/UTC', 'yyyyMMdd');
+}
+
+function fetchFirebaseJson(path) {
+  try {
+    const resp = UrlFetchApp.fetch(FIREBASE_BASE + path, { muteHttpExceptions: true });
+    if (resp.getResponseCode() >= 300) return null;
+    return JSON.parse(resp.getContentText());
+  } catch (err) {
+    Logger.log('fetchFirebaseJson failed for ' + path + ': ' + err);
+    return null;
+  }
+}
+
+function putFirebaseJson(path, obj) {
+  UrlFetchApp.fetch(FIREBASE_BASE + path, {
+    method: 'put',
+    headers: { 'Content-Type': 'application/json' },
+    payload: JSON.stringify(obj),
+    muteHttpExceptions: true
+  });
 }
 
 // ── Write job ID back to Firebase so the tracker can reference it ─────────────
