@@ -23,14 +23,6 @@
  *   a Demo-type loan enters its 2-business-day notice window — mirrors the
  *   tracker's own isStartingSoon() so a Monday start notifies Friday, not
  *   mid-weekend.
- *
- * BLOCKED-LOAN NOTIFICATIONS (no extra setup — piggybacks on the trigger above):
- *   Each daily run also calls checkBlockedLoans(), which emails an upcoming
- *   booking's blocking loan's account manager once, asking them to verify
- *   whether equipment that's overdue and never came back to the office is
- *   actually going straight to the new customer. The email's link resolves
- *   in the tracker via confirmBlockedTransfer() in index.html. Just needs
- *   this file redeployed (see step 6 above) — no separate trigger to install.
  */
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -42,7 +34,6 @@ const SIMPRO_CUSTOMER = 2027;
 const SIMPRO_COST_CTR = 15;
 
 const DEMO_REMINDER_RECIPIENTS = ['jonathan@cass.co.nz', 'peter@cass.co.nz'];
-const TRACKER_URL = 'http://demo.chsnz.co.nz'; // must match index.html's APP_URL
 
 const SIMPRO_CUSTOM_FIELDS_STATIC = [
   [8, 'Standard'],
@@ -215,12 +206,6 @@ function installDemoReminderTrigger() {
 }
 
 function sendDemoReminders() {
-  // Piggybacks the blocked-loan check onto this same daily trigger rather
-  // than requiring a second one to be installed — unrelated concern, same
-  // cadence. Wrapped so a failure here can't stop the demo reminders below.
-  // See checkBlockedLoans() below.
-  try { checkBlockedLoans(); } catch (err) { Logger.log('checkBlockedLoans failed: ' + err); }
-
   const todayStr = today();
   const raw = fetchFirebaseJson('/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
@@ -285,96 +270,6 @@ function sendDemoReminderInvite(g, loanDoc) {
     body: description,
     attachments: [icsBlob]
   });
-}
-
-// ── Blocked-loan notifications ────────────────────────────────────────────────
-// An upcoming (waitlisted) booking in the tracker only activates once every
-// item it needs is actually free — but equipment sometimes never physically
-// comes back to the office between site visits (e.g. a vet handing gear
-// straight to the next vet), so a booking can sit "blocked" indefinitely with
-// nothing chasing it up; see index.html's renderLoans() "Blocked" badge for
-// the same detection on the display side. This finds any booking whose own
-// start date has passed and is still blocked, and emails the BLOCKING loan's
-// account manager once to verify: is the item genuinely moving straight to
-// the new customer, or does it need to come back first. Includes a one-click
-// link back into the tracker (confirmBlockedTransfer in index.html) that
-// confirms the transfer without the AM needing to find the right loan
-// themselves.
-function checkBlockedLoans() {
-  const todayStr = today();
-  const equipment = normalizeList(fetchFirebaseJson('/equipment.json'));
-  const upcoming = fetchFirebaseJson('/upcomingLoans.json') || {};
-  const accountManagers = normalizeList(fetchFirebaseJson('/accountManagers.json'));
-  const loanMeta = fetchFirebaseJson('/loanMeta.json') || {};
-  const loanDocs = fetchFirebaseJson('/loanDocs.json') || {};
-
-  Object.keys(upcoming).forEach(function(upcomingId) {
-    const u = upcoming[upcomingId];
-    if (!u || !u.loanTo || !u.startDate || u.startDate > todayStr) return;
-
-    // Group this booking's blocked items by whoever's currently holding them —
-    // one notification per (blocking loan, this booking) pair, not per item.
-    const blockedByHolder = {};
-    (u.items || []).forEach(function(uItem) {
-      const eq = equipment.filter(Boolean).find(function(e) { return e.id === uItem.id || e.CHSAssetNo === uItem.CHSAssetNo; });
-      if (!eq || !eq.OnLoanTo || eq.OnLoanTo === u.loanTo || eq.Returned === 'Yes') return;
-      const bId = eq.BatchID || '';
-      if (!blockedByHolder[bId]) blockedByHolder[bId] = { heldBy: eq.OnLoanTo, batchId: bId, heldUntil: eq.LoanEndDate || '', items: [] };
-      blockedByHolder[bId].items.push(eq.CHSAssetNo);
-    });
-
-    Object.keys(blockedByHolder).forEach(function(bId) {
-      if (!bId) return; // no BatchID means no reliable AM lookup or confirm-link target — skip rather than guess
-      const block = blockedByHolder[bId];
-      const notifyKey = bId + '__' + upcomingId;
-      if (fetchFirebaseJson('/blockedNotifications/' + encodeURIComponent(notifyKey) + '.json')) return; // already sent, once-only
-
-      const amName = (loanMeta[bId] && loanMeta[bId].accountManager) || (loanDocs[bId] && loanDocs[bId].accountManager) || '';
-      const am = accountManagers.filter(Boolean).find(function(a) { return a.name === amName; });
-      if (!am || !am.email) {
-        Logger.log('checkBlockedLoans: no AM email for blocking loan ' + block.heldBy + ' (batch ' + bId + ') — skipping ' + notifyKey);
-        return;
-      }
-
-      try {
-        sendBlockedLoanEmail(am, block, u, notifyKey);
-        putFirebaseJson('/blockedNotifications/' + encodeURIComponent(notifyKey) + '.json', { sentAt: new Date().toISOString(), amEmail: am.email });
-        Logger.log('Blocked-loan notification sent to ' + am.email + ' — ' + block.heldBy + ' -> ' + u.loanTo);
-      } catch (err) {
-        Logger.log('Blocked-loan notification failed for ' + notifyKey + ': ' + err);
-      }
-    });
-  });
-}
-
-function sendBlockedLoanEmail(am, block, u, notifyKey) {
-  const confirmLink = TRACKER_URL + '?confirmTransfer=' + encodeURIComponent(notifyKey);
-  const itemList = block.items.join(', ');
-  const plural = block.items.length > 1;
-
-  const body = [
-    'Hi ' + am.name + ',',
-    '',
-    (plural ? 'Devices ' : 'Device ') + itemList + ' ' + (plural ? 'are' : 'is') + ' still showing as on loan to ' +
-      block.heldBy + (block.heldUntil ? ' (was due back ' + fmtDate(block.heldUntil) + ')' : '') + ',',
-    'but ' + u.loanTo + ' was due to start using ' + (plural ? 'them' : 'it') + ' from ' + fmtDate(u.startDate) + '.',
-    '',
-    'If the equipment is going straight to ' + u.loanTo + ' without coming back to the office first, click below to confirm the transfer:',
-    confirmLink,
-    '',
-    'If it actually does need to come back first, no action needed — once it\'s marked returned, the booking will pick it up automatically.'
-  ].join('\n');
-
-  MailApp.sendEmail({
-    to: am.email,
-    subject: 'Please confirm: ' + itemList + ' — ' + block.heldBy + ' → ' + u.loanTo,
-    body: body
-  });
-}
-
-function normalizeList(raw) {
-  if (!raw) return [];
-  return Array.isArray(raw) ? raw : Object.values(raw);
 }
 
 function buildDemoICS(o) {
