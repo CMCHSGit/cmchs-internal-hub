@@ -23,6 +23,16 @@
  *   a Demo-type loan enters its 2-business-day notice window — mirrors the
  *   tracker's own isStartingSoon() so a Monday start notifies Friday, not
  *   mid-weekend.
+ *
+ * STUCK-LOAN REMINDER SETUP (one-off, run manually from the Apps Script editor):
+ *   Run the installStuckLoanReminderTrigger() function once to install a
+ *   trigger that runs every 4 hours. It emails the responsible Account
+ *   Manager directly whenever their upcoming booking's start date has
+ *   arrived but the equipment it needs is still checked out on another
+ *   loan — with a link that opens the tracker straight into the Reassign
+ *   modal for that booking. This is the AM-driven replacement for the old
+ *   same-batch auto-transfer (which used to move equipment automatically,
+ *   client-side, with no server component at all).
  */
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -207,7 +217,11 @@ function installDemoReminderTrigger() {
 
 function sendDemoReminders() {
   const todayStr = today();
-  const raw = fetchFirebaseJson('/equipment.json') || {};
+  // NOTE: equipment lives under /data/equipment, not /equipment — this was
+  // originally querying a path that has never existed, so this function has
+  // never actually found any items or sent a single reminder since it was
+  // written. Fixed 2026-08-14.
+  const raw = fetchFirebaseJson('/data/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
 
   const groups = {};
@@ -314,6 +328,106 @@ function icsEscape(s) {
     .replace(/;/g, '\\;')
     .replace(/,/g, '\\,')
     .replace(/\n/g, '\\n');
+}
+
+// ── Stuck-loan reminder — periodic check + email to the responsible AM ────────
+// Replaces the same-batch auto-transfer that used to run client-side: rather
+// than the system silently moving equipment off a loan that was never
+// returned, the AM gets emailed and reassigns it themselves via a link
+// straight into the app's Reassign modal (see index.html's handleReturnLink,
+// ?reassign=<upcomingId>). Run installStuckLoanReminderTrigger() once (from
+// the Apps Script editor) to schedule this. Runs every few hours — a stuck
+// loan is an active problem, not a heads-up for something days away — but
+// only emails once per AM per booking per day, so re-running the check
+// doesn't spam the same day's inbox.
+const TRACKER_URL = 'https://demo.chsnz.co.nz/';
+
+function installStuckLoanReminderTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'sendStuckLoanReminders') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendStuckLoanReminders')
+    .timeBased()
+    .everyHours(4)
+    .create();
+  Logger.log('Stuck-loan reminder trigger installed (every 4 hours).');
+}
+
+function sendStuckLoanReminders() {
+  const todayStr = today();
+  const upcomingRaw = fetchFirebaseJson('/upcomingLoans.json') || {};
+  const upcoming = Object.keys(upcomingRaw).map(function(k) {
+    const v = upcomingRaw[k];
+    if (v && !v.id) v.id = k;
+    return v;
+  });
+  const equipRaw = fetchFirebaseJson('/data/equipment.json') || [];
+  const equipment = Array.isArray(equipRaw) ? equipRaw : Object.values(equipRaw);
+  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
+  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+
+  upcoming.filter(function(u) {
+    return u && u.startDate && u.startDate <= todayStr && u.items && u.items.length;
+  }).forEach(function(u) {
+    try {
+      processStuckLoan(u, equipment, ams, todayStr);
+    } catch (err) {
+      Logger.log('Stuck-loan reminder failed for ' + u.id + ': ' + err);
+    }
+  });
+}
+
+// Mirrors the tracker's client-side isBlocked check in _tryActivateUpcomingLoan().
+function processStuckLoan(u, equipment, ams, todayStr) {
+  const blocked = [];
+  (u.items || []).forEach(function(uItem) {
+    const eq = equipment.find(function(e) {
+      return e && (e.id === uItem.id || e.CHSAssetNo === uItem.CHSAssetNo);
+    });
+    if (eq && eq.OnLoanTo && eq.OnLoanTo !== u.loanTo && eq.Returned !== 'Yes') {
+      blocked.push({ assetNo: eq.CHSAssetNo, model: eq.Model || '', blockingLoanTo: eq.OnLoanTo });
+    }
+  });
+  if (!blocked.length) return; // not actually stuck — either free already or not found yet
+
+  if (!u.accountManager) { Logger.log('Stuck loan ' + u.id + ' (' + u.loanTo + ') has no AM set — skipping'); return; }
+  const am = ams.find(function(a) { return a && a.name === u.accountManager; });
+  if (!am || !am.email) { Logger.log('No email on file for AM ' + u.accountManager + ' — skipping ' + u.id); return; }
+
+  const dedupPath = '/stuckLoanReminders/' + encodeURIComponent(u.id) + '_' + todayStr + '.json';
+  if (fetchFirebaseJson(dedupPath)) {
+    Logger.log('Stuck-loan reminder already sent today for ' + u.id);
+    return;
+  }
+
+  sendStuckLoanEmail(u, blocked, am);
+  putFirebaseJson(dedupPath, { sentAt: new Date().toISOString(), blockedCount: blocked.length });
+  Logger.log('Stuck-loan reminder sent to ' + am.email + ' for ' + u.loanTo);
+}
+
+function sendStuckLoanEmail(u, blocked, am) {
+  const itemLines = blocked.map(function(b) {
+    return '- ' + b.assetNo + (b.model ? ' (' + b.model + ')' : '') + ' — still on loan to ' + b.blockingLoanTo;
+  });
+  const link = TRACKER_URL + '?reassign=' + encodeURIComponent(u.id);
+  const body = [
+    'Hi ' + (am.name || '') + ',',
+    '',
+    'Your booking for ' + u.loanTo + ' (started ' + fmtDate(u.startDate) + ') is waiting on equipment that\'s still checked out on another loan:',
+    '',
+    itemLines.join('\n'),
+    '',
+    'Tap below to reassign it directly:',
+    link,
+    '',
+    '— CHS Equipment Tracker'
+  ].join('\n');
+
+  MailApp.sendEmail({
+    to: am.email,
+    subject: 'Action needed: ' + u.loanTo + ' is waiting on equipment',
+    body: body
+  });
 }
 
 // Mirrors the tracker's client-side isStartingSoon(): counts weekdays
