@@ -425,6 +425,7 @@ function sendStuckLoanEmail(u, blocked, am) {
 
   MailApp.sendEmail({
     to: am.email,
+    cc: 'demo@chsnz.co.nz',
     subject: 'Action needed: ' + u.loanTo + ' is waiting on equipment',
     body: body
   });
