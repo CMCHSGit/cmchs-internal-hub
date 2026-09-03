@@ -33,6 +33,19 @@
  *   modal for that booking. This is the AM-driven replacement for the old
  *   same-batch auto-transfer (which used to move equipment automatically,
  *   client-side, with no server component at all).
+ *
+ * PUSH NOTIFICATIONS SETUP (one-off, required before sendPushToPerson_()
+ * does anything — see getFcmAccessToken_() below for why a service account
+ * is needed instead of the simpler Web Push VAPID approach):
+ *   1. Firebase Console → Project settings → Service accounts →
+ *      "Generate new private key" — downloads a JSON file. Keep it private.
+ *   2. In THIS Apps Script project: Project Settings (gear icon, left
+ *      sidebar) → Script Properties → Add script property.
+ *        Name:  FCM_SERVICE_ACCOUNT_KEY
+ *        Value: the entire contents of that downloaded JSON file, pasted
+ *               as-is (one line is fine, Apps Script doesn't care).
+ *      Never paste that key into this source file — it's a private
+ *      credential and this file lives in a shared git repo.
  */
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -401,6 +414,7 @@ function processStuckLoan(u, equipment, ams, todayStr) {
   }
 
   sendStuckLoanEmail(u, blocked, am);
+  sendPushToPerson_(am, 'Action needed: ' + u.loanTo, blocked.length + ' item' + (blocked.length !== 1 ? 's are' : ' is') + ' still on another loan — tap to reassign.', TRACKER_URL + '?reassign=' + encodeURIComponent(u.id));
   putFirebaseJson(dedupPath, { sentAt: new Date().toISOString(), blockedCount: blocked.length });
   Logger.log('Stuck-loan reminder sent to ' + am.email + ' for ' + u.loanTo);
 }
@@ -428,6 +442,74 @@ function sendStuckLoanEmail(u, blocked, am) {
     cc: 'demo@chsnz.co.nz',
     subject: 'Action needed: ' + u.loanTo + ' is waiting on equipment',
     body: body
+  });
+}
+
+// ── Push notifications (Firebase Cloud Messaging) ───────────────────────
+// Sent alongside (not instead of) the reminder email above, to any device
+// registered via the mobile app's "Enable push notifications" toggle (see
+// index.html's mpEnablePush(), which stores tokens under
+// accountManagers[].fcmTokens).
+//
+// Raw Web Push needs VAPID (ES256/ECDSA) JWT signing, which Apps Script
+// has no native support for. A Google service-account JWT (RS256/RSA,
+// signed with Utilities.computeRsaSha256Signature — a standard, documented
+// Apps Script pattern) can authenticate to FCM's HTTP v1 API instead,
+// which then handles the actual per-browser push delivery itself. See the
+// PUSH NOTIFICATIONS SETUP note at the top of this file for the one-off
+// Script Properties setup this depends on.
+function getFcmAccessToken_() {
+  const raw = PropertiesService.getScriptProperties().getProperty('FCM_SERVICE_ACCOUNT_KEY');
+  if (!raw) { Logger.log('FCM_SERVICE_ACCOUNT_KEY script property is not set — push notifications are not configured yet.'); return null; }
+  let key;
+  try { key = JSON.parse(raw); } catch (err) { Logger.log('FCM_SERVICE_ACCOUNT_KEY is not valid JSON: ' + err); return null; }
+
+  const b64url = function(obj) { return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, ''); };
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
+    iss: key.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600
+  });
+  const signature = Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature(unsigned, key.private_key)).replace(/=+$/, '');
+  const jwt = unsigned + '.' + signature;
+
+  const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt },
+    muteHttpExceptions: true
+  });
+  const json = JSON.parse(resp.getContentText());
+  if (!json.access_token) { Logger.log('FCM OAuth2 token exchange failed: ' + resp.getContentText()); return null; }
+  return { accessToken: json.access_token, projectId: key.project_id };
+}
+
+// am.fcmTokens is an array (one person can have more than one device).
+// url is delivered via the FCM message's "data" field, not
+// webpush.fcm_options.link — the latter is only honoured by Firebase's own
+// default background-message handler, which this app doesn't use (sw.js
+// has its own push/notificationclick listeners instead), so it would
+// silently do nothing here.
+function sendPushToPerson_(am, title, body, url) {
+  if (!am || !Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return;
+  const auth = getFcmAccessToken_();
+  if (!auth) return;
+  am.fcmTokens.forEach(function(token) {
+    try {
+      const resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + auth.projectId + '/messages:send', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + auth.accessToken },
+        payload: JSON.stringify({ message: { token: token, notification: { title: title, body: body }, data: { url: url } } }),
+        muteHttpExceptions: true
+      });
+      if (resp.getResponseCode() >= 300) Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + resp.getContentText());
+    } catch (err) {
+      Logger.log('FCM send error: ' + err);
+    }
   });
 }
 
