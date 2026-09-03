@@ -506,11 +506,36 @@ function sendPushToPerson_(am, title, body, url) {
         payload: JSON.stringify({ message: { token: token, notification: { title: title, body: body }, data: { url: url } } }),
         muteHttpExceptions: true
       });
-      if (resp.getResponseCode() >= 300) Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + resp.getContentText());
+      if (resp.getResponseCode() >= 300) {
+        Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + resp.getContentText());
+      } else {
+        Logger.log('FCM send OK for token ' + token.slice(0, 12) + '...');
+      }
     } catch (err) {
       Logger.log('FCM send error: ' + err);
     }
   });
+}
+
+// TEMPORARY TEST HELPER — run manually from the Apps Script editor (select
+// this function in the dropdown next to Run, then Run) to verify push
+// delivery in isolation, without sendStuckLoanReminders()'s full pipeline:
+// no email, no Simpro job, no fake loan data needed — sendPushToPerson_()
+// is the only thing this calls. Prerequisite: open the mobile app on your
+// phone and tap "Enable push notifications" (More screen) first, so some
+// accountManagers record actually has a token for this to find. Check the
+// Apps Script execution log (View → Logs, or the Executions panel) for
+// the outcome. Safe to delete once push notifications are confirmed working.
+function testSendPushOnly() {
+  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
+  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const am = ams.find(function(a) { return a && Array.isArray(a.fcmTokens) && a.fcmTokens.length; });
+  if (!am) {
+    Logger.log('No account manager has a registered push token yet. Open the mobile app, sign in, and tap "Enable push notifications" on the More screen first, then run this again.');
+    return;
+  }
+  Logger.log('Sending test push to ' + am.name + ' (' + am.fcmTokens.length + ' registered device(s))...');
+  sendPushToPerson_(am, 'Test notification', 'This is a test push from the CHS Equipment Tracker — no email or Simpro job was touched.', TRACKER_URL + '?mobile=1');
 }
 
 // Mirrors the tracker's client-side isStartingSoon(): counts weekdays
