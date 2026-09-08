@@ -239,7 +239,7 @@ function sendDemoReminders() {
 
   const groups = {};
   items.filter(function(e) {
-    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate && !isTestBatch_(e.BatchID) &&
+    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate &&
       isStartingSoonBusinessDays(todayStr, e.LoanStartDate);
   }).forEach(function(e) {
     const key = e.OnLoanTo + '|||' + e.LoanStartDate;
@@ -366,16 +366,6 @@ function installStuckLoanReminderTrigger() {
   Logger.log('Stuck-loan reminder trigger installed (every 4 hours).');
 }
 
-// Mirrors index.html's isTestBatch() — a 'testbatch_' id marks a loan created
-// while the app's Test Mode was on (see TEST_MODE_OPERATORS there). The
-// client already hides these from the stuck-loan toast/email when Test Mode
-// is off; this trigger runs independently of any client's Test Mode state,
-// so without this same check a test scenario keeps emailing/pushing the
-// assigned AM for real every day until someone notices and cleans it up.
-function isTestBatch_(id) {
-  return !!id && id.indexOf('testbatch_') === 0;
-}
-
 function sendStuckLoanReminders() {
   const todayStr = today();
   const upcomingRaw = fetchFirebaseJson('/upcomingLoans.json') || {};
@@ -390,7 +380,7 @@ function sendStuckLoanReminders() {
   const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
 
   upcoming.filter(function(u) {
-    return u && !isTestBatch_(u.id) && u.startDate && u.startDate <= todayStr && u.items && u.items.length;
+    return u && u.startDate && u.startDate <= todayStr && u.items && u.items.length;
   }).forEach(function(u) {
     try {
       processStuckLoan(u, equipment, ams, todayStr);
