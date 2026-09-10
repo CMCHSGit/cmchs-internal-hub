@@ -237,10 +237,15 @@ function sendDemoReminders() {
   const raw = fetchFirebaseJson('/data/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
 
+  // NOTE: the notice window now depends on shipping island (see
+  // isStartingSoonBusinessDays()), and island lives on the loan's loanDoc,
+  // not on the equipment record — so the businessDays check can't happen
+  // here any more. Group first by future-dated on-loan equipment only
+  // (todayStr < LoanStartDate), then check each group's actual window once
+  // its loanDoc (and island) has been fetched below.
   const groups = {};
   items.filter(function(e) {
-    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate &&
-      isStartingSoonBusinessDays(todayStr, e.LoanStartDate);
+    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate && e.LoanStartDate > todayStr;
   }).forEach(function(e) {
     const key = e.OnLoanTo + '|||' + e.LoanStartDate;
     if (!groups[key]) groups[key] = { loanTo: e.OnLoanTo, startDate: e.LoanStartDate, batchId: e.BatchID || null, items: [] };
@@ -260,6 +265,9 @@ function sendDemoReminders() {
         Logger.log('Skipping non-demo job for ' + key + ' (' + jobType + ')');
         return;
       }
+      if (!isStartingSoonBusinessDays(todayStr, g.startDate, loanDoc.island)) {
+        return; // not yet within this loan's notice window
+      }
       sendDemoReminderInvite(g, loanDoc);
       putFirebaseJson('/demoReminders/' + encodeURIComponent(key) + '.json', { sentAt: new Date().toISOString() });
       Logger.log('Demo reminder sent for ' + g.loanTo + ' starting ' + g.startDate);
@@ -276,6 +284,7 @@ function sendDemoReminderInvite(g, loanDoc) {
   const descLines = ['Demo equipment loan starting for ' + g.loanTo];
   if (loanDoc.accountManager) descLines.push('Account Manager: ' + loanDoc.accountManager);
   if (loanDoc.location) descLines.push('Location: ' + loanDoc.location);
+  if (loanDoc.island) descLines.push('Shipping to: ' + (loanDoc.island === 'North' ? 'North Island' : 'South Island'));
   if (itemLines.length) descLines.push('', 'Items:', itemLines.join('\n'));
   const description = descLines.join('\n');
 
@@ -540,9 +549,16 @@ function testSendPushOnly() {
 
 // Mirrors the tracker's client-side isStartingSoon(): counts weekdays
 // between today and startDate (inclusive of startDate) so a Monday start
-// enters the notice window on the preceding Friday, not over the weekend.
-// Ported here to keep the two in lockstep — see index.html's isStartingSoon().
-function isStartingSoonBusinessDays(todayStr, startDateStr) {
+// enters the notice window on the preceding Wednesday (North Island) or the
+// preceding Monday (South Island), not over the weekend. Ported here to
+// keep the two in lockstep — see index.html's isStartingSoon().
+//
+// North Island ships in 3 business days; South Island needs a full business
+// week (5 days) for the extra inter-island freight time, so shipping isn't
+// caught out. Missing/unrecognized island (a loan created before this field
+// existed) defaults to the longer, safer South Island window rather than
+// risk under-notifying.
+function isStartingSoonBusinessDays(todayStr, startDateStr, island) {
   if (!startDateStr || startDateStr <= todayStr) return false; // no advance notice for same-day/past starts
   let businessDays = 0;
   let cur = todayStr;
@@ -553,7 +569,8 @@ function isStartingSoonBusinessDays(todayStr, startDateStr) {
     const dow = next.getUTCDay();
     if (dow !== 0 && dow !== 6) businessDays++;
   }
-  return businessDays <= 2;
+  const maxBusinessDays = island === 'North' ? 3 : 5;
+  return businessDays <= maxBusinessDays;
 }
 
 function addDaysICS(yyyymmdd, days) {
