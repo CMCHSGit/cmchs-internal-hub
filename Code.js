@@ -236,6 +236,9 @@ function sendDemoReminders() {
   // written. Fixed 2026-08-14.
   const raw = fetchFirebaseJson('/data/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
+  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
+  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const serviceTeam = ams.filter(function(a) { return a && amEffectiveRole_(a) === 'service'; });
 
   // NOTE: the notice window now depends on shipping island (see
   // isStartingSoonBusinessDays()), and island lives on the loan's loanDoc,
@@ -269,6 +272,7 @@ function sendDemoReminders() {
         return; // not yet within this loan's notice window
       }
       sendDemoReminderInvite(g, loanDoc);
+      sendDemoReminderPush(g, loanDoc, serviceTeam);
       putFirebaseJson('/demoReminders/' + encodeURIComponent(key) + '.json', { sentAt: new Date().toISOString() });
       Logger.log('Demo reminder sent for ' + g.loanTo + ' starting ' + g.startDate);
     } catch (err) {
@@ -305,6 +309,32 @@ function sendDemoReminderInvite(g, loanDoc) {
     subject: 'Upcoming Demo: ' + g.loanTo + ' — starts ' + fmtDate(g.startDate),
     body: description,
     attachments: [icsBlob]
+  });
+}
+
+// Mirrors index.html's SERVICE_TEAM_OPERATORS/amEffectiveRole() so "who
+// counts as Service & Projects" is the same list on both sides — a
+// person's role is an explicit field on their accountManagers record (set
+// via the mobile app's "Manage team roles" sheet), falling back to this
+// hardcoded list for anyone who hasn't had a role set yet.
+const SERVICE_TEAM_OPERATORS = ['Peter Lin', 'Jonathan Nasrun'];
+function amEffectiveRole_(am) {
+  return am.role || (SERVICE_TEAM_OPERATORS.includes(am.name) ? 'service' : 'am');
+}
+
+// Push notification twin of sendDemoReminderInvite() — same event, same
+// dedup gate (the caller only reaches here once per loan/day), but to the
+// Service & Projects team's phones instead of the fixed DEMO_REMINDER_RECIPIENTS
+// email list, since they're the ones actually testing/dispatching the gear.
+function sendDemoReminderPush(g, loanDoc, serviceTeam) {
+  if (!serviceTeam || !serviceTeam.length) return;
+  const islandNote = loanDoc.island ? (loanDoc.island === 'North' ? ' (North Island)' : ' (South Island)') : '';
+  const title = 'Upcoming demo: ' + g.loanTo;
+  const body = 'Starts ' + fmtDate(g.startDate) + islandNote + (loanDoc.location ? ' — ' + loanDoc.location : '') +
+    ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : '');
+  serviceTeam.forEach(function(am) {
+    try { sendPushToPerson_(am, title, body, TRACKER_URL + '?mobile=1'); }
+    catch (err) { Logger.log('Demo reminder push failed for ' + am.name + ': ' + err); }
   });
 }
 
