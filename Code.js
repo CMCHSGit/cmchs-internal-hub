@@ -19,10 +19,13 @@
  * DEMO REMINDER SETUP (one-off, run manually from the Apps Script editor):
  *   Run the installDemoReminderTrigger() function once to install a daily
  *   time-driven trigger. It emails an .ics calendar invite (Outlook/Gmail/
- *   Apple Calendar all recognise it) to DEMO_REMINDER_RECIPIENTS as soon as
- *   a Demo-type loan enters its 2-business-day notice window — mirrors the
- *   tracker's own isStartingSoon() so a Monday start notifies Friday, not
- *   mid-weekend.
+ *   Apple Calendar all recognise it) to DEMO_REMINDER_RECIPIENTS, and pushes
+ *   to every Service & Projects team member's phone, as soon as a Demo-type
+ *   loan enters its notice window — North Island gets 3 business days,
+ *   South Island a full business week (5), to cover the extra inter-island
+ *   freight time (see isStartingSoonBusinessDays()). Mirrors the tracker's
+ *   own isStartingSoon() so a Monday start notifies Wednesday (North) or
+ *   the preceding Monday (South), not mid-weekend.
  *
  * STUCK-LOAN REMINDER SETUP (one-off, run manually from the Apps Script editor):
  *   Run the installStuckLoanReminderTrigger() function once to install a
@@ -33,6 +36,19 @@
  *   modal for that booking. This is the AM-driven replacement for the old
  *   same-batch auto-transfer (which used to move equipment automatically,
  *   client-side, with no server component at all).
+ *
+ * RETURN REMINDER SETUP (one-off, run manually from the Apps Script editor):
+ *   Run the installReturnReminderTrigger() function once to install a daily
+ *   time-driven trigger covering the OTHER end of a loan — its due-back
+ *   date, which previously had no reminder at all going out (due-soon) or
+ *   only an unreliable client-side one that depended on someone having the
+ *   app open at the right moment (overdue, see the now-retired
+ *   checkOverdueNotifications() in index.html). It emails and pushes the
+ *   responsible Account Manager (and pushes Service & Projects) once a
+ *   loan enters the same island-aware notice window as the outbound demo
+ *   reminder — South Island gear needs just as much runway to ship BACK in
+ *   time — then, if it's still not returned once actually overdue, emails
+ *   and pushes the AM again every 7 days for as long as it stays overdue.
  *
  * PUSH NOTIFICATIONS SETUP (one-off, required before sendPushToPerson_()
  * does anything — see getFcmAccessToken_() below for why a service account
@@ -482,6 +498,151 @@ function sendStuckLoanEmail(u, blocked, am) {
     subject: 'Action needed: ' + u.loanTo + ' is waiting on equipment',
     body: body
   });
+}
+
+// ── Return reminders — due-soon + overdue, both keyed off a loan's END date ────
+// Two related nudges that previously didn't reliably exist:
+//  - "due soon" reuses the exact same island-aware business-day window as
+//    sendDemoReminders() (see isStartingSoonBusinessDays()), just applied to
+//    LoanEndDate instead of LoanStartDate — South Island equipment needs
+//    just as much runway to ship BACK in time as it does to ship out, and
+//    this is the only place the return leg gets any advance warning at all.
+//    Applies to every loan (not just Demo jobs — getting gear back matters
+//    regardless of what it went out for), and fires once per loan/end-date.
+//  - "overdue" replaces index.html's old checkOverdueNotifications(), which
+//    ran entirely client-side — once, in a page-load setTimeout — and only
+//    actually sent anything if someone happened to have the app open on a
+//    Monday morning NZ time. Most weeks, if nobody's tab was open at that
+//    exact moment, nothing went out at all. This runs on a real daily
+//    trigger regardless of who has the app open, and now pushes to the
+//    AM's phone as well as emailing them — then repeats every 7 days for as
+//    long as the loan stays unreturned.
+function installReturnReminderTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'sendReturnReminders') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendReturnReminders')
+    .timeBased()
+    .everyDays(1)
+    .atHour(8)
+    .inTimezone('Pacific/Auckland')
+    .create();
+  Logger.log('Daily return-reminder trigger installed (8am NZ time).');
+}
+
+function sendReturnReminders() {
+  const todayStr = today();
+  const raw = fetchFirebaseJson('/data/equipment.json') || {};
+  const items = Array.isArray(raw) ? raw : Object.values(raw);
+  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
+  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const serviceTeam = ams.filter(function(a) { return a && amEffectiveRole_(a) === 'service'; });
+
+  // Test loans (BatchID prefixed "testbatch_" — see index.html's
+  // isTestBatch()) never get real reminders, same as the tracker itself
+  // hides them from view outside test mode.
+  const groups = {};
+  items.filter(function(e) {
+    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanEndDate &&
+      !(e.BatchID && e.BatchID.indexOf('testbatch_') === 0);
+  }).forEach(function(e) {
+    const key = e.OnLoanTo + '|||' + e.LoanEndDate;
+    if (!groups[key]) groups[key] = { loanTo: e.OnLoanTo, endDate: e.LoanEndDate, batchId: e.BatchID || null, items: [] };
+    groups[key].items.push(e);
+  });
+
+  Object.keys(groups).forEach(function(key) {
+    const g = groups[key];
+    try {
+      const loanDoc = g.batchId ? (fetchFirebaseJson('/loanDocs/' + encodeURIComponent(g.batchId) + '.json') || {}) : {};
+      const am = loanDoc.accountManager ? ams.find(function(a) { return a && a.name === loanDoc.accountManager; }) : null;
+
+      if (g.endDate < todayStr) {
+        sendOverdueReminder_(g, am, todayStr, key);
+      } else {
+        sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key);
+      }
+    } catch (err) {
+      Logger.log('Return reminder failed for ' + key + ': ' + err);
+    }
+  });
+}
+
+function sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key) {
+  if (!isStartingSoonBusinessDays(todayStr, g.endDate, loanDoc.island)) return; // not in the window yet
+  const dedupPath = '/returnDueSoonReminders/' + encodeURIComponent(key) + '.json';
+  if (fetchFirebaseJson(dedupPath)) return; // already sent once for this loan/end-date
+
+  const itemLines = g.items.map(function(i) { return '- ' + (i.Model || i.Description || i.CHSAssetNo || ''); });
+  const islandNote = loanDoc.island ? (loanDoc.island === 'North' ? ' (North Island)' : ' (South Island)') : '';
+  const link = TRACKER_URL + '?return=' + loanReturnToken_(g.loanTo, g.endDate);
+
+  if (am && am.email) {
+    const body = [
+      'Hi ' + (am.name || '') + ',',
+      '',
+      g.loanTo + '\'s loan is due back ' + fmtDate(g.endDate) + islandNote + ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : '') + ':',
+      '',
+      itemLines.join('\n'),
+      '',
+      'Tap below once it\'s back, or to arrange an extension instead:',
+      link,
+      '',
+      '— CHS Equipment Tracker'
+    ].join('\n');
+    MailApp.sendEmail({ to: am.email, subject: 'Due back soon: ' + g.loanTo + ' — ' + fmtDate(g.endDate), body: body });
+    try { sendPushToPerson_(am, 'Due back soon: ' + g.loanTo, g.items.length + ' item' + (g.items.length !== 1 ? 's' : '') + ' due ' + fmtDate(g.endDate) + islandNote, link); }
+    catch (err) { Logger.log('Return-due-soon push failed for ' + am.name + ': ' + err); }
+  } else {
+    Logger.log('Return-due-soon: no AM email on file for ' + g.loanTo + ' — email skipped, still notifying service team');
+  }
+  serviceTeam.forEach(function(svcAm) {
+    try {
+      sendPushToPerson_(svcAm, 'Return due soon: ' + g.loanTo,
+        'Due ' + fmtDate(g.endDate) + islandNote + (loanDoc.location ? ' — ' + loanDoc.location : '') + ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : ''),
+        TRACKER_URL + '?mobile=1');
+    } catch (err) { Logger.log('Return-due-soon push failed for ' + svcAm.name + ': ' + err); }
+  });
+  putFirebaseJson(dedupPath, { sentAt: new Date().toISOString() });
+  Logger.log('Return-due-soon reminder sent for ' + g.loanTo + ' due ' + g.endDate);
+}
+
+function sendOverdueReminder_(g, am, todayStr, key) {
+  if (!am || !am.email) { Logger.log('Overdue loan for ' + g.loanTo + ' has no AM email on file — skipping'); return; }
+  const dedupPath = '/overdueReminders/' + encodeURIComponent(key) + '.json';
+  const prior = fetchFirebaseJson(dedupPath);
+  if (prior && prior.sentAt) {
+    const daysSince = Math.floor((new Date(todayStr + 'T00:00:00Z') - new Date(prior.sentAt)) / 86400000);
+    if (daysSince < 7) { Logger.log('Overdue reminder for ' + g.loanTo + ' sent ' + daysSince + 'd ago — not due for a repeat yet'); return; }
+  }
+
+  const itemLines = g.items.map(function(i) { return '- ' + (i.CHSAssetNo || '') + ' — ' + (i.Model || '') + (i.SerialNo ? ' (SN: ' + i.SerialNo + ')' : ''); });
+  const link = TRACKER_URL + '?return=' + loanReturnToken_(g.loanTo, g.endDate);
+  const body = [
+    'Hi ' + (am.name || '') + ',',
+    '',
+    g.loanTo + '\'s loan was due back ' + fmtDate(g.endDate) + ' and is now overdue:',
+    '',
+    itemLines.join('\n'),
+    '',
+    'Tap below to return it, or to arrange an extension instead:',
+    link,
+    '',
+    '— CHS Equipment Tracker'
+  ].join('\n');
+  MailApp.sendEmail({ to: am.email, subject: 'Overdue: ' + g.loanTo + ' was due ' + fmtDate(g.endDate), body: body });
+  try { sendPushToPerson_(am, 'Overdue: ' + g.loanTo, g.items.length + ' item' + (g.items.length !== 1 ? 's' : '') + ' overdue since ' + fmtDate(g.endDate), link); }
+  catch (err) { Logger.log('Overdue push failed for ' + am.name + ': ' + err); }
+  putFirebaseJson(dedupPath, { sentAt: new Date().toISOString() });
+  Logger.log('Overdue reminder sent for ' + g.loanTo + ' (was due ' + g.endDate + ')');
+}
+
+// Mirrors index.html's client-side loanReturnToken() (both are plain
+// base64 of the same ASCII-safe encodeURIComponent string) so a link
+// emailed/pushed from here opens the tracker into the exact same
+// return/extend deep link handleReturnLink() already knows how to read.
+function loanReturnToken_(loanTo, endDate) {
+  return Utilities.base64Encode(encodeURIComponent(loanTo + '|||' + endDate)).replace(/=/g, '');
 }
 
 // ── Push notifications (Firebase Cloud Messaging) ───────────────────────
