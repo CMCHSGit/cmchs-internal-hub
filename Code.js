@@ -723,31 +723,34 @@ function sendPushToPerson_(am, title, body, url) {
 }
 
 // ── Manual test push ─────────────────────────────────────────────────────
-// Desktop Settings' and mobile More's password-gated "Test notifications"
-// panel calls this (via the same proxy every Simpro job request already
-// uses, with action:'testPush' instead of a jobId) so someone can confirm
-// delivery/wording/tap-through on a real device without waiting for a real
-// trigger to fire or faking loan data. Re-checks the admin password against
-// Firebase itself — the client's own password gate only decides whether to
-// show the panel; this is what actually stops anyone who finds this proxy
-// URL from pushing to someone else's phone. The client fetches this proxy
-// with mode:'no-cors' (same as every other call here), so this response
-// body is never actually read — it only shows up in the Executions log.
+// Desktop Settings' and mobile More's "Test notifications" panel — visible
+// only to Service & Projects — calls this (via the same proxy every Simpro
+// job request already uses, with action:'testPush' instead of a jobId) so
+// someone can confirm delivery/wording/tap-through on a real device without
+// waiting for a real trigger to fire or faking loan data. Re-checks that the
+// sender is actually Service & Projects against Firebase itself (by
+// requesterName — currentOperator/_mp.name on the client, whichever person
+// is signed in on that device) rather than trusting the client's own role
+// check — the client's check only decides whether to show the panel; this
+// is what actually stops anyone who finds this proxy URL from pushing to
+// someone else's phone. The client fetches this proxy with mode:'no-cors'
+// (same as every other call here), so this response body is never actually
+// read — it only shows up in the Executions log.
 function sendTestPush_(payload) {
-  const config = fetchFirebaseJson('/config.json') || {};
-  if (!payload.adminPassword || payload.adminPassword !== config.adminPassword) {
-    Logger.log('sendTestPush_: incorrect admin password');
-    return respond({ success: false, error: 'Incorrect admin password' });
-  }
   const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
   const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const requester = ams.find(function(a) { return a && a.name === payload.requesterName; });
+  if (!requester || amEffectiveRole_(requester) !== 'service') {
+    Logger.log('sendTestPush_: rejected — requester is not Service & Projects: ' + payload.requesterName);
+    return respond({ success: false, error: 'Only Service & Projects can send test notifications.' });
+  }
   const am = ams.find(function(a) { return a && a.name === payload.amName; });
   if (!am) return respond({ success: false, error: 'Account manager not found: ' + payload.amName });
   if (!Array.isArray(am.fcmTokens) || !am.fcmTokens.length) {
     return respond({ success: false, error: am.name + ' has no registered device — they need to tap "Enable push notifications" first.' });
   }
   sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1');
-  Logger.log('Test push sent to ' + am.name + ' (' + am.fcmTokens.length + ' device(s))');
+  Logger.log('Test push sent to ' + am.name + ' (' + am.fcmTokens.length + ' device(s)), requested by ' + requester.name);
   return respond({ success: true, sentTo: am.name, deviceCount: am.fcmTokens.length });
 }
 
