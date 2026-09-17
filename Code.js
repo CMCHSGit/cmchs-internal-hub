@@ -697,12 +697,16 @@ function getFcmAccessToken_() {
 // webpush.fcm_options.link — the latter is only honoured by Firebase's own
 // default background-message handler, which this app doesn't use (sw.js
 // has its own push/notificationclick listeners instead), so it would
-// silently do nothing here.
+// silently do nothing here. Returns a per-token result array — every real
+// reminder caller ignores it (same as when this returned nothing), but
+// sendTestPush_() surfaces it in its response so a test send can show
+// exactly which of a person's devices actually accepted the push, without
+// needing Cloud Logging wired up to read the alternative (Logger.log).
 function sendPushToPerson_(am, title, body, url) {
-  if (!am || !Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return;
+  if (!am || !Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return [];
   const auth = getFcmAccessToken_();
-  if (!auth) return;
-  am.fcmTokens.forEach(function(token) {
+  if (!auth) return [];
+  return am.fcmTokens.map(function(token) {
     try {
       const resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + auth.projectId + '/messages:send', {
         method: 'post',
@@ -711,13 +715,13 @@ function sendPushToPerson_(am, title, body, url) {
         payload: JSON.stringify({ message: { token: token, notification: { title: title, body: body }, data: { url: url } } }),
         muteHttpExceptions: true
       });
-      if (resp.getResponseCode() >= 300) {
-        Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + resp.getContentText());
-      } else {
-        Logger.log('FCM send OK for token ' + token.slice(0, 12) + '...');
-      }
+      const ok = resp.getResponseCode() < 300;
+      if (ok) Logger.log('FCM send OK for token ' + token.slice(0, 12) + '...');
+      else Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + resp.getContentText());
+      return { token: token.slice(0, 12) + '...', ok: ok, detail: ok ? null : resp.getContentText() };
     } catch (err) {
       Logger.log('FCM send error: ' + err);
+      return { token: token.slice(0, 12) + '...', ok: false, detail: String(err) };
     }
   });
 }
@@ -749,9 +753,9 @@ function sendTestPush_(payload) {
   if (!Array.isArray(am.fcmTokens) || !am.fcmTokens.length) {
     return respond({ success: false, error: am.name + ' has no registered device — they need to tap "Enable push notifications" first.' });
   }
-  sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1');
+  const results = sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1');
   Logger.log('Test push sent to ' + am.name + ' (' + am.fcmTokens.length + ' device(s)), requested by ' + requester.name);
-  return respond({ success: true, sentTo: am.name, deviceCount: am.fcmTokens.length });
+  return respond({ success: true, sentTo: am.name, deviceCount: am.fcmTokens.length, results: results });
 }
 
 // TEMPORARY TEST HELPER — run manually from the Apps Script editor (select
