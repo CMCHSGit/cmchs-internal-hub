@@ -706,7 +706,8 @@ function sendPushToPerson_(am, title, body, url) {
   if (!am || !Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return [];
   const auth = getFcmAccessToken_();
   if (!auth) return [];
-  return am.fcmTokens.map(function(token) {
+  const deadTokens = [];
+  const results = am.fcmTokens.map(function(token) {
     try {
       const resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + auth.projectId + '/messages:send', {
         method: 'post',
@@ -716,14 +717,45 @@ function sendPushToPerson_(am, title, body, url) {
         muteHttpExceptions: true
       });
       const ok = resp.getResponseCode() < 300;
-      if (ok) Logger.log('FCM send OK for token ' + token.slice(0, 12) + '...');
-      else Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + resp.getContentText());
-      return { token: token.slice(0, 12) + '...', ok: ok, detail: ok ? null : resp.getContentText() };
+      const detail = ok ? null : resp.getContentText();
+      if (ok) {
+        Logger.log('FCM send OK for token ' + token.slice(0, 12) + '...');
+      } else {
+        Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + detail);
+        // FCM reports this for a token whose push subscription no longer
+        // exists at all (uninstalled, site data cleared, or — the common
+        // case here — a token registered under an origin that no longer
+        // exists, e.g. the pre-HTTPS http:// tokens). It will never
+        // succeed again, so prune it rather than retrying it forever.
+        if (detail.indexOf('UNREGISTERED') !== -1 || detail.indexOf('NotRegistered') !== -1) deadTokens.push(token);
+      }
+      return { token: token.slice(0, 12) + '...', ok: ok, detail: detail };
     } catch (err) {
       Logger.log('FCM send error: ' + err);
       return { token: token.slice(0, 12) + '...', ok: false, detail: String(err) };
     }
   });
+  if (deadTokens.length) pruneDeadTokens_(am.name, deadTokens);
+  return results;
+}
+
+// fcmTokens only ever grows client-side (mpEnablePush() appends, never
+// removes — see index.html), so a dead token would otherwise sit there
+// forever, retried on every future reminder. Re-fetches accountManagers
+// fresh rather than trusting whatever the caller already had in memory
+// (which may be minutes stale inside a long-running trigger run), and
+// writes back only this person's fcmTokens path so a concurrent edit
+// elsewhere in accountManagers.json isn't clobbered.
+function pruneDeadTokens_(amName, deadTokens) {
+  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
+  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const idx = ams.findIndex(function(a) { return a && a.name === amName; });
+  if (idx === -1) return;
+  const current = Array.isArray(ams[idx].fcmTokens) ? ams[idx].fcmTokens : [];
+  const pruned = current.filter(function(t) { return deadTokens.indexOf(t) === -1; });
+  if (pruned.length === current.length) return;
+  putFirebaseJson('/accountManagers/' + idx + '/fcmTokens.json', pruned);
+  Logger.log('Pruned ' + (current.length - pruned.length) + ' dead FCM token(s) for ' + amName);
 }
 
 // ── Manual test push ─────────────────────────────────────────────────────
