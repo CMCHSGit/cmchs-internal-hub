@@ -40,15 +40,26 @@
  * RETURN REMINDER SETUP (one-off, run manually from the Apps Script editor):
  *   Run the installReturnReminderTrigger() function once to install a daily
  *   time-driven trigger covering the OTHER end of a loan — its due-back
- *   date, which previously had no reminder at all going out (due-soon) or
- *   only an unreliable client-side one that depended on someone having the
- *   app open at the right moment (overdue, see the now-retired
- *   checkOverdueNotifications() in index.html). It emails and pushes the
- *   responsible Account Manager (and pushes Service & Projects) once a
- *   loan enters the same island-aware notice window as the outbound demo
- *   reminder — South Island gear needs just as much runway to ship BACK in
- *   time — then, if it's still not returned once actually overdue, emails
- *   and pushes the AM again every 7 days for as long as it stays overdue.
+ *   date, which previously had no reminder at all going out. It emails and
+ *   pushes the responsible Account Manager (and pushes Service & Projects)
+ *   once a loan enters the same island-aware notice window as the outbound
+ *   demo reminder — South Island gear needs just as much runway to ship
+ *   BACK in time. Repeating overdue emails/pushes (fired daily, every 7
+ *   days once past the due date) were removed 2026-09-23 — the due-back
+ *   date now gets an Outlook/Gmail/Apple Calendar invite of its own instead
+ *   (see RETURN CALENDAR INVITE below), which gives the AM a standing
+ *   reminder on their own calendar rather than a growing pile of emails.
+ *
+ * RETURN CALENDAR INVITE (no setup needed — fires automatically):
+ *   Every new loan gets an .ics invite for its due-back date the moment
+ *   it's created (see index.html's sendReturnCalendarInvite(), called from
+ *   submitBatchLoan()'s doLoan()), via a new action:'returnInvite' branch
+ *   on the same proxy endpoint every Simpro job request already uses — no
+ *   separate trigger to install. sendReturnCalendarInvite_() below emails
+ *   the responsible Account Manager an all-day event on the due date, with
+ *   an island-aware VALARM: North Island gets a few days' reminder lead
+ *   time, South Island a full week, mirroring the outbound demo reminder's
+ *   shipping-time rationale (isStartingSoonBusinessDays()).
  *
  * PUSH NOTIFICATIONS SETUP (one-off, required before sendPushToPerson_()
  * does anything — see getFcmAccessToken_() below for why a service account
@@ -126,6 +137,9 @@ function handlePayload(payload) {
   // notifications) isn't a Simpro job action at all, so it's dispatched
   // before anything below ever looks at jobId.
   if (payload.action === 'testPush') return sendTestPush_(payload);
+
+  // New-loan due-back calendar invite — see sendReturnCalendarInvite_() below.
+  if (payload.action === 'returnInvite') return sendReturnCalendarInvite_(payload);
 
   // jobId may be a pending-placeholder object { status:'pending', ts:... }
   // from the tracker's duplicate guard — treat that the same as no jobId
@@ -314,14 +328,16 @@ function sendDemoReminderInvite(g, loanDoc) {
   const description = descLines.join('\n');
 
   const uid = 'demo-' + g.loanTo.replace(/[^a-zA-Z0-9]/g, '') + '-' + g.startDate + '@chsnz.co.nz';
-  const ics = buildDemoICS({
+  const ics = buildICS({
     uid: uid,
     summary: 'Demo starting: ' + g.loanTo,
     description: description,
     location: loanDoc.location || '',
     dateStr: g.startDate,
     attendees: DEMO_REMINDER_RECIPIENTS,
-    organizerEmail: Session.getEffectiveUser().getEmail()
+    organizerEmail: Session.getEffectiveUser().getEmail(),
+    alarmDays: 2,
+    alarmDescription: 'Demo reminder'
   });
   const icsBlob = Utilities.newBlob(ics, 'text/calendar; charset=UTF-8; method=REQUEST', 'invite.ics');
 
@@ -359,7 +375,11 @@ function sendDemoReminderPush(g, loanDoc, serviceTeam) {
   });
 }
 
-function buildDemoICS(o) {
+// Shared by sendDemoReminderInvite() (outbound, fixed 2-day VALARM) and
+// sendReturnCalendarInvite_() (due-back, island-aware VALARM) — same
+// all-day-event .ics shape either way, just a different reminder offset
+// and description on the alarm.
+function buildICS(o) {
   const dt = o.dateStr.replace(/-/g, '');
   const dtEnd = addDaysICS(dt, 1);
   const now = Utilities.formatDate(new Date(), 'Etc/UTC', "yyyyMMdd'T'HHmmss'Z'");
@@ -369,7 +389,7 @@ function buildDemoICS(o) {
 
   return [
     'BEGIN:VCALENDAR',
-    'PRODID:-//CHS Equipment Tracker//Demo Reminders//EN',
+    'PRODID:-//CHS Equipment Tracker//Reminders//EN',
     'VERSION:2.0',
     'CALSCALE:GREGORIAN',
     'METHOD:REQUEST',
@@ -387,8 +407,8 @@ function buildDemoICS(o) {
     'SEQUENCE:0',
     'BEGIN:VALARM',
     'ACTION:DISPLAY',
-    'DESCRIPTION:Demo reminder',
-    'TRIGGER:-P2D',
+    'DESCRIPTION:' + icsEscape(o.alarmDescription || 'Reminder'),
+    'TRIGGER:-P' + (o.alarmDays != null ? o.alarmDays : 2) + 'D',
     'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR'
@@ -505,23 +525,21 @@ function sendStuckLoanEmail(u, blocked, am) {
   });
 }
 
-// ── Return reminders — due-soon + overdue, both keyed off a loan's END date ────
-// Two related nudges that previously didn't reliably exist:
-//  - "due soon" reuses the exact same island-aware business-day window as
-//    sendDemoReminders() (see isStartingSoonBusinessDays()), just applied to
-//    LoanEndDate instead of LoanStartDate — South Island equipment needs
-//    just as much runway to ship BACK in time as it does to ship out, and
-//    this is the only place the return leg gets any advance warning at all.
-//    Applies to every loan (not just Demo jobs — getting gear back matters
-//    regardless of what it went out for), and fires once per loan/end-date.
-//  - "overdue" replaces index.html's old checkOverdueNotifications(), which
-//    ran entirely client-side — once, in a page-load setTimeout — and only
-//    actually sent anything if someone happened to have the app open on a
-//    Monday morning NZ time. Most weeks, if nobody's tab was open at that
-//    exact moment, nothing went out at all. This runs on a real daily
-//    trigger regardless of who has the app open, and now pushes to the
-//    AM's phone as well as emailing them — then repeats every 7 days for as
-//    long as the loan stays unreturned.
+// ── Return reminders — due-soon, keyed off a loan's END date ───────────────────
+// Reuses the exact same island-aware business-day window as
+// sendDemoReminders() (see isStartingSoonBusinessDays()), just applied to
+// LoanEndDate instead of LoanStartDate — South Island equipment needs just
+// as much runway to ship BACK in time as it does to ship out. Applies to
+// every loan (not just Demo jobs — getting gear back matters regardless of
+// what it went out for), and fires once per loan/end-date.
+//
+// This used to also repeat an "overdue" email/push every 7 days once a loan
+// passed its due date (replacing index.html's old client-side
+// checkOverdueNotifications()) — removed 2026-09-23 in favour of the
+// due-back .ics calendar invite every new loan now gets at creation time
+// (see sendReturnCalendarInvite_() and RETURN CALENDAR INVITE at the top of
+// this file), which puts a standing reminder on the AM's own calendar
+// instead of a growing pile of overdue emails.
 function installReturnReminderTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'sendReturnReminders') ScriptApp.deleteTrigger(t);
@@ -559,14 +577,10 @@ function sendReturnReminders() {
   Object.keys(groups).forEach(function(key) {
     const g = groups[key];
     try {
+      if (g.endDate < todayStr) return; // overdue emails removed — see the comment above installReturnReminderTrigger()
       const loanDoc = g.batchId ? (fetchFirebaseJson('/loanDocs/' + encodeURIComponent(g.batchId) + '.json') || {}) : {};
       const am = loanDoc.accountManager ? ams.find(function(a) { return a && a.name === loanDoc.accountManager; }) : null;
-
-      if (g.endDate < todayStr) {
-        sendOverdueReminder_(g, am, todayStr, key);
-      } else {
-        sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key);
-      }
+      sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key);
     } catch (err) {
       Logger.log('Return reminder failed for ' + key + ': ' + err);
     }
@@ -612,34 +626,59 @@ function sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key) 
   Logger.log('Return-due-soon reminder sent for ' + g.loanTo + ' due ' + g.endDate);
 }
 
-function sendOverdueReminder_(g, am, todayStr, key) {
-  if (!am || !am.email) { Logger.log('Overdue loan for ' + g.loanTo + ' has no AM email on file — skipping'); return; }
-  const dedupPath = '/overdueReminders/' + encodeURIComponent(key) + '.json';
-  const prior = fetchFirebaseJson(dedupPath);
-  if (prior && prior.sentAt) {
-    const daysSince = Math.floor((new Date(todayStr + 'T00:00:00Z') - new Date(prior.sentAt)) / 86400000);
-    if (daysSince < 7) { Logger.log('Overdue reminder for ' + g.loanTo + ' sent ' + daysSince + 'd ago — not due for a repeat yet'); return; }
+// ── Return calendar invite — fired once, immediately, when a loan is created ───
+// Called via action:'returnInvite' from index.html's sendReturnCalendarInvite()
+// (see doLoan() in submitBatchLoan()) rather than on a schedule — every new
+// loan gets this the moment it's confirmed, not on the next daily trigger
+// run. Emails the responsible Account Manager an all-day .ics event (Outlook/
+// Gmail/Apple Calendar all recognise it, same as the outbound demo invite)
+// for the loan's due-back date, with a VALARM reminder ahead of it: North
+// Island gets a few days' notice, South Island a full week, since South
+// Island gear needs the extra runway to ship back in time — same rationale
+// as isStartingSoonBusinessDays()'s 3-vs-5-business-day outbound window,
+// just expressed as a flat day count since a calendar app's reminder can't
+// skip weekends the way that business-day check does.
+function sendReturnCalendarInvite_(payload) {
+  const loanTo = payload.loanTo || '';
+  const endDate = payload.endDate || '';
+  const amEmail = payload.amEmail || '';
+  if (!loanTo || !endDate || !amEmail) {
+    Logger.log('Return invite skipped — missing loanTo/endDate/amEmail: ' + JSON.stringify(payload));
+    return respond({ success: false, error: 'missing loanTo/endDate/amEmail' });
   }
 
-  const itemLines = g.items.map(function(i) { return '- ' + (i.CHSAssetNo || '') + ' — ' + (i.Model || '') + (i.SerialNo ? ' (SN: ' + i.SerialNo + ')' : ''); });
-  const link = TRACKER_URL + '?return=' + loanReturnToken_(g.loanTo, g.endDate);
-  const body = [
-    'Hi ' + (am.name || '') + ',',
-    '',
-    g.loanTo + '\'s loan was due back ' + fmtDate(g.endDate) + ' and is now overdue:',
-    '',
-    itemLines.join('\n'),
-    '',
-    'Tap below to return it, or to arrange an extension instead:',
-    link,
-    '',
-    '— CHS Equipment Tracker'
-  ].join('\n');
-  MailApp.sendEmail({ to: am.email, subject: 'Overdue: ' + g.loanTo + ' was due ' + fmtDate(g.endDate), body: body });
-  try { sendPushToPerson_(am, 'Overdue: ' + g.loanTo, g.items.length + ' item' + (g.items.length !== 1 ? 's' : '') + ' overdue since ' + fmtDate(g.endDate), link); }
-  catch (err) { Logger.log('Overdue push failed for ' + am.name + ': ' + err); }
-  putFirebaseJson(dedupPath, { sentAt: new Date().toISOString() });
-  Logger.log('Overdue reminder sent for ' + g.loanTo + ' (was due ' + g.endDate + ')');
+  const island = payload.island === 'North' ? 'North' : (payload.island === 'South' ? 'South' : '');
+  const itemLines = (payload.items || []).map(function(i) { return '- ' + (i.Model || i.Description || i.CHSAssetNo || ''); });
+  const descLines = [loanTo + '\'s loan is due back today.'];
+  if (payload.accountManager) descLines.push('Account Manager: ' + payload.accountManager);
+  if (payload.location) descLines.push('Location: ' + payload.location);
+  if (island) descLines.push('Shipping from: ' + island + ' Island');
+  if (itemLines.length) descLines.push('', 'Items:', itemLines.join('\n'));
+  const description = descLines.join('\n');
+
+  const alarmDays = island === 'North' ? 3 : 7;
+  const uid = 'return-' + loanTo.replace(/[^a-zA-Z0-9]/g, '') + '-' + endDate + '@chsnz.co.nz';
+  const ics = buildICS({
+    uid: uid,
+    summary: 'Return due: ' + loanTo,
+    description: description,
+    location: payload.location || '',
+    dateStr: endDate,
+    attendees: [amEmail],
+    organizerEmail: Session.getEffectiveUser().getEmail(),
+    alarmDays: alarmDays,
+    alarmDescription: 'Equipment return reminder'
+  });
+  const icsBlob = Utilities.newBlob(ics, 'text/calendar; charset=UTF-8; method=REQUEST', 'invite.ics');
+
+  MailApp.sendEmail({
+    to: amEmail,
+    subject: 'Return due: ' + loanTo + ' — ' + fmtDate(endDate),
+    body: description,
+    attachments: [icsBlob]
+  });
+  Logger.log('Return calendar invite sent to ' + amEmail + ' for ' + loanTo + ' due ' + endDate + ' (' + alarmDays + '-day reminder)');
+  return respond({ success: true, action: 'returnInvite' });
 }
 
 // Mirrors index.html's client-side loanReturnToken() (both are plain
