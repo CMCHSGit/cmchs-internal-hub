@@ -73,6 +73,17 @@
  *               as-is (one line is fine, Apps Script doesn't care).
  *      Never paste that key into this source file — it's a private
  *      credential and this file lives in a shared git repo.
+ *
+ * SIMPRO JOB CREATION WIND-DOWN:
+ *   New jobs are no longer created by default — see the /simproConfig.json
+ *   read in handlePayload()'s create branch below. The tracker's Settings →
+ *   Simpro Job Health toggle writes {createJobs, windDownFrom, changedBy,
+ *   changedAt} to that path; this proxy reads it live on every create
+ *   request rather than trusting a client-side flag, so an already-open tab
+ *   or installed PWA running old JS is refused too, not just fresh page
+ *   loads. Updating and closing existing jobs are untouched — those are
+ *   separate branches above and must keep working until every outstanding
+ *   job has been closed out.
  */
 
 // ── Configuration ─────────────────────────────────────────────────────────────
@@ -84,6 +95,15 @@ const SIMPRO_CUSTOMER = 2027;
 const SIMPRO_COST_CTR = 15;
 
 const DEMO_REMINDER_RECIPIENTS = ['jonathan@cass.co.nz', 'peter@cass.co.nz'];
+
+// ICS ORGANIZER field for both calendar invites below. Session.getEffectiveUser()
+// throws ("You do not have permission to call Session.getEffectiveUser")
+// when this web app is invoked anonymously under "Execute as: Me, Anyone
+// has access" — the ORGANIZER line is cosmetic (calendar clients don't
+// validate deliverability of it), so a fixed address sidesteps the
+// restriction entirely instead of depending on a scope that isn't
+// actually usable in this execution context.
+const ICS_ORGANIZER_EMAIL = 'demo@chsnz.co.nz';
 
 const SIMPRO_CUSTOM_FIELDS_STATIC = [
   [8, 'Standard'],
@@ -160,6 +180,29 @@ function handlePayload(payload) {
     return respond({ success: true, action: 'updated', jobId: jobId });
   } else {
     // ── Create new job ───────────────────────────────────────────────────────
+    // Job creation is being wound down (see SIMPRO_CFG in index.html — the
+    // client gates this too, but a tab or installed PWA that was already
+    // open keeps running whatever JS it loaded, for days, without
+    // re-fetching, so it can still send a create request long after the
+    // client-side gate shipped. This is the backstop for that case.
+    //
+    // allowCreate is sent only by the tracker's manual "Create Job" button
+    // (Settings → Simpro Job Health) — the deliberate exception kept for the
+    // wind-down. An older cached client never sends it, so it's refused here
+    // even though its own gate is missing.
+    const simproCfg = fetchFirebaseJson('/simproConfig.json');
+    const createJobsEnabled = !!(simproCfg && simproCfg.createJobs === true);
+    if (!createJobsEnabled && payload.allowCreate !== true) {
+      Logger.log('Job creation disabled — refused create for pdfKey=' + payload.pdfKey + ' loanTo=' + payload.loanTo);
+      // An old client writes a {status:'pending'} placeholder before POSTing
+      // and then polls for a real ID; clear it so the loan reads as "no job"
+      // rather than stuck pending forever, which would hide it from both the
+      // Job # badge and Missing Simpro Jobs.
+      if (payload.pdfKey) {
+        putFirebaseJson('/loanDocs/' + encodeURIComponent(payload.pdfKey) + '/simproJobId.json', null);
+      }
+      return respond({ success: false, action: 'creation-disabled' });
+    }
     const newId = createJob(payload);
     Logger.log('Job created: ' + newId);
     if (newId && payload.pdfKey) {
@@ -303,6 +346,16 @@ function sendDemoReminders() {
         Logger.log('Skipping non-demo job for ' + key + ' (' + jobType + ')');
         return;
       }
+      // Long-term loans are an indefinite equipment hold, not a scheduled
+      // demo — this fires on LoanStartDate (unlike the due-back reminder
+      // below, which already excludes them simply by their blank
+      // LoanEndDate), so it needs its own explicit check. loanDoc is already
+      // fetched above for jobType/island, so this is a one-line check with
+      // no extra round-trip.
+      if (loanDoc.longTerm) {
+        Logger.log('Skipping long-term loan for ' + key);
+        return;
+      }
       if (!isStartingSoonBusinessDays(todayStr, g.startDate, loanDoc.island)) {
         return; // not yet within this loan's notice window
       }
@@ -335,7 +388,7 @@ function sendDemoReminderInvite(g, loanDoc) {
     location: loanDoc.location || '',
     dateStr: g.startDate,
     attendees: DEMO_REMINDER_RECIPIENTS,
-    organizerEmail: Session.getEffectiveUser().getEmail(),
+    organizerEmail: ICS_ORGANIZER_EMAIL,
     alarmDays: 2,
     alarmDescription: 'Demo reminder'
   });
@@ -478,10 +531,16 @@ function processStuckLoan(u, equipment, ams, todayStr) {
       return e && (e.id === uItem.id || e.CHSAssetNo === uItem.CHSAssetNo);
     });
     if (eq && eq.OnLoanTo && eq.OnLoanTo !== u.loanTo && eq.Returned !== 'Yes') {
+      // A long-term loan is a known, deliberate state — not something to
+      // chase daily. Without this, a booking blocked by long-term gear would
+      // otherwise email + push its AM every morning indefinitely (the dedup
+      // below is per-day, with no cap on how many days it repeats).
+      const blockingLoanDoc = eq.BatchID ? (fetchFirebaseJson('/loanDocs/' + encodeURIComponent(eq.BatchID) + '.json') || {}) : {};
+      if (blockingLoanDoc.longTerm) return;
       blocked.push({ assetNo: eq.CHSAssetNo, model: eq.Model || '', blockingLoanTo: eq.OnLoanTo });
     }
   });
-  if (!blocked.length) return; // not actually stuck — either free already or not found yet
+  if (!blocked.length) return; // not actually stuck — either free already, long-term, or not found yet
 
   if (!u.accountManager) { Logger.log('Stuck loan ' + u.id + ' (' + u.loanTo + ') has no AM set — skipping'); return; }
   const am = ams.find(function(a) { return a && a.name === u.accountManager; });
@@ -579,6 +638,11 @@ function sendReturnReminders() {
     try {
       if (g.endDate < todayStr) return; // overdue emails removed — see the comment above installReturnReminderTrigger()
       const loanDoc = g.batchId ? (fetchFirebaseJson('/loanDocs/' + encodeURIComponent(g.batchId) + '.json') || {}) : {};
+      // Belt-and-braces — the truthy LoanEndDate filter above already
+      // excludes long-term loans (blank by design), but check the flag too
+      // in case an end date is ever left on one through a path this didn't
+      // anticipate.
+      if (loanDoc.longTerm) return;
       const am = loanDoc.accountManager ? ams.find(function(a) { return a && a.name === loanDoc.accountManager; }) : null;
       sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key);
     } catch (err) {
@@ -646,6 +710,13 @@ function sendReturnCalendarInvite_(payload) {
     Logger.log('Return invite skipped — missing loanTo/endDate/amEmail: ' + JSON.stringify(payload));
     return respond({ success: false, error: 'missing loanTo/endDate/amEmail' });
   }
+  // Belt-and-braces — the client already skips this call entirely for a
+  // long-term loan (it has no due date to invite anyone to), but check the
+  // flag here too rather than relying solely on the client never sending it.
+  if (payload.longTerm) {
+    Logger.log('Return invite skipped — long-term loan: ' + loanTo);
+    return respond({ success: true, skipped: 'longTerm' });
+  }
 
   const island = payload.island === 'North' ? 'North' : (payload.island === 'South' ? 'South' : '');
   const itemLines = (payload.items || []).map(function(i) { return '- ' + (i.Model || i.Description || i.CHSAssetNo || ''); });
@@ -657,6 +728,7 @@ function sendReturnCalendarInvite_(payload) {
   const description = descLines.join('\n');
 
   const alarmDays = island === 'North' ? 3 : 7;
+  const organizerEmail = ICS_ORGANIZER_EMAIL;
   const uid = 'return-' + loanTo.replace(/[^a-zA-Z0-9]/g, '') + '-' + endDate + '@chsnz.co.nz';
   const ics = buildICS({
     uid: uid,
@@ -665,20 +737,38 @@ function sendReturnCalendarInvite_(payload) {
     location: payload.location || '',
     dateStr: endDate,
     attendees: [amEmail],
-    organizerEmail: Session.getEffectiveUser().getEmail(),
+    organizerEmail: organizerEmail,
     alarmDays: alarmDays,
     alarmDescription: 'Equipment return reminder'
   });
   const icsBlob = Utilities.newBlob(ics, 'text/calendar; charset=UTF-8; method=REQUEST', 'invite.ics');
 
-  MailApp.sendEmail({
-    to: amEmail,
-    subject: 'Return due: ' + loanTo + ' — ' + fmtDate(endDate),
-    body: description,
-    attachments: [icsBlob]
-  });
-  Logger.log('Return calendar invite sent to ' + amEmail + ' for ' + loanTo + ' due ' + endDate + ' (' + alarmDays + '-day reminder)');
-  return respond({ success: true, action: 'returnInvite' });
+  // TEMPORARY DEBUG (remove once delivery is confirmed) — the Apps Script
+  // Executions panel's per-run log detail isn't reachable from this account
+  // (no linked GCP project for `clasp logs`, and Cloud Logging is greyed
+  // out), so this records exactly what MailApp resolved to and whether it
+  // threw, readable via a plain GET to the Firebase REST API instead.
+  const debugRecord = {
+    receivedAt: new Date().toISOString(),
+    amEmail: amEmail, loanTo: loanTo, endDate: endDate, island: island,
+    organizerEmail: organizerEmail, alarmDays: alarmDays,
+    mailSent: false, mailError: null
+  };
+  try {
+    MailApp.sendEmail({
+      to: amEmail,
+      subject: 'Return due: ' + loanTo + ' — ' + fmtDate(endDate),
+      body: description,
+      attachments: [icsBlob]
+    });
+    debugRecord.mailSent = true;
+    Logger.log('Return calendar invite sent to ' + amEmail + ' for ' + loanTo + ' due ' + endDate + ' (' + alarmDays + '-day reminder)');
+  } catch (err) {
+    debugRecord.mailError = String(err);
+    Logger.log('Return calendar invite MailApp.sendEmail failed: ' + err);
+  }
+  putFirebaseJson('/debug/lastReturnInvite.json', debugRecord);
+  return respond({ success: debugRecord.mailSent, action: 'returnInvite', error: debugRecord.mailError });
 }
 
 // Mirrors index.html's client-side loanReturnToken() (both are plain
@@ -901,6 +991,25 @@ function putFirebaseJson(path, obj) {
     payload: JSON.stringify(obj),
     muteHttpExceptions: true
   });
+}
+
+// TEMPORARY DIAGNOSTIC — run manually from the Apps Script editor (function
+// dropdown, select this, click Run) to check whether MailApp.sendEmail works
+// at all for this account OUTSIDE the anonymous web-app request path, which
+// keeps throwing "You do not have permission to call MailApp.sendEmail" no
+// matter how many times the web app deployment is re-authorized. Writes the
+// outcome to Firebase (same as the returnInvite debug record) since Logger.log
+// output isn't reachable from this session either way. Safe to delete once
+// the root cause is found.
+function testMailSendOnly() {
+  const record = { receivedAt: new Date().toISOString(), mailSent: false, mailError: null };
+  try {
+    MailApp.sendEmail({ to: 'jonathan.nasrun@cass.co.nz', subject: 'CHS Tracker — MailApp test', body: 'If this arrives, MailApp works from the editor Run context.' });
+    record.mailSent = true;
+  } catch (err) {
+    record.mailError = String(err);
+  }
+  putFirebaseJson('/debug/testMailSendOnly.json', record);
 }
 
 // ── Write job ID back to Firebase so the tracker can reference it ─────────────
