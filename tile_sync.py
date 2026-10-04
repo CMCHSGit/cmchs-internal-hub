@@ -121,6 +121,19 @@ async def main():
         tiles = await api.async_get_tiles()
         print(f"Tile account returned {len(tiles)} tile(s) total")
 
+        if os.environ.get("TILE_SYNC_DEBUG_FIELDS"):
+            # One-off, privacy-safe diagnostic: key names only, never values -
+            # this repo's logs are public, and values here would be a tile's
+            # name/location. Checking what Tile's raw API actually returns,
+            # since pytile's own wrapper doesn't expose a battery level in
+            # its latest release. Remove once battery data is sorted out.
+            sample = next(iter(tiles.values()), None)
+            if sample is not None:
+                result = sample._tile_data.get("result", {})
+                print("DEBUG result keys:", sorted(result.keys()))
+                last_state = result.get("last_tile_state") or {}
+                print("DEBUG last_tile_state keys:", sorted(last_state.keys()))
+
         records = {}
         skipped_no_location = 0
         # Reverse-geocoded sequentially (never concurrently) to respect
