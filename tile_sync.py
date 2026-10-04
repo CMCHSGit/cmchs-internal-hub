@@ -121,19 +121,6 @@ async def main():
         tiles = await api.async_get_tiles()
         print(f"Tile account returned {len(tiles)} tile(s) total")
 
-        if os.environ.get("TILE_SYNC_DEBUG_FIELDS"):
-            # One-off, privacy-safe diagnostic: key names only, never values -
-            # this repo's logs are public, and values here would be a tile's
-            # name/location. Checking what Tile's raw API actually returns,
-            # since pytile's own wrapper doesn't expose a battery level in
-            # its latest release. Remove once battery data is sorted out.
-            sample = next(iter(tiles.values()), None)
-            if sample is not None:
-                result = sample._tile_data.get("result", {})
-                print("DEBUG result keys:", sorted(result.keys()))
-                last_state = result.get("last_tile_state") or {}
-                print("DEBUG last_tile_state keys:", sorted(last_state.keys()))
-
         records = {}
         skipped_no_location = 0
         # Reverse-geocoded sequentially (never concurrently) to respect
@@ -149,15 +136,25 @@ async def main():
             location = await reverse_geocode(session, tile.latitude, tile.longitude)
             await asyncio.sleep(1.1)
 
-            # The installed pytile release (2024.12.0) doesn't expose a
-            # battery level at all - only "dead" (confirmed by Tile's
-            # backend) and "lost" (no Bluetooth contact in a while, which
-            # for a demo-equipment Tile usually just means nobody's nearby).
-            alert = ""
+            # pytile's installed release (2024.12.0) doesn't expose a battery
+            # property at all, but the raw API response underneath it does -
+            # confirmed live against this account (result.battery_status is
+            # "NONE"/"LEVEL1"/"LEVEL2"; last_tile_state.battery_level is a
+            # finer-grained number whose exact scale isn't documented, so
+            # it's stored but not used for the alert text below).
+            result = tile._tile_data.get("result", {}) or {}
+            last_state = result.get("last_tile_state") or {}
+            battery_status = result.get("battery_status")
+            battery_level = last_state.get("battery_level")
+
             if tile.dead:
-                alert = "Tile is dead - replace battery"
+                alert = "Tile is dead - replace the Tile"
+            elif battery_status and battery_status != "NONE":
+                alert = "Tile battery low - replace battery soon"
             elif tile.lost:
                 alert = "Lost signal - no recent location update"
+            else:
+                alert = ""
 
             records[tile_no] = {
                 "tileNo": tile_no,
@@ -166,6 +163,8 @@ async def main():
                 "lastUpdated": relative_time(tile.last_timestamp),
                 "latitude": tile.latitude,
                 "longitude": tile.longitude,
+                "batteryStatus": battery_status or "",
+                "batteryLevel": battery_level,
                 "alert": alert,
                 "syncedAt": datetime.now().strftime("%d/%m/%Y %H:%M"),
             }
