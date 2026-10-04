@@ -61,10 +61,12 @@ def parse_tile_no(name):
 
 def relative_time(dt):
     """Mimics the Tile app's own "25 min ago" style, computed from
-    last_timestamp instead of scraped off the screen."""
+    last_timestamp instead of scraped off the screen. pytile returns this as
+    a naive UTC datetime (tzinfo stripped), so it's compared against a naive
+    UTC "now" rather than an aware one."""
     if dt is None:
         return ""
-    seconds = (datetime.now(timezone.utc) - dt).total_seconds()
+    seconds = (datetime.now(timezone.utc).replace(tzinfo=None) - dt).total_seconds()
     if seconds < 60:
         return "just now"
     minutes = int(seconds // 60)
@@ -134,11 +136,15 @@ async def main():
             location = await reverse_geocode(session, tile.latitude, tile.longitude)
             await asyncio.sleep(1.1)
 
+            # The installed pytile release (2024.12.0) doesn't expose a
+            # battery level at all - only "dead" (confirmed by Tile's
+            # backend) and "lost" (no Bluetooth contact in a while, which
+            # for a demo-equipment Tile usually just means nobody's nearby).
             alert = ""
             if tile.dead:
                 alert = "Tile is dead - replace battery"
-            elif tile.battery_status and tile.battery_status != "NONE":
-                alert = "Low battery"
+            elif tile.lost:
+                alert = "Lost signal - no recent location update"
 
             records[tile_no] = {
                 "tileNo": tile_no,
