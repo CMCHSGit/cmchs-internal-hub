@@ -161,6 +161,12 @@ async def main():
                 "tileName": tile.name,
                 "location": location,
                 "lastUpdated": relative_time(tile.last_timestamp),
+                # Raw UTC timestamp of the tile's last location fix (not of
+                # this sync run - that's syncedAt below) - the "X min ago"
+                # text above goes stale between daily syncs, this doesn't.
+                # pytile's datetime is naive-but-UTC (tzinfo stripped), hence
+                # the explicit "Z" so the browser parses it as UTC.
+                "lastTimestamp": (tile.last_timestamp.isoformat() + "Z") if tile.last_timestamp else None,
                 "latitude": tile.latitude,
                 "longitude": tile.longitude,
                 "batteryStatus": battery_status or "",
