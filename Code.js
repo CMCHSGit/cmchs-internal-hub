@@ -556,10 +556,14 @@ function loanReturnToken_(loanTo, endDate) {
 }
 
 // ── Push notifications (Firebase Cloud Messaging) ───────────────────────
-// Sent alongside (not instead of) the reminder email above, to any device
-// registered via the mobile app's "Enable push notifications" toggle (see
-// index.html's mpEnablePush(), which stores tokens under
-// accountManagers[].fcmTokens).
+// The sole notification channel for the three reminder types above (demo,
+// stuck-loan, return due-soon) since the matching emails were removed
+// 2026-10-05 — see the note at the top of this file under DEMO REMINDER
+// SETUP. Only reaches a device registered via the mobile app's "Enable push
+// notifications" toggle (see index.html's mpEnablePush(), which stores
+// tokens under accountManagers[].fcmTokens) — an AM who has never tapped
+// that toggle gets nothing from any of these three, with no email fallback
+// any more.
 //
 // Raw Web Push needs VAPID (ES256/ECDSA) JWT signing, which Apps Script
 // has no native support for. A Google service-account JWT (RS256/RSA,
