@@ -80,7 +80,6 @@
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 const SIMPRO_BASE_URL = 'https://cass.simprosuite.com/api/v1.0';
-const SIMPRO_API_KEY  = '6d8d1fb9a7ae1d802e17bf52c50c9f97ab7bd678';
 const SIMPRO_COMPANY  = 3;
 const SIMPRO_SITE_ID  = 2377;
 const SIMPRO_CUSTOMER = 2027;
@@ -95,11 +94,33 @@ const SIMPRO_JOB_TYPE_DEFAULT = 'Demo';
 
 const FIREBASE_BASE = 'https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-const API_HEADERS = {
-  'Authorization': 'Bearer ' + SIMPRO_API_KEY,
-  'Content-Type':  'application/json',
-  'Accept':        'application/json'
-};
+// Script Properties (Apps Script → Project Settings → Script Properties),
+// not committed constants — this repo is public, and these values previously
+// sat in plain text here. SIMPRO_API_KEY is the same key the tracker already
+// uses. FIREBASE_SCHEDULE_PROJECT_ID is cmchs-staff-schedule's own Firebase
+// project id (Firebase console → Project settings, or the GitHub Actions
+// secret VITE_FIREBASE_PROJECT_ID) — a different, unrelated Firebase project
+// from this tracker's own RTDB — used only to check SimproSync callers' ID
+// tokens were really issued by that project, not to access any of its data.
+function simproKey_() {
+  const k = PropertiesService.getScriptProperties().getProperty('SIMPRO_API_KEY');
+  if (!k) throw new Error('SIMPRO_API_KEY script property is not set');
+  return k;
+}
+
+function scheduleFirebaseProjectId_() {
+  const id = PropertiesService.getScriptProperties().getProperty('FIREBASE_SCHEDULE_PROJECT_ID');
+  if (!id) throw new Error('FIREBASE_SCHEDULE_PROJECT_ID script property is not set');
+  return id;
+}
+
+function apiHeaders_() {
+  return {
+    'Authorization': 'Bearer ' + simproKey_(),
+    'Content-Type':  'application/json',
+    'Accept':        'application/json'
+  };
+}
 
 // ── POST handler — called by the tracker ──────────────────────────────────────
 function doPost(e) {
@@ -138,6 +159,11 @@ function handlePayload(payload) {
   // notifications) isn't a Simpro job action at all, so it's dispatched
   // before anything below ever looks at jobId.
   if (payload.action === 'testPush') return sendTestPush_(payload);
+
+  // SimproSync (schedule.chsnz.co.nz/simprosync/) relaying Simpro calls
+  // through this proxy instead of holding the Simpro key itself — see
+  // simproSyncProxy_() below.
+  if (payload.action === 'simproSync') return simproSyncProxy_(payload);
 
   // jobId may be a pending-placeholder object { status:'pending', ts:... }
   // from the tracker's duplicate guard — treat that the same as no jobId
@@ -782,11 +808,146 @@ function writeJobIdToFirebase(pdfKey, jobId) {
   }
 }
 
+// ── SimproSync proxy ──────────────────────────────────────────────────────────
+// Lets the SimproSync tool (schedule.chsnz.co.nz/simprosync/) relay calls to
+// the Simpro API without the browser ever holding the Simpro key. The caller
+// sends its own Firebase ID token (from the staff-schedule's Firebase
+// project — unrelated to this tracker's RTDB) instead of a shared secret;
+// this checks that token really came from that project and that Firestore
+// says that user is an admin, then runs an allowlisted batch of requests.
+//
+// Payload: { action:'simproSync', idToken, requests:[{method, path, body}] }
+
+const FIREBASE_ISSUER_PREFIX = 'https://securetoken.google.com/';
+
+// Only these Simpro method+path shapes may be relayed — this does not widen
+// what an authorised SimproSync admin could already do with their own Simpro
+// login, it just stops the proxy becoming an open "call anything on Simpro"
+// tunnel. Query string, if present, is restricted to pageSize/page/display.
+const SIMPRO_SYNC_ALLOWLIST = [
+  [['get'],        /^\/companies\/$/],
+  [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
+  [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
+  [['get','post'], /^\/companies\/\d+\/sites\/\d+\/assets\/$/],
+  [['get'],        /^\/companies\/\d+\/sites\/\d+\/assets\/\d+\/customFields\/$/],
+  [['patch'],      /^\/companies\/\d+\/sites\/\d+\/assets\/\d+\/customFields\/\d+$/],
+  [['get','patch'],/^\/companies\/\d+\/jobs\/\d+$/],
+  [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/$/],
+  [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/],
+  [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/\d+\/assets\/$/]
+];
+const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes'];
+
+function simproSyncAllowed_(method, pathWithQuery) {
+  const m = String(method || '').toLowerCase();
+  const qIdx = String(pathWithQuery || '').indexOf('?');
+  const path = qIdx === -1 ? pathWithQuery : pathWithQuery.slice(0, qIdx);
+  const query = qIdx === -1 ? '' : pathWithQuery.slice(qIdx + 1);
+  if (query && !/^[A-Za-z0-9=&]*$/.test(query)) return false;
+  return SIMPRO_SYNC_ALLOWLIST.some(function (rule) {
+    return rule[0].indexOf(m) !== -1 && rule[1].test(path);
+  });
+}
+
+function decodeFirebaseIdToken_(idToken) {
+  const parts = String(idToken || '').split('.');
+  if (parts.length !== 3) throw new Error('Malformed ID token');
+  const json = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[1])).getDataAsString();
+  return JSON.parse(json);
+}
+
+// Cheap pre-filter only (aud/iss/exp) — the real signature check happens
+// when the Firestore request below is made using this same token: Firestore
+// itself rejects an invalid, expired, or wrong-project token.
+function verifyScheduleIdTokenShape_(idToken) {
+  const claims = decodeFirebaseIdToken_(idToken);
+  const projectId = scheduleFirebaseProjectId_();
+  if (claims.aud !== projectId) throw new Error('Token is not for the expected Firebase project');
+  if (claims.iss !== FIREBASE_ISSUER_PREFIX + projectId) throw new Error('Token issuer mismatch');
+  if (!claims.exp || claims.exp * 1000 < Date.now()) throw new Error('Token expired');
+  const uid = claims.user_id || claims.sub;
+  if (!uid) throw new Error('Token has no user id');
+  return { uid: uid, email: claims.email || '', exp: claims.exp };
+}
+
+function simproSyncVerifyAdmin_(idToken) {
+  const decoded = verifyScheduleIdTokenShape_(idToken);
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'simproSyncAdmin_' + Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, idToken)
+  );
+  const cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  const projectId = scheduleFirebaseProjectId_();
+  const url = 'https://firestore.googleapis.com/v1/projects/' + projectId +
+    '/databases/(default)/documents/users/' + encodeURIComponent(decoded.uid);
+  const resp = UrlFetchApp.fetch(url, {
+    headers: { Authorization: 'Bearer ' + idToken },
+    muteHttpExceptions: true
+  });
+  if (resp.getResponseCode() !== 200) {
+    throw new Error('Could not verify sign-in with Firestore (' + resp.getResponseCode() + ')');
+  }
+  const doc = JSON.parse(resp.getContentText());
+  const role = doc.fields && doc.fields.role && doc.fields.role.stringValue;
+  if (role !== 'admin') throw new Error((decoded.email || decoded.uid) + ' is not an admin');
+
+  const result = { uid: decoded.uid, email: decoded.email };
+  const ttlSeconds = Math.max(1, Math.min(600, decoded.exp - Math.floor(Date.now() / 1000)));
+  cache.put(cacheKey, JSON.stringify(result), ttlSeconds);
+  return result;
+}
+
+function simproSyncProxy_(payload) {
+  var who;
+  try {
+    who = simproSyncVerifyAdmin_(payload.idToken);
+  } catch (err) {
+    Logger.log('simproSync: auth rejected — ' + err);
+    return respond({ success: false, error: 'Not authorised: ' + err.message });
+  }
+
+  const requests = Array.isArray(payload.requests) ? payload.requests.slice(0, 25) : [];
+  if (!requests.length) return respond({ success: false, error: 'No requests' });
+
+  const fetchRequests = [];
+  for (var i = 0; i < requests.length; i++) {
+    const r = requests[i] || {};
+    const method = String(r.method || 'get').toLowerCase();
+    const path = String(r.path || '');
+    if (!simproSyncAllowed_(method, path)) {
+      return respond({ success: false, error: 'Request ' + i + ' (' + method.toUpperCase() + ' ' + path + ') is not allowed' });
+    }
+    if (method === 'patch' && /^\/companies\/\d+\/jobs\/\d+$/.test(path.split('?')[0])) {
+      const keys = Object.keys(r.body || {});
+      if (keys.some(function (k) { return SIMPRO_SYNC_JOB_PATCH_FIELDS.indexOf(k) === -1; })) {
+        return respond({ success: false, error: 'Request ' + i + ' updates a field that is not allowed' });
+      }
+    }
+    const opts = { method: method, headers: apiHeaders_(), muteHttpExceptions: true };
+    if (r.body !== undefined && method !== 'get') opts.payload = JSON.stringify(r.body);
+    fetchRequests.push(Object.assign({ url: SIMPRO_BASE_URL + path }, opts));
+  }
+
+  Logger.log('simproSync: ' + (who.email || who.uid) + ' — ' +
+    requests.map(function (r) { return String(r.method || 'GET').toUpperCase() + ' ' + r.path; }).join(', '));
+
+  const responses = UrlFetchApp.fetchAll(fetchRequests);
+  const results = responses.map(function (resp) {
+    const text = resp.getContentText();
+    var data = text;
+    try { data = text ? JSON.parse(text) : null; } catch (e) {}
+    return { status: resp.getResponseCode(), data: data };
+  });
+  return respond({ success: true, results: results });
+}
+
 // ── Simpro API helper ─────────────────────────────────────────────────────────
 function simproFetch(path, method, body) {
   var options = {
     method: method,
-    headers: API_HEADERS,
+    headers: apiHeaders_(),
     muteHttpExceptions: true
   };
   if (method !== 'get') options.payload = JSON.stringify(body);
