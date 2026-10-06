@@ -1,0 +1,6 @@
+/* Brand typefaces (2014 guidelines): Mercedes (display/headline) + Myriad Pro (body).
+   Neither is web-licensed here, so the design system ships Google Fonts substitutes:
+     Mercedes  -> Titillium Web  (squarish humanist, closest free match)
+     Myriad Pro -> Source Sans 3 (Adobe humanist sans, near-identical skeleton)
+   Replace this @import with real @font-face rules when licensed WOFF2 files are supplied. */
+@import url("https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap");

@@ -1,0 +1,68 @@
+:root{
+  /* Brand primaries — Pantone/CMYK equivalents from the 2014 brand swatch */
+  --chs-purple:#554596;        /* PMS 7672c  C80 M80 Y0 K0 */
+  --chs-purple-60:#968ac1;     /* PMS 271c */
+  --chs-purple-30:#cac4e3;     /* PMS 2635c */
+  --chs-purple-20:#dbd7ed;     /* PMS 7443c */
+  --chs-green:#80bd01;         /* PMS 376c  C57 M0 Y100 K0 */
+  --chs-green-60:#b3d767;      /* PMS 366c */
+  --chs-green-30:#d9ebb2;      /* PMS 372c */
+  --chs-green-20:#e9f2da;      /* PMS 7485c */
+  --chs-orange:#ef7d00;        /* PMS 716c  C0 M60 Y100 K0 */
+  --chs-orange-60:#f8b472;     /* PMS 150c */
+  --chs-orange-30:#fddab4;     /* PMS 7507c */
+  --chs-orange-20:#fee7d1;     /* PMS 475c */
+
+  /* Neutrals — the brand's black tint ladder */
+  --chs-black:#1d1d1d;         /* PMS Black 7PC */
+  --chs-black-80:#575756;      /* PMS 425c */
+  --chs-black-60:#747577;      /* PMS 877c */
+  --chs-black-40:#a7a9ac;      /* interpolated tint, print-safe grey */
+  --chs-black-20:#d1d3d4;      /* PMS 427c */
+  --chs-black-10:#e8e9ea;      /* interpolated tint for hairlines/fills */
+  --chs-black-05:#f4f4f5;
+  --chs-white:#ffffff;
+
+  /* Semantic text */
+  --text-strong:var(--chs-black);
+  --text-body:var(--chs-black-80);
+  --text-muted:var(--chs-black-60);
+  --text-disabled:var(--chs-black-40);
+  --text-inverse:var(--chs-white);
+  --text-accent:var(--chs-purple);
+  --text-link:var(--chs-purple);
+  --text-link-hover:#3f3374;
+
+  /* Semantic surfaces */
+  --surface-page:var(--chs-white);
+  --surface-subtle:var(--chs-black-05);
+  --surface-card:var(--chs-white);
+  --surface-inverse:var(--chs-black);
+  --surface-brand:var(--chs-purple);
+  --surface-brand-tint:var(--chs-purple-20);
+  --surface-accent-tint:var(--chs-green-20);
+  --surface-warm-tint:var(--chs-orange-20);
+
+  /* Borders */
+  --border-hairline:var(--chs-black-20);
+  --border-subtle:var(--chs-black-10);
+  --border-strong:var(--chs-black-60);
+  --border-brand:var(--chs-purple);
+  --border-focus:var(--chs-purple);
+
+  /* Status — mapped onto brand colours; red is the one addition (clinical alarm convention) */
+  --status-ok:var(--chs-green);
+  --status-ok-tint:var(--chs-green-20);
+  --status-attention:var(--chs-orange);
+  --status-attention-tint:var(--chs-orange-20);
+  --status-info:var(--chs-purple);
+  --status-info-tint:var(--chs-purple-20);
+  --status-critical:#c8102e;
+  --status-critical-tint:#fbe3e7;
+
+  /* The three-stripe device: connect patients, lives and health */
+  --stripe-1:var(--chs-purple);
+  --stripe-2:var(--chs-green);
+  --stripe-3:var(--chs-orange);
+  --gradient-brand-overlay:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.8) 100%); /* @kind color */
+}

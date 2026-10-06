@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/radius.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/elevation.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/motion.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/base.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/styles.css">
+  <script src="https://unpkg.com/lucide@0.451.0/dist/umd/lucide.js"></script>
+  <script src="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/_ds_bundle.js"></script>
+  <style>body{margin:0} [role=tab]{border-top:0;border-left:0;border-right:0} a{color:#554596} a:hover{color:#3f3374}</style>
+</helmet>
+<div ref="{{rootRef}}" style="position:relative;min-height:100vh;background:#ffffff;color:var(--text-body);font:var(--type-body);display:flex;flex-direction:column">
+
+  <header style="position:sticky;top:0;z-index:6;background:#ffffff">
+    <div style="display:flex;align-items:center;gap:24px;padding:0 {{pad}};min-height:64px">
+      <div style="display:flex;align-items:center;gap:14px;flex:0 0 auto">
+        <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Logo" width="{{ 150 }}" clear-space="{{ false }}" asset-base="assets" hint-size="150px,40px"></x-import>
+          <span style="width:1px;height:28px;background:#d1d3d4"></span>
+        </sc-if>
+        <sc-if value="{{narrow}}" hint-placeholder-val="{{ false }}">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Logo" variant="mark" width="{{ 32 }}" clear-space="{{ false }}" asset-base="assets" hint-size="32px,32px"></x-import>
+        </sc-if>
+        <span style="font:var(--type-h4);color:#1d1d1d;white-space:nowrap">Staff schedule</span>
+      </div>
+      <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tabs" tabs="{{viewTabs}}" value="{{view}}" on-change="{{setView}}" style="border-bottom:none;align-self:flex-end" hint-size="420px,48px"></x-import>
+      </sc-if>
+    </div>
+    <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.StripeRule" thickness="{{ 4 }}" hint-size="100%,4px"></x-import>
+  </header>
+
+  <main style="flex:1;padding:{{pad}};padding-bottom:{{mainBottom}};display:flex;flex-direction:column;gap:18px;min-width:0">
+
+
+    <sc-if value="{{showWeekNav}}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Previous week" on-click="{{prevWeek}}" hint-size="40px,40px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="chevron-left" hint-size="20px,20px"></x-import></x-import>
+          <div style="display:flex;flex-direction:column;min-width:170px;text-align:center">
+            <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Week starting</span></sc-if>
+            <span style="font:600 18px/1.2 var(--font-display);color:#1d1d1d">{{weekLabel}}</span>
+          </div>
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Next week" on-click="{{nextWeek}}" hint-size="40px,40px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="chevron-right" hint-size="20px,20px"></x-import></x-import>
+        </div>
+        <sc-if value="{{notThisWeek}}" hint-placeholder-val="{{ false }}">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="ghost" size="sm" on-click="{{goThisWeek}}" hint-size="100px,32px">This week</x-import>
+        </sc-if>
+        <sc-if value="{{showWeekActions}}" hint-placeholder-val="{{ true }}">
+          <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+            <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="secondary" size="sm" on-click="{{copyWeek}}" hint-size="130px,32px">Copy last week</x-import>
+            </sc-if>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="secondary" size="sm" on-click="{{printWeek}}" hint-size="110px,32px">Print week</x-import>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showFilters}}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{q}}" placeholder="Search person" size="sm" on-change="{{setQ}}" style="width:{{searchWidth}}" hint-size="220px,36px"></x-import>
+        <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:6px;flex-wrap:wrap;max-width:100%">
+          <sc-for list="{{deptTags}}" as="t" hint-placeholder-count="6">
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tag" selected="{{t.selected}}" on-click="{{t.onClick}}" style="white-space:nowrap" hint-size="90px,30px">{{t.name}}</x-import>
+          </sc-for>
+        </div></sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showDayPills}}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;max-width:640px">
+        <sc-for list="{{dayPills}}" as="dp" hint-placeholder-count="5">
+          <button onClick="{{dp.onClick}}" style="border:1px solid {{dp.border}};background:{{dp.bg}};color:{{dp.fg}};border-radius:6px;padding:8px 4px;min-height:48px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:0;font-family:var(--font-body)">
+            <span style="font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase">{{dp.short}}</span>
+            <span style="font:600 18px/1.2 var(--font-display)">{{dp.num}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showLeavePin}}" hint-placeholder-val="{{ false }}">
+      <div style="position:sticky;top:68px;z-index:5;background:#ffffff;padding:6px 0">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid #FFC000;border-radius:6px;padding:8px 12px;background:#ffffff">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="pin" size="{{ 16 }}" hint-size="16px,16px"></x-import>
+          <span style="font:var(--type-body-strong);color:#1d1d1d;margin-right:4px">{{leavePinTitle}}</span>
+          <sc-for list="{{leaveToday}}" as="lt" hint-placeholder-count="4">
+            <span style="background:#FFC000;border-radius:3px;padding:2px 8px;font-size:14px;color:#1d1d1d;white-space:nowrap">{{lt.name}}</span>
+          </sc-for>
+          <sc-if value="{{noLeaveToday}}" hint-placeholder-val="{{ false }}">
+            <span style="font:var(--type-body-sm);color:#747577">No one is on leave.</span>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showConflicts}}" hint-placeholder-val="{{ false }}">
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Alert" tone="critical" title="{{conflictTitle}}" hint-size="100%,80px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <sc-for list="{{conflictList}}" as="c" hint-placeholder-count="2">
+            <span>{{c.text}}</span>
+          </sc-for>
+        </div>
+      </x-import>
+    </sc-if>
+
+    <sc-if value="{{showLegend}}" hint-placeholder-val="{{ true }}">
+      <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+        <sc-for list="{{legend}}" as="lg" hint-placeholder-count="7">
+          <span style="display:flex;align-items:center;gap:6px;font:var(--type-caption);color:#575756">
+            <span style="width:14px;height:14px;border-radius:3px;background:{{lg.bg}};border:1px solid #a7a9ac"></span>{{lg.label}}
+          </span>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- WEEK · compact -->
+    <sc-if value="{{showCompact}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:grid;grid-template-columns:170px repeat(5,minmax(110px,1fr)) 130px;gap:4px;padding:0 4px;overflow:hidden">
+          <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Name</span>
+          <sc-for list="{{dayHeads}}" as="h" hint-placeholder-count="5">
+            <span onClick="{{h.onClick}}" style="font:var(--type-overline);letter-spacing:.1em;text-transform:uppercase;color:{{h.headColor}};cursor:pointer">{{h.label}}</span>
+          </sc-for>
+          <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Comments</span>
+        </div>
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+          <div style="background:#ffffff;border-radius:10px;box-shadow:0 1px 2px rgba(29,29,29,.06),0 4px 12px rgba(29,29,29,.07);overflow:auto">
+            <div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e8e9ea;min-width:1000px">
+              <span style="width:12px;height:12px;border-radius:3px;background:{{g.band}};border:1px solid #a7a9ac"></span>
+              <span style="font:var(--type-body-strong);color:#1d1d1d">{{g.name}}</span>
+              <span style="font:var(--type-caption);color:#747577">{{g.count}}</span>
+            </div>
+            <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:170px repeat(5,minmax(110px,1fr)) 130px;gap:4px;padding:3px 4px;border-bottom:1px solid #f4f4f5;min-width:1000px">
+                <div style="display:flex;align-items:center;gap:6px;padding:0 8px;min-height:32px;border-radius:3px;background:{{r.nameBg}};font-size:14px;font-weight:{{r.nameWeight}};color:#1d1d1d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.label}}</div>
+                <sc-for list="{{r.cells}}" as="cell" hint-placeholder-count="5">
+                  <div onClick="{{cell.onClick}}" title="{{cell.title}}" style="display:flex;gap:2px;min-height:32px;border-radius:3px;cursor:{{cell.cursor}};overflow:hidden;border:1px solid #e8e9ea" style-hover="box-shadow:{{cell.hover}}">
+                    <div style="flex:1;min-width:0;background:{{cell.am.bg}};display:flex;align-items:center;padding:0 8px;font-size:12.5px;color:#1d1d1d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{cell.am.text}}</div>
+                    <sc-if value="{{cell.split}}" hint-placeholder-val="{{ false }}">
+                      <div style="flex:1;min-width:0;background:{{cell.pm.bg}};display:flex;align-items:center;padding:0 8px;font-size:12.5px;color:#1d1d1d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:1px dashed #a7a9ac">{{cell.pm.text}}</div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+                <div style="display:flex;align-items:center;padding:0 8px;font-size:12.5px;color:#575756;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.comment}}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- WEEK · mobile -->
+    <sc-if value="{{showMobileWeek}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+          <div style="border:1px solid #d1d3d4;border-radius:10px;overflow:hidden">
+            <div style="background:{{g.band}};padding:6px 12px;font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#1d1d1d">{{g.name}}</div>
+            <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="5">
+              <div onClick="{{r.dayCell.onClick}}" style="display:grid;grid-template-columns:minmax(0,38%) minmax(0,1fr);border-top:1px solid #e8e9ea;min-height:52px;cursor:{{r.dayCell.cursor}}">
+                <div style="background:{{r.nameBg}};display:flex;align-items:center;padding:0 12px;font-size:15px;font-weight:{{r.nameWeight}};color:#1d1d1d">{{r.label}}</div>
+                <div style="display:flex;flex-direction:column;border-left:1px dashed #a7a9ac">
+                  <sc-if value="{{r.dayCell.whole}}" hint-placeholder-val="{{ true }}">
+                    <div style="flex:1;background:{{r.dayCell.bg}};display:flex;align-items:center;padding:6px 12px;font-size:14px;color:#1d1d1d">{{r.dayCell.text}}</div>
+                  </sc-if>
+                  <sc-if value="{{r.dayCell.split}}" hint-placeholder-val="{{ false }}">
+                    <div style="flex:1;background:{{r.dayCell.am.bg}};display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:14px;color:#1d1d1d;border-bottom:1px solid #e8e9ea"><span style="font-size:11px;color:#747577">AM</span>{{r.dayCell.am.text}}</div>
+                    <div style="flex:1;background:{{r.dayCell.pm.bg}};display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:14px;color:#1d1d1d"><span style="font-size:11px;color:#747577">PM</span>{{r.dayCell.pm.text}}</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{showEmptyWeek}}" hint-placeholder-val="{{ false }}">
+      <div style="font:var(--type-body-sm);color:#747577">No entries for this week yet. Leave and public holidays already booked are shown.</div>
+    </sc-if>
+
+    <!-- DAY -->
+    <sc-if value="{{isDay}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap">
+          <h2 style="margin:0;font:var(--type-h2);color:#1d1d1d">{{dayTitle}}</h2>
+          <span style="font:var(--type-body-sm);color:#747577">{{daySummary}}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;background:#FF7C80;border-radius:6px;padding:10px 14px;color:#1d1d1d;max-width:640px">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="phone" size="{{ 18 }}" hint-size="18px,18px"></x-import>
+          <span style="font-weight:600">On call: {{onCallName}}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;align-items:start">
+          <sc-for list="{{dayGroups}}" as="dg" hint-placeholder-count="6">
+            <div style="background:#ffffff;border-radius:10px;box-shadow:0 1px 2px rgba(29,29,29,.06),0 4px 12px rgba(29,29,29,.07);overflow:hidden">
+              <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:{{dg.swatch}};border-bottom:1px solid #e8e9ea">
+                <span style="font:var(--type-body-strong);color:#1d1d1d;flex:1">{{dg.label}}</span>
+                <span style="font:600 18px/1 var(--font-display);color:#1d1d1d">{{dg.count}}</span>
+              </div>
+              <div style="display:flex;flex-direction:column;padding:6px 0">
+                <sc-for list="{{dg.people}}" as="dpp" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;padding:5px 14px">
+                    <span style="font-size:15px;color:#1d1d1d;font-weight:400">{{dpp.name}}</span>
+                    <span style="font:var(--type-caption);color:#747577">{{dpp.meta}}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- MONTH -->
+    <sc-if value="{{isMonth}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:center;gap:4px">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Previous month" on-click="{{prevMonth}}" hint-size="40px,40px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="chevron-left" hint-size="20px,20px"></x-import></x-import>
+          <span style="font:600 22px/1.2 var(--font-display);color:#1d1d1d;min-width:170px;text-align:center">{{monthLabel}}</span>
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Next month" on-click="{{nextMonth}}" hint-size="40px,40px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="chevron-right" hint-size="20px,20px"></x-import></x-import>
+          <span style="margin-left:12px;font:var(--type-caption);color:#747577">Leave, training and public holidays. Weekdays only.</span>
+        </div>
+        <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border:1px solid #a7a9ac;border-radius:6px;overflow:hidden">
+            <sc-for list="{{monthHeads}}" as="mh" hint-placeholder-count="5">
+              <div style="padding:8px 10px;font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577;border-bottom:1px solid #a7a9ac;background:#f4f4f5">{{mh}}</div>
+            </sc-for>
+            <sc-for list="{{monthCells}}" as="mc" hint-placeholder-count="20">
+              <div style="min-height:118px;border-top:1px solid #e8e9ea;border-left:1px solid #e8e9ea;padding:6px 8px;display:flex;flex-direction:column;gap:4px;background:{{mc.bg}};opacity:{{mc.opacity}}">
+                <span style="font:600 15px/1.2 var(--font-display);color:{{mc.numColor}}">{{mc.num}}</span>
+                <sc-if value="{{mc.holiday}}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:12.5px;font-weight:600;color:#1d1d1d">{{mc.holiday}}</span>
+                </sc-if>
+                <sc-for list="{{mc.items}}" as="it" hint-placeholder-count="0">
+                  <span style="background:{{it.bg}};border-radius:3px;padding:2px 6px;font-size:12.5px;color:#1d1d1d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{it.name}}</span>
+                </sc-for>
+                <sc-if value="{{mc.more}}" hint-placeholder-val="{{ false }}">
+                  <span style="font:var(--type-caption);color:#747577">{{mc.more}}</span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+        <sc-if value="{{narrow}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;border:1px solid #d1d3d4;border-radius:10px;overflow:hidden">
+            <sc-for list="{{monthAgenda}}" as="ma" hint-placeholder-count="6">
+              <div style="display:grid;grid-template-columns:64px minmax(0,1fr);border-top:1px solid #e8e9ea;background:{{ma.bg}}">
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;border-right:1px solid #e8e9ea">
+                  <span style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#747577">{{ma.dow}}</span>
+                  <span style="font:600 20px/1.1 var(--font-display);color:#1d1d1d">{{ma.num}}</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px;align-items:center">
+                  <sc-if value="{{ma.holiday}}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:14px;font-weight:600;color:#1d1d1d">{{ma.holiday}}</span>
+                  </sc-if>
+                  <sc-for list="{{ma.items}}" as="it" hint-placeholder-count="2">
+                    <span style="background:{{it.bg}};border-radius:3px;padding:3px 8px;font-size:14px;color:#1d1d1d">{{it.name}}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{monthEmpty}}" hint-placeholder-val="{{ false }}">
+              <div style="padding:14px;font:var(--type-body-sm);color:#747577">No leave booked this month.</div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ON CALL -->
+    <sc-if value="{{isOncall}}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <h2 style="margin:0;font:var(--type-h2);color:#1d1d1d">On-call roster</h2>
+          <span style="font:var(--type-body-sm);color:#747577">One engineer on call per week. Customer calls cover is read from the week schedule.</span>
+        </div>
+        <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+          <div style="border:1px solid #a7a9ac;border-radius:6px;overflow:auto">
+            <div style="min-width:980px">
+              <div style="display:grid;grid-template-columns:150px 220px repeat(5,minmax(0,1fr)) 150px;border-bottom:1px solid #a7a9ac;font-size:14px;font-weight:600;color:#1d1d1d">
+                <div style="padding:10px 12px">Week starting</div>
+                <div style="padding:10px 12px;border-left:1px solid #d1d3d4">On call</div>
+                <sc-for list="{{monthHeads}}" as="mh" hint-placeholder-count="5">
+                  <div style="padding:10px 8px;border-left:1px solid #d1d3d4;background:#FFFF00">{{mh}} calls</div>
+                </sc-for>
+                <div style="padding:10px 12px;border-left:1px solid #d1d3d4">Status</div>
+              </div>
+              <sc-for list="{{ocRows}}" as="o" hint-placeholder-count="8">
+                <div style="display:grid;grid-template-columns:150px 220px repeat(5,minmax(0,1fr)) 150px;border-bottom:1px solid #d1d3d4;min-height:52px;background:{{o.rowBg}}">
+                  <div style="display:flex;flex-direction:column;justify-content:center;padding:6px 12px">
+                    <span style="font-weight:600;color:#1d1d1d">{{o.label}}</span>
+                    <span style="font:var(--type-caption);color:#747577">{{o.range}}</span>
+                  </div>
+                  <div style="background:{{o.bg}};display:flex;align-items:center;padding:6px 10px;border-left:1px solid #d1d3d4">
+                    <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+                      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Select" options="{{engOptions}}" placeholder="Unassigned" value="{{o.value}}" on-change="{{o.onChange}}" style="width:100%" hint-size="100%,40px"></x-import>
+                    </sc-if>
+                    <sc-if value="{{notAdmin}}" hint-placeholder-val="{{ false }}">
+                      <span style="font-weight:600;color:#1d1d1d">{{o.name}}</span>
+                    </sc-if>
+                  </div>
+                  <sc-for list="{{o.calls}}" as="cl" hint-placeholder-count="5">
+                    <div style="display:flex;align-items:center;padding:6px 8px;border-left:1px dashed #a7a9ac;font-size:13px;color:#1d1d1d">{{cl}}</div>
+                  </sc-for>
+                  <div style="display:flex;align-items:center;padding:6px 10px;border-left:1px solid #d1d3d4">
+                    <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Badge" tone="{{o.tone}}" hint-size="90px,22px">{{o.status}}</x-import>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{narrow}}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <sc-for list="{{ocRows}}" as="o" hint-placeholder-count="6">
+              <div style="border:1px solid #d1d3d4;border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px">
+                  <div style="display:flex;flex-direction:column;flex:1">
+                    <span style="font-weight:600;color:#1d1d1d">{{o.label}}</span>
+                    <span style="font:var(--type-caption);color:#747577">{{o.range}}</span>
+                  </div>
+                  <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Badge" tone="{{o.tone}}" hint-size="90px,22px">{{o.status}}</x-import>
+                </div>
+                <div style="background:{{o.bg}};padding:8px 12px;border-top:1px solid #e8e9ea">
+                  <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ true }}">
+                    <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Select" options="{{engOptions}}" placeholder="Unassigned" value="{{o.value}}" on-change="{{o.onChange}}" hint-size="100%,42px"></x-import>
+                  </sc-if>
+                  <sc-if value="{{notAdmin}}" hint-placeholder-val="{{ false }}">
+                    <span style="font-weight:600;color:#1d1d1d">{{o.name}}</span>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </main>
+
+  <sc-if value="{{narrow}}" hint-placeholder-val="{{ false }}">
+    <nav style="position:sticky;bottom:0;z-index:6;background:#ffffff;border-top:1px solid #d1d3d4;display:grid;grid-template-columns:repeat(4,1fr)">
+      <sc-for list="{{navItems}}" as="n" hint-placeholder-count="4">
+        <button onClick="{{n.onClick}}" style="background:none;border:none;min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;color:{{n.color}};font:600 12px/1.2 var(--font-body);box-shadow:inset 0 3px 0 {{n.mark}}">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{n.icon}}" size="{{ 22 }}" hint-size="22px,22px"></x-import>
+          <span>{{n.label}}</span>
+        </button>
+      </sc-for>
+    </nav>
+  </sc-if>
+
+  <sc-if value="{{draftOpen}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;inset:0;z-index:20;display:flex;justify-content:flex-end;align-items:stretch">
+      <div onClick="{{closeDraft}}" style="position:absolute;inset:0;background:rgba(29,29,29,.5);backdrop-filter:blur(2px)"></div>
+      <div style="position:relative;width:{{drawerWidth}};background:#ffffff;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <div style="position:sticky;top:0;max-height:100vh;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:18px;box-sizing:border-box">
+          <div style="display:flex;align-items:flex-start;gap:12px">
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Whereabouts</span>
+              <span style="font:var(--type-h3);color:#1d1d1d">{{draft.name}}</span>
+              <span style="font:var(--type-body-sm);color:#575756">{{draft.dateLabel}}</span>
+            </div>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Close" on-click="{{closeDraft}}" hint-size="40px,40px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="x" hint-size="20px,20px"></x-import></x-import>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid #e8e9ea;border-radius:6px;background:{{draft.amBg}}">
+            <span style="font:var(--type-body-strong);color:#1d1d1d">{{draft.amTitle}}</span>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Select" options="{{statusOptions}}" value="{{draft.am.s}}" on-change="{{setAmS}}" hint-size="100%,42px"></x-import>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{draft.am.t}}" placeholder="Where you are, e.g. Tauranga, Starship, Cass Office" on-change="{{setAmT}}" hint-size="100%,42px"></x-import>
+          </div>
+          <sc-if value="{{draft.split}}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid #e8e9ea;border-radius:6px;background:{{draft.pmBg}}">
+              <span style="font:var(--type-body-strong);color:#1d1d1d">PM</span>
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Select" options="{{statusOptions}}" value="{{draft.pm.s}}" on-change="{{setPmS}}" hint-size="100%,42px"></x-import>
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{draft.pm.t}}" placeholder="Location or note" on-change="{{setPmT}}" hint-size="100%,42px"></x-import>
+            </div>
+          </sc-if>
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Switch" checked="{{draft.week}}" label="Apply to every day this week" on-change="{{toggleWeek}}" hint-size="240px,24px"></x-import>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font:var(--type-body-strong);color:#1d1d1d">Comment for this week</span>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{draft.comment}}" placeholder="e.g. Back 05th" on-change="{{setComment}}" hint-size="100%,42px"></x-import>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" on-click="{{saveDraft}}" hint-size="80px,42px">Save</x-import>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="secondary" on-click="{{closeDraft}}" hint-size="90px,42px">Cancel</x-import>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="ghost" on-click="{{clearDraft}}" style="margin-left:auto" hint-size="110px,42px">Clear entry</x-import>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;left:50%;bottom:84px;transform:translateX(-50%);z-index:30;background:#1d1d1d;color:#ffffff;border-radius:6px;padding:10px 16px;font:var(--type-body-sm);box-shadow:0 16px 48px rgba(29,29,29,.2);max-width:90%">{{toast}}</div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;sheet&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;sheet&quot;,&quot;tsType&quot;:&quot;'sheet'|'compact'&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;forceMobile&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Layout&quot;},&quot;initialView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;week&quot;,&quot;day&quot;,&quot;month&quot;,&quot;oncall&quot;],&quot;default&quot;:&quot;week&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Layout&quot;}}">
+const ST={
+  office:{label:'Cass Office',bg:'#ffffff'},
+  site:{label:'Site visit',bg:'#ffffff'},
+  remote:{label:'Remote Support',bg:'#ffffff'},
+  wfh:{label:'Work from Home',bg:'#ffffff'},
+  calls:{label:'Customer Calls',bg:'#FFFF00'},
+  oncall:{label:'On call',bg:'#FF7C80'},
+  leave:{label:'Leave',bg:'#FFC000'},
+  nwd:{label:'Non-Working Day',bg:'#D9D9D9'},
+  holiday:{label:'Public Holiday',bg:'#dbd7ed'},
+  training:{label:'Training',bg:'#e9f2da'}
+};
+const CODES={O:'office',S:'site',R:'remote',W:'wfh',C:'calls',L:'leave',N:'nwd',H:'holiday',T:'training',X:'oncall'};
+function P(c){c=(c||'').trim();if(!c)return null;if(c.indexOf('|')>=0){const p=c.split('|').map(P);return {s:p[0].s,t:p.map(x=>x.t||ST[x.s].label).join(' / ')};}const i=c.indexOf(':');return {s:CODES[i<0?c:c.slice(0,i)],t:i<0?'':c.slice(i+1)};}
+const DEPTS=[{id:'admin',name:'Admin',band:'#FFF2CC'},{id:'mgmt',name:'Management',band:'#E2EFDA'},{id:'eng',name:'Engineers',band:'#FCE4D6'},{id:'sales',name:'Sales',band:'#DDEBF7'},{id:'apps',name:'Applications',band:'#D9D9D9'}];
+const T5=s=>[s,s,s,s,s].join(';');
+const RAW=[
+['karen','Karen','admin',T5('O')],['jan','Jan','admin',T5('L')],['lisa','Lisa','admin',T5('O')],['fiona','Fiona','admin',T5('N')],['carolyn','Carolyn','admin','O;O;O;O;W'],
+['mark','Mark','mgmt','S:Manukau;S:Albany;S:Manukau;L;L'],['preston','Preston','mgmt','S:Tauranga;S:Tauranga;S:Hamilton;S:Tauranga;S:Tauranga'],['andrew','Andrew','mgmt','S:Car Service;O;R;O;N'],['james','James','mgmt','N;O;O;O;O:Cass Office / Anglesea'],['steve','Steve','mgmt','S:Tauranga;S:Tauranga;S:Hamilton;S:Tauranga;S:Tauranga'],
+['richard','Richard','eng','C:Cass Office / Customer Calls;O;O;O:Starship/Cass Office;O'],['mike','Mike','eng',T5('L')],['jonathan','Jonathan','eng','L;O;O:NSH/Cass Office;O;O'],['peter','Peter','eng',T5('O')],['adam','Adam','eng','S:Palmy;S:Palmy;S:Dunedin;S:Dunedin;S:Palmy'],['bryan','Bryan','eng','S:MMH|O;R|S:ADHB appt;C:Cass Office / Customer Calls;C:Cass Office / Customer Calls;S:ADHB appt / PMV'],['glen','Glen','eng','R;C:Remote Support / Customer Calls;N;R;C:Remote Support / Customer Calls'],['jack','Jack','eng','O;O;R;O;O'],['george','George','eng',T5('N')],
+['kenneth','Kenneth','sales','S:Alexandra;S:Dunedin;S:Dunedin;S:Dunedin;N'],['theresa','Theresa','sales','S:NSH/ASC;S:MMH/WTH;S:NSH;S:MHP;S:Auckland'],['jacqui','Jacqui','sales',T5('L')],['jessc','Jess Chalklen','sales','S:Tauranga;O;S:Auckland;S:Auckland;S:Auckland'],['ciaran','Ciaran','sales',T5('S:Invercargill')],['mel','Mel','sales','S:Tauranga;S:Tauranga;S:Auckland;S:Tauranga;S:Tauranga'],['sam','Sam','sales','S:Waikato;S:Tauranga;S:Waikato;S:?Rotorua;S:Waikato'],
+['paul','Paul','apps','O;R;O;R;O'],['john','John','apps','R;R;R;S:Starship Room 1 Decommission;R'],['teri','Teri','apps','S:Waikato;S:Invercargill;S:Invercargill;S:Invercargill;'],['grant','Grant','apps','S:Hutt;S:Hutt;S:Hutt;S:Hutt;S:Palmy'],['markh','Mark Henderwood','apps',T5('S:Wellington')],['jessb','Jess Broughan','apps',T5('S:Christchurch')],['joann','Jo-ann','apps','S:Auckland;L;S:Auckland;S:Auckland;S:Auckland'],['ben','Ben','apps',T5('O')]
+];
+const PEOPLE=RAW.map(r=>({id:r[0],name:r[1],dept:r[2]}));
+const BYID={};PEOPLE.forEach(p=>BYID[p.id]=p);
+const DEPTNAME={};DEPTS.forEach(d=>DEPTNAME[d.id]=d.name);
+const HOL={'4-0':'Labour Day'};
+const EXTRAS=[{pid:'theresa',w:1,days:[3,4]},{pid:'jonathan',w:1,days:[2],s:'training',t:'Mindray A9 training'},{pid:'karen',w:2,days:[0,1,2,3,4]},{pid:'peter',w:3,days:[0,1,2,3,4]},{pid:'jack',w:4,days:[1,2]},{pid:'lisa',w:5,days:[3,4]}];
+const DAYS=['Mon','Tue','Wed','Thu','Fri'];
+const DAYSL=['Monday','Tuesday','Wednesday','Thursday','Friday'];
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const dateOf=(w,d)=>new Date(2026,8,28+w*7+d);
+const fmt=(w,d)=>{const x=dateOf(w,d);return x.getDate()+' '+MON[x.getMonth()];};
+const wdOf=date=>{const n=Math.round((date-new Date(2026,8,28))/864e5);const w=Math.floor(n/7);return {w,d:n-w*7};};
+const has=(e,k)=>!!e&&(e.s===k||(!!e.am&&((e.am&&e.am.s===k)||(e.pm&&e.pm.s===k))));
+const TODAY={w:0,d:1};
+function buildBase(){const entries={};RAW.forEach(r=>{entries[r[0]]=r[3].split(';').map(P);while(entries[r[0]].length<5)entries[r[0]].push(null);});return {0:{entries,comments:{jan:'Back 05th',mike:'back on the 5th'}}};}
+
+class Component extends DCLogic {
+  rootRef=React.createRef();
+  state={view:this.props.initialView||'week',w:0,dayIdx:1,monthOff:0,weeks:buildBase(),oncall:{0:'bryan',1:'glen',2:'richard',3:null,4:'jack',5:'jonathan',6:'peter',7:'adam'},role:'admin',depts:[],q:'',draft:null,toast:'',width:1400};
+  componentDidMount(){const el=this.rootRef.current;if(!el)return;this.ro=new ResizeObserver(es=>{const w=es[0].contentRect.width;if(Math.abs(w-this.state.width)>2)this.setState({width:w});});this.ro.observe(el);}
+  componentWillUnmount(){this.ro&&this.ro.disconnect();clearTimeout(this.tt);}
+  showToast(t){clearTimeout(this.tt);this.setState({toast:t});this.tt=setTimeout(()=>this.setState({toast:''}),2800);}
+  entry(w,pid,d){const wk=this.state.weeks[w];const e=wk&&wk.entries[pid]&&wk.entries[pid][d];if(e)return e;if(HOL[w+'-'+d])return {s:'holiday',t:HOL[w+'-'+d]};const x=EXTRAS.find(x=>x.pid===pid&&x.w===w&&x.days.indexOf(d)>=0);if(x)return {s:x.s||'leave',t:x.t||''};return null;}
+  canEdit(){return true;}
+  conflicts(w){
+    const out=[];const oc=this.state.oncall[w];
+    if(!oc)out.push({type:'oncall',text:'No one is on call for the week starting '+fmt(w,0)+'.',short:'Unassigned'});
+    else{const lv=[0,1,2,3,4].filter(d=>has(this.entry(w,oc,d),'leave'));if(lv.length)out.push({type:'oncall',text:BYID[oc].name+' is on call but on leave '+lv.map(d=>DAYS[d]+' '+fmt(w,d)).join(', ')+'.',short:'On call, on leave'});}
+    if(this.state.weeks[w]){
+      [0,1,2,3,4].forEach(d=>{if(HOL[w+'-'+d])return;if(!PEOPLE.some(p=>has(this.entry(w,p.id,d),'calls')))out.push({type:'calls',text:'No customer calls cover on '+DAYSL[d]+' '+fmt(w,d)+'.',short:'Calls gap'});});
+      const em=[];PEOPLE.forEach(p=>{const ds=[0,1,2,3,4].filter(d=>!this.entry(w,p.id,d));if(ds.length)em.push(p.name+' ('+(ds.length===5?'all week':ds.map(d=>DAYS[d]).join(', '))+')');});
+      if(em.length)out.push({type:'empty',text:'No entry: '+em.join(', ')+'.',short:'Gaps'});
+    }
+    return out;
+  }
+  openEdit(pid,d){const w=this.state.w;const e=this.entry(w,pid,d);const split=!!(e&&e.am);const a=split?e.am:(e||{s:'office',t:''});const b=split?e.pm:a;const wk=this.state.weeks[w];
+    this.setState({draft:{pid,d,split,am:{s:a.s,t:a.t||''},pm:{s:b.s,t:b.t||''},week:false,comment:(wk&&wk.comments[pid])||''}});}
+  upd(k,f,v){this.setState(s=>({draft:{...s.draft,[k]:{...s.draft[k],[f]:v}}}));}
+  writeRow(fn){const {w}=this.state;const weeks={...this.state.weeks};const old=weeks[w];const wk={entries:{...(old?old.entries:{})},comments:{...(old?old.comments:{})}};fn(wk);weeks[w]=wk;this.setState({weeks,draft:null});}
+  save(){const dr=this.state.draft;const val=dr.split?{am:{...dr.am},pm:{...dr.pm}}:{...dr.am};
+    this.writeRow(wk=>{const row=(wk.entries[dr.pid]||[null,null,null,null,null]).slice();(dr.week?[0,1,2,3,4]:[dr.d]).forEach(d=>row[d]=val);wk.entries[dr.pid]=row;wk.comments[dr.pid]=dr.comment;});this.showToast('Saved.');}
+  clear(){const dr=this.state.draft;this.writeRow(wk=>{const row=(wk.entries[dr.pid]||[null,null,null,null,null]).slice();(dr.week?[0,1,2,3,4]:[dr.d]).forEach(d=>row[d]=null);wk.entries[dr.pid]=row;});this.showToast('Entry cleared.');}
+  copyWeek(){const {w,weeks}=this.state;const prev=weeks[w-1];
+    if(weeks[w])return this.showToast('This week already has entries.');
+    if(!prev)return this.showToast('Last week has no entries to copy.');
+    const entries={};Object.keys(prev.entries).forEach(pid=>{entries[pid]=prev.entries[pid].map((e,d)=>{if(!e||HOL[w+'-'+d]||EXTRAS.some(x=>x.pid===pid&&x.w===w&&x.days.indexOf(d)>=0))return null;if(has(e,'leave')||has(e,'holiday'))return null;return e;});});
+    this.setState({weeks:{...weeks,[w]:{entries,comments:{}}}});this.showToast('Copied from week starting '+fmt(w-1,0)+'. Leave and holidays were not carried over.');}
+
+  renderVals(){
+    const s=this.state,w=s.w;
+    const narrow=!!this.props.forceMobile||s.width<760;
+    const q=s.q.trim().toLowerCase();
+    const people=PEOPLE.filter(p=>(!s.depts.length||s.depts.indexOf(p.dept)>=0)&&(!q||p.name.toLowerCase().indexOf(q)>=0));
+    const oc=s.oncall[w];
+    const seg=e=>{if(!e)return {bg:'#ffffff',text:''};const st=ST[e.s]||ST.office;return {bg:st.bg,text:e.t||st.label};};
+    const mkCell=(p,d)=>{const e=this.entry(w,p.id,d);const ed=this.canEdit(p.id);
+      const base={onClick:ed?()=>this.openEdit(p.id,d):undefined,cursor:ed?'pointer':'default',hover:ed?'inset 0 0 0 2px #968ac1':'none'};
+      if(e&&e.am){const a=seg(e.am),b=seg(e.pm);return {...base,split:true,whole:false,am:a,pm:b,title:'AM: '+a.text+' · PM: '+b.text};}
+      const g=seg(e);return {...base,split:false,whole:true,...g,am:g,pm:g,title:g.text};};
+    const groups=DEPTS.filter(dp=>people.some(p=>p.dept===dp.id)).map(dp=>{const rows=people.filter(p=>p.dept===dp.id).map(p=>{const isOc=oc===p.id;const wk=s.weeks[w];
+      return {name:p.name,label:isOc?p.name+' - OnCall':p.name,nameBg:isOc?'#FF7C80':'#ffffff',nameWeight:isOc?600:400,comment:(wk&&wk.comments[p.id])||'',cells:[0,1,2,3,4].map(d=>mkCell(p,d)),dayCell:mkCell(p,s.dayIdx)};});
+      return {name:dp.name,band:dp.band,rows,count:rows.length+(rows.length===1?' person':' people')};});
+    const isToday=d=>w===TODAY.w&&d===TODAY.d;
+    const dayHeads=[0,1,2,3,4].map(d=>({label:DAYSL[d]+' '+fmt(w,d),mark:isToday(d)?'#554596':'transparent',headColor:(isToday(d)||d===s.dayIdx)?'#554596':'#747577',bg:d===s.dayIdx?'#f4f4f5':'#ffffff',onClick:()=>this.setState({dayIdx:d})}));
+    const dayPills=[0,1,2,3,4].map(d=>{const on=d===s.dayIdx;return {short:DAYS[d],num:dateOf(w,d).getDate(),bg:on?'#554596':'#ffffff',fg:on?'#ffffff':'#1d1d1d',border:on?'#554596':(isToday(d)?'#968ac1':'#d1d3d4'),onClick:()=>this.setState({dayIdx:d})};});
+
+    // day view
+    const order=['calls','office','site','remote','wfh','training','oncall','leave','nwd','holiday','none'];
+    const by={};people.forEach(p=>{const e=this.entry(w,p.id,s.dayIdx);const a=e?(e.am||e):null;const k=a?a.s:'none';
+      const note=a&&a.t&&a.t!==ST[k].label?a.t:'';const pm=e&&e.am&&e.pm?'PM: '+(e.pm.t||ST[e.pm.s].label):'';
+      (by[k]=by[k]||[]).push({name:p.name,meta:[DEPTNAME[p.dept],note,pm].filter(Boolean).join(' · '),sort:note});});
+    if(by.site)by.site.sort((a,b)=>a.sort.localeCompare(b.sort));
+    const dayGroups=order.filter(k=>by[k]).map(k=>({label:k==='none'?'No entry':k==='site'?'On site':ST[k].label,swatch:k==='none'?'#f4f4f5':(ST[k].bg==='#ffffff'?'#f4f4f5':ST[k].bg),count:by[k].length,people:by[k]}));
+    const cnt=k=>(by[k]||[]).length;
+    const daySummary=people.length+' people · '+cnt('office')+' in Cass Office · '+cnt('site')+' on site · '+cnt('leave')+' on leave';
+
+    // month
+    const m0=new Date(2026,9+s.monthOff,1);const mm=m0.getMonth();
+    let start=new Date(m0);const dow=(m0.getDay()+6)%7;start.setDate(1-dow+(dow>4?7:0));
+    const monthCells=[],monthAgenda=[];
+    for(let i=0;i<6;i++){for(let d=0;d<5;d++){const dt=new Date(start.getFullYear(),start.getMonth(),start.getDate()+i*7+d);if(i>0&&d===0&&dt.getMonth()!==mm)break;
+      const pos=wdOf(dt);const inM=dt.getMonth()===mm;const hol=HOL[pos.w+'-'+pos.d]||'';
+      const items=[];if(!hol)people.forEach(p=>{const e=this.entry(pos.w,p.id,pos.d);if(has(e,'leave'))items.push({name:p.name,bg:ST.leave.bg});else if(has(e,'training'))items.push({name:p.name+' · Training',bg:ST.training.bg});});
+      const today=pos.w===TODAY.w&&pos.d===TODAY.d;
+      monthCells.push({num:dt.getDate(),holiday:hol,items:items.slice(0,4),more:items.length>4?'+'+(items.length-4)+' more':'',bg:hol?ST.holiday.bg:'#ffffff',opacity:inM?1:.45,numColor:today?'#554596':'#1d1d1d'});
+      if(inM&&(hol||items.length))monthAgenda.push({dow:DAYS[d],num:dt.getDate(),holiday:hol,items,bg:hol?ST.holiday.bg:'#ffffff'});}
+      if(monthCells.length%5!==0)break;}
+    while(monthCells.length%5!==0)monthCells.pop();
+
+    // on call
+    const engOptions=PEOPLE.filter(p=>p.dept==='eng').map(p=>({value:p.id,label:p.name}));
+    const ocRows=[0,1,2,3,4,5,6,7].map(wk=>{const pid=s.oncall[wk];const cf=this.conflicts(wk).filter(c=>c.type==='oncall');
+      const calls=[0,1,2,3,4].map(d=>HOL[wk+'-'+d]?HOL[wk+'-'+d]:(PEOPLE.filter(p=>has(this.entry(wk,p.id,d),'calls')).map(p=>p.name).join(', ')||'—'));
+      return {label:fmt(wk,0),range:fmt(wk,0)+' – '+fmt(wk,4),value:pid||'',name:pid?BYID[pid].name+' - OnCall':'Unassigned',bg:pid?'#FF7C80':'#ffffff',rowBg:wk===w?'#f4f4f5':'#ffffff',
+        calls,callsLine:calls.map((c,d)=>DAYS[d]+' '+c).join(' · '),status:cf.length?cf[0].short:'Covered',tone:cf.length?'critical':'green',
+        onChange:e=>{const v=e.target.value||null;this.setState(st=>({oncall:{...st.oncall,[wk]:v}}));this.showToast(v?BYID[v].name+' is on call for the week starting '+fmt(wk,0)+'.':'On call cleared for '+fmt(wk,0)+'.');}};});
+
+    const conflicts=this.conflicts(w);
+    const leaveToday=people.filter(p=>has(this.entry(w,p.id,s.dayIdx),'leave')).map(p=>({name:p.name}));
+    const view=s.view;const isWeek=view==='week';
+    const dr=s.draft;
+    const draft=dr?{...dr,name:BYID[dr.pid].name,dateLabel:DAYSL[dr.d]+' '+fmt(w,dr.d)+' 2026',amTitle:'Status and location',amBg:ST[dr.am.s].bg==='#ffffff'?'#f4f4f5':ST[dr.am.s].bg,pmBg:ST[dr.pm.s].bg==='#ffffff'?'#f4f4f5':ST[dr.pm.s].bg}:{am:{},pm:{}};
+    const setView=v=>this.setState({view:v});
+    const wkHasData=!!s.weeks[w];
+
+    return {
+      rootRef:this.rootRef,narrow,wide:!narrow,pad:narrow?'16px':'24px',mainBottom:narrow?'24px':'48px',roleWidth:narrow?'150px':'190px',searchWidth:narrow?'100%':'220px',tagWrap:narrow?'nowrap':'wrap',drawerWidth:narrow?'100%':'420px',
+      view,setView,viewTabs:[{value:'week',label:'Week'},{value:'day',label:'Day'},{value:'month',label:'Leave calendar'},{value:'oncall',label:'On call'}],
+      navItems:[['week','Week','calendar-days'],['day','Day','map-pin'],['month','Leave','calendar-range'],['oncall','On call','phone']].map(([v,l,i])=>({label:l,icon:i,onClick:()=>setView(v),color:view===v?'#554596':'#747577',mark:view===v?'#554596':'transparent'})),
+      
+      
+      isAdmin:true,notAdmin:false,
+      showWeekNav:view==='week'||view==='day',showWeekActions:isWeek&&!narrow,showFilters:view!=='oncall'&&!(narrow&&view==='month'),showDayPills:view==='day'||(isWeek&&narrow),
+      weekLabel:fmt(w,0)+' 2026',notThisWeek:w!==0,
+      prevWeek:()=>this.setState({w:w-1}),nextWeek:()=>this.setState({w:w+1}),goThisWeek:()=>this.setState({w:0,dayIdx:1}),
+      copyWeek:()=>this.copyWeek(),printWeek:()=>window.print(),
+      q:s.q,setQ:e=>this.setState({q:e.target.value}),
+      deptTags:[{name:'All',selected:!s.depts.length,onClick:()=>this.setState({depts:[]})}].concat(DEPTS.map(dp=>({name:dp.name,selected:s.depts.indexOf(dp.id)>=0,onClick:()=>this.setState(st=>({depts:st.depts.indexOf(dp.id)>=0?st.depts.filter(x=>x!==dp.id):st.depts.concat(dp.id)}))}))),
+      dayPills,dayHeads,groups,
+      showConflicts:(isWeek||view==='day')&&conflicts.length>0,conflicts,conflictTitle:conflicts.length===1?'1 thing to check this week':conflicts.length+' things to check this week',
+      showLegend:!narrow&&(isWeek||view==='month'),conflictList:narrow?[]:conflicts,legend:[{label:'Office / site / remote / WFH',bg:'#ffffff'}].concat(['calls','oncall','leave','nwd','holiday','training'].map(k=>({label:ST[k].label,bg:ST[k].bg}))),
+      showCompact:isWeek&&!narrow,showMobileWeek:isWeek&&narrow,showEmptyWeek:isWeek&&!wkHasData,
+      isDay:view==='day',dayTitle:DAYSL[s.dayIdx]+' '+fmt(w,s.dayIdx),daySummary,dayGroups,onCallName:oc?BYID[oc].name:'Unassigned',
+      isMonth:view==='month',monthLabel:MONL[mm]+' '+m0.getFullYear(),monthHeads:DAYSL,monthCells,monthAgenda,monthEmpty:!monthAgenda.length,
+      prevMonth:()=>this.setState({monthOff:s.monthOff-1}),nextMonth:()=>this.setState({monthOff:s.monthOff+1}),
+      isOncall:view==='oncall',ocRows,engOptions,
+      draftOpen:!!dr,draft,statusOptions:Object.keys(ST).map(k=>({value:k,label:ST[k].label})),
+      closeDraft:()=>this.setState({draft:null}),saveDraft:()=>this.save(),clearDraft:()=>this.clear(),
+      toggleSplit:v=>this.setState(st=>({draft:{...st.draft,split:v,pm:v?{...st.draft.am}:st.draft.pm}})),toggleWeek:v=>this.setState(st=>({draft:{...st.draft,week:v}})),
+      setAmS:e=>this.upd('am','s',e.target.value),setAmT:e=>this.upd('am','t',e.target.value),setPmS:e=>this.upd('pm','s',e.target.value),setPmT:e=>this.upd('pm','t',e.target.value),
+      setComment:e=>{const v=e.target.value;this.setState(st=>({draft:{...st.draft,comment:v}}));},
+      showLeavePin:isWeek||view==='day',leaveToday,noLeaveToday:!leaveToday.length,leavePinTitle:'On leave '+DAYS[s.dayIdx]+' '+fmt(w,s.dayIdx)+(isToday(s.dayIdx)?' (today)':''),
+      toast:s.toast
+    };
+  }
+}
+</script>
+</body>
+</html>

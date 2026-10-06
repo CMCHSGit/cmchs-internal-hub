@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/styles.css">
+  <script src="https://unpkg.com/lucide@0.451.0/dist/umd/lucide.js"></script>
+  <script src="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/_ds_bundle.js"></script>
+  <style>body{margin:0;background:#f4f4f5} a{color:#554596} a:hover{color:#3f3374}</style>
+</helmet>
+<section style="padding:48px;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">CMCHS Internal Hub · internal.chsnz.co.nz</span>
+    <h2 style="margin:0;font:var(--type-h2);color:#1d1d1d">Home page: three layouts</h2>
+    <span style="font:var(--type-body-sm);color:#575756">Same tools, people and announcements in each. Search covers tools and staff.</span>
+  </div>
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+    <div id="1a" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1a · Launcher grid</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" layout="launcher" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1b" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1b · Sidebar + dashboard</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" layout="sidebar" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1c" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1c · Search first</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" layout="search" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+  </div>
+</section>
+<section style="padding:48px;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Screens</span>
+    <h2 style="margin:0;font:var(--type-h2);color:#1d1d1d">Tool open, managing tools, people, sign in</h2>
+    <span style="font:var(--type-body-sm);color:#575756">Tools open inside the hub with a pop-out button. Outlook and Teams always open in a new tab.</span>
+  </div>
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+    <div id="1d" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1d · Tool open: Staff schedule</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" layout="launcher" initial-screen="tool" initial-tool="schedule" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1e" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1e · Tool open in sidebar layout: Ansur PVT</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" layout="sidebar" initial-screen="tool" initial-tool="ansur" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1f" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1f · Manage tools</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" initial-screen="admin" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1g" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1g · Add a tool</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2);transform:translateZ(0)">
+        <dc-import name="CMCHS Internal Hub" initial-screen="admin" initial-dialog="add" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1h" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1h · People</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" initial-screen="directory" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1i" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1i · Sign in</span>
+      <div style="width:1440px;height:900px;overflow:hidden;background:#fff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" initial-screen="signin" frame-height="900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+  </div>
+</section>
+<section style="padding:48px;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Mobile</span>
+    <h2 style="margin:0;font:var(--type-h2);color:#1d1d1d">Below 760px</h2>
+  </div>
+  <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start">
+    <div id="1j" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1j · Home</span>
+      <div style="width:390px;height:844px;overflow:hidden;background:#fff;border-radius:24px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" force-mobile="{{ true }}" frame-height="844px" hint-size="390px,844px"></dc-import>
+      </div>
+    </div>
+    <div id="1k" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1k · Tool open</span>
+      <div style="width:390px;height:844px;overflow:hidden;background:#fff;border-radius:24px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" force-mobile="{{ true }}" initial-screen="tool" initial-tool="schedule" frame-height="844px" hint-size="390px,844px"></dc-import>
+      </div>
+    </div>
+    <div id="1l" style="display:flex;flex-direction:column;gap:8px">
+      <span style="align-self:flex-start;background:#554596;color:#fff;border-radius:999px;padding:2px 10px;font:600 13px/1.4 var(--font-body)">1l · People</span>
+      <div style="width:390px;height:844px;overflow:hidden;background:#fff;border-radius:24px;box-shadow:0 16px 48px rgba(29,29,29,.2)">
+        <dc-import name="CMCHS Internal Hub" force-mobile="{{ true }}" initial-screen="directory" frame-height="844px" hint-size="390px,844px"></dc-import>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>

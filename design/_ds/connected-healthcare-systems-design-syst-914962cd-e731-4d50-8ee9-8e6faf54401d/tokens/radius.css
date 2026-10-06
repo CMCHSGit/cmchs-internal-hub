@@ -1,0 +1,11 @@
+:root{
+  --radius-none:0;
+  --radius-sm:3px;
+  --radius-md:6px;
+  --radius-lg:10px;
+  --radius-card:10px;
+  --radius-pill:999px;
+  --radius-circle:50%;
+  --border-width-hairline:1px;
+  --border-width-accent:3px;
+}

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Service Order Parser</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #3b82f6;
+    --accent-dim: #1d4ed8;
+    --text: #e2e8f0;
+    --text-dim: #8892a4;
+    --green: #22c55e;
+    --yellow: #f59e0b;
+    --red: #ef4444;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 24px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+
+  header span {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1400px;
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  textarea {
+    width: 100%;
+    height: 480px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 16px;
+    resize: none;
+    outline: none;
+  }
+
+  textarea::placeholder { color: var(--text-dim); }
+
+  .btn-row {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: none;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent-dim); }
+
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+  .fields {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 480px;
+    overflow-y: auto;
+  }
+
+  .field {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+    align-items: start;
+    gap: 10px;
+  }
+
+  .field label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding-top: 7px;
+  }
+
+  .field input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .field input:focus { border-color: var(--accent); }
+
+  .field input.populated {
+    border-color: #1a3a2a;
+    background: #0d1f17;
+    color: var(--green);
+  }
+
+  .field input.manual {
+    border-color: #3a2e0d;
+    background: #1f1a07;
+  }
+
+  .status {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .dot.ok { background: var(--green); }
+  .dot.warn { background: var(--yellow); }
+
+  .copy-row {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    padding: 0 16px;
+    padding-top: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .swatch {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+  .swatch.auto { background: #22c55e; opacity: 0.7; }
+  .swatch.manual { background: #f59e0b; opacity: 0.7; }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: #000;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all 0.2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  .parts-section {
+    margin-top: 4px;
+  }
+
+  .parts-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    padding: 0 16px 8px;
+  }
+
+  .field-divider {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--border);
+    margin: 4px 0;
+  }
+
+  .part-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 12px;
+    padding: 4px 8px;
+    margin-left: 130px;
+    margin-bottom: 8px;
+    display: none;
+    font-family: var(--sans);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Service Order Parser</h1>
+  <span>paste → extract → copy to sheet</span>
+</header>
+
+<div class="layout">
+  <!-- INPUT -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Paste Service Order</span>
+      <span id="charCount" style="font-family:var(--mono)">0 chars</span>
+    </div>
+    <textarea id="soInput" placeholder="Paste the full Service Order text here..."></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" onclick="parse()">Extract Fields</button>
+      <button class="btn-ghost" onclick="clearAll()">Clear</button>
+    </div>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Extracted Fields</span>
+      <span id="parseStatus"></span>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="swatch auto"></div> Auto-extracted</div>
+      <div class="legend-item"><div class="swatch manual"></div> Manual entry needed</div>
+    </div>
+
+    <div class="fields">
+      <div class="field">
+        <label>S.O</label>
+        <input type="text" id="f_so" placeholder="—">
+      </div>
+      <div class="field">
+        <label>SO Title</label>
+        <input type="text" id="f_title" placeholder="—">
+      </div>
+      <div class="field">
+        <label>SN</label>
+        <input type="text" id="f_sn" placeholder="—">
+      </div>
+      <div class="field">
+        <label>PN</label>
+        <input type="text" id="f_pn" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Part Name</label>
+        <input type="text" id="f_partname" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Need Return</label>
+        <input type="text" id="f_return" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Site</label>
+        <input type="text" id="f_site" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Notes</label>
+        <input type="text" id="f_notes" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Date Raised</label>
+        <input type="text" id="f_dateraised" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Received Date</label>
+        <input type="text" id="f_received" placeholder="Manual — enter when parts arrive" class="manual">
+      </div>
+      <div class="field">
+        <label>Old SO</label>
+        <input type="text" id="f_oldso" placeholder="Manual — enter if applicable" class="manual">
+      </div>
+      <div class="field">
+        <label>Additional Notes</label>
+        <input type="text" id="f_addnotes" placeholder="Manual — any extra notes" class="manual">
+      </div>
+    </div>
+
+    <div class="status">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Paste a Service Order and click Extract</span>
+    </div>
+
+    <div class="copy-row">
+      <button class="btn-primary" onclick="copyRow()">Copy Row (Tab-separated)</button>
+      <button class="btn-ghost" onclick="copyCSV()">Copy as CSV</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const soInput = document.getElementById('soInput');
+
+soInput.addEventListener('input', () => {
+  document.getElementById('charCount').textContent = soInput.value.length + ' chars';
+});
+
+function getLine(text, label) {
+  // Find label in text, return next non-empty line
+  const lines = text.split('\n').map(l => l.trim());
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].toLowerCase() === label.toLowerCase()) {
+      for (let j = i + 1; j < lines.length; j++) {
+        if (lines[j] && lines[j] !== label) return lines[j];
+      }
+    }
+  }
+  return '';
+}
+
+function extractParts(text) {
+  // Part number formats:
+  // Standard (no return): 115-049059-00
+  // Q-prefix (return required): Q115-048108-00
+  const lines = text.split('\n').map(l => l.trim());
+  const parts = [];
+  const partPattern = /^(Q?\d{3}-\d{6}-\d{2})$/;
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].match(partPattern);
+    if (match) {
+      const pn = match[1];
+      const name = lines[i + 1] || '';
+      const isReturn = pn.startsWith('Q');
+      parts.push({ pn, name, isReturn });
+    }
+  }
+
+  // Need Return = YES if any Q-prefixed part number exists
+  const needReturn = parts.some(p => p.isReturn) ? 'YES' : 'NO';
+  return { parts, needReturn };
+}
+
+function parse() {
+  const text = soInput.value;
+  if (!text.trim()) { showToast('Nothing to parse', '#ef4444'); return; }
+
+  const set = (id, val, auto = true) => {
+    const el = document.getElementById(id);
+    el.value = val || '';
+    if (auto && val) {
+      el.classList.add('populated');
+      el.classList.remove('manual');
+    }
+  };
+
+  // Order No
+  set('f_so', getLine(text, 'Order No.'));
+
+  // Title / Description
+  set('f_title', getLine(text, 'Description'));
+
+  // Serial No
+  set('f_sn', getLine(text, 'Serial No.'));
+
+  // Parts
+  const { parts, needReturn } = extractParts(text);
+  set('f_pn', parts.map(p => p.pn).join(' / '));
+  set('f_partname', parts.map(p => p.name).join(' / '));
+  set('f_return', needReturn);
+
+  // Site = Customer Name
+  set('f_site', getLine(text, 'Customer Name'));
+
+  // Notes = first Technician Notes entry (phenomenon)
+  let notes = '';
+  const techMatch = text.match(/Technician Notes：\s*\n([^\n]+)/);
+  if (techMatch) notes = techMatch[1].trim();
+  set('f_notes', notes);
+
+  // Date Raised = Order Submitted
+  set('f_dateraised', getLine(text, 'Order Submitted'));
+
+  // Count extracted
+  const fields = ['f_so','f_title','f_sn','f_pn','f_partname','f_return','f_site','f_notes','f_dateraised'];
+  const populated = fields.filter(f => document.getElementById(f).value.trim()).length;
+
+  document.getElementById('statusDot').className = 'dot ' + (populated >= 7 ? 'ok' : 'warn');
+  document.getElementById('statusText').textContent = `${populated} of 9 auto fields extracted`;
+  document.getElementById('parseStatus').textContent = populated + '/9';
+}
+
+function getValues() {
+  return [
+    'f_so','f_title','f_sn','f_pn','f_partname','f_return',
+    'f_site','f_notes','f_dateraised','f_received','f_oldso','f_addnotes'
+  ].map(id => document.getElementById(id).value);
+}
+
+function copyRow() {
+  const row = getValues().join('\t');
+  navigator.clipboard.writeText(row).then(() => showToast('Row copied — paste directly into your spreadsheet'));
+}
+
+function copyCSV() {
+  const headers = 'S.O\tSO Title\tSN\tPN\tPart Name\tNeed Return\tSite\tNotes\tDate Raised\tReceived Date\tOld SO\tAdditional Notes';
+  const row = getValues().join('\t');
+  navigator.clipboard.writeText(headers + '\n' + row).then(() => showToast('CSV with headers copied'));
+}
+
+function clearAll() {
+  soInput.value = '';
+  document.getElementById('charCount').textContent = '0 chars';
+  const ids = ['f_so','f_title','f_sn','f_pn','f_partname','f_return','f_site','f_notes','f_dateraised','f_received','f_oldso','f_addnotes'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.classList.remove('populated');
+  });
+  document.getElementById('statusDot').className = 'dot';
+  document.getElementById('statusText').textContent = 'Paste a Service Order and click Extract';
+  document.getElementById('parseStatus').textContent = '';
+}
+
+function showToast(msg, color = '#22c55e') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = color;
+  t.style.color = color === '#22c55e' ? '#000' : '#fff';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
