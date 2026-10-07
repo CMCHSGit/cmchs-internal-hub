@@ -13,7 +13,7 @@
 ## Sign-in
 Microsoft sign-in through Firebase Auth, using **the staff schedule's Firebase project** (locked to the Cass Medical tenant). Every app on this domain shares that one session, so people sign in once at the hub and never again, including after closing the browser, until they sign out. The code is in `shared/session.js`.
 
-Plain HTML pages join in with two lines at the top of `<head>` (see the three `/service` tools):
+Plain HTML pages join in with two lines at the top of `<head>` (see `apps/service/order-parser`):
 
 ```html
 <script>document.documentElement.style.visibility='hidden'</script>
@@ -22,7 +22,9 @@ Plain HTML pages join in with two lines at the top of `<head>` (see the three `/
 
 Signed in: the page shows with a slim "Internal Hub" bar on top. Signed out: they go to the hub's sign-in, then straight back.
 
-**The site files are public** (GitHub Pages can't password-protect them). Anything confidential must come from Firebase behind its security rules, never sit in this repo. This repo is public too, so **no API keys**: SimproSync loads its key in the browser.
+**The site files are public** (GitHub Pages can't password-protect them). Anything confidential must come from Firebase behind its security rules, never sit in this repo. This repo is public too, so **no API keys** — and remember the sign-in gate is not a wall: anything served from here can be fetched without it.
+
+SimproSync is the pattern to copy for a tool that needs a third-party key: the Simpro key lives in a Script Property on the Apps Script proxy, the browser sends only the user's Firebase ID token, and the proxy checks that token is a real admin before relaying an allowlisted call. The key never reaches the page.
 
 ## Add a tool
 1. A single-file tool: put it at `apps/service/<name>/index.html` and add the two gate lines.
