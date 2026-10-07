@@ -836,7 +836,10 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/$/],
   [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
   [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
+  [['get'],        /^\/companies\/\d+\/sites\/$/],
   [['get','post'], /^\/companies\/\d+\/sites\/\d+\/assets\/$/],
+  // SimproSync's "Delete assets by type". Admins only — see SIMPRO_SYNC_ADMIN_ONLY.
+  [['delete'],     /^\/companies\/\d+\/sites\/\d+\/assets\/\d+$/],
   [['get'],        /^\/companies\/\d+\/sites\/\d+\/assets\/\d+\/customFields\/$/],
   [['patch'],      /^\/companies\/\d+\/sites\/\d+\/assets\/\d+\/customFields\/\d+$/],
   // Job search, for the Ansur report builder's "find the job" box. Read-only,
@@ -849,6 +852,9 @@ const SIMPRO_SYNC_ALLOWLIST = [
   // Attach a generated PDF to a job (Ansur PVT reports).
   [['post'],       /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/]
 ];
+// Methods only a role:'admin' user may relay. A simproAccess grant (below)
+// covers reading and syncing, never deleting.
+const SIMPRO_SYNC_ADMIN_ONLY = ['delete'];
 const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes'];
 const SIMPRO_SYNC_ATTACHMENT_FIELDS = ['Filename', 'Public', 'Base64Data', 'Folder'];
 // One attachment per batch, and a ceiling on each. Base64 is ~4/3 of the file,
@@ -918,7 +924,7 @@ function simproSyncVerifyAdmin_(idToken) {
     throw new Error((decoded.email || decoded.uid) + ' does not have Simpro access');
   }
 
-  const result = { uid: decoded.uid, email: decoded.email };
+  const result = { uid: decoded.uid, email: decoded.email, admin: role === 'admin' };
   const ttlSeconds = Math.max(1, Math.min(600, decoded.exp - Math.floor(Date.now() / 1000)));
   cache.put(cacheKey, JSON.stringify(result), ttlSeconds);
   return result;
@@ -943,6 +949,11 @@ function simproSyncProxy_(payload) {
     const path = String(r.path || '');
     if (!simproSyncAllowed_(method, path)) {
       return respond({ success: false, error: 'Request ' + i + ' (' + method.toUpperCase() + ' ' + path + ') is not allowed' });
+    }
+    // who.admin is absent on a check cached before this flag existed, which
+    // denies — harmless, the cache entry expires within 10 minutes.
+    if (SIMPRO_SYNC_ADMIN_ONLY.indexOf(method) !== -1 && who.admin !== true) {
+      return respond({ success: false, error: 'Request ' + i + ' (' + method.toUpperCase() + ') needs the admin role' });
     }
     if (method === 'patch' && /^\/companies\/\d+\/jobs\/\d+$/.test(path.split('?')[0])) {
       const keys = Object.keys(r.body || {});
