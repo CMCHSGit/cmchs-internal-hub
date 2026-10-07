@@ -1,0 +1,72 @@
+[
+  {
+    "id": "demo",
+    "name": "Demo equipment tracker",
+    "description": "Scan, loan, and track CMCHS demo equipment",
+    "link": "https://demo.chsnz.co.nz",
+    "category": "Demo",
+    "icon": "package",
+    "opens": "tab",
+    "visible": true
+  },
+  {
+    "id": "schedule",
+    "name": "Staff schedule",
+    "description": "View rosters, on-call, and leave",
+    "link": "https://schedule.chsnz.co.nz",
+    "category": "Schedule",
+    "icon": "calendar-days",
+    "opens": "tab",
+    "visible": true
+  },
+  {
+    "id": "parser",
+    "name": "Service Order Parser",
+    "description": "Paste a service order, extract the fields, copy to the sheet",
+    "link": "/service/order-parser/",
+    "category": "Service",
+    "icon": "clipboard-list",
+    "opens": "here",
+    "visible": true
+  },
+  {
+    "id": "ansur",
+    "name": "Ansur PVT Report Builder",
+    "description": "Turn Fluke Ansur test records (.mtr) into PDF reports",
+    "link": "/service/ansur/",
+    "category": "Service",
+    "icon": "file-check",
+    "opens": "here",
+    "visible": true
+  },
+  {
+    "id": "simpro",
+    "name": "Simpro Asset Sync",
+    "description": "Updates and adds customer assets in cass.simprosuite.com from an asset list",
+    "link": "/service/simpro-sync/",
+    "category": "Service",
+    "icon": "refresh-cw",
+    "opens": "here",
+    "visible": true
+  },
+  {
+    "id": "outlook",
+    "name": "Outlook",
+    "description": "Email and calendar",
+    "link": "https://outlook.office.com",
+    "category": "Microsoft 365",
+    "icon": "mail",
+    "opens": "tab",
+    "visible": true
+  },
+  {
+    "id": "teams",
+    "name": "Teams",
+    "description": "Chat, calls and meetings",
+    "link": "https://teams.microsoft.com",
+    "category": "Microsoft 365",
+    "icon": "message-square",
+    "opens": "tab",
+    "visible": true
+  }
+]

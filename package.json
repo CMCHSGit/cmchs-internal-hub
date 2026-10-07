@@ -1,0 +1,16 @@
+{
+  "name": "cmchs-internal-hub",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/hub"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/hub",
+    "build": "node scripts/build.mjs",
+    "preview": "vite preview --outDir dist --port 4173"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  }
+}

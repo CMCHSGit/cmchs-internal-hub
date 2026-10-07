@@ -1,0 +1,15 @@
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;font:var(--type-body);color:var(--text-body);background:var(--surface-page);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;color:var(--text-strong)}
+h1{font:var(--type-h1)}h2{font:var(--type-h2)}h3{font:var(--type-h3)}h4{font:var(--type-h4)}
+p{margin:0 0 var(--space-4)}
+a{color:var(--text-link);text-decoration:none;transition:color var(--duration-fast) var(--ease-standard)}
+a:hover{color:var(--text-link-hover);text-decoration:underline}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;box-shadow:var(--focus-ring);border-radius:var(--radius-sm)}
+img{max-width:100%;display:block}
+.chs-overline{font:var(--type-overline);letter-spacing:var(--tracking-overline);text-transform:uppercase;color:var(--text-muted)}
+.chs-stripes{display:flex;height:6px;width:100%}
+.chs-stripes>span{flex:1}
+.chs-stripes>span:nth-child(1){background:var(--stripe-1)}
+.chs-stripes>span:nth-child(2){background:var(--stripe-2)}
+.chs-stripes>span:nth-child(3){background:var(--stripe-3)}

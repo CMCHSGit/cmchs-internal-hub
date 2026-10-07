@@ -1,0 +1,7 @@
+node_modules/
+dist/
+apps/*/dist/
+.env
+.env.local
+# SimproSync loads its API key from this file if present. Never commit it.
+simpro_key.js
