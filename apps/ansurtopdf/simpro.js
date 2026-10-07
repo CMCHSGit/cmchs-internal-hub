@@ -52,21 +52,51 @@ function note(msg, kind = '') {
 }
 
 // ── sign in ───────────────────────────────────────────────────────────────
-async function signIn() {
-  note('Signing in…')
-  try {
-    // Loaded only now, so the offline path never pays for the Firebase SDK.
-    const [{ auth: a, microsoftProvider }, { signInWithPopup }] = await Promise.all([
+// A popup has to be opened in the same turn as the click that asked for it.
+// Awaiting the dynamic import first spends that user gesture, and the browser
+// blocks the window — so the SDK is fetched ahead of the click, on the first
+// sign of intent, and the handler below opens the popup without awaiting
+// anything. This is the whole reason for the dance: the lazy import is worth
+// keeping (nobody converting a file offline should pay 350 KB for it), but it
+// cannot sit between the click and the popup.
+let fb = null          // { auth, microsoftProvider, signInWithPopup, … } once loaded
+let fbLoading = null
+
+function loadFirebase() {
+  if (!fbLoading) {
+    fbLoading = Promise.all([
       import('../schedule/src/firebase.js'),
       import('firebase/auth'),
-    ])
-    auth = a
-    await signInWithPopup(auth, microsoftProvider)
-    user = auth.currentUser
-    await afterSignIn()
-  } catch (e) {
-    note('Sign-in did not complete: ' + (e.message || e), 'warn')
+    ]).then(([app, authMod]) => {
+      fb = { ...app, ...authMod }
+      auth = app.auth
+      return fb
+    })
   }
+  return fbLoading
+}
+
+function openPopup() {
+  note('Signing in…')
+  fb.signInWithPopup(fb.auth, fb.microsoftProvider)
+    .then(() => { user = fb.auth.currentUser; return afterSignIn() })
+    .catch((e) => {
+      if (e?.code === 'auth/popup-blocked') {
+        // Only reachable when the SDK wasn't ready in time. It is now, so the
+        // next click opens the popup in the same turn and works.
+        return note('Your browser blocked the sign-in window. Click “Sign in” again.', 'warn')
+      }
+      if (e?.code === 'auth/cancelled-popup-request' || e?.code === 'auth/popup-closed-by-user') {
+        return note('')
+      }
+      note('Sign-in did not complete: ' + (e.message || e), 'warn')
+    })
+}
+
+function signIn() {
+  if (fb) return openPopup()   // ready — no await, so the gesture survives
+  note('Loading sign-in…')
+  loadFirebase().then(openPopup).catch((e) => note('Could not load sign-in: ' + (e.message || e), 'warn'))
 }
 
 async function afterSignIn() {
@@ -265,6 +295,13 @@ $('sp-stage').innerHTML = '<option value="">Leave unchanged</option>' +
   STAGES.map((s) => `<option value="${s}">${s}</option>`).join('')
 
 $('sp-signin').addEventListener('click', signIn)
+// Begin fetching the SDK at the first hint someone is heading for the button,
+// so it is in hand by the time they click and the popup can open immediately.
+// pointerdown in particular fires before click, which is usually enough on its
+// own; the others just widen the head start.
+for (const ev of ['pointerenter', 'pointerdown', 'focus', 'touchstart']) {
+  $('sp-signin').addEventListener(ev, () => { loadFirebase().catch(() => {}) }, { once: true, passive: true })
+}
 $('sp-search').addEventListener('click', search)
 $('sp-q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); search() } })
 $('sp-change').addEventListener('click', () => {
@@ -299,9 +336,8 @@ const hasStoredSession = () => {
 
 if (hasStoredSession()) {
   note('Restoring sign-in…')
-  Promise.all([import('../schedule/src/firebase.js'), import('firebase/auth')])
-    .then(([{ auth: a }, { onAuthStateChanged }]) => {
-      auth = a
+  loadFirebase()
+    .then(({ onAuthStateChanged, auth: a }) => {
       onAuthStateChanged(a, (u) => {
         if (!u || user) { if (!u) note('') ; return }
         user = u
