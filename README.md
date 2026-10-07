@@ -10,7 +10,7 @@
 | `/schedule/` | Staff schedule | `apps/schedule` (Vite + React) |
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
-| `/service/order-parser/` | Service Order Parser | `apps/service/order-parser` |
+| `/order-parser/` | Service Order Parser | `apps/order-parser` (single static page) |
 | `/demo/` | Coming: still at demo.chsnz.co.nz for now | |
 
 ### The schedule move is mid-flight
@@ -28,7 +28,7 @@ Still to do: move the scheduled jobs (`remind.yml`, `excel-sync.yml`) across wit
 ## Sign-in
 Microsoft sign-in through Firebase Auth, using **the staff schedule's Firebase project** (locked to the Cass Medical tenant). Every app on this domain shares that one session, so people sign in once at the hub and never again, including after closing the browser, until they sign out. The code is in `shared/session.js`.
 
-Plain HTML pages join in with two lines at the top of `<head>` (see `apps/service/order-parser`):
+Plain HTML pages join in with two lines at the top of `<head>` (see `apps/order-parser`):
 
 ```html
 <script>document.documentElement.style.visibility='hidden'</script>
@@ -42,16 +42,20 @@ Signed in: the page shows with a slim "Internal Hub" bar on top. Signed out: the
 SimproSync is the pattern to copy for a tool that needs a third-party key: the Simpro key lives in a Script Property on the Apps Script proxy, the browser sends only the user's Firebase ID token, and the proxy checks that token is a real admin before relaying an allowlisted call. The key never reaches the page.
 
 ## Add a tool
-1. A single-file tool: put it at `apps/service/<name>/index.html` and add the two gate lines.
+Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's category, not the address, says what it's for).
+
+1. A single-file tool: put it at `apps/<name>/index.html`, add the two gate lines, and add `{ dir: 'apps/<name>', path: '<name>', output: '.' }` to `APPS` in `scripts/build.mjs`.
 2. Add an entry to `tools.json`:
    ```json
    { "id": "quote", "name": "Quote builder", "description": "One line, shown under the name",
-     "link": "/service/quote/", "category": "Sales", "icon": "calculator", "opens": "here", "visible": true }
+     "link": "/quote/", "category": "Sales", "icon": "calculator", "opens": "here", "visible": true }
    ```
    - `category`: Demo, Service, Schedule, Sales, Clinical, Admin or Microsoft 365 (shown in that order; new names go at the end).
    - `opens`: `here` (same tab, for pages on this site) or `tab` (new tab, for other sites).
    - `icon`: a [Lucide](https://lucide.dev/icons) name that's listed in `apps/hub/src/Icon.jsx` (add it there if not).
 3. Push to `main`.
+
+**Moving a tool's address:** add the old path to `MOVED` in `apps/hub/public/404.html` so bookmarks forward (e.g. `/service/order-parser/` → `/order-parser/`).
 
 **Announcements:** `announcements.json`, `{ "id", "title", "body", "date": "2026-10-07", "author", "pinned" }`. Pinned first, then newest.
 

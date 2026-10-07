@@ -3,7 +3,7 @@
 // Every app calls this. Whichever page someone lands on first installs the
 // worker; the rest just keep it fresh. Registering the same URL and scope more
 // than once is a no-op, so there's no harm in calling it from everywhere — and
-// real benefit: a person who only ever opens /service/order-parser/ still gets
+// real benefit: a person who only ever opens /order-parser/ still gets
 // the update check.
 export function registerServiceWorker() {
   // In `npm run dev` there is no built /sw.js — registering would only log a

@@ -29,7 +29,7 @@ export function toolGroups() {
 /** Opens in a new tab: anything marked "tab" (other sites, Microsoft 365). */
 export const opensInTab = tool => tool.opens === 'tab'
 
-/** "internal.chsnz.co.nz/service/ansur" — shown in mono under each tool. */
+/** "internal.chsnz.co.nz/order-parser" — shown in mono under each tool. */
 export function hostOf(tool) {
   try {
     const url = new URL(tool.link, location.origin)

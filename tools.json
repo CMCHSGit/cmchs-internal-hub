@@ -23,7 +23,7 @@
     "id": "parser",
     "name": "Service Order Parser",
     "description": "Paste a service order, extract the fields, copy to the sheet",
-    "link": "/service/order-parser/",
+    "link": "/order-parser/",
     "category": "Service",
     "icon": "clipboard-list",
     "opens": "here",

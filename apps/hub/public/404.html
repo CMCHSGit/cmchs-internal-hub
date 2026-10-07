@@ -20,6 +20,14 @@
       // Apps that route client-side. A path under one of these is its business.
       var APPS = ['/schedule/']
       var path = location.pathname
+      // Tools that moved: old address prefix -> new one, so bookmarks keep working.
+      var MOVED = { '/service/order-parser/': '/order-parser/' }
+      for (var from in MOVED) {
+        if (path === from.slice(0, -1) || path.indexOf(from) === 0) {
+          location.replace(MOVED[from] + path.slice(from.length) + location.search + location.hash)
+          return
+        }
+      }
       // A missing file is a missing file — only paths that look like routes get
       // handed to an app, so a stale asset URL still reports as not found
       // instead of quietly returning a page of HTML.

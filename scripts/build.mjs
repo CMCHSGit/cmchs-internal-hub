@@ -5,7 +5,7 @@
 //   apps/schedule    (Vite)    -> /schedule/
 //   apps/simprosync  (Vite)    -> /simprosync/
 //   apps/ansurtopdf  (static)  -> /ansurtopdf/
-//   apps/service     (static)  -> /service/
+//   apps/order-parser (static) -> /order-parser/
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
@@ -24,7 +24,7 @@ const APPS = [
   { dir: 'apps/schedule',   path: 'schedule',   build: 'npm run build -w apps/schedule', output: 'dist' },
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', output: '.' },
-  { dir: 'apps/service',    path: 'service',    output: '.' },
+  { dir: 'apps/order-parser', path: 'order-parser', output: '.' },
 ]
 
 // A real build without the Firebase config would ship a hub nobody can sign

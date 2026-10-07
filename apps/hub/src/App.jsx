@@ -10,7 +10,7 @@ export default function App() {
 
   useEffect(() => watchUser(setUser), [])
 
-  // Sent here by a tool's sign-in check (/?next=/service/ansur/): go back once signed in
+  // Sent here by a tool's sign-in check (/?next=/order-parser/): go back once signed in
   const next = nextPath()
   useEffect(() => {
     if (user && next) location.replace(next)
