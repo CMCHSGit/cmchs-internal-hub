@@ -99,6 +99,12 @@ function signIn() {
   loadFirebase().then(openPopup).catch((e) => note('Could not load sign-in: ' + (e.message || e), 'warn'))
 }
 
+// Shared with SimproSync, which stores the same preference under the same key.
+// Both tools are on this one origin now, so whichever company you last synced
+// against is the company this opens on.
+const COMPANY_KEY = 'simproSync.company'
+const DEFAULT_COMPANY = 3
+
 async function afterSignIn() {
   $('sp-signin').hidden = true
   $('sp-who').textContent = user.email || ''
@@ -108,9 +114,16 @@ async function afterSignIn() {
     // without admin or simproAccess, with a message worth showing as-is.
     const r = await call('GET', '/companies/')
     if (!ok(r)) throw new Error('Could not read companies from Simpro')
-    const companies = Array.isArray(r.data) ? r.data : []
+    const companies = (Array.isArray(r.data) ? r.data : []).filter((c) => !/do not use/i.test(c.Name || ''))
     if (!companies.length) throw new Error('No Simpro companies are visible')
-    companyId = companies[0].ID
+
+    let saved = DEFAULT_COMPANY
+    try { saved = +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { /* blocked storage */ }
+    companyId = companies.some((c) => c.ID === saved) ? saved : companies[0].ID
+
+    $('sp-company').innerHTML = companies
+      .map((c) => `<option value="${esc(c.ID)}"${c.ID === companyId ? ' selected' : ''}>${esc(c.Name)}</option>`)
+      .join('')
     $('sp-body').hidden = false
     note('')
   } catch (e) {
@@ -125,27 +138,45 @@ async function search() {
   $('sp-results').innerHTML = ''
   note('Searching…')
 
+  const company = $('sp-company').selectedOptions[0]?.textContent || companyId
   try {
     // A number is almost always the job number, so try that as an exact fetch
     // first — it's one call and it's what people will type most often.
     if (/^\d+$/.test(q)) {
       const r = await call('GET', `/companies/${companyId}/jobs/${q}`)
       if (ok(r) && r.data) return showResults([r.data])
+      // Don't fall through silently on anything but "no such job in this
+      // company" — reporting a 403 as "no jobs matched" sent me looking in
+      // entirely the wrong place.
+      if (r.status !== 404) {
+        return note(`Simpro returned ${r.status} for job ${q} in ${company}.`, 'warn')
+      }
     }
-    // Otherwise search by customer name and by description, and merge. Simpro's
-    // wildcard is "%", which has to reach the API percent-encoded.
+
+    // Then search. Each filter is tried on its own because a field Simpro
+    // won't filter on makes the whole request fail, and one unsupported
+    // field shouldn't take the others down with it.
     const term = encodeURIComponent(q) + '%25'
     const cols = 'columns=ID,Name,Description,Customer,Site,Stage,Status'
-    const [byName, byCustomer] = await Promise.all([
-      call('GET', `/companies/${companyId}/jobs/?Name=${term}&${cols}&pageSize=20`),
-      call('GET', `/companies/${companyId}/jobs/?Customer.CompanyName=${term}&${cols}&pageSize=20`),
-    ])
+    const tries = [
+      ['Name', `/companies/${companyId}/jobs/?Name=${term}&${cols}&pageSize=20`],
+      ['Description', `/companies/${companyId}/jobs/?Description=${term}&${cols}&pageSize=20`],
+      ['Customer', `/companies/${companyId}/jobs/?Customer.CompanyName=${term}&${cols}&pageSize=20`],
+    ]
+    const settled = await Promise.all(tries.map(([, path]) => call('GET', path).catch((e) => ({ status: 0, data: String(e) }))))
+
     const seen = new Map()
-    for (const r of [byName, byCustomer]) {
-      if (!ok(r) || !Array.isArray(r.data)) continue
-      for (const j of r.data) seen.set(String(j.ID), j)
+    const rejected = []
+    settled.forEach((r, i) => {
+      if (ok(r) && Array.isArray(r.data)) { for (const j of r.data) seen.set(String(j.ID), j); return }
+      rejected.push(`${tries[i][0]} (${r.status})`)
+    })
+
+    if (seen.size) return showResults([...seen.values()])
+    if (rejected.length === tries.length) {
+      return note(`Search failed in ${company} — ${rejected.join(', ')}. Try the exact job number.`, 'warn')
     }
-    showResults([...seen.values()])
+    note(`Nothing matched “${q}” in ${company}. Check the company above, or try the job number.`, 'warn')
   } catch (e) {
     note(e.message || String(e), 'warn')
   }
@@ -293,6 +324,15 @@ async function run() {
 // ── wire up ───────────────────────────────────────────────────────────────
 $('sp-stage').innerHTML = '<option value="">Leave unchanged</option>' +
   STAGES.map((s) => `<option value="${s}">${s}</option>`).join('')
+
+$('sp-company').addEventListener('change', () => {
+  companyId = +$('sp-company').value
+  try { localStorage.setItem(COMPANY_KEY, String(companyId)) } catch { /* blocked storage */ }
+  $('sp-results').innerHTML = ''
+  statusCodes = []            // per-company list — don't carry the old one over
+  $('sp-status').innerHTML = '<option value="">Leave unchanged</option>'
+  note('')
+})
 
 $('sp-signin').addEventListener('click', signIn)
 // Begin fetching the SDK at the first hint someone is heading for the button,
