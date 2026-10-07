@@ -223,7 +223,7 @@ export function startApp({ transport, who }) {
     $('runDry').disabled = busy || !book || !getCheckedSheets().length;
     $('apply').disabled = busy || !plan || plan.applied || actionCount(plan) === 0;
     $('delFind').disabled = busy || !$('delType').value;
-    $('delRun').disabled = busy || !delPlan || delPlan.ran || !delPlan.items.length;
+    $('delRun').disabled = busy || !delPlan || delPlan.ran || !delChosen().length;
   }
   function resetResults() { plan = null; $('results').hidden = true; updateButtons(); }
 
@@ -636,10 +636,15 @@ export function startApp({ transport, who }) {
      the listed ones) for assets of the chosen type and reads each one's
      serial/model so the list can be checked; Delete then removes exactly that
      list, one asset per call. The proxy only relays DELETE for role:'admin'. */
-  let delPlan = null; // { cid, tid, typeName, items:[{site, siteName, id, ser, model, status}], stamp, ran }
+  let delPlan = null; // { cid, tid, typeName, items:[{site, siteName, id, ser, model, status}], picked:Set<modelKey>, stamp, ran }
+  const NO_MODEL = '(no model recorded)';
+  const modelKey = i => i.model.trim() || NO_MODEL;
+  // Only the ticked models are listed, deleted and reported. Nothing starts
+  // ticked, so Delete always reflects a deliberate choice of models.
+  const delChosen = () => delPlan ? delPlan.items.filter(i => delPlan.picked.has(modelKey(i))) : [];
   const delStatus = t => { $('delStatus').textContent = t; };
   const delError = t => { $('delError').textContent = t || ''; $('delError').hidden = !t; };
-  function resetDelete() { delPlan = null; $('delResults').hidden = true; delError(''); delStatus('Reads Simpro only. Nothing is deleted yet.'); updateButtons(); }
+  function resetDelete() { delPlan = null; $('delResults').hidden = true; $('delModels').innerHTML = ''; delError(''); delStatus('Reads Simpro only. Nothing is deleted yet.'); updateButtons(); }
   $('delType').onchange = resetDelete;
   $('delSites').oninput = resetDelete;
 
@@ -670,21 +675,35 @@ export function startApp({ transport, who }) {
         it.ser = val('serial number');
         it.model = val('device model') || val('model');
       }, (d, t) => delStatus(`Reading serial numbers… ${d} of ${t}`));
-      delPlan = { cid, tid, typeName, items, stamp: new Date(), ran: false, sitesScanned: sites.length };
+      delPlan = { cid, tid, typeName, items, picked: new Set(), stamp: new Date(), ran: false, sitesScanned: sites.length };
       delStatus(`Scanned ${sites.length} site${sites.length === 1 ? '' : 's'}. Nothing has been deleted.`);
       renderDelete();
     } catch (e) { delError(e.message); delStatus('Stopped.'); }
     setBusy(false);
   };
 
+  function renderModels() {
+    const p = delPlan, counts = new Map();
+    p.items.forEach(i => counts.set(modelKey(i), (counts.get(modelKey(i)) || 0) + 1));
+    const models = [...counts.keys()].sort((a, b) => (a === NO_MODEL) - (b === NO_MODEL) || a.localeCompare(b));
+    $('delModels').innerHTML = !models.length ? '' :
+      `<div style="font-size:13px;color:var(--muted);margin-bottom:6px">Tick the models to delete <button type="button" id="delAll" style="padding:2px 8px;font-size:12px">All</button> <button type="button" id="delNone" style="padding:2px 8px;font-size:12px">None</button></div>
+       <div style="display:flex;flex-wrap:wrap;gap:6px">${models.map(m => `<label class="sheetrow" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
+         <input type="checkbox" class="del-model" value="${esc(m)}" ${p.picked.has(m) ? 'checked' : ''} ${p.ran ? 'disabled' : ''}>${esc(m)} <span class="muted">(${counts.get(m)})</span></label>`).join('')}</div>`;
+    $('delModels').querySelectorAll('.del-model').forEach(cb => cb.onchange = () => { cb.checked ? p.picked.add(cb.value) : p.picked.delete(cb.value); renderDelete(); });
+    const setAll = on => { if (p.ran) return; p.picked = new Set(on ? models : []); renderModels(); renderDelete(); };
+    if ($('delAll')) { $('delAll').onclick = () => setAll(true); $('delNone').onclick = () => setAll(false); $('delAll').disabled = $('delNone').disabled = p.ran; }
+  }
+
   function renderDelete() {
-    const p = delPlan, siteCount = new Set(p.items.map(i => i.site)).size;
-    const done = p.items.filter(i => i.status === 'deleted').length, failed = p.items.filter(i => i.status && i.status !== 'deleted').length;
-    $('delTiles').innerHTML = (p.ran ? `<div class="banner ${failed ? 'bad' : 'ok'}">${failed ? '⚠' : '✓'} Deleted ${done} of ${p.items.length} ${esc(p.typeName)} assets${failed ? `, ${failed} failed (see below)` : ''}.</div>` : '') +
-      tile(p.items.length, `${esc(p.typeName)} asset${p.items.length === 1 ? '' : 's'}`, p.items.length ? 'warn' : '') +
+    const p = delPlan, chosen = delChosen(), siteCount = new Set(chosen.map(i => i.site)).size;
+    const done = chosen.filter(i => i.status === 'deleted').length, failed = chosen.filter(i => i.status && i.status !== 'deleted').length;
+    if (!$('delModels').childElementCount) renderModels();
+    $('delTiles').innerHTML = (p.ran ? `<div class="banner ${failed ? 'bad' : 'ok'}">${failed ? '⚠' : '✓'} Deleted ${done} of ${chosen.length} ${esc(p.typeName)} assets${failed ? `, ${failed} failed (see below)` : ''}.</div>` : '') +
+      tile(chosen.length, `selected to delete<small>of ${p.items.length} ${esc(p.typeName)} found</small>`, chosen.length ? 'warn' : '') +
       tile(siteCount, `site${siteCount === 1 ? '' : 's'}<small>of ${p.sitesScanned} scanned</small>`);
-    $('delRun').textContent = p.items.length ? `Delete ${p.items.length} asset${p.items.length === 1 ? '' : 's'}` : 'Nothing to delete';
-    $('delTable').innerHTML = table(['Site', 'Site name', 'Asset ID', 'Serial', 'Model', ''], p.items.map(i => [
+    $('delRun').textContent = chosen.length ? `Delete ${chosen.length} asset${chosen.length === 1 ? '' : 's'}` : (p.items.length ? 'Tick a model to delete' : 'Nothing to delete');
+    $('delTable').innerHTML = table(['Site', 'Site name', 'Asset ID', 'Serial', 'Model', ''], chosen.map(i => [
       i.site, esc(i.siteName), i.id, esc(i.ser) || '<span class="muted">-</span>', esc(i.model),
       i.status === 'deleted' ? '<span class="pill ok">deleted</span>' : i.status ? `<span class="pill bad" title="${esc(i.status)}">failed</span> <span class="muted">${esc(i.status)}</span>` : ''
     ]));
@@ -692,29 +711,31 @@ export function startApp({ transport, who }) {
   }
 
   $('delRun').onclick = async () => {
-    const p = delPlan, n = p.items.length;
-    const typed = prompt(`This permanently deletes ${n} ${p.typeName} asset${n === 1 ? '' : 's'} from Simpro, across ${new Set(p.items.map(i => i.site)).size} site(s). It cannot be undone.\n\nType DELETE ${n} to confirm.`);
+    const p = delPlan, chosen = delChosen(), n = chosen.length;
+    const typed = prompt(`This permanently deletes ${n} ${p.typeName} asset${n === 1 ? '' : 's'} from Simpro, across ${new Set(chosen.map(i => i.site)).size} site(s).\nModels: ${[...p.picked].join(', ')}\n\nIt cannot be undone. Type DELETE ${n} to confirm.`);
     if (typed === null) return;
     if (typed.trim() !== `DELETE ${n}`) { alert('That did not match - nothing was deleted.'); return; }
     setBusy(true); delError('');
     try {
       // Different assets don't collide (unlike PATCHes to one asset - see
       // apply above), so a wide pool keeps every proxy batch full.
-      await pool(p.items, 25, async it => {
+      await pool(chosen, 25, async it => {
         const { status, data } = await call('DELETE', `/companies/${p.cid}/sites/${it.site}/assets/${it.id}`);
         it.status = (status === 200 || status === 204) ? 'deleted' : `${status} ${brief(data)}`;
       }, d => delStatus(`Deleting… ${d} of ${n}`));
     } catch (e) { delError('Stopped part-way: ' + e.message + ' - run Find again to see what is left.'); }
     p.ran = true; p.ranAt = new Date();
     delStatus(`Finished. Run Find again to confirm nothing is left.`);
-    renderDelete(); setBusy(false);
+    renderModels(); renderDelete(); setBusy(false);
     downloadDeleteReport();
   };
 
   function downloadDeleteReport() {
     const p = delPlan; if (!p) return;
     const rows = [['Site ID', 'Site name', 'Asset ID', 'Asset type', 'Serial', 'Model', 'Result']];
-    p.items.forEach(i => rows.push([i.site, i.siteName, i.id, p.typeName, i.ser, i.model, i.status || (p.ran ? 'not attempted' : 'would delete')]));
+    // Every asset found, so the CSV also shows what was deliberately kept.
+    p.items.forEach(i => rows.push([i.site, i.siteName, i.id, p.typeName, i.ser, i.model,
+      !p.picked.has(modelKey(i)) ? 'kept (model not selected)' : i.status || (p.ran ? 'not attempted' : 'would delete')]));
     const head = `${p.ran ? 'DELETED' : 'TO DELETE'} | ${p.typeName} (type ${p.tid}) | company ${p.cid} | ${(p.ranAt || p.stamp).toLocaleString('en-NZ')} | by ${WHO}`;
     const csv = '﻿' + csvCell(head) + '\r\n' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
     const ts = (p.ranAt || p.stamp).toISOString().slice(0, 16).replace(/[-:T]/g, '');
