@@ -690,26 +690,15 @@ export function startApp({ transport, who }) {
     if (onlySites.some(s => !/^\d+$/.test(s))) { delError('Site IDs must be numbers.'); return; }
     resetDelete(); setBusy(true);
     try {
-      let sites;
-      if (onlySites.length) sites = onlySites.map(id => ({ ID: +id, Name: '' }));
-      else { delStatus('Listing sites…'); sites = await getAll(`/companies/${cid}/sites/`); }
-      const items = [];
-      await pool(sites, 50, async s => {
-        const { status, data } = await call('GET', `/companies/${cid}/sites/${s.ID}/assets/?pageSize=250`);
-        if (status !== 200) throw new Error(`Could not read site ${s.ID} (${status}): ${brief(data)}`);
-        // A site with 250+ assets needs the remaining pages too.
-        const all = data.length < 250 ? data : await getAll(`/companies/${cid}/sites/${s.ID}/assets/`);
-        all.filter(a => String((a.AssetType || {}).ID) === String(tid))
-          .forEach(a => items.push({ site: s.ID, siteName: s.Name || '', id: a.ID, ser: '', model: '' }));
-      }, (d, t) => delStatus(`Scanning sites… ${d} of ${t} (${items.length} found)`));
+      let items = await findFast(cid, tid, onlySites), sites = null, archived = 0;
+      if (items) {
+        archived = items.filter(i => i.archived).length;
+        items = items.filter(i => !i.archived);
+      } else {
+        items = await findSlow(cid, tid, onlySites);
+        sites = items.sitesScanned;
+      }
       items.sort((a, b) => String(a.siteName).localeCompare(String(b.siteName)) || a.site - b.site || a.id - b.id);
-      await pool(items, 50, async it => {
-        const { status, data } = await call('GET', `/companies/${cid}/sites/${it.site}/assets/${it.id}/customFields/?pageSize=250`);
-        if (status !== 200) return;
-        const val = name => { const c = data.find(c => String(c.CustomField.Name).trim().toLowerCase() === name); return c && c.Value ? String(c.Value) : ''; };
-        it.ser = val('serial number');
-        it.model = val('device model') || val('model');
-      }, (d, t) => delStatus(`Reading serial numbers… ${d} of ${t}`));
       // Carry the before-Find choice over, matching list values case-insensitively.
       const picked = new Set();
       if (preModels) {
@@ -719,12 +708,69 @@ export function startApp({ transport, who }) {
           if (li ? preModels.picked.has(li) : preModels.picked.has(PRE_OTHER)) picked.add(k);
         });
       }
-      delPlan = { cid, tid, typeName, items, picked, stamp: new Date(), ran: false, sitesScanned: sites.length };
-      delStatus(`Scanned ${sites.length} site${sites.length === 1 ? '' : 's'}. Nothing has been deleted.`);
+      delPlan = { cid, tid, typeName, items, picked, stamp: new Date(), ran: false, sitesScanned: sites };
+      delStatus(`Found ${items.length} ${typeName}` + (archived ? ` (plus ${archived} already archived, left out)` : '') + (sites ? ` across ${sites} sites scanned` : '') + '. Nothing has been deleted.');
       renderDelete();
     } catch (e) { delError(e.message); delStatus('Stopped.'); }
     setBusy(false);
   };
+
+  const assetModelSerial = (it, cfs) => {
+    const val = name => { const c = (cfs || []).find(c => String(c.CustomField.Name).trim().toLowerCase() === name); return c && c.Value ? String(c.Value) : ''; };
+    it.ser = val('serial number');
+    it.model = val('device model') || val('model');
+    return it;
+  };
+
+  // One company-wide list call per 250 assets, already filtered by type and
+  // carrying each asset's site, archived flag and custom fields - a handful of
+  // calls instead of one per site plus one per asset. Returns null if the
+  // proxy doesn't allow /customerAssets/ yet, so Find falls back to findSlow().
+  async function findFast(cid, tid, onlySites) {
+    const q = `AssetType.ID=${tid}` + (onlySites.length ? `&Site.ID=in(${onlySites.join(',')})` : '') + '&columns=ID,Site,AssetType,Archived,CustomFields&pageSize=250';
+    const path = page => `/companies/${cid}/customerAssets/?${q}&page=${page}`;
+    delStatus('Reading assets…');
+    let first;
+    // Straight to transport, not call(): a proxy refusal would otherwise be
+    // retried with backoff before falling back.
+    try { first = await transport('GET', path(1)); }
+    catch (e) { if (/not allowed/i.test(e.message)) return null; throw e; }
+    if (first.status !== 200) throw new Error(`Simpro request failed (${first.status}): ${brief(first.data)}`);
+    let raw = first.data;
+    // Pages are fetched 4 at a time; they travel together in one proxy batch.
+    for (let page = 2; raw.length === (page - 1) * 250; page += 4) {
+      delStatus(`Reading assets… ${raw.length} so far`);
+      const res = await Promise.all([0, 1, 2, 3].map(k => call('GET', path(page + k))));
+      for (const r of res) {
+        if (r.status !== 200) throw new Error(`Simpro request failed (${r.status}): ${brief(r.data)}`);
+        raw = raw.concat(r.data);
+      }
+    }
+    return raw.filter(a => String((a.AssetType || {}).ID) === String(tid)).map(a => assetModelSerial(
+      { site: (a.Site || {}).ID, siteName: (a.Site || {}).Name || '', id: a.ID, archived: !!a.Archived, ser: '', model: '' }, a.CustomFields));
+  }
+
+  // The original route: every site, then every matching asset's custom fields.
+  async function findSlow(cid, tid, onlySites) {
+    let sites;
+    if (onlySites.length) sites = onlySites.map(id => ({ ID: +id, Name: '' }));
+    else { delStatus('Listing sites…'); sites = await getAll(`/companies/${cid}/sites/`); }
+    const items = [];
+    await pool(sites, 50, async s => {
+      const { status, data } = await call('GET', `/companies/${cid}/sites/${s.ID}/assets/?pageSize=250`);
+      if (status !== 200) throw new Error(`Could not read site ${s.ID} (${status}): ${brief(data)}`);
+      // A site with 250+ assets needs the remaining pages too.
+      const all = data.length < 250 ? data : await getAll(`/companies/${cid}/sites/${s.ID}/assets/`);
+      all.filter(a => String((a.AssetType || {}).ID) === String(tid))
+        .forEach(a => items.push({ site: s.ID, siteName: s.Name || '', id: a.ID, ser: '', model: '' }));
+    }, (d, t) => delStatus(`Scanning sites… ${d} of ${t} (${items.length} found)`));
+    await pool(items, 50, async it => {
+      const { status, data } = await call('GET', `/companies/${cid}/sites/${it.site}/assets/${it.id}/customFields/?pageSize=250`);
+      if (status === 200) assetModelSerial(it, data);
+    }, (d, t) => delStatus(`Reading serial numbers… ${d} of ${t}`));
+    items.sitesScanned = sites.length;
+    return items;
+  }
 
   function renderModels() {
     const p = delPlan, counts = new Map();
@@ -745,7 +791,7 @@ export function startApp({ transport, who }) {
     if (!$('delModels').childElementCount) renderModels();
     $('delTiles').innerHTML = (p.ran ? `<div class="banner ${failed ? 'bad' : 'ok'}">${failed ? '⚠' : '✓'} Deleted ${done} of ${chosen.length} ${esc(p.typeName)} assets${failed ? `, ${failed} failed (see below)` : ''}.</div>` : '') +
       tile(chosen.length, `selected to delete<small>of ${p.items.length} ${esc(p.typeName)} found</small>`, chosen.length ? 'warn' : '') +
-      tile(siteCount, `site${siteCount === 1 ? '' : 's'}<small>of ${p.sitesScanned} scanned</small>`);
+      tile(siteCount, `site${siteCount === 1 ? '' : 's'}` + (p.sitesScanned ? `<small>of ${p.sitesScanned} scanned</small>` : ''));
     $('delRun').textContent = chosen.length ? `Delete ${chosen.length} asset${chosen.length === 1 ? '' : 's'}` : (p.items.length ? 'Tick a model to delete' : 'Nothing to delete');
     $('delTable').innerHTML = table(['Site', 'Site name', 'Asset ID', 'Serial', 'Model', ''], chosen.map(i => [
       i.site, esc(i.siteName), i.id, esc(i.ser) || '<span class="muted">-</span>', esc(i.model),
