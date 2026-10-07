@@ -174,11 +174,12 @@ body.busy{cursor:progress}
 
   <details class="card danger-zone" id="delCard">
     <summary><h2>Delete assets by type</h2></summary>
-    <p class="help" style="margin-top:0">Finds every customer asset of one asset type across all sites, so you can review them, then permanently deletes them. Deleting cannot be undone and removes each asset's history. Admins only.</p>
+    <p class="help" style="margin-top:0">Finds every customer asset of one asset type across all sites, so you can review them, then deletes them. Deleting cannot be undone. Simpro archives an asset that has service history (e.g. it is on a job) instead of removing it, so job records keep it. Admins only.</p>
     <div class="row" style="margin-top:10px">
       <label class="f">Asset type<select id="delType"><option value="">Choose…</option></select></label>
       <label class="f">Only these site IDs (optional)<input type="text" id="delSites" placeholder="e.g. 2535, 2349 - blank means every site"></label>
     </div>
+    <div id="delPreModels" style="margin-top:10px"></div>
     <div class="actions" style="margin-top:12px"><button class="primary" id="delFind" disabled>Find assets</button><span class="muted" id="delStatus">Reads Simpro only. Nothing is deleted yet.</span></div>
     <p class="bad" id="delError" hidden></p>
     <div id="delResults" hidden style="margin-top:14px">
