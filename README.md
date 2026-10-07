@@ -69,6 +69,8 @@ Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's cate
 
 **A whole new app** (its own build, like the schedule): add a folder under `apps/`, build it with its own base path (e.g. Vite `base: '/schedule/'`), and add it to `APPS` in `scripts/build.mjs`. Prefix any localStorage keys with the app name, because every app shares this origin. Don't give it its own manifest or service worker — see below.
 
+⚠️ **In a Vite app, a root-absolute path in `index.html` is not what gets served.** Vite rewrites `src`/`href` on `<img>`, `<link rel="icon">` and `apple-touch-icon` through `base`, so `/brand/logo-mark.png` ships as `/<app>/brand/logo-mark.png` — a 404 unless that app has its own copy in `public/`. It leaves `<a href>` and `<link rel="manifest">` alone, which is why the back button and the shared manifest work unchanged. It does preserve query strings (`?v=2` survives). Static passthrough apps (Ansur, the order parser) get no rewriting at all, so root-absolute paths there reach the hub's copies. **Check the built file, not the source**, whenever a path matters.
+
 ## The app shell: one manifest, one service worker
 
 There is **exactly one of each on the origin**, both owned by the hub. A second manifest would create a second installable app, and a second service worker would fight this one over the same pages.
