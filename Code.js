@@ -824,6 +824,14 @@ const FIREBASE_ISSUER_PREFIX = 'https://securetoken.google.com/';
 // what an authorised SimproSync admin could already do with their own Simpro
 // login, it just stops the proxy becoming an open "call anything on Simpro"
 // tunnel. Query string, if present, is restricted to pageSize/page/display.
+// Default query policy: pageSize/page/display style values only. Deliberately
+// narrow — most of these routes need nothing else.
+const SIMPRO_QUERY_PLAIN = /^[A-Za-z0-9=&]*$/;
+// Job search needs more: "%" for Simpro's wildcard, "+"/"%20" for spaces, and
+// ",()" for filters like Stage=in(Complete,Archived). Still no "#", "?", "/" or
+// "\", so a query can never restructure the URL the path regex already fixed.
+const SIMPRO_QUERY_SEARCH = /^[A-Za-z0-9=&%+,.()\-_: ]*$/;
+
 const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/$/],
   [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
@@ -831,21 +839,31 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get','post'], /^\/companies\/\d+\/sites\/\d+\/assets\/$/],
   [['get'],        /^\/companies\/\d+\/sites\/\d+\/assets\/\d+\/customFields\/$/],
   [['patch'],      /^\/companies\/\d+\/sites\/\d+\/assets\/\d+\/customFields\/\d+$/],
+  // Job search, for the Ansur report builder's "find the job" box. Read-only,
+  // and the looser query policy above applies only here.
+  [['get'],        /^\/companies\/\d+\/jobs\/$/, SIMPRO_QUERY_SEARCH],
   [['get','patch'],/^\/companies\/\d+\/jobs\/\d+$/],
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/$/],
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/],
-  [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/\d+\/assets\/$/]
+  [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/\d+\/assets\/$/],
+  // Attach a generated PDF to a job (Ansur PVT reports).
+  [['post'],       /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/]
 ];
 const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes'];
+const SIMPRO_SYNC_ATTACHMENT_FIELDS = ['Filename', 'Public', 'Base64Data', 'Folder'];
+// One attachment per batch, and a ceiling on each. Base64 is ~4/3 of the file,
+// so this is roughly a 15 MB PDF — far above a PVT report, far below the point
+// where Apps Script's own request limits start failing in confusing ways.
+const SIMPRO_SYNC_MAX_BASE64 = 20 * 1024 * 1024;
 
 function simproSyncAllowed_(method, pathWithQuery) {
   const m = String(method || '').toLowerCase();
   const qIdx = String(pathWithQuery || '').indexOf('?');
   const path = qIdx === -1 ? pathWithQuery : pathWithQuery.slice(0, qIdx);
   const query = qIdx === -1 ? '' : pathWithQuery.slice(qIdx + 1);
-  if (query && !/^[A-Za-z0-9=&]*$/.test(query)) return false;
   return SIMPRO_SYNC_ALLOWLIST.some(function (rule) {
-    return rule[0].indexOf(m) !== -1 && rule[1].test(path);
+    if (rule[0].indexOf(m) === -1 || !rule[1].test(path)) return false;
+    return !query || (rule[2] || SIMPRO_QUERY_PLAIN).test(query);
   });
 }
 
@@ -890,8 +908,15 @@ function simproSyncVerifyAdmin_(idToken) {
     throw new Error('Could not verify sign-in with Firestore (' + resp.getResponseCode() + ')');
   }
   const doc = JSON.parse(resp.getContentText());
-  const role = doc.fields && doc.fields.role && doc.fields.role.stringValue;
-  if (role !== 'admin') throw new Error((decoded.email || decoded.uid) + ' is not an admin');
+  const fields = doc.fields || {};
+  const role = fields.role && fields.role.stringValue;
+  // Admins always; anyone else needs simproAccess granted on their user record
+  // (set from the hub's people admin). Nobody has that flag until it's granted,
+  // so this is admin-only until someone deliberately widens it.
+  const granted = fields.simproAccess && fields.simproAccess.booleanValue === true;
+  if (role !== 'admin' && !granted) {
+    throw new Error((decoded.email || decoded.uid) + ' does not have Simpro access');
+  }
 
   const result = { uid: decoded.uid, email: decoded.email };
   const ttlSeconds = Math.max(1, Math.min(600, decoded.exp - Math.floor(Date.now() / 1000)));
@@ -923,6 +948,23 @@ function simproSyncProxy_(payload) {
       const keys = Object.keys(r.body || {});
       if (keys.some(function (k) { return SIMPRO_SYNC_JOB_PATCH_FIELDS.indexOf(k) === -1; })) {
         return respond({ success: false, error: 'Request ' + i + ' updates a field that is not allowed' });
+      }
+    }
+    if (/^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {
+      const body = r.body || {};
+      if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {
+        return respond({ success: false, error: 'Request ' + i + ' sets an attachment field that is not allowed' });
+      }
+      if (!body.Filename || !/^[\w .()\-]{1,120}\.[A-Za-z0-9]{1,8}$/.test(String(body.Filename))) {
+        return respond({ success: false, error: 'Request ' + i + ' has an unusable attachment filename' });
+      }
+      if (String(body.Base64Data || '').length > SIMPRO_SYNC_MAX_BASE64) {
+        return respond({ success: false, error: 'Request ' + i + ' attachment is too large' });
+      }
+      // One at a time: 25 base64 PDFs in a single call would be a very large
+      // POST, and a partial failure mid-batch is far harder to report usefully.
+      if (requests.length > 1) {
+        return respond({ success: false, error: 'Attachments must be sent one request at a time' });
       }
     }
     const opts = { method: method, headers: apiHeaders_(), muteHttpExceptions: true };
