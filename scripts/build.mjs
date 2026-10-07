@@ -4,7 +4,7 @@
 //   apps/hub         (Vite)    -> /            (+ /shared/gate.js)
 //   apps/schedule    (Vite)    -> /schedule/
 //   apps/simprosync  (Vite)    -> /simprosync/
-//   apps/ansurtopdf  (static)  -> /ansurtopdf/
+//   apps/ansurtopdf  (Vite)    -> /ansurtopdf/
 //   apps/order-parser (static) -> /order-parser/
 //   apps/demo        (fetched) -> /demo/  read-only copy of demo.chsnz.co.nz,
 //                                         built from the chs-equipment repo
@@ -25,7 +25,7 @@ const APPS = [
   { dir: 'apps/hub',        path: '',           build: 'npm run build -w apps/hub',      output: 'dist' },
   { dir: 'apps/schedule',   path: 'schedule',   build: 'npm run build -w apps/schedule', output: 'dist' },
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
-  { dir: 'apps/ansurtopdf', path: 'ansurtopdf', output: '.' },
+  { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
   { dir: 'apps/order-parser', path: 'order-parser', output: '.' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]

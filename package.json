@@ -5,7 +5,8 @@
   "workspaces": [
     "apps/hub",
     "apps/schedule",
-    "apps/simprosync"
+    "apps/simprosync",
+    "apps/ansurtopdf"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",
