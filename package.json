@@ -4,7 +4,8 @@
   "type": "module",
   "workspaces": [
     "apps/hub",
-    "apps/schedule"
+    "apps/schedule",
+    "apps/simprosync"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

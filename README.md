@@ -8,15 +8,20 @@
 |---|---|---|
 | `/` | Hub home: tools by category, search, announcements | `apps/hub` (Vite + React) |
 | `/schedule/` | Staff schedule | `apps/schedule` (Vite + React) |
+| `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/service/order-parser/` | Service Order Parser | `apps/service/order-parser` |
 | `/demo/` | Coming: still at demo.chsnz.co.nz for now | |
 
 ### The schedule move is mid-flight
 
-The schedule is **live here but not yet advertised**: `tools.json` still sends people to `schedule.chsnz.co.nz`, and the old repo is still deployed and authoritative. Both run the same Firestore, so no data is split — it's the same app at two addresses.
+**SimproSync and Ansur have moved for good** — the old copies are deleted, these are the only ones.
 
-Still to do: **SimproSync** (`schedule.chsnz.co.nz/simprosync/`) hasn't moved; then flip `tools.json`, move the scheduled jobs (`remind.yml`, `excel-sync.yml`) across, run both in parallel for 2–3 weeks spanning two Thursdays, and finally replace the old site with a tombstone.
+**The schedule runs in two places on purpose.** It's live here, and still live at `schedule.chsnz.co.nz` from the cmchs-staff-schedule repo. Same Firestore, so nothing is split — it's one app at two addresses, and the old one is the rollback. `tools.json` now points here.
+
+Still to do: move the scheduled jobs (`remind.yml`, `excel-sync.yml`) across with `APP_URL` set to `https://internal.chsnz.co.nz/schedule` (**no trailing slash** — `remind.mjs` builds `${APP_URL}/my`), run both in parallel for 2–3 weeks spanning two Thursdays, then replace the old site with a tombstone.
+
+`remind.mjs`'s exit code only reflects email failures, so a run where every push failed still shows a green tick. After cutover read the printed `push N sent/M failed` line, not the check mark.
 
 **Don't delete the old domain to retire it.** Its service worker precaches the app at scope `/`, so pulling DNS leaves every already-installed copy serving from cache and writing to live Firestore — people would keep filling in schedules in an app we think is gone. Retiring it means actively shipping a `sw.js` at the same path that unregisters itself and deletes its caches.
 

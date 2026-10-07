@@ -13,10 +13,10 @@
     "id": "schedule",
     "name": "Staff schedule",
     "description": "View rosters, on-call, and leave",
-    "link": "https://schedule.chsnz.co.nz",
+    "link": "/schedule/",
     "category": "Schedule",
     "icon": "calendar-days",
-    "opens": "tab",
+    "opens": "here",
     "visible": true
   },
   {
@@ -33,20 +33,20 @@
     "id": "ansur",
     "name": "Ansur PVT Report Builder",
     "description": "Turn Fluke Ansur test records (.mtr) into PDF reports",
-    "link": "https://schedule.chsnz.co.nz/ansurtopdf/",
+    "link": "/ansurtopdf/",
     "category": "Service",
     "icon": "file-check",
-    "opens": "tab",
+    "opens": "here",
     "visible": true
   },
   {
     "id": "simpro",
     "name": "Simpro Asset Sync",
     "description": "Updates and adds customer assets in cass.simprosuite.com from an asset list",
-    "link": "https://schedule.chsnz.co.nz/simprosync/",
+    "link": "/simprosync/",
     "category": "Service",
     "icon": "refresh-cw",
-    "opens": "tab",
+    "opens": "here",
     "visible": true
   },
   {

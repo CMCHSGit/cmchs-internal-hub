@@ -3,6 +3,7 @@
 //
 //   apps/hub         (Vite)    -> /            (+ /shared/gate.js)
 //   apps/schedule    (Vite)    -> /schedule/
+//   apps/simprosync  (Vite)    -> /simprosync/
 //   apps/ansurtopdf  (static)  -> /ansurtopdf/
 //   apps/service     (static)  -> /service/
 //
@@ -21,6 +22,7 @@ const DIST = join(ROOT, 'dist')
 const APPS = [
   { dir: 'apps/hub',        path: '',           build: 'npm run build -w apps/hub',      output: 'dist' },
   { dir: 'apps/schedule',   path: 'schedule',   build: 'npm run build -w apps/schedule', output: 'dist' },
+  { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', output: '.' },
   { dir: 'apps/service',    path: 'service',    output: '.' },
 ]
