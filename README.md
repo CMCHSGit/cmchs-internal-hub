@@ -11,7 +11,15 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/order-parser/` | Service Order Parser | `apps/order-parser` (single static page) |
-| `/demo/` | Coming: still at demo.chsnz.co.nz for now | |
+| `/demo/` | Demo tracker, **read-only copy** (changes still happen at demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
+
+### /demo/ is generated, not copied
+
+Nothing of the tracker lives in this repo. `apps/demo/build.mjs` downloads the current `index.html` from CMCHSGit/chs-equipment on every build and injects `apps/demo/readonly.js` as the first script. So `/demo/` always matches demo.chsnz.co.nz; `deploy.yml` also runs hourly to pick up tracker changes (its data is live regardless).
+
+`readonly.js` is the lock: it refuses every database write (PUT/PATCH/POST/DELETE) and every Simpro proxy call before it leaves the browser, dims and blocks the editing buttons, skips the tracker's team password (the hub sign-in replaces it), and turns off its service worker and push so they can't collide with the hub's. The build **fails** if `readonly.js` isn't the first script on the page, so a tracker change can never publish a writable copy. Remember the database itself is still world-readable; this copy doesn't change that.
+
+To build from a local checkout instead of GitHub: `DEMO_SRC=../chs-equipment node apps/demo/build.mjs`.
 
 ### The schedule move is mid-flight
 

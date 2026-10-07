@@ -8,6 +8,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # /demo/ is built from the chs-equipment repo's current tracker, so rebuild
+  # regularly to pick up its changes (its data is live regardless). Unchanged
+  # builds produce an identical sw.js, so installed copies don't see an update.
+  schedule:
+    - cron: '23 * * * *'
 
 permissions:
   contents: read

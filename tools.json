@@ -10,6 +10,16 @@
     "visible": true
   },
   {
+    "id": "demo-view",
+    "name": "Demo equipment (read-only)",
+    "description": "Look up equipment, loans and history. Live data, no changes",
+    "link": "/demo/",
+    "category": "Demo",
+    "icon": "search",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "schedule",
     "name": "Staff schedule",
     "description": "View rosters, on-call, and leave",

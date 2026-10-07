@@ -6,6 +6,8 @@
 //   apps/simprosync  (Vite)    -> /simprosync/
 //   apps/ansurtopdf  (static)  -> /ansurtopdf/
 //   apps/order-parser (static) -> /order-parser/
+//   apps/demo        (fetched) -> /demo/  read-only copy of demo.chsnz.co.nz,
+//                                         built from the chs-equipment repo
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
@@ -25,6 +27,7 @@ const APPS = [
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', output: '.' },
   { dir: 'apps/order-parser', path: 'order-parser', output: '.' },
+  { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]
 
 // A real build without the Firebase config would ship a hub nobody can sign
@@ -71,6 +74,9 @@ const { count, size, warnings } = await injectManifest({
     // would make every phone download them up front for no reason.
     '**/exceljs*.js',
     'ansurtopdf/**',
+    // 600 KB and live-data only: no use offline, and it changes on every
+    // tracker deploy, which would churn every installed copy's cache.
+    'demo/**',
   ],
   // Vite already content-hashes these, so workbox adding its own revision on
   // top would only make the manifest churn on every build.
