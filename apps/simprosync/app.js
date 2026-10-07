@@ -92,6 +92,8 @@ export function startApp({ transport, who }) {
     assetTypes = await getAll(`/companies/${cid}/setup/assetTypes/`);
     assetTypes.sort((a, b) => a.Name.localeCompare(b.Name));
     renderSheetRows(); // re-populate every sheet row's type options for the (possibly new) company
+    $('delType').innerHTML = '<option value="">Choose…</option>' + assetTypeOptionsHtml('');
+    resetDelete();
   }
   $('company').onchange = () => { store.set('simproSync.company', $('company').value); resetResults(); loadTypes().catch(e => showError(e.message)); };
 
@@ -220,6 +222,8 @@ export function startApp({ transport, who }) {
   function updateButtons() {
     $('runDry').disabled = busy || !book || !getCheckedSheets().length;
     $('apply').disabled = busy || !plan || plan.applied || actionCount(plan) === 0;
+    $('delFind').disabled = busy || !$('delType').value;
+    $('delRun').disabled = busy || !delPlan || delPlan.ran || !delPlan.items.length;
   }
   function resetResults() { plan = null; $('results').hidden = true; updateButtons(); }
 
@@ -626,6 +630,100 @@ export function startApp({ transport, who }) {
     document.body.appendChild(a); a.click(); a.remove();
   }
   $('download').onclick = () => downloadReport(false);
+
+  /* ---------- delete assets by type ----------
+     Separate from the sync, which never deletes. Find scans every site (or
+     the listed ones) for assets of the chosen type and reads each one's
+     serial/model so the list can be checked; Delete then removes exactly that
+     list, one asset per call. The proxy only relays DELETE for role:'admin'. */
+  let delPlan = null; // { cid, tid, typeName, items:[{site, siteName, id, ser, model, status}], stamp, ran }
+  const delStatus = t => { $('delStatus').textContent = t; };
+  const delError = t => { $('delError').textContent = t || ''; $('delError').hidden = !t; };
+  function resetDelete() { delPlan = null; $('delResults').hidden = true; delError(''); delStatus('Reads Simpro only. Nothing is deleted yet.'); updateButtons(); }
+  $('delType').onchange = resetDelete;
+  $('delSites').oninput = resetDelete;
+
+  $('delFind').onclick = async () => {
+    const cid = $('company').value, tid = $('delType').value;
+    const typeName = $('delType').selectedOptions[0].textContent;
+    const onlySites = $('delSites').value.split(/[\s,;]+/).filter(Boolean);
+    if (onlySites.some(s => !/^\d+$/.test(s))) { delError('Site IDs must be numbers.'); return; }
+    resetDelete(); setBusy(true);
+    try {
+      let sites;
+      if (onlySites.length) sites = onlySites.map(id => ({ ID: +id, Name: '' }));
+      else { delStatus('Listing sites…'); sites = await getAll(`/companies/${cid}/sites/`); }
+      const items = [];
+      await pool(sites, 50, async s => {
+        const { status, data } = await call('GET', `/companies/${cid}/sites/${s.ID}/assets/?pageSize=250`);
+        if (status !== 200) throw new Error(`Could not read site ${s.ID} (${status}): ${brief(data)}`);
+        // A site with 250+ assets needs the remaining pages too.
+        const all = data.length < 250 ? data : await getAll(`/companies/${cid}/sites/${s.ID}/assets/`);
+        all.filter(a => String((a.AssetType || {}).ID) === String(tid))
+          .forEach(a => items.push({ site: s.ID, siteName: s.Name || '', id: a.ID, ser: '', model: '' }));
+      }, (d, t) => delStatus(`Scanning sites… ${d} of ${t} (${items.length} found)`));
+      items.sort((a, b) => String(a.siteName).localeCompare(String(b.siteName)) || a.site - b.site || a.id - b.id);
+      await pool(items, 50, async it => {
+        const { status, data } = await call('GET', `/companies/${cid}/sites/${it.site}/assets/${it.id}/customFields/?pageSize=250`);
+        if (status !== 200) return;
+        const val = name => { const c = data.find(c => String(c.CustomField.Name).trim().toLowerCase() === name); return c && c.Value ? String(c.Value) : ''; };
+        it.ser = val('serial number');
+        it.model = val('device model') || val('model');
+      }, (d, t) => delStatus(`Reading serial numbers… ${d} of ${t}`));
+      delPlan = { cid, tid, typeName, items, stamp: new Date(), ran: false, sitesScanned: sites.length };
+      delStatus(`Scanned ${sites.length} site${sites.length === 1 ? '' : 's'}. Nothing has been deleted.`);
+      renderDelete();
+    } catch (e) { delError(e.message); delStatus('Stopped.'); }
+    setBusy(false);
+  };
+
+  function renderDelete() {
+    const p = delPlan, siteCount = new Set(p.items.map(i => i.site)).size;
+    const done = p.items.filter(i => i.status === 'deleted').length, failed = p.items.filter(i => i.status && i.status !== 'deleted').length;
+    $('delTiles').innerHTML = (p.ran ? `<div class="banner ${failed ? 'bad' : 'ok'}">${failed ? '⚠' : '✓'} Deleted ${done} of ${p.items.length} ${esc(p.typeName)} assets${failed ? `, ${failed} failed (see below)` : ''}.</div>` : '') +
+      tile(p.items.length, `${esc(p.typeName)} asset${p.items.length === 1 ? '' : 's'}`, p.items.length ? 'warn' : '') +
+      tile(siteCount, `site${siteCount === 1 ? '' : 's'}<small>of ${p.sitesScanned} scanned</small>`);
+    $('delRun').textContent = p.items.length ? `Delete ${p.items.length} asset${p.items.length === 1 ? '' : 's'}` : 'Nothing to delete';
+    $('delTable').innerHTML = table(['Site', 'Site name', 'Asset ID', 'Serial', 'Model', ''], p.items.map(i => [
+      i.site, esc(i.siteName), i.id, esc(i.ser) || '<span class="muted">-</span>', esc(i.model),
+      i.status === 'deleted' ? '<span class="pill ok">deleted</span>' : i.status ? `<span class="pill bad" title="${esc(i.status)}">failed</span> <span class="muted">${esc(i.status)}</span>` : ''
+    ]));
+    $('delResults').hidden = false; updateButtons();
+  }
+
+  $('delRun').onclick = async () => {
+    const p = delPlan, n = p.items.length;
+    const typed = prompt(`This permanently deletes ${n} ${p.typeName} asset${n === 1 ? '' : 's'} from Simpro, across ${new Set(p.items.map(i => i.site)).size} site(s). It cannot be undone.\n\nType DELETE ${n} to confirm.`);
+    if (typed === null) return;
+    if (typed.trim() !== `DELETE ${n}`) { alert('That did not match - nothing was deleted.'); return; }
+    setBusy(true); delError('');
+    try {
+      // Different assets don't collide (unlike PATCHes to one asset - see
+      // apply above), so a wide pool keeps every proxy batch full.
+      await pool(p.items, 25, async it => {
+        const { status, data } = await call('DELETE', `/companies/${p.cid}/sites/${it.site}/assets/${it.id}`);
+        it.status = (status === 200 || status === 204) ? 'deleted' : `${status} ${brief(data)}`;
+      }, d => delStatus(`Deleting… ${d} of ${n}`));
+    } catch (e) { delError('Stopped part-way: ' + e.message + ' - run Find again to see what is left.'); }
+    p.ran = true; p.ranAt = new Date();
+    delStatus(`Finished. Run Find again to confirm nothing is left.`);
+    renderDelete(); setBusy(false);
+    downloadDeleteReport();
+  };
+
+  function downloadDeleteReport() {
+    const p = delPlan; if (!p) return;
+    const rows = [['Site ID', 'Site name', 'Asset ID', 'Asset type', 'Serial', 'Model', 'Result']];
+    p.items.forEach(i => rows.push([i.site, i.siteName, i.id, p.typeName, i.ser, i.model, i.status || (p.ran ? 'not attempted' : 'would delete')]));
+    const head = `${p.ran ? 'DELETED' : 'TO DELETE'} | ${p.typeName} (type ${p.tid}) | company ${p.cid} | ${(p.ranAt || p.stamp).toLocaleString('en-NZ')} | by ${WHO}`;
+    const csv = '﻿' + csvCell(head) + '\r\n' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+    const ts = (p.ranAt || p.stamp).toISOString().slice(0, 16).replace(/[-:T]/g, '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `Simpro ${p.ran ? 'DELETED' : 'delete list'} ${p.typeName.replace(/[\\/:*?"<>|]/g, '')} ${ts}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  $('delDownload').onclick = downloadDeleteReport;
 
   updateButtons();
   loadSetup();

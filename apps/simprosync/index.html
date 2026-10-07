@@ -92,6 +92,9 @@ details.asset .tablewrap{margin:8px 0 4px;max-height:none}
 #log{font:12px/1.5 Consolas,monospace;white-space:pre-wrap;max-height:300px;overflow:auto;margin:8px 0 0;color:var(--muted)}
 .help{font-size:13px;color:var(--muted);margin:10px 0 0}
 body.busy{cursor:progress}
+.danger-zone{border-color:var(--bad)}
+.danger-zone summary{cursor:pointer;list-style-position:inside}
+.danger-zone summary h2{display:inline;color:var(--bad);margin:0}
 @media (max-width:640px){header,main{padding-left:16px;padding-right:16px}}
 /* Back to the hub. Neutral greys and transparencies rather than fixed colours,
    so the same block works in this page's light or dark scheme without being
@@ -167,7 +170,26 @@ body.busy{cursor:progress}
     <details style="margin-top:14px"><summary class="muted">Run log</summary><pre id="log"></pre></details>
   </section>
 
-  <p class="help">How it works: assets are matched on <b>Serial Number</b> within each <b>Site ID</b>. Existing assets are updated, new serials are created. Blank cells never clear Simpro, values not in a Simpro list are rejected, Excel errors such as #REF! are skipped, and nothing is ever deleted. If the sheet has a <b>Simpro Job</b> column, each job's assets are attached to it after the import and the job is set to stage <b>Complete</b> / status <b>Job : Completed</b> &mdash; only if every asset attached.</p>
+  <p class="help">How it works: assets are matched on <b>Serial Number</b> within each <b>Site ID</b>. Existing assets are updated, new serials are created. Blank cells never clear Simpro, values not in a Simpro list are rejected, Excel errors such as #REF! are skipped, and the sync never deletes anything. If the sheet has a <b>Simpro Job</b> column, each job's assets are attached to it after the import and the job is set to stage <b>Complete</b> / status <b>Job : Completed</b> &mdash; only if every asset attached.</p>
+
+  <details class="card danger-zone" id="delCard">
+    <summary><h2>Delete assets by type</h2></summary>
+    <p class="help" style="margin-top:0">Finds every customer asset of one asset type across all sites, so you can review them, then permanently deletes them. Deleting cannot be undone and removes each asset's history. Admins only.</p>
+    <div class="row" style="margin-top:10px">
+      <label class="f">Asset type<select id="delType"><option value="">Choose…</option></select></label>
+      <label class="f">Only these site IDs (optional)<input type="text" id="delSites" placeholder="e.g. 2535, 2349 - blank means every site"></label>
+    </div>
+    <div class="actions" style="margin-top:12px"><button class="primary" id="delFind" disabled>Find assets</button><span class="muted" id="delStatus">Reads Simpro only. Nothing is deleted yet.</span></div>
+    <p class="bad" id="delError" hidden></p>
+    <div id="delResults" hidden style="margin-top:14px">
+      <div class="tiles" id="delTiles"></div>
+      <div class="actions">
+        <button class="danger" id="delRun" disabled>Delete</button>
+        <button id="delDownload">Download list (.csv)</button>
+      </div>
+      <div id="delTable" style="margin-top:12px"></div>
+    </div>
+  </details>
 </main>
 <script type="module" src="./main.js"></script>
 </body>
