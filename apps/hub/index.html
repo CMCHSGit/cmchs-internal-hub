@@ -6,7 +6,18 @@
   <title>CMCHS Internal Hub</title>
   <meta name="theme-color" content="#ffffff">
   <link rel="icon" type="image/png" href="/brand/logo-mark.png">
-  <link rel="apple-touch-icon" href="/brand/logo-mark.png">
+
+  <!-- Installable as an app. scope "/" in the manifest is the point of the
+       whole thing: it's what keeps every tool on this domain inside the app
+       window instead of bouncing out to a browser tab. iOS reads only the
+       metas of the page being installed, so any other page we want people to
+       install from needs this same block. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Internal Hub">
 </head>
 <body>
   <div id="root"></div>

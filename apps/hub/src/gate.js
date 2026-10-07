@@ -8,7 +8,12 @@
 // with a slim "Internal Hub" bar on top. No second sign-in: the session is the
 // hub's own, shared by every page on this site.
 // Signed out: off to the hub's Microsoft sign-in, then straight back here.
+import { registerServiceWorker } from '../../../shared/register-sw.js'
 import { goToSignIn, initialsOf, watchUser } from '../../../shared/session.js'
+
+// Someone whose only tool is a /service page still keeps the site's one worker
+// installed and up to date.
+registerServiceWorker()
 
 const BAR_CSS = `
 .hub-bar{all:initial;display:flex;align-items:center;gap:12px;box-sizing:border-box;min-height:44px;padding:0 16px;

@@ -9,6 +9,7 @@ import { execSync } from 'node:child_process'
 import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { injectManifest } from 'workbox-build'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -42,5 +43,29 @@ for (const app of APPS) {
   })
   console.log(`  ${app.dir} -> /${app.path}`)
 }
+
+// The site has one service worker, at scope "/", so its precache list has to be
+// built from the ASSEMBLED dist/ — no individual app's build can see the other
+// apps' files. apps/hub emitted sw-src.js (vite.sw.config.js); this fills in its
+// self.__WB_MANIFEST and writes the sw.js that actually ships.
+const { count, size, warnings } = await injectManifest({
+  swSrc: join(DIST, 'sw-src.js'),
+  swDest: join(DIST, 'sw.js'),
+  globDirectory: DIST,
+  globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+  globIgnores: [
+    'sw-src.js',
+    // Big, rarely opened, or wanted fresh rather than cached. Precaching these
+    // would make every phone download them up front for no reason.
+    '**/exceljs*.js',
+    'ansurtopdf/**',
+  ],
+  // Vite already content-hashes these, so workbox adding its own revision on
+  // top would only make the manifest churn on every build.
+  dontCacheBustURLsMatching: /-[A-Za-z0-9_-]{8}\.(js|css|woff2)$/,
+})
+warnings.forEach(w => console.warn('  workbox: ' + w))
+rmSync(join(DIST, 'sw-src.js'))
+console.log(`  service worker: ${count} files precached, ${(size / 1024 / 1024).toFixed(2)} MB`)
 
 console.log('Site assembled in dist/')
