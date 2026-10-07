@@ -8,13 +8,17 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, OAuthProvider, onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 
+// Trimmed: a value pasted into GitHub Secrets with a trailing newline (it
+// happened with the tenant ID) makes Microsoft answer "Bad Request".
+const env = name => (import.meta.env[name] || '').trim() || undefined
+
 const config = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey:            env('VITE_FIREBASE_API_KEY'),
+  authDomain:        env('VITE_FIREBASE_AUTH_DOMAIN'),
+  projectId:         env('VITE_FIREBASE_PROJECT_ID'),
+  storageBucket:     env('VITE_FIREBASE_STORAGE_BUCKET'),
+  messagingSenderId: env('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+  appId:             env('VITE_FIREBASE_APP_ID'),
 }
 
 export const configured = Boolean(config.apiKey)
@@ -32,7 +36,7 @@ if (configured) {
   provider = new OAuthProvider('microsoft.com')
   provider.setCustomParameters({
     // Only Cass Medical accounts (same setting as the schedule app)
-    tenant: import.meta.env.VITE_AZURE_TENANT_ID,
+    tenant: env('VITE_AZURE_TENANT_ID'),
     prompt: 'select_account',
   })
 }
