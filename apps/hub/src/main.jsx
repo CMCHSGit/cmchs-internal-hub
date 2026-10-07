@@ -5,7 +5,9 @@ import '../../../shared/tokens.css'
 import './hub.css'
 import App from './App.jsx'
 
-registerServiceWorker()
+// The hub is a launcher with no state worth keeping, so it takes a new deploy
+// straight away rather than sitting on a precached copy until someone refreshes.
+registerServiceWorker({ reloadOnUpdate: true })
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
