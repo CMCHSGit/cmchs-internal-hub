@@ -1,69 +1,43 @@
-// /demo/readonly.js — turns the real demo tracker into a read-only copy.
+// /demo/embed.js — runs the real demo tracker inside the hub.
 //
 // /demo/ is NOT a fork of the tracker. apps/demo/build.mjs takes the current
 // index.html from the chs-equipment repo on every hub deploy and injects this
 // file as the very first script, before any of the tracker's own code. So
-// /demo/ always looks and reads exactly like demo.chsnz.co.nz, and this file
-// is the only thing that differs.
+// /demo/ is the same app as demo.chsnz.co.nz, on the same live database:
+// a loan made in either place shows up in both.
 //
-// What it does, in order of how much we rely on it:
-//  1. Hard block: any request that could change something (database
-//     PUT/PATCH/POST/DELETE, any call to the Simpro Apps Script proxy) is
-//     refused here, before it leaves the browser. Whatever gets clicked,
-//     nothing can be written. This is the guarantee; the rest is courtesy.
-//  2. Editing buttons are dimmed and say so, and clicking one explains
-//     rather than half-starting a loan that then fails to save.
-//  3. The tracker's own team password is skipped (the hub's Microsoft
-//     sign-in already let you in), and its push notifications and service
-//     worker are switched off: the site has one worker, the hub's, and one
-//     push setup, the schedule's.
+// What this file changes, always:
+//  - The tracker's team password is skipped: the hub's Microsoft sign-in
+//    already let you in. (Its separate admin password for delete / retire /
+//    edit still applies.)
+//  - Its service worker and push notifications are switched off here. The
+//    site has one worker, the hub's, and one push setup, the schedule's.
+//    Push for the demo tracker stays on demo.chsnz.co.nz.
+//  - Always the desktop layout, phones included (it adapts to narrow
+//    screens). The phone layout has its own sign-in that only passes once
+//    it has matched you against the team list, loaded after it has already
+//    picked a layout.
+//
+// READ_ONLY = true turns it back into a read-only copy: every write refused
+// before it leaves the browser, editing buttons dimmed, a banner. It was
+// read-only for its first day (2026-10-08); flip this if it ever needs to be
+// again, e.g. while something is being investigated.
 (function () {
   'use strict'
 
+  var READ_ONLY = false
   var LIVE = 'https://demo.chsnz.co.nz/'
-  var READ_METHODS = { GET: 1, HEAD: 1, OPTIONS: 1 }
+  var VIEWER = 'Read-only viewer'
 
-  // ── 1. Hard block on writes ─────────────────────────────────────────────
-  function isWrite(method, url) {
-    if (/script\.google\.com|script\.googleusercontent\.com/.test(String(url))) return true
-    return !READ_METHODS[String(method || 'GET').toUpperCase()]
-  }
+  // ── Always: no team password, no second worker, no push, desktop layout ──
+  try { sessionStorage.setItem('chs_auth', '1') } catch (e) {}
 
-  var realFetch = window.fetch.bind(window)
-  window.fetch = function (input, init) {
-    var url = typeof input === 'string' ? input : (input && input.url) || String(input)
-    var method = (init && init.method) || (input && typeof input === 'object' && input.method) || 'GET'
-    if (isWrite(method, url)) {
-      explain()
-      return Promise.reject(new Error('Read-only copy: changes are made at demo.chsnz.co.nz'))
-    }
-    return realFetch(input, init)
-  }
-
-  var xhrOpen = XMLHttpRequest.prototype.open
-  var xhrSend = XMLHttpRequest.prototype.send
-  XMLHttpRequest.prototype.open = function (method, url) {
-    this.__roWrite = isWrite(method, url)
-    return xhrOpen.apply(this, arguments)
-  }
-  XMLHttpRequest.prototype.send = function () {
-    if (this.__roWrite) { explain(); throw new Error('Read-only copy') }
-    return xhrSend.apply(this, arguments)
-  }
-  if (navigator.sendBeacon) navigator.sendBeacon = function () { return false }
-
-  // ── 3. No second worker, no push, no team password ──────────────────────
   // The tracker checks `'serviceWorker' in navigator` before registering its
   // own /sw.js (which here would be the hub's) and before offering push.
   // Removing the property makes both skip themselves. It doesn't uncontrol the
   // page: the hub's worker still serves it inside the installed app.
   try { delete Navigator.prototype.serviceWorker } catch (e) {}
-  try { sessionStorage.setItem('chs_auth', '1') } catch (e) {}
 
-  // Always the desktop layout, phones included (it adapts to narrow screens).
-  // The tracker's phone layout only gets past its own sign-in once it has
-  // matched you against its team list, which it loads after it has already
-  // chosen a layout. Not worth fragile timing hacks for a read-only view.
   var realMatchMedia = window.matchMedia.bind(window)
   window.matchMedia = function (q) {
     if (/display-mode:\s*standalone/.test(q)) return realMatchMedia('(width: -1px)') // never matches
@@ -79,14 +53,52 @@
     }
   } catch (e) {}
 
-  // "Who are you?" only exists to put names on the audit log, and nothing is
-  // logged from here. Answer it so it doesn't block the screen.
-  try { if (!localStorage.getItem('chs_operator')) localStorage.setItem('chs_operator', 'Read-only viewer') } catch (e) {}
+  // "Who are you?" puts your name on the audit log. Read-only had nothing to
+  // log, so it answered with a placeholder; with writes on, that placeholder
+  // must not end up in the log, so clear it and let the tracker ask.
+  try {
+    var op = localStorage.getItem('chs_operator')
+    if (READ_ONLY && !op) localStorage.setItem('chs_operator', VIEWER)
+    if (!READ_ONLY && op === VIEWER) localStorage.removeItem('chs_operator')
+  } catch (e) {}
 
-  // ── 2. Editing controls: dimmed, and explained when clicked ──────────────
-  // Matched against the inline handler (onclick="saveItem()" etc). Anything
-  // that opens an editing flow or saves one. Viewing, searching, sorting,
-  // filtering, history, PDFs and exports stay usable.
+  if (!READ_ONLY) return
+
+  // ── Read-only mode ──────────────────────────────────────────────────────
+  // 1. Hard block: any request that could change something (database
+  //    PUT/PATCH/POST/DELETE, any call to the Simpro Apps Script proxy) is
+  //    refused before it leaves the browser. This is the guarantee.
+  var READ_METHODS = { GET: 1, HEAD: 1, OPTIONS: 1 }
+  function isWrite(method, url) {
+    if (/script\.google\.com|script\.googleusercontent\.com/.test(String(url))) return true
+    return !READ_METHODS[String(method || 'GET').toUpperCase()]
+  }
+
+  var realFetch = window.fetch.bind(window)
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || String(input)
+    var method = (init && init.method) || (input && typeof input === 'object' && input.method) || 'GET'
+    if (isWrite(method, url)) {
+      explain()
+      return Promise.reject(new Error('Read-only copy: changes are made at demo.chsnz.co.nz'))
+    }
+    return realFetch(input, init)
+  }
+  var xhrOpen = XMLHttpRequest.prototype.open
+  var xhrSend = XMLHttpRequest.prototype.send
+  XMLHttpRequest.prototype.open = function (method, url) {
+    this.__roWrite = isWrite(method, url)
+    return xhrOpen.apply(this, arguments)
+  }
+  XMLHttpRequest.prototype.send = function () {
+    if (this.__roWrite) { explain(); throw new Error('Read-only copy') }
+    return xhrSend.apply(this, arguments)
+  }
+  if (navigator.sendBeacon) navigator.sendBeacon = function () { return false }
+
+  // 2. Editing controls: dimmed, and explained when clicked. Matched against
+  //    the inline handler (onclick="saveItem()" etc). Viewing, searching,
+  //    sorting, filtering, history, PDFs and exports stay usable.
   var EDIT = new RegExp('\\b(' + [
     'add[A-Z]\\w*', 'confirm\\w*', 'delete\\w*', 'remove\\w*', 'save\\w*', 'submit\\w*',
     'retire\\w*', 'restore\\w*', 'prompt(Add|Edit|Restore)\\w*', 'upload\\w*',
@@ -104,35 +116,36 @@
     var h = el.getAttribute && (el.getAttribute('onclick') || el.getAttribute('onchange') || '')
     return !!h && (EDIT.test(h) || DETAIL_EDIT.test(h))
   }
-
+  function lock(el) {
+    if (el.__roChecked) return
+    el.__roChecked = true
+    if (!isEditControl(el)) return
+    el.classList.add('ro-locked')
+    el.setAttribute('aria-disabled', 'true')
+    el.title = 'Read-only copy: make changes at demo.chsnz.co.nz'
+  }
   function mark(root) {
-    var els = (root.querySelectorAll ? root.querySelectorAll('[onclick],[onchange]') : [])
-    for (var i = 0; i < els.length; i++) {
-      var el = els[i]
-      if (el.__roChecked) continue
-      el.__roChecked = true
-      if (isEditControl(el)) {
-        el.classList.add('ro-locked')
-        el.setAttribute('aria-disabled', 'true')
-        el.title = 'Read-only copy: make changes at demo.chsnz.co.nz'
-      }
-    }
+    if (root.matches && root.matches('[onclick],[onchange]')) lock(root)
+    var els = root.querySelectorAll ? root.querySelectorAll('[onclick],[onchange]') : []
+    for (var i = 0; i < els.length; i++) lock(els[i])
   }
 
   // Capture phase, so it runs before the inline handler.
   function guard(e) {
     var el = e.target && e.target.closest && e.target.closest('[onclick],[onchange]')
-    if (el && isEditControl(el)) {
-      e.preventDefault()
-      e.stopImmediatePropagation()
-      explain()
-    }
+    if (el && isEditControl(el)) { e.preventDefault(); e.stopImmediatePropagation(); explain() }
   }
   document.addEventListener('click', guard, true)
   document.addEventListener('change', guard, true)
   document.addEventListener('submit', function (e) { e.preventDefault(); explain() }, true)
 
-  // ── Banner and the "read-only" note ─────────────────────────────────────
+  // Writes the tracker makes on its own (on load, on a timer) are blocked
+  // silently; the note only answers something the person just did.
+  var lastAction = 0
+  function touched() { lastAction = Date.now() }
+  document.addEventListener('pointerdown', touched, true)
+  document.addEventListener('keydown', touched, true)
+
   var CSS = '' +
     '.ro-locked{opacity:.4 !important;cursor:not-allowed !important;filter:grayscale(1)}' +
     '#ro-banner{all:initial;display:flex;align-items:center;gap:10px;flex-wrap:wrap;box-sizing:border-box;padding:8px 16px;' +
@@ -144,13 +157,6 @@
       'font:400 14px/1.4 "Source Sans 3","Segoe UI",system-ui,sans-serif;opacity:0;transition:opacity 150ms cubic-bezier(.2,.6,.2,1);pointer-events:none}' +
     '#ro-note.on{opacity:1;pointer-events:auto}' +
     '#ro-note a{color:#cac4e3;font-weight:600}'
-
-  // Writes the tracker makes on its own (on load, on a timer) are blocked
-  // silently; the note only answers something the person just did.
-  var lastAction = 0
-  function touched() { lastAction = Date.now() }
-  document.addEventListener('pointerdown', touched, true)
-  document.addEventListener('keydown', touched, true)
 
   var noteTimer = null
   function explain() {
@@ -189,8 +195,7 @@
       }
     }
 
-    // Open on the Database tab, not the Scan / Loan form (unless the link asked
-    // for something specific). Waits for the tracker to finish loading.
+    // Open on the Database tab, not the Scan / Loan form.
     if (!location.search && !location.hash) {
       var tries = 0
       var toDatabase = setInterval(function () {
@@ -209,15 +214,7 @@
     new MutationObserver(function (records) {
       for (var i = 0; i < records.length; i++) {
         var added = records[i].addedNodes
-        for (var j = 0; j < added.length; j++) {
-          var n = added[j]
-          if (n.nodeType !== 1) continue
-          if (n.matches && n.matches('[onclick],[onchange]') && !n.__roChecked) {
-            n.__roChecked = true
-            if (isEditControl(n)) { n.classList.add('ro-locked'); n.setAttribute('aria-disabled', 'true') }
-          }
-          mark(n)
-        }
+        for (var j = 0; j < added.length; j++) if (added[j].nodeType === 1) mark(added[j])
       }
     }).observe(document.body, { childList: true, subtree: true })
   }

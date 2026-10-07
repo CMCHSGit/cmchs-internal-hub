@@ -3,19 +3,9 @@
     "id": "demo",
     "name": "Demo equipment tracker",
     "description": "Scan, loan, and track CMCHS demo equipment",
-    "link": "https://demo.chsnz.co.nz",
-    "category": "Demo",
-    "icon": "package",
-    "opens": "tab",
-    "visible": true
-  },
-  {
-    "id": "demo-view",
-    "name": "Demo equipment (read-only)",
-    "description": "Look up equipment, loans and history. Live data, no changes",
     "link": "/demo/",
     "category": "Demo",
-    "icon": "search",
+    "icon": "package",
     "opens": "here",
     "visible": true
   },

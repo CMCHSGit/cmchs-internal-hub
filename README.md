@@ -11,13 +11,15 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/order-parser/` | Service Order Parser | `apps/order-parser` (single static page) |
-| `/demo/` | Demo tracker, **read-only copy** (changes still happen at demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
+| `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 
 ### /demo/ is generated, not copied
 
-Nothing of the tracker lives in this repo. `apps/demo/build.mjs` downloads the current `index.html` from CMCHSGit/chs-equipment on every build and injects `apps/demo/readonly.js` as the first script. So `/demo/` always matches demo.chsnz.co.nz; `deploy.yml` also runs hourly to pick up tracker changes (its data is live regardless).
+Nothing of the tracker lives in this repo. `apps/demo/build.mjs` downloads the current `index.html` from CMCHSGit/chs-equipment on every build and injects `apps/demo/embed.js` as the first script. So `/demo/` is always the same app as demo.chsnz.co.nz, on the same database: a loan made at either address shows at both. `deploy.yml` also runs hourly to pick up tracker changes. **Change the tracker in chs-equipment, never here.**
 
-`readonly.js` is the lock: it refuses every database write (PUT/PATCH/POST/DELETE) and every Simpro proxy call before it leaves the browser, dims and blocks the editing buttons, skips the tracker's team password (the hub sign-in replaces it), and turns off its service worker and push so they can't collide with the hub's. The build **fails** if `readonly.js` isn't the first script on the page, so a tracker change can never publish a writable copy. Remember the database itself is still world-readable; this copy doesn't change that.
+`embed.js` skips the tracker's team password (the hub sign-in replaces it; the admin password for delete/retire/edit still applies), turns off its service worker and push so they can't collide with the hub's one worker and the schedule's push (demo push notifications stay on demo.chsnz.co.nz), and always uses the desktop layout. The build **fails** if `embed.js` isn't the first script on the page.
+
+`READ_ONLY = true` at the top of `embed.js` turns `/demo/` into a read-only copy (every write refused before it leaves the browser, editing buttons dimmed, a banner). It ran that way for its first day; it's there if it's ever needed again. Remember the database itself is still world-readable.
 
 To build from a local checkout instead of GitHub: `DEMO_SRC=../chs-equipment node apps/demo/build.mjs`.
 
