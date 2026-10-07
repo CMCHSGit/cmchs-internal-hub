@@ -60,6 +60,7 @@
    wordmark is light and whose mark is untouched (see Logo in components/ui.jsx).
    Both <img>s are in the DOM and CSS picks one, so the right logo is correct on
    the first paint rather than after React reads the theme. */
+.logo-img { display: block; }
 .logo-dark { display: none; }
 :root[data-theme="dark"] .logo-light { display: none; }
 :root[data-theme="dark"] .logo-dark { display: block; }

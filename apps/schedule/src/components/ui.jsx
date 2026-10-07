@@ -85,15 +85,18 @@ export function Logo({ variant = 'full-colour', width = 150 }) {
   // Through BASE_URL, not root-absolute: this app is served under /schedule/,
   // and /brand/… would reach for the hub's copy instead.
   const url = name => `${import.meta.env.BASE_URL}brand/${name}.png`
-  const style = { width, height: 'auto', display: 'block' }
+  // `display` deliberately lives in CSS, not here: an inline style outranks any
+  // class selector, so setting display:block on both images would defeat the
+  // rule that hides one of them and you'd see the logo twice.
+  const style = { width, height: 'auto' }
 
   if (variant === 'mark') {
-    return <img src={url('logo-mark')} alt="Connected Healthcare Systems" width={width} style={style} />
+    return <img className="logo-img" src={url('logo-mark')} alt="Connected Healthcare Systems" width={width} style={style} />
   }
   return (
     <>
-      <img className="logo-light" src={url('logo-full-colour')} alt="Connected Healthcare Systems" width={width} style={style} />
-      <img className="logo-dark" src={url('logo-full-dark')} alt="" aria-hidden="true" width={width} style={style} />
+      <img className="logo-img logo-light" src={url('logo-full-colour')} alt="Connected Healthcare Systems" width={width} style={style} />
+      <img className="logo-img logo-dark" src={url('logo-full-dark')} alt="" aria-hidden="true" width={width} style={style} />
     </>
   )
 }
