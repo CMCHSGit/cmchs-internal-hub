@@ -865,6 +865,22 @@ const SIMPRO_SYNC_ATTACHMENT_FIELDS = ['Filename', 'Public', 'Base64Data', 'Fold
 // where Apps Script's own request limits start failing in confusing ways.
 const SIMPRO_SYNC_MAX_BASE64 = 20 * 1024 * 1024;
 
+// Checks a filename is a filename, rather than checking it against a list of
+// characters someone thought filenames contain. The first version of this was
+// an allowlist of [\w .()-] and it rejected five real PVT reports because their
+// device names contain "+" ("HP Monitor Visual + EST"). Punctuation is not the
+// risk here — path separators and traversal are, and Simpro can decide for
+// itself what it will accept beyond that.
+function simproSyncFilenameOk_(name) {
+  const n = String(name == null ? '' : name);
+  if (!n || n.length > 180) return false;
+  if (n.indexOf('/') !== -1 || n.indexOf('\\') !== -1) return false;  // no paths
+  if (n.indexOf('..') !== -1) return false;                           // no traversal
+  if (n.charAt(0) === '.') return false;                              // no dotfiles
+  if (/[\x00-\x1f\x7f]/.test(n)) return false;                        // no control characters
+  return /\.[A-Za-z0-9]{1,8}$/.test(n);                               // must end in an extension
+}
+
 function simproSyncAllowed_(method, pathWithQuery) {
   const m = String(method || '').toLowerCase();
   const qIdx = String(pathWithQuery || '').indexOf('?');
@@ -969,8 +985,8 @@ function simproSyncProxy_(payload) {
       if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {
         return respond({ success: false, error: 'Request ' + i + ' sets an attachment field that is not allowed' });
       }
-      if (!body.Filename || !/^[\w .()\-]{1,120}\.[A-Za-z0-9]{1,8}$/.test(String(body.Filename))) {
-        return respond({ success: false, error: 'Request ' + i + ' has an unusable attachment filename' });
+      if (!simproSyncFilenameOk_(body.Filename)) {
+        return respond({ success: false, error: 'Request ' + i + ' has an unusable attachment filename: ' + String(body.Filename).slice(0, 120) });
       }
       if (String(body.Base64Data || '').length > SIMPRO_SYNC_MAX_BASE64) {
         return respond({ success: false, error: 'Request ' + i + ' attachment is too large' });
