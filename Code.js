@@ -837,6 +837,9 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
   [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
   [['get'],        /^\/companies\/\d+\/sites\/$/],
+  // Company-wide asset list, read-only. Needs the search query policy for
+  // filters like AssetType.ID=9, Site.ID=in(1,2) and columns=ID,Site,CustomFields.
+  [['get'],        /^\/companies\/\d+\/customerAssets\/$/, SIMPRO_QUERY_SEARCH],
   [['get','post'], /^\/companies\/\d+\/sites\/\d+\/assets\/$/],
   // SimproSync's "Delete assets by type". Admins only — see SIMPRO_SYNC_ADMIN_ONLY.
   [['delete'],     /^\/companies\/\d+\/sites\/\d+\/assets\/\d+$/],
