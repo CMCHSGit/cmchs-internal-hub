@@ -5,6 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Page not found · CMCHS Internal Hub</title>
   <link rel="icon" type="image/png" href="/brand/logo-mark.png">
+  <!-- Deep links into a single-page app. GitHub Pages has no rewrite rules: any
+       path with no file behind it lands here, including real routes like
+       /schedule/my. For those, hand the request to that app's index.html with
+       the original path in ?redirect=, which the app puts back before it mounts.
+       Everything else falls through to the genuine not-found page below.
+
+       This runs before any of the markup renders, so a real route never flashes
+       "Page not found" on the way through. Once the service worker is installed
+       it answers these navigations itself and this is never reached — it covers
+       the first visit, a hard reload after an update, and browsers with no SW. -->
+  <script>
+    (function () {
+      // Apps that route client-side. A path under one of these is its business.
+      var APPS = ['/schedule/']
+      var path = location.pathname
+      // A missing file is a missing file — only paths that look like routes get
+      // handed to an app, so a stale asset URL still reports as not found
+      // instead of quietly returning a page of HTML.
+      if (/\.[a-z0-9]+$/i.test(path)) return
+      for (var i = 0; i < APPS.length; i++) {
+        if (path.indexOf(APPS[i]) !== 0) continue
+        location.replace(APPS[i] + '?redirect=' + encodeURIComponent(path + location.search + location.hash))
+        return
+      }
+    })()
+  </script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@600&family=Source+Sans+3:wght@300;600&display=swap">
   <style>
     body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;background:#fff;color:#575756;font:300 16px/1.55 "Source Sans 3",system-ui,sans-serif}

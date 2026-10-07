@@ -7,10 +7,18 @@
 | Path | What | Source |
 |---|---|---|
 | `/` | Hub home: tools by category, search, announcements | `apps/hub` (Vite + React) |
+| `/schedule/` | Staff schedule | `apps/schedule` (Vite + React) |
+| `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/service/order-parser/` | Service Order Parser | `apps/service/order-parser` |
-| `/demo/`, `/schedule/` | Coming: still at demo.chsnz.co.nz and schedule.chsnz.co.nz for now | |
+| `/demo/` | Coming: still at demo.chsnz.co.nz for now | |
 
-**Ansur PVT Report Builder** and **Simpro Asset Sync** are maintained in the cmchs-staff-schedule repo (`schedule.chsnz.co.nz/ansurtopdf/` and `/simprosync/`); the hub cards link there. They move in here with the schedule app (phase 3). Don't copy them into this repo before then, so there's only ever one version of each.
+### The schedule move is mid-flight
+
+The schedule is **live here but not yet advertised**: `tools.json` still sends people to `schedule.chsnz.co.nz`, and the old repo is still deployed and authoritative. Both run the same Firestore, so no data is split — it's the same app at two addresses.
+
+Still to do: **SimproSync** (`schedule.chsnz.co.nz/simprosync/`) hasn't moved; then flip `tools.json`, move the scheduled jobs (`remind.yml`, `excel-sync.yml`) across, run both in parallel for 2–3 weeks spanning two Thursdays, and finally replace the old site with a tombstone.
+
+**Don't delete the old domain to retire it.** Its service worker precaches the app at scope `/`, so pulling DNS leaves every already-installed copy serving from cache and writing to live Firestore — people would keep filling in schedules in an app we think is gone. Retiring it means actively shipping a `sw.js` at the same path that unregisters itself and deletes its caches.
 
 ## Sign-in
 Microsoft sign-in through Firebase Auth, using **the staff schedule's Firebase project** (locked to the Cass Medical tenant). Every app on this domain shares that one session, so people sign in once at the hub and never again, including after closing the browser, until they sign out. The code is in `shared/session.js`.
@@ -61,10 +69,14 @@ If you add a page people should be able to install *from* (iOS reads only the me
 ## Run it locally
 ```
 npm install
-npm run dev        # hub at http://localhost:5173 with a pretend "Dev User" (no .env needed)
-npm run build      # whole site into dist/
-npm run preview    # serve dist/ at http://localhost:4173 (needs .env for real sign-in)
+npm run dev                  # hub at http://localhost:5173 with a pretend "Dev User" (no .env needed)
+npm run dev -w apps/schedule # the schedule on its own
+npm test -w apps/schedule    # the schedule's unit tests
+npm run build                # whole site into dist/
+npm run preview              # serve dist/ at http://localhost:4173 (needs .env for real sign-in)
 ```
+
+The service worker only registers in a real build, so `npm run dev` never installs one — use `npm run build && npm run preview` to exercise it. Deep links are the other thing `dev` won't show you honestly: Vite's dev server has its own SPA fallback, so `/schedule/my` just works there, while on GitHub Pages it goes through `404.html`.
 For real sign-in locally, copy `.env.example` to `.env` and fill it in with the schedule's Firebase web config.
 
 ## Deploy setup (one-time)

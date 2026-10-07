@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#ffffff" />
+    <!-- Installing from this page must produce the ONE hub app, not a second
+         app for the schedule: hence the hub's root manifest (scope "/"), and
+         the hub's name and icon in the Apple metas, which iOS reads from the
+         page being added rather than from the manifest. The browser-tab icon
+         below stays the schedule's own — that one is per-page. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Internal Hub" />
+    <!-- A copy of the hub's icon rather than a link to /icons/icon-192.png,
+         because Vite rebases root-absolute URLs in this file through base and
+         would turn that into /schedule/icons/… — i.e. the schedule's own
+         calendar icon, so the same installed app would look different depending
+         on which page it was added from. Keep in step with
+         apps/hub/public/icons/icon-192.png if that ever changes. -->
+    <link rel="apple-touch-icon" href="/icons/hub-192.png" />
+    <!-- ?v=N bumped by hand whenever icon-192.png's content actually changes, so
+         browsers (which cache favicons somewhat independently of normal assets)
+         are forced to refetch instead of showing a stale cached icon. -->
+    <link rel="icon" type="image/png" href="/icons/icon-192.png?v=2" />
+    <title>CMCHS Staff Schedule</title>
+    <!-- Deep links. GitHub Pages serves the site's single 404.html for a path
+         with no file behind it, e.g. /schedule/my on a cold load. That page
+         bounces back here with ?redirect=<original path>; put the real URL back
+         before React mounts, so the router sees /schedule/my and not /schedule/.
+         Once the service worker is installed it answers those navigations itself
+         and this never runs — it's for the first visit and for no-SW browsers. -->
+    <script>
+      (function () {
+        var m = /[?&]redirect=([^&]*)/.exec(location.search)
+        if (!m) return
+        var p = decodeURIComponent(m[1])
+        // Same-site paths only — never let a query parameter send anyone off-site.
+        if (p.charAt(0) !== '/' || p.charAt(1) === '/') return
+        history.replaceState(null, '', p)
+      })()
+    </script>
+    <!-- Light/dark before first paint (same rule as src/utils/theme.js): the
+         person's saved choice, otherwise the device setting. -->
+    <script>
+      (function () {
+        var t = null
+        try { t = localStorage.getItem('css_theme') } catch (e) {}
+        if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        document.documentElement.dataset.theme = t
+        if (t === 'dark') document.querySelector('meta[name="theme-color"]').setAttribute('content', '#161618')
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

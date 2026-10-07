@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "apps/hub"
+    "apps/hub",
+    "apps/schedule"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",
