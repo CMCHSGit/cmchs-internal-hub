@@ -67,12 +67,35 @@ export function StripeRule({ thickness = 4 }) {
   )
 }
 
-/** Uses the supplied artwork only — never re-typeset or recolour the logo. */
+/**
+ * Never re-typeset the logo, and never recolour the mark.
+ *
+ * The wordmark is the one sanctioned exception: dark mode uses logo-full-dark,
+ * where the grey "connected healthcare systems" is lifted to the theme's text
+ * colour and the mark is left exactly as drawn. That replaced sitting the
+ * supplied artwork on a white plate, which is the honest way to show an
+ * unaltered logo on a dark page but looked like a sticker. If a brand-approved
+ * reversed logo ever turns up, drop it in as logo-full-dark and delete the
+ * generator note in the commit that added this.
+ *
+ * Both files render, and CSS picks one — rather than reading the theme here —
+ * so the right one is correct on the very first paint, before React runs.
+ */
 export function Logo({ variant = 'full-colour', width = 150 }) {
   // Through BASE_URL, not root-absolute: this app is served under /schedule/,
   // and /brand/… would reach for the hub's copy instead.
-  const src = `${import.meta.env.BASE_URL}brand/logo-${variant === 'mark' ? 'mark' : 'full-colour'}.png`
-  return <img src={src} alt="Connected Healthcare Systems" width={width} style={{ width, height: 'auto', display: 'block' }} />
+  const url = name => `${import.meta.env.BASE_URL}brand/${name}.png`
+  const style = { width, height: 'auto', display: 'block' }
+
+  if (variant === 'mark') {
+    return <img src={url('logo-mark')} alt="Connected Healthcare Systems" width={width} style={style} />
+  }
+  return (
+    <>
+      <img className="logo-light" src={url('logo-full-colour')} alt="Connected Healthcare Systems" width={width} style={style} />
+      <img className="logo-dark" src={url('logo-full-dark')} alt="" aria-hidden="true" width={width} style={style} />
+    </>
+  )
 }
 
 export function Spinner({ size = 24, light = false }) {

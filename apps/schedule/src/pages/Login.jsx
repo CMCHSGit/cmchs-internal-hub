@@ -27,7 +27,7 @@ export default function Login() {
     <div className="login-page">
       <StripeRule thickness={6} />
       <div className="login-body">
-        <span className="logo-plate"><Logo width={220} /></span>
+        <Logo width={220} />
         <div>
           <h1 className="login-title">Staff schedule</h1>
           <p className="login-sub">Let your team know where you’ll be each day.</p>

@@ -104,12 +104,21 @@ function AppHeader() {
   return (
     <header className="app-header">
       <div className="app-header-row">
-        <NavLink to="/" className="app-brand" aria-label="Staff schedule — team week">
-          <span className="logo-full logo-plate"><Logo width={124} /></span>
+        {/* The CHS logo goes up to the hub; the app's own name goes to its home
+            page. A plain <a> rather than a NavLink on purpose — the hub is
+            outside this router's basename, so "/" here would only ever mean
+            /schedule/. Same origin, so inside the installed app this stays in
+            the app window. */}
+        <div className="app-brand">
+          <a href="/" className="brand-home" aria-label="Back to the Internal Hub" title="Internal Hub">
+            <span className="logo-full"><Logo width={124} /></span>
+            <span className="logo-mark"><Logo variant="mark" width={32} /></span>
+          </a>
           <span className="brand-divider" />
-          <span className="logo-mark"><Logo variant="mark" width={32} /></span>
-          <span className="app-title">Staff schedule</span>
-        </NavLink>
+          <NavLink to="/" end className="app-title-link" aria-label="Staff schedule — team week">
+            <span className="app-title">Staff schedule</span>
+          </NavLink>
+        </div>
         <nav className="header-tabs" aria-label="Views">
           {VIEWS.map(v => (
             <NavLink key={v.to} to={v.to} end className={({ isActive }) => `header-tab${isActive ? ' active' : ''}`}>

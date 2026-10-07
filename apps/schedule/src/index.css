@@ -55,8 +55,14 @@
 :root[data-theme="dark"] .alert-critical .alert-title,
 :root[data-theme="dark"] .alert-critical .alert-icon { color: #ff8a9a; }
 :root[data-theme="dark"] .toast { background: #e8e9ea; color: #1d1d1d; }
-/* The logo artwork has dark lettering — sit it on a white plate rather than recolour it. */
-:root[data-theme="dark"] .logo-plate img { background: #fff; border-radius: var(--radius-md); padding: 4px 6px; box-sizing: content-box; }
+/* The logo's wordmark is dark grey, so it needs help on a dark page. This used
+   to be a white plate behind the supplied artwork; it's now a second file whose
+   wordmark is light and whose mark is untouched (see Logo in components/ui.jsx).
+   Both <img>s are in the DOM and CSS picks one, so the right logo is correct on
+   the first paint rather than after React reads the theme. */
+.logo-dark { display: none; }
+:root[data-theme="dark"] .logo-light { display: none; }
+:root[data-theme="dark"] .logo-dark { display: block; }
 /* Light/dark, account and Admin sit together at the right of the header. */
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
@@ -307,6 +313,11 @@ textarea.input { resize: vertical; min-height: 76px; }
 .app-header-row { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 56px; }
 .app-brand { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; color: inherit; }
 .app-brand .logo-full, .app-brand .brand-divider { display: none; }
+/* The logo is its own link (up to the hub), the app name is another (this
+   app's home) — two targets in what still reads as one brand block. */
+.brand-home { display: flex; align-items: center; color: inherit; border-radius: var(--radius-md); }
+.brand-home:focus-visible { outline: 2px solid var(--accent-fg); outline-offset: 3px; }
+.app-title-link { color: inherit; text-decoration: none; }
 .brand-divider { width: 1px; height: 28px; background: var(--border-hairline); }
 .app-title { font: var(--type-h4); color: var(--text-strong); white-space: nowrap; }
 .header-tabs { display: none; }
