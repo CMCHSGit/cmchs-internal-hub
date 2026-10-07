@@ -93,10 +93,24 @@ details.asset .tablewrap{margin:8px 0 4px;max-height:none}
 .help{font-size:13px;color:var(--muted);margin:10px 0 0}
 body.busy{cursor:progress}
 @media (max-width:640px){header,main{padding-left:16px;padding-right:16px}}
+/* Back to the hub. Neutral greys and transparencies rather than fixed colours,
+   so the same block works in this page's light or dark scheme without being
+   told which. flex-basis:100% puts it on its own row above the title, since the
+   header is a wrapping flex row. Repeated verbatim in the other tools — it has
+   to be, because the demo tracker is a different repo on a different origin and
+   can't import it. */
+.hub-back{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 9px;
+  flex:0 0 100%;align-self:flex-start;width:fit-content;margin:0 0 4px;
+  border:1px solid rgba(128,128,128,.35);border-radius:999px;background:rgba(128,128,128,.08);
+  color:inherit;text-decoration:none;font:600 13px/1 "Segoe UI",system-ui,-apple-system,sans-serif;white-space:nowrap}
+.hub-back:hover{background:rgba(128,128,128,.18)}
+.hub-back img{width:18px;height:18px;display:block}
+.hub-back .chev{font-size:17px;line-height:1;opacity:.65}
 </style>
 </head>
 <body>
 <header>
+  <a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/brand/logo-mark.png" alt="">Internal Hub</a>
   <h1>SimproSync</h1>
   <span>Updates and adds customer assets in cass.simprosuite.com from an asset list</span>
   <span class="who" id="whoBar"><span id="whoName"></span> <button id="signOut">Sign out</button></span>
