@@ -6,9 +6,9 @@
 |---|---|---|
 | `/` | Hub home: tools by category, search, announcements | `apps/hub` (Vite + React) |
 | `/service/order-parser/` | Service Order Parser | `apps/service/order-parser` |
-| `/service/ansur/` | Ansur PVT Report Builder | `apps/service/ansur` |
-| `/service/simpro-sync/` | Simpro Asset Sync | `apps/service/simpro-sync` |
 | `/demo/`, `/schedule/` | Coming: still at demo.chsnz.co.nz and schedule.chsnz.co.nz for now | |
+
+**Ansur PVT Report Builder** and **Simpro Asset Sync** are maintained in the cmchs-staff-schedule repo (`schedule.chsnz.co.nz/ansurtopdf/` and `/simprosync/`); the hub cards link there. They move in here with the schedule app (phase 3). Don't copy them into this repo before then, so there's only ever one version of each.
 
 ## Sign-in
 Microsoft sign-in through Firebase Auth, using **the staff schedule's Firebase project** (locked to the Cass Medical tenant). Every app on this domain shares that one session, so people sign in once at the hub and never again, including after closing the browser, until they sign out. The code is in `shared/session.js`.

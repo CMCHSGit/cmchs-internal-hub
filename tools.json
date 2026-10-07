@@ -33,20 +33,20 @@
     "id": "ansur",
     "name": "Ansur PVT Report Builder",
     "description": "Turn Fluke Ansur test records (.mtr) into PDF reports",
-    "link": "/service/ansur/",
+    "link": "https://schedule.chsnz.co.nz/ansurtopdf/",
     "category": "Service",
     "icon": "file-check",
-    "opens": "here",
+    "opens": "tab",
     "visible": true
   },
   {
     "id": "simpro",
     "name": "Simpro Asset Sync",
     "description": "Updates and adds customer assets in cass.simprosuite.com from an asset list",
-    "link": "/service/simpro-sync/",
+    "link": "https://schedule.chsnz.co.nz/simprosync/",
     "category": "Service",
     "icon": "refresh-cw",
-    "opens": "here",
+    "opens": "tab",
     "visible": true
   },
   {
