@@ -45,6 +45,18 @@ async function call(method, path, body) {
 
 const ok = (r) => r.status >= 200 && r.status < 300
 
+// Simpro explains a 4xx in the body — a 422 is { errors: [{ path, message }] }.
+// The bare status said nothing about why a job update was refused, so show
+// what Simpro actually said alongside it.
+function simproErr(r) {
+  const d = r.data
+  const errs = Array.isArray(d?.errors) ? d.errors : []
+  const why = errs.length
+    ? errs.map((e) => [e.path, e.message].filter(Boolean).join(': ')).join(', ')
+    : (typeof d === 'string' ? d : d?.message || '').slice(0, 200)
+  return `Simpro returned ${r.status}${why ? ` (${why})` : ''}`
+}
+
 function note(msg, kind = '') {
   const el = $('sp-msg')
   el.textContent = msg
@@ -273,7 +285,7 @@ async function run() {
           Public: false,
           Base64Data: toBase64(rep.pdf),
         })
-        if (!ok(r)) throw new Error(`Simpro returned ${r.status}`)
+        if (!ok(r)) throw new Error(simproErr(r))
       } catch (e) {
         failed.push(`${rep.name}: ${e.message || e}`)
       }
@@ -286,14 +298,14 @@ async function run() {
       const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, {
         Notes: existing ? `${existing}\n\n${notes}` : notes,
       })
-      if (!ok(r)) failed.push(`Notes: Simpro returned ${r.status}`)
+      if (!ok(r)) failed.push(`Notes: ${simproErr(r)}`)
       else job.Notes = existing ? `${existing}\n\n${notes}` : notes
       step('Updating notes…')
     }
 
     if (stage) {
       const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Stage: stage })
-      if (!ok(r)) failed.push(`Stage: Simpro returned ${r.status}`)
+      if (!ok(r)) failed.push(`Stage: ${simproErr(r)}`)
       step('Setting stage…')
     }
 
@@ -304,7 +316,7 @@ async function run() {
       if (!ok(r) && r.status >= 400 && r.status < 500) {
         r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Status: { ID: +statusId } })
       }
-      if (!ok(r)) failed.push(`Status: Simpro returned ${r.status}`)
+      if (!ok(r)) failed.push(`Status: ${simproErr(r)}`)
       step('Setting status…')
     }
 
