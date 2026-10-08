@@ -316,13 +316,22 @@ async function run() {
     }
 
     if (statusId) {
-      // Simpro accepts a bare ID on some builds and {ID} on others; SimproSync
-      // hit the same thing, so try the second shape before calling it a failure.
-      let r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Status: +statusId })
-      if (!ok(r) && r.status >= 400 && r.status < 500) {
-        r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Status: { ID: +statusId } })
+      // This used to retry as { Status: { ID: n } } when the bare integer was
+      // refused, copied from SimproSync. That was wrong twice over: this build
+      // answers "/Status: Must be an integer", so the object shape can never
+      // succeed — and because the retry's result replaced the first one, its
+      // error was all you ever saw, hiding whatever actually went wrong.
+      const id = Number(statusId)
+      if (!Number.isFinite(id)) {
+        failed.push(`Status: "${statusId}" is not a numeric status id`)
+      } else {
+        const body = { Status: id }
+        const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, body)
+        if (!ok(r)) {
+          console.warn('[ansur] Status PATCH rejected — sent:', body, 'got:', r)
+          failed.push(`Status: ${simproErr(r)}`)
+        }
       }
-      if (!ok(r)) { console.warn('[ansur] Status PATCH rejected', r); failed.push(`Status: ${simproErr(r)}`) }
       step('Setting status…')
     }
 
