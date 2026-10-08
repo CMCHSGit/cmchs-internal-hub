@@ -401,22 +401,51 @@ refreshAttachCount()
 // Already signed in from the hub or another tool on this origin? Pick that up
 // without making them click.
 //
-// Checking localStorage directly rather than just calling onAuthStateChanged:
-// that would mean importing the Firebase SDK on every page load, including for
-// the many people who only ever convert a file and download the PDF. This is
-// where Firebase persists its session, so its presence is a reliable "there is
-// someone to restore" signal — and if the shape ever changes, the worst case is
-// the sign-in button showing when it didn't need to.
-const hasStoredSession = () => {
+// Peeking at Firebase's own storage rather than just calling
+// onAuthStateChanged: that would mean importing the Firebase SDK on every page
+// load, including for the many people who only ever convert a file and
+// download the PDF. Its presence is a reliable "there is someone to restore"
+// signal — and if the shape ever changes, the worst case is the sign-in button
+// showing when it didn't need to.
+//
+// getAuth() in the browser persists to IndexedDB only, never localStorage.
+// This used to check localStorage, so it never found anything and everyone
+// had to sign in again on every visit.
+const SESSION_KEY = `firebase:authUser:${import.meta.env.VITE_FIREBASE_API_KEY}:[DEFAULT]`
+
+async function hasStoredSession() {
   try {
-    const key = `firebase:authUser:${import.meta.env.VITE_FIREBASE_API_KEY}:[DEFAULT]`
-    return !!localStorage.getItem(key)
+    if (localStorage.getItem(SESSION_KEY)) return true // older SDKs, or a fallback
+  } catch { /* blocked storage */ }
+  try {
+    // Don't create Firebase's database just by looking for it.
+    if (indexedDB.databases) {
+      const dbs = await indexedDB.databases()
+      if (!dbs.some((d) => d.name === 'firebaseLocalStorageDb')) return false
+    }
+    return await new Promise((resolve) => {
+      const req = indexedDB.open('firebaseLocalStorageDb')
+      req.onerror = () => resolve(false)
+      req.onsuccess = () => {
+        const db = req.result
+        try {
+          const get = db.transaction('firebaseLocalStorage', 'readonly')
+            .objectStore('firebaseLocalStorage').get(SESSION_KEY)
+          get.onsuccess = () => { db.close(); resolve(!!get.result) }
+          get.onerror = () => { db.close(); resolve(false) }
+        } catch {
+          db.close()
+          resolve(false) // store not there yet
+        }
+      }
+    })
   } catch {
     return false // private mode, blocked storage — fall back to the button
   }
 }
 
-if (hasStoredSession()) {
+hasStoredSession().then((stored) => {
+  if (!stored) return
   note('Restoring sign-in…')
   loadFirebase()
     .then(({ onAuthStateChanged, auth: a }) => {
@@ -427,4 +456,4 @@ if (hasStoredSession()) {
       })
     })
     .catch(() => note(''))
-}
+})
