@@ -283,6 +283,7 @@ async function run() {
 
   $('sp-go').disabled = true
   const failed = []
+  const skipped = []
   try {
     for (const rep of list) {
       try {
@@ -291,7 +292,13 @@ async function run() {
           Public: false,
           Base64Data: toBase64(rep.pdf),
         })
-        if (!ok(r)) throw new Error(simproErr(r))
+        // Simpro refuses a file whose name is already attached to the job.
+        // Report names carry the serial and test date, so that's this same
+        // report from an earlier run — skip it rather than failing, so a
+        // rerun (say, after closing the job in Simpro) can still do the rest.
+        if (!ok(r) && (r.status === 409 || r.status === 422) && /already|exist|duplicate|unique/i.test(simproErr(r))) {
+          skipped.push(rep.name)
+        } else if (!ok(r)) throw new Error(simproErr(r))
       } catch (e) {
         failed.push(`${rep.name}: ${e.message || e}`)
       }
@@ -335,10 +342,18 @@ async function run() {
       step('Setting status…')
     }
 
+    const already = skipped.length
+      ? ` Already on the job, skipped: ${skipped.join(', ')}.`
+      : ''
+    // An open job is locked in Simpro, and every edit to it comes back 422.
+    const locked = failed.some((f) => / 422\b/.test(f) && !/already|exist|duplicate|unique/i.test(f))
+      ? ' If the job is open in Simpro, close it and try again.'
+      : ''
     if (failed.length) {
-      note(`${total - failed.length} of ${total} done. Failed: ${failed.join('; ')}`, 'warn')
+      note(`${total - failed.length} of ${total} done. Failed: ${failed.join('; ')}.${already}${locked}`, 'warn')
     } else {
-      note(`Done — ${list.length} report${list.length === 1 ? '' : 's'} attached to job #${job.ID}.`, 'ok')
+      const attached = list.length - skipped.length
+      note(`Done — ${attached} report${attached === 1 ? '' : 's'} attached to job #${job.ID}.${already}`, 'ok')
       $('sp-notes').value = ''
     }
   } catch (e) {
