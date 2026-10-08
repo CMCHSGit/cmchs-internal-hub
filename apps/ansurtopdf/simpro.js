@@ -50,11 +50,17 @@ const ok = (r) => r.status >= 200 && r.status < 300
 // what Simpro actually said alongside it.
 function simproErr(r) {
   const d = r.data
-  const errs = Array.isArray(d?.errors) ? d.errors : []
+  // Simpro is not consistent about casing across routes, so accept either, and
+  // a bare array of errors as well as one nested under errors/Errors.
+  const pair = (e) => [e.path ?? e.Field, e.message ?? e.Message].filter(Boolean).join(': ')
+  const errs = [d, d?.errors, d?.Errors].find((x) => Array.isArray(x) && x.length) || []
   const why = errs.length
-    ? errs.map((e) => [e.path, e.message].filter(Boolean).join(': ')).join(', ')
-    : (typeof d === 'string' ? d : d?.message || '').slice(0, 200)
-  return `Simpro returned ${r.status}${why ? ` (${why})` : ''}`
+    ? errs.map(pair).filter(Boolean).join(', ')
+    : (typeof d === 'string' ? d : d?.message || d?.Message || '').slice(0, 200)
+  // Fall back to the raw body rather than saying nothing — a shape neither of
+  // us predicted is still far more use than the status code alone.
+  const detail = why || (d && typeof d === 'object' ? JSON.stringify(d).slice(0, 200) : '')
+  return `Simpro returned ${r.status}${detail ? ` (${detail})` : ''}`
 }
 
 function note(msg, kind = '') {
@@ -161,7 +167,7 @@ async function search() {
       // company" — reporting a 403 as "no jobs matched" sent me looking in
       // entirely the wrong place.
       if (r.status !== 404) {
-        return note(`Simpro returned ${r.status} for job ${q} in ${company}.`, 'warn')
+        return note(`Job ${q} in ${company}: ${simproErr(r)}`, 'warn')
       }
     }
 
@@ -298,14 +304,14 @@ async function run() {
       const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, {
         Notes: existing ? `${existing}\n\n${notes}` : notes,
       })
-      if (!ok(r)) failed.push(`Notes: ${simproErr(r)}`)
+      if (!ok(r)) { console.warn('[ansur] Notes PATCH rejected', r); failed.push(`Notes: ${simproErr(r)}`) }
       else job.Notes = existing ? `${existing}\n\n${notes}` : notes
       step('Updating notes…')
     }
 
     if (stage) {
       const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Stage: stage })
-      if (!ok(r)) failed.push(`Stage: ${simproErr(r)}`)
+      if (!ok(r)) { console.warn('[ansur] Stage PATCH rejected', r); failed.push(`Stage: ${simproErr(r)}`) }
       step('Setting stage…')
     }
 
@@ -316,7 +322,7 @@ async function run() {
       if (!ok(r) && r.status >= 400 && r.status < 500) {
         r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Status: { ID: +statusId } })
       }
-      if (!ok(r)) failed.push(`Status: ${simproErr(r)}`)
+      if (!ok(r)) { console.warn('[ansur] Status PATCH rejected', r); failed.push(`Status: ${simproErr(r)}`) }
       step('Setting status…')
     }
 
