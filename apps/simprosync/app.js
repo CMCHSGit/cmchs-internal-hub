@@ -93,7 +93,7 @@ export function startApp({ transport, who }) {
     assetTypes.sort((a, b) => a.Name.localeCompare(b.Name));
     renderSheetRows(); // re-populate every sheet row's type options for the (possibly new) company
     $('delType').innerHTML = '<option value="">Choose…</option>' + assetTypeOptionsHtml('');
-    preModels = null; renderPreModels(); resetDelete();
+    resetDelete();
   }
   $('company').onchange = () => { store.set('simproSync.company', $('company').value); resetResults(); loadTypes().catch(e => showError(e.message)); };
 
@@ -640,47 +640,13 @@ export function startApp({ transport, who }) {
   const NO_MODEL = '(no model recorded)';
   const modelKey = i => i.model.trim() || NO_MODEL;
   // Only the ticked models are listed, deleted and reported. Nothing starts
-  // ticked unless chosen before Find, so Delete always reflects a deliberate
-  // choice of models.
+  // ticked, so Delete always reflects a deliberate choice of models.
   const delChosen = () => delPlan ? delPlan.items.filter(i => delPlan.picked.has(modelKey(i))) : [];
   const delStatus = t => { $('delStatus').textContent = t; };
   const delError = t => { $('delError').textContent = t || ''; $('delError').hidden = !t; };
   function resetDelete() { delPlan = null; $('delResults').hidden = true; $('delModels').innerHTML = ''; delError(''); delStatus('Reads Simpro only. Nothing is deleted yet.'); updateButtons(); }
 
-  // Models can be chosen before Find when the type's model field is a Simpro
-  // List (AEDs' "Device Model" is) - its ListItems are every allowed value.
-  // Values outside that list (typos, blanks) come under PRE_OTHER. Find then
-  // starts with these ticked; the picker after Find can still change them.
-  // Other types (free-text model field, or none) only get the after-Find picker.
-  const PRE_OTHER = '(other / not recorded)';
-  let preModels = null; // { items:[listItem], picked:Set } or null
-  function renderPreModels() {
-    const el = $('delPreModels');
-    if (!preModels) { el.innerHTML = ''; return; }
-    el.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-bottom:6px">Models to delete (optional - choose now, or after Find) <button type="button" id="preAll" style="padding:2px 8px;font-size:12px">All</button> <button type="button" id="preNone" style="padding:2px 8px;font-size:12px">None</button></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">${preModels.items.concat(PRE_OTHER).map(m => `<label class="sheetrow" style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px">
-        <input type="checkbox" class="pre-model" value="${esc(m)}" ${preModels.picked.has(m) ? 'checked' : ''}>${esc(m)}</label>`).join('')}</div>`;
-    el.querySelectorAll('.pre-model').forEach(cb => cb.onchange = () => { cb.checked ? preModels.picked.add(cb.value) : preModels.picked.delete(cb.value); resetDelete(); });
-    const setAll = on => { preModels.picked = new Set(on ? preModels.items.concat(PRE_OTHER) : []); renderPreModels(); resetDelete(); };
-    $('preAll').onclick = () => setAll(true); $('preNone').onclick = () => setAll(false);
-  }
-  async function loadPreModels() {
-    preModels = null; renderPreModels();
-    const cid = $('company').value, tid = $('delType').value;
-    if (!tid) return;
-    try {
-      const fields = await getAll(`/companies/${cid}/setup/assetTypes/${tid}/customFields/`);
-      const f = fields.find(f => /^(device )?model$/i.test(String(f.Name).trim()));
-      if (!f) return;
-      const { status, data } = await call('GET', `/companies/${cid}/setup/assetTypes/${tid}/customFields/${f.ID}`);
-      if ($('delType').value !== tid) return; // type changed while loading
-      if (status === 200 && data.Type === 'List' && (data.ListItems || []).length) {
-        preModels = { items: data.ListItems.map(s => String(s).trim()), picked: new Set() };
-        renderPreModels();
-      }
-    } catch (e) { /* the after-Find picker still works */ }
-  }
-  $('delType').onchange = () => { resetDelete(); loadPreModels(); };
+  $('delType').onchange = resetDelete;
   $('delSites').oninput = resetDelete;
 
   $('delFind').onclick = async () => {
@@ -699,16 +665,7 @@ export function startApp({ transport, who }) {
         sites = items.sitesScanned;
       }
       items.sort((a, b) => String(a.siteName).localeCompare(String(b.siteName)) || a.site - b.site || a.id - b.id);
-      // Carry the before-Find choice over, matching list values case-insensitively.
-      const picked = new Set();
-      if (preModels) {
-        const listed = new Map(preModels.items.map(m => [m.toLowerCase(), m]));
-        items.forEach(i => {
-          const k = modelKey(i), li = listed.get(i.model.trim().toLowerCase());
-          if (li ? preModels.picked.has(li) : preModels.picked.has(PRE_OTHER)) picked.add(k);
-        });
-      }
-      delPlan = { cid, tid, typeName, items, picked, stamp: new Date(), ran: false, sitesScanned: sites };
+      delPlan = { cid, tid, typeName, items, picked: new Set(), stamp: new Date(), ran: false, sitesScanned: sites };
       delStatus(`Found ${items.length} ${typeName}` + (archived ? ` (plus ${archived} already archived, left out)` : '') + (sites ? ` across ${sites} sites scanned` : '') + '. Nothing has been deleted.');
       renderDelete();
     } catch (e) { delError(e.message); delStatus('Stopped.'); }
