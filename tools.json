@@ -20,10 +20,10 @@
     "visible": true
   },
   {
-    "id": "parser",
-    "name": "Service Order Parser",
-    "description": "Paste a service order, extract the fields, copy to the sheet",
-    "link": "/order-parser/",
+    "id": "service-orders",
+    "name": "Service Orders",
+    "description": "Parts on order, received and shipping back. Paste a service order to add one",
+    "link": "/service-orders/",
     "category": "Service",
     "icon": "clipboard-list",
     "opens": "here",

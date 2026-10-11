@@ -286,6 +286,7 @@
 <header>
   <h1>Service Order Parser</h1>
   <span>paste → extract → copy to sheet</span>
+  <a href="/service-orders/" style="margin-left:auto;color:var(--accent);font-size:13px">Service Orders now saves these straight to the list →</a>
 </header>
 
 <div class="layout">
@@ -346,6 +347,10 @@
       <div class="field">
         <label>Notes</label>
         <input type="text" id="f_notes" placeholder="—">
+      </div>
+      <div class="field">
+        <label>Jobs</label>
+        <input type="text" id="f_jobs" placeholder="Manual — Simpro job number" class="manual">
       </div>
       <div class="field">
         <label>Date Raised</label>
@@ -474,7 +479,7 @@ function parse() {
 function getValues() {
   return [
     'f_so','f_title','f_sn','f_pn','f_partname','f_return',
-    'f_site','f_notes','f_dateraised','f_received','f_oldso','f_addnotes'
+    'f_site','f_notes','f_jobs','f_dateraised','f_received','f_oldso','f_addnotes'
   ].map(id => document.getElementById(id).value);
 }
 
@@ -484,7 +489,7 @@ function copyRow() {
 }
 
 function copyCSV() {
-  const headers = 'S.O\tSO Title\tSN\tPN\tPart Name\tNeed Return\tSite\tNotes\tDate Raised\tReceived Date\tOld SO\tAdditional Notes';
+  const headers = 'S.O\tSO Title\tSN\tPN\tPart Name\tNeed Return\tSite\tNotes\tJobs\tDate Raised\tReceived Date\tOld SO\tAdditional Notes';
   const row = getValues().join('\t');
   navigator.clipboard.writeText(headers + '\n' + row).then(() => showToast('CSV with headers copied'));
 }
@@ -492,7 +497,7 @@ function copyCSV() {
 function clearAll() {
   soInput.value = '';
   document.getElementById('charCount').textContent = '0 chars';
-  const ids = ['f_so','f_title','f_sn','f_pn','f_partname','f_return','f_site','f_notes','f_dateraised','f_received','f_oldso','f_addnotes'];
+  const ids = ['f_so','f_title','f_sn','f_pn','f_partname','f_return','f_site','f_notes','f_jobs','f_dateraised','f_received','f_oldso','f_addnotes'];
   ids.forEach(id => {
     const el = document.getElementById(id);
     el.value = '';

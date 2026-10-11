@@ -7,7 +7,8 @@
     "apps/schedule",
     "apps/simprosync",
     "apps/ansurtopdf",
-    "apps/maintenance"
+    "apps/maintenance",
+    "apps/service-orders"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

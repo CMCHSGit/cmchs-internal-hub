@@ -11,7 +11,8 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
-| `/order-parser/` | Service Order Parser | `apps/order-parser` (single static page) |
+| `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
+| `/order-parser/` | Service Order Parser (old copy-to-sheet version; the hub card now points at `/service-orders/`) | `apps/order-parser` (single static page) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 
 ### /demo/ is generated, not copied
