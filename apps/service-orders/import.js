@@ -22,7 +22,7 @@ const HEADERS = [
   ['site', ['site', 'customer', 'customername']],
   ['notes', ['notes', 'note']],
   ['jobs', ['jobs', 'job', 'jobno', 'simprojob']],
-  ['appliedBy', ['appliedby', 'rmaby', 'applicant', 'requestedby', 'submittedby']],
+  ['appliedBy', ['appliedby', 'reporter', 'rmaby', 'applicant']],
   ['dateRaised', ['dateraised', 'raised', 'ordersubmitted']],
   ['receivedDate', ['receiveddate', 'received', 'datereceived']],
   ['oldSo', ['oldso']],
