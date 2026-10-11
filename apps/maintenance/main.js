@@ -12,7 +12,7 @@ import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
 import {
   PM_TYPES, STATUSES, watchEntries, createEntry, saveEntry, removeEntry,
-  createMany, removeMany, formatDue, isOverdue, yearOf,
+  createMany, removeMany, formatDue, isOverdue, isDone, yearOf,
 } from './store.js'
 import { readWorkbook } from './import.js'
 
@@ -93,7 +93,7 @@ const COLUMNS = [
 ]
 
 const inDays = (e, days) => {
-  if (!e.due || e.status === 'Completed') return false
+  if (!e.due || isDone(e.status)) return false
   const d = new Date(e.due)
   const limit = new Date(); limit.setDate(limit.getDate() + days)
   return d <= limit && !isOverdue(e)
@@ -113,8 +113,8 @@ function visible() {
     if (type && e.pmType !== type) return false
     if (only === 'overdue' && !isOverdue(e)) return false
     if (only === 'due90' && !inDays(e, 90)) return false
-    if (only === 'open' && e.status === 'Completed') return false
-    if (only === 'done' && e.status !== 'Completed') return false
+    if (only === 'open' && isDone(e.status)) return false
+    if (only === 'done' && !isDone(e.status)) return false
     if (q) {
       const hay = [e.site, e.wards, e.models, e.notes, e.extraNotes, e.pmType, e.status].join(' ').toLowerCase()
       if (!hay.includes(q)) return false
@@ -139,15 +139,17 @@ function fillSelect(el, values, label) {
 
 function statusPill(e) {
   if (isOverdue(e)) return '<span class="pill p-over">Overdue</span>'
-  const cls = { Completed: 'p-ok', 'In progress': 'p-prog', 'On hold': 'p-hold' }[e.status] || 'p-none'
+  // Both completed states read as done; the Biomeds one is tinted differently
+  // so it is still obvious at a glance who did the work.
+  const cls = { 'In progress': 'p-prog', 'On hold': 'p-hold', 'Completed by Biomeds': 'p-ok-alt' }[e.status] || (isDone(e.status) ? 'p-ok' : 'p-none')
   return `<span class="pill ${cls}">${esc(e.status || 'Not started')}</span>`
 }
 
 function renderTiles() {
   const overdue = entries.filter((e) => isOverdue(e)).length
   const soon = entries.filter((e) => inDays(e, 90)).length
-  const open = entries.filter((e) => e.status !== 'Completed').length
-  const done = entries.filter((e) => e.status === 'Completed').length
+  const open = entries.filter((e) => !isDone(e.status)).length
+  const done = entries.filter((e) => isDone(e.status)).length
   const tiles = [
     ['overdue', 'bad', overdue, 'Overdue'],
     ['due90', 'warn', soon, 'Due in 90 days'],

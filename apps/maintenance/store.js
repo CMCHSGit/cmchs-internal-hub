@@ -12,7 +12,18 @@ import { db } from '../schedule/src/firebase.js'
 
 export const COL = 'maintenance'
 export const PM_TYPES = ['First PM', 'Second PM', 'Other']
-export const STATUSES = ['Not started', 'In progress', 'Completed', 'On hold']
+export const STATUSES = ['Not started', 'In progress', 'Completed', 'Completed by Biomeds', 'On hold']
+
+/**
+ * Is this PM finished, however it was finished?
+ *
+ * There is more than one way to be done — the hospital biomeds do a lot of
+ * these under PHARMAC — and every count, filter and the overdue test has to
+ * agree on that. Matching the "Completed" prefix rather than listing the
+ * statuses means another "Completed by …" can be added to STATUSES alone
+ * without a finished PM silently reading as outstanding and overdue.
+ */
+export const isDone = (status) => String(status || '').startsWith('Completed')
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
 
@@ -90,7 +101,7 @@ export function formatDue(due, monthOnly) {
 
 /** Outstanding and past its due month — the thing the page exists to surface. */
 export function isOverdue(e, today = new Date()) {
-  if (!e.due || e.status === 'Completed') return false
+  if (!e.due || isDone(e.status)) return false
   // A month-only due date isn't late until the month itself has passed.
   const end = e.monthOnly
     ? new Date(Number(e.due.slice(0, 4)), Number(e.due.slice(5, 7)), 0)

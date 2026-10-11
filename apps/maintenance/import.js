@@ -53,7 +53,8 @@ function pickStatus(raw, dateComplete) {
   if (!s) return dateComplete ? 'Completed' : 'Not started'
   // "PACU - Completed" and similar: the sheet qualifies the status with which
   // part is done. Treat it as completed and keep the original wording in notes.
-  if (s.includes('complete')) return 'Completed'
+  // The sheet records who did it in the same breath as whether it is done.
+  if (s.includes('complete')) return s.includes('biomed') ? 'Completed by Biomeds' : 'Completed'
   if (s.includes('progress')) return 'In progress'
   if (s.includes('hold')) return 'On hold'
   return STATUSES.includes(String(raw).trim()) ? String(raw).trim() : 'Not started'
