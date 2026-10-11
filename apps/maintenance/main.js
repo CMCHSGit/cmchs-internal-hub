@@ -221,6 +221,9 @@ function openEdit(entry) {
   $('e-type').innerHTML = '<option value=""></option>' + PM_TYPES.map((t) => `<option${t === e.pmType ? ' selected' : ''}>${t}</option>`).join('')
   $('e-status').innerHTML = STATUSES.map((s) => `<option${s === (e.status || 'Not started') ? ' selected' : ''}>${s}</option>`).join('')
   $('del').hidden = !entry || !canEdit
+  // Only offered on a saved entry: copying a form you have not written yet
+  // is just typing it twice.
+  $('copy').hidden = !entry || !canEdit
   $('save').hidden = !canEdit
   $('editMsg').textContent = canEdit ? '' : 'You have read-only access — ask an admin, or the Engineers or Management team, to make changes.'
   $('editMsg').className = 'msg'
@@ -295,6 +298,34 @@ $('clear').addEventListener('click', async () => {
   } finally {
     $('clear').disabled = false
   }
+})
+
+// Roll a PM forward. The spreadsheet did this with a year tab per cycle; here
+// it reuses the dialog that is already open — same site, wards and models, a
+// year later, not yet done.
+//
+// Notes are kept deliberately. They are mostly standing context ("not
+// charged", "Service Contract - pending!") rather than anything about the
+// completed visit, and they are on screen to edit before saving. Status and
+// date complete are the two fields that only describe the instance being
+// copied, so those reset.
+$('copy').addEventListener('click', () => {
+  const month = $('e-due').value
+  editing = null                       // so Save creates instead of updating
+  $('editTitle').textContent = 'New entry, copied'
+  if (month) {
+    const [y, m] = month.split('-')
+    $('e-due').value = `${Number(y) + 1}-${m}`
+  }
+  $('e-status').value = 'Not started'
+  $('e-complete').value = ''
+  $('del').hidden = true
+  $('copy').hidden = true
+  $('editMsg').textContent = month
+    ? `Due moved to ${$('e-due').value}. Change anything you need, then Save to create it.`
+    : 'The original had no due date — set one, then Save to create it.'
+  $('editMsg').className = 'msg'
+  $('e-due').focus()
 })
 
 $('cancel').addEventListener('click', () => $('edit').close())
