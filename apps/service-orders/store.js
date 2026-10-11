@@ -65,9 +65,6 @@ export function formatDate(iso) {
   return `${d} ${MONTHS[m - 1]} ${y}`
 }
 
-/** The sheet's own spelling, for the copy-to-Excel row. */
-export const sheetDate = (iso) => (iso ? iso.replace(/-/g, '.') : '')
-
 export const today = () => {
   const d = new Date()
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`

@@ -12,7 +12,7 @@ import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
 import {
   STAGES, FIELDS, LATE_DAYS, nextStage, watchOrders, createOrder, saveOrder, removeOrder,
-  createMany, formatDate, sheetDate, today, daysWaiting,
+  createMany, formatDate, today, daysWaiting,
 } from './store.js'
 import { parseServiceOrder } from './parse.js'
 import { readWorkbook } from './import.js'
@@ -268,22 +268,6 @@ $('del').addEventListener('click', async () => {
   }
 })
 
-// The spreadsheet's column order, Jobs included, for as long as anyone still
-// keeps the sheet going alongside this.
-const SHEET_COLUMNS = ['S.O', 'SO Title', 'SN', 'PN', 'Part Name', 'Need Return', 'Site', 'Notes', 'Jobs', 'Date Raised', 'Received Date', 'Old SO', 'Additional Notes']
-const sheetRow = (o) => [o.so, o.title, o.sn, o.pn, o.partName, o.needReturn, o.site, o.notes, o.jobs,
-  sheetDate(o.dateRaised), sheetDate(o.receivedDate), o.oldSo, o.extraNotes]
-
-$('copyRow').addEventListener('click', async () => {
-  const cells = sheetRow(collect()).map((v) => String(v ?? '').replace(/[\t\n]+/g, ' '))
-  try {
-    await navigator.clipboard.writeText(cells.join('\t'))
-    editMsg('Row copied — paste it into column A of the sheet.', 'ok')
-  } catch {
-    editMsg('The browser blocked the clipboard.', 'warn')
-  }
-})
-
 // ── paste a service order ─────────────────────────────────────────────────
 $('pasteBtn').addEventListener('click', () => {
   $('pasteText').value = ''
@@ -308,8 +292,12 @@ $('pasteGo').addEventListener('click', () => {
 // ── CSV out ───────────────────────────────────────────────────────────────
 $('csv').addEventListener('click', () => {
   const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"'
-  const lines = [['Stage', ...SHEET_COLUMNS].map(q).join(',')]
-  for (const o of visible()) lines.push([o.stage, ...sheetRow(o)].map(q).join(','))
+  const head = ['Stage', 'S.O', 'SO Title', 'SN', 'PN', 'Part Name', 'Need Return', 'Site', 'Notes', 'Jobs', 'Date Raised', 'Received Date', 'Old SO', 'Additional Notes']
+  const lines = [head.map(q).join(',')]
+  for (const o of visible()) {
+    lines.push([o.stage, o.so, o.title, o.sn, o.pn, o.partName, o.needReturn, o.site, o.notes, o.jobs,
+      o.dateRaised, o.receivedDate, o.oldSo, o.extraNotes].map(q).join(','))
+  }
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }))
   a.download = `Service-Orders-${today()}.csv`
