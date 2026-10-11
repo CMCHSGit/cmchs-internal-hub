@@ -1,6 +1,6 @@
 /* Pulls the fields out of a pasted service order.
 
-   The same rules as the original Service Order Parser (/order-parser/): the
+   The same rules as the retired Service Order Parser (/order-parser/): the
    service order prints each label on its own line with the value on the next
    non-empty one, and part numbers sit on a line by themselves with the part
    name directly under. */

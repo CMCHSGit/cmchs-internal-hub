@@ -12,7 +12,6 @@
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
-| `/order-parser/` | Service Order Parser (old copy-to-sheet version; the hub card now points at `/service-orders/`) | `apps/order-parser` (single static page) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 
 ### /demo/ is generated, not copied
@@ -40,7 +39,7 @@ Still to do: move the scheduled jobs (`remind.yml`, `excel-sync.yml`) across wit
 ## Sign-in
 Microsoft sign-in through Firebase Auth, using **the staff schedule's Firebase project** (locked to the Cass Medical tenant). Every app on this domain shares that one session, so people sign in once at the hub and never again, including after closing the browser, until they sign out. The code is in `shared/session.js`.
 
-Plain HTML pages join in with two lines at the top of `<head>` (see `apps/order-parser`):
+Plain HTML pages join in with two lines at the top of `<head>` (the retired Service Order Parser was the last page to use them; it's in git history before it became `/service-orders/`):
 
 ```html
 <script>document.documentElement.style.visibility='hidden'</script>
@@ -67,13 +66,13 @@ Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's cate
    - `icon`: a [Lucide](https://lucide.dev/icons) name that's listed in `apps/hub/src/Icon.jsx` (add it there if not).
 3. Push to `main`.
 
-**Moving a tool's address:** add the old path to `MOVED` in `apps/hub/public/404.html` so bookmarks forward (e.g. `/service/order-parser/` → `/order-parser/`).
+**Moving a tool's address:** add the old path to `MOVED` in `apps/hub/public/404.html` so bookmarks forward (e.g. `/order-parser/` → `/service-orders/`).
 
 **Announcements:** `announcements.json`, `{ "id", "title", "body", "date": "2026-10-07", "author", "pinned" }`. Pinned first, then newest.
 
 **A whole new app** (its own build, like the schedule): add a folder under `apps/`, build it with its own base path (e.g. Vite `base: '/schedule/'`), and add it to `APPS` in `scripts/build.mjs`. Prefix any localStorage keys with the app name, because every app shares this origin. Don't give it its own manifest or service worker — see below.
 
-⚠️ **In a Vite app, a root-absolute path in `index.html` is not what gets served.** Vite rewrites `src`/`href` on `<img>`, `<link rel="icon">` and `apple-touch-icon` through `base`, so `/brand/logo-mark.png` ships as `/<app>/brand/logo-mark.png` — a 404 unless that app has its own copy in `public/`. It leaves `<a href>` and `<link rel="manifest">` alone, which is why the back button and the shared manifest work unchanged. It does preserve query strings (`?v=2` survives). Static passthrough apps (Ansur, the order parser) get no rewriting at all, so root-absolute paths there reach the hub's copies. **Check the built file, not the source**, whenever a path matters.
+⚠️ **In a Vite app, a root-absolute path in `index.html` is not what gets served.** Vite rewrites `src`/`href` on `<img>`, `<link rel="icon">` and `apple-touch-icon` through `base`, so `/brand/logo-mark.png` ships as `/<app>/brand/logo-mark.png` — a 404 unless that app has its own copy in `public/`. It leaves `<a href>` and `<link rel="manifest">` alone, which is why the back button and the shared manifest work unchanged. It does preserve query strings (`?v=2` survives). Static passthrough apps get no rewriting at all, so root-absolute paths there reach the hub's copies. **Check the built file, not the source**, whenever a path matters.
 
 ## The app shell: one manifest, one service worker
 
