@@ -1,0 +1,146 @@
+/* Reads the PM tracking spreadsheet into maintenance entries.
+
+   Tolerant on purpose. The sheet is a working document, not an export: the
+   header row isn't always first, columns have been renamed over the years,
+   Site is often merged down a block of rows (so lower rows read as blank), and
+   the due-date column mixes "Mar-26", "1/04/2026" and real Excel dates. The
+   importer accepts all of that rather than making someone tidy the sheet
+   before they can use the page. */
+
+import { XLSXLite } from '../simprosync/reader.js'
+import { parseDue, PM_TYPES, STATUSES } from './store.js'
+
+const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+// Each field, and the header spellings seen across the year tabs.
+const FIELDS = [
+  ['site', ['site', 'customer', 'sitecustomer']],
+  ['wards', ['wards', 'ward', 'department', 'dept', 'location']],
+  ['models', ['model', 'models', 'equipment', 'device', 'devices']],
+  ['dueRaw', ['duedate', 'due', 'datedue', 'pmdue']],
+  ['pmType', ['pmtype', 'type', 'pm']],
+  ['status', ['status']],
+  ['completeRaw', ['datecomplete', 'datecompleted', 'completed', 'completiondate']],
+  ['notes', ['notes', 'note', 'comment', 'comments']],
+  ['extraNotes', ['additionalnotes', 'extranotes', 'additionalnote', 'furthernotes']],
+]
+
+/** Finds the header row and maps each field to a column index. */
+function readHeader(rows) {
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
+    const cells = (rows[r] || []).map(norm)
+    if (!cells.some((c) => c === 'site' || c === 'customer')) continue
+    const map = {}
+    for (const [field, names] of FIELDS) {
+      const at = cells.findIndex((c) => c && names.includes(c))
+      if (at >= 0) map[field] = at
+    }
+    // A row that only happens to contain the word "site" isn't a header.
+    if (map.site !== undefined && (map.dueRaw !== undefined || map.models !== undefined)) {
+      return { headerRow: r, map }
+    }
+  }
+  return null
+}
+
+const cell = (row, i) => (i === undefined || row[i] == null ? '' : String(row[i]).replace(/\r/g, '').trim())
+
+function pickStatus(raw, dateComplete) {
+  const s = norm(raw)
+  if (!s) return dateComplete ? 'Completed' : 'Not started'
+  // "PACU - Completed" and similar: the sheet qualifies the status with which
+  // part is done. Treat it as completed and keep the original wording in notes.
+  if (s.includes('complete')) return 'Completed'
+  if (s.includes('progress')) return 'In progress'
+  if (s.includes('hold')) return 'On hold'
+  return STATUSES.includes(String(raw).trim()) ? String(raw).trim() : 'Not started'
+}
+
+function pickPmType(raw) {
+  const s = norm(raw)
+  if (!s) return ''
+  if (s.includes('first') || s === '1st' || s === '1') return 'First PM'
+  if (s.includes('second') || s === '2nd' || s === '2') return 'Second PM'
+  return PM_TYPES.includes(String(raw).trim()) ? String(raw).trim() : 'Other'
+}
+
+/**
+ * Parses one sheet into entries.
+ * `fallbackYear` comes from the tab name, used only when a row has no usable
+ * due date at all — otherwise the date in the row always wins.
+ */
+export function parseSheet(rows, fallbackYear) {
+  const head = readHeader(rows)
+  if (!head) return { entries: [], skipped: 0, error: 'No header row found (expected a "Site" column).' }
+
+  const { headerRow, map } = head
+  const entries = []
+  let skipped = 0
+  let lastSite = ''
+
+  for (let r = headerRow + 1; r < rows.length; r++) {
+    const row = rows[r] || []
+    if (!row.length) continue
+
+    // Site is merged down a block in the sheet, so a blank one means "same as
+    // the row above", not "no site".
+    const site = cell(row, map.site) || lastSite
+    if (cell(row, map.site)) lastSite = cell(row, map.site)
+
+    const wards = cell(row, map.wards)
+    const models = cell(row, map.models)
+    const dueRaw = cell(row, map.dueRaw)
+    const statusRaw = cell(row, map.status)
+    const notes = cell(row, map.notes)
+    const extraNotes = cell(row, map.extraNotes)
+
+    // A row with nothing but an inherited site is spreadsheet padding.
+    if (!wards && !models && !dueRaw && !statusRaw && !notes && !extraNotes) { skipped++; continue }
+    if (!site) { skipped++; continue }
+
+    const due = parseDue(dueRaw)
+    const complete = parseDue(cell(row, map.completeRaw))
+    const status = pickStatus(statusRaw, complete?.due)
+
+    // Keep the sheet's own wording when it said more than our four statuses do
+    // ("PACU - Completed") rather than flattening it away.
+    const original = String(statusRaw || '').trim()
+    const keptStatus = original && norm(original) !== norm(status) ? `Sheet status: ${original}` : ''
+    const allNotes = [notes, keptStatus].filter(Boolean).join('\n')
+
+    entries.push({
+      site,
+      wards,
+      models,
+      due: due?.due || (fallbackYear ? `${fallbackYear}-01-01` : ''),
+      monthOnly: due ? due.monthOnly : true,
+      pmType: pickPmType(cell(row, map.pmType)),
+      status,
+      dateComplete: complete?.due || '',
+      notes: allNotes,
+      extraNotes,
+    })
+  }
+
+  return { entries, skipped, error: null }
+}
+
+/** Reads a whole workbook; one result per sheet, in sheet order. */
+export async function readWorkbook(file) {
+  const book = await XLSXLite.read(file)
+  const out = []
+  for (let i = 0; i < book.sheets.length; i++) {
+    const name = book.sheets[i]
+    const year = /(20\d{2})/.exec(name)?.[1]
+    let rows = []
+    let error = null
+    try {
+      rows = await book.rows(i)
+    } catch (e) {
+      error = e.message || String(e)
+    }
+    const parsed = error ? { entries: [], skipped: 0, error } : parseSheet(rows, year ? Number(year) : null)
+    out.push({ name, ...parsed })
+  }
+  return out
+}

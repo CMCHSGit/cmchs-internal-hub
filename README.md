@@ -9,6 +9,7 @@
 | `/` | Hub home: tools by category, search, announcements | `apps/hub` (Vite + React) |
 | `/schedule/` | Staff schedule | `apps/schedule` (Vite + React) |
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
+| `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/order-parser/` | Service Order Parser | `apps/order-parser` (single static page) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |

@@ -50,6 +50,16 @@
     "visible": true
   },
   {
+    "id": "maintenance",
+    "name": "Maintenance Schedule",
+    "description": "Planned maintenance by site — what is due, and what is done",
+    "link": "/maintenance/",
+    "category": "Service",
+    "icon": "wrench",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "outlook",
     "name": "Outlook",
     "description": "Email and calendar",

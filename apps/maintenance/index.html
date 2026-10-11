@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maintenance Schedule</title>
+<!-- The hub's root manifest, so adding this to a home screen produces the one
+     Internal Hub app rather than a second one. Icon paths go through Vite's
+     base to /maintenance/icons/ — the copy in public/. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Internal Hub">
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --muted:#5f6b7a; --line:#dfe3e8; --line-soft:#eef1f4;
+  --accent:#554596; --accent-ink:#fff; --accent-soft:#ece9f6;
+  --ok:#2e7d32; --ok-soft:#e8f5e9; --warn:#b26a00; --warn-soft:#fff4e0;
+  --bad:#c62828; --bad-soft:#fdecea; --info:#1565c0; --info-soft:#e6f0fb;
+}
+@media (prefers-color-scheme: dark){ :root{
+  --bg:#14171c; --card:#1d2129; --ink:#e6e9ee; --muted:#9aa4b2; --line:#30363f; --line-soft:#272c34;
+  --accent:#8f7fd4; --accent-ink:#13101f; --accent-soft:#262040;
+  --ok:#66bb6a; --ok-soft:#1d2e20; --warn:#f0b04a; --warn-soft:#33291a;
+  --bad:#ef6b6b; --bad-soft:#3a1f1f; --info:#5aa2f0; --info-soft:#1d2d42;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 "Segoe UI",system-ui,-apple-system,Arial,sans-serif}
+a{color:inherit}
+
+/* Back to the hub. Neutral greys so it works on either colour scheme. */
+.hub-back{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 9px;
+  flex:0 0 100%;align-self:flex-start;width:fit-content;margin:0 0 4px;
+  border:1px solid rgba(128,128,128,.35);border-radius:999px;background:rgba(128,128,128,.08);
+  color:inherit;text-decoration:none;font:600 13px/1 "Segoe UI",system-ui,sans-serif;white-space:nowrap}
+.hub-back:hover{background:rgba(128,128,128,.18)}
+.hub-back img{width:18px;height:18px;display:block}
+.hub-back .chev{font-size:17px;line-height:1;opacity:.65}
+
+header{background:var(--card);border-bottom:1px solid var(--line);padding:16px 24px 14px;
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+header h1{font-size:20px;margin:0}
+header .sub{color:var(--muted);font-size:13px}
+header .who{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+main{max-width:1280px;margin:0 auto;padding:18px 24px 72px;display:grid;gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+
+button,.btn{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:8px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  min-height:40px}
+button:hover:not(:disabled){border-color:var(--muted)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+button.danger{background:transparent;border-color:var(--bad);color:var(--bad)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;padding:9px 10px;width:100%;min-height:40px}
+textarea{min-height:76px;resize:vertical}
+label.f{display:grid;gap:4px;font-size:13px;color:var(--muted)}
+input[type=file]{display:none}
+
+/* Summary tiles — the "what needs doing" answer, above everything else. */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px 13px;background:var(--card);
+  display:grid;gap:1px;text-align:left;cursor:pointer}
+.tile b{font-size:25px;line-height:1.15}
+.tile span{color:var(--muted);font-size:12.5px}
+.tile.on{border-color:var(--accent);background:var(--accent-soft)}
+.tile.bad b{color:var(--bad)} .tile.warn b{color:var(--warn)} .tile.ok b{color:var(--ok)}
+
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.filters label.f{min-width:140px;flex:1}
+.filters .grow{flex:2;min-width:200px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.bar .spacer{flex:1}
+.count{color:var(--muted);font-size:13px}
+
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+th{position:sticky;top:0;background:var(--card);font-weight:600;font-size:13px;color:var(--muted);
+  border-bottom:1px solid var(--line);z-index:1;cursor:pointer;white-space:nowrap}
+th .dir{opacity:.5;font-size:11px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--bg)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.ml{white-space:pre-line}
+.mono{font:13px/1.4 Consolas,ui-monospace,monospace}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.p-ok{background:var(--ok-soft);color:var(--ok)}
+.p-prog{background:var(--info-soft);color:var(--info)}
+.p-none{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.p-hold{background:var(--warn-soft);color:var(--warn)}
+.p-over{background:var(--bad-soft);color:var(--bad)}
+.empty{padding:34px 18px;text-align:center;color:var(--muted)}
+
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);
+  padding:0;width:min(640px,calc(100vw - 24px));max-height:calc(100vh - 40px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog form{display:grid;gap:12px;padding:18px}
+dialog h2{margin:0;font-size:17px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.msg{font-size:13.5px;min-height:1.2em}
+.msg.ok{color:var(--ok)} .msg.warn{color:var(--bad)}
+.imp-sheet{display:flex;gap:10px;align-items:center;border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;background:var(--bg)}
+.imp-sheet .grow{flex:1;min-width:0}
+
+@media (max-width:760px){
+  header,main{padding-left:14px;padding-right:14px}
+  main{padding-bottom:40px}
+  .grid2{grid-template-columns:1fr}
+  /* One block per row instead of a table twice the width of the screen. */
+  table,thead,tbody,tr,td{display:block;width:auto}
+  thead{display:none}
+  .tablewrap{border:none;background:none;overflow:visible}
+  tbody tr{border:1px solid var(--line);border-radius:10px;background:var(--card);
+    margin-bottom:9px;padding:8px 12px}
+  td{display:flex;gap:12px;align-items:baseline;padding:5px 0;border:none}
+  td+td{border-top:1px solid var(--line-soft)}
+  td::before{content:attr(data-label);flex:0 0 38%;color:var(--muted);font-size:12px;font-weight:500}
+  td:first-child{font-weight:600}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/icons/icon-192.png" alt="">Internal Hub</a>
+  <h1>Maintenance Schedule</h1>
+  <span class="sub">Planned maintenance by site — what's due, what's done</span>
+  <span class="who" id="who"></span>
+</header>
+
+<main id="gate">
+  <div class="card" id="gateCard">
+    <p id="gateMsg">Checking sign-in…</p>
+    <button id="signIn" hidden>Sign in with Microsoft</button>
+  </div>
+</main>
+
+<main id="app" hidden>
+  <div class="tiles" id="tiles"></div>
+
+  <div class="card">
+    <div class="filters">
+      <label class="f grow">Search<input id="q" type="text" placeholder="Site, ward, model or notes" autocomplete="off"></label>
+      <label class="f">Year<select id="fYear"></select></label>
+      <label class="f">Site<select id="fSite"></select></label>
+      <label class="f">Status<select id="fStatus"></select></label>
+      <label class="f">PM type<select id="fType"></select></label>
+    </div>
+    <div class="bar" style="margin-top:12px">
+      <span class="count" id="count"></span>
+      <span class="spacer"></span>
+      <button id="csv">Export CSV</button>
+      <button id="importBtn" hidden>Import spreadsheet</button>
+      <button id="addBtn" class="primary" hidden>Add entry</button>
+    </div>
+    <p class="msg" id="msg"></p>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="empty" id="empty" hidden>Nothing matches these filters.</p>
+  </div>
+</main>
+
+<dialog id="edit">
+  <form method="dialog" id="editForm">
+    <h2 id="editTitle">Entry</h2>
+    <div class="grid2">
+      <label class="f">Site<input id="e-site" required></label>
+      <label class="f">Wards<textarea id="e-wards" rows="2" placeholder="One per line"></textarea></label>
+    </div>
+    <label class="f">Models<textarea id="e-models" rows="3" placeholder="One per line, e.g. 16x N1"></textarea></label>
+    <div class="grid2">
+      <label class="f">Due<input id="e-due" type="month"></label>
+      <label class="f">PM type<select id="e-type"></select></label>
+      <label class="f">Status<select id="e-status"></select></label>
+      <label class="f">Date complete<input id="e-complete" type="date"></label>
+    </div>
+    <label class="f">Notes<textarea id="e-notes" rows="2"></textarea></label>
+    <label class="f">Additional notes<textarea id="e-extra" rows="2"></textarea></label>
+    <p class="msg" id="editMsg"></p>
+    <div class="bar">
+      <button type="button" id="del" class="danger" hidden>Delete</button>
+      <span class="spacer"></span>
+      <button type="button" id="cancel">Cancel</button>
+      <button type="button" id="save" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="imp">
+  <form method="dialog">
+    <h2>Import from the spreadsheet</h2>
+    <p class="count">Pick the PM tracking workbook. Each year tab is read separately, so you can bring in just the years you want.</p>
+    <button type="button" id="pick">Choose .xlsx file…</button>
+    <input id="file" type="file" accept=".xlsx,.xlsm,.csv">
+    <div id="impSheets" style="display:grid;gap:8px"></div>
+    <p class="msg" id="impMsg"></p>
+    <div class="bar">
+      <span class="spacer"></span>
+      <button type="button" id="impCancel">Close</button>
+      <button type="button" id="impGo" class="primary" disabled>Import selected</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>
