@@ -389,3 +389,21 @@ $('impGo').addEventListener('click', async () => {
     $('impGo').disabled = false
   }
 })
+
+// ── pick up a new deploy ──────────────────────────────────────────────────
+// A deploy doesn't reach an already-open page on its own: the service worker
+// keeps serving the copy it cached, so a newly shipped button can be live and
+// invisible at the same time. That is exactly what happened with "Delete
+// shown". Reload when a new worker takes over — but never over the top of a
+// part-filled form, which is why this waits rather than reloading blindly.
+if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller
+  let handled = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    // A first install also claims the page; that is not an update.
+    if (!hadController || handled) return
+    handled = true
+    if (!$('edit').open && !$('imp').open) return window.location.reload()
+    msg('A new version is ready — reload the page when you have finished here.')
+  })
+}
