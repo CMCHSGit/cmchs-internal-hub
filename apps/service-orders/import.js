@@ -82,6 +82,11 @@ export function parseSheet(rows, stage) {
       o.extraNotes = [text(raw('oldSo')), text(raw('extraNotes'))].filter(Boolean).join('\n')
     }
     if (!o.so && !o.partName && !o.pn && !o.site && !o.notes) { if (row.some((c) => text(c))) skipped++; continue }
+    // The sheet carried a link to the old parser ("C:\Service Order
+    // Parser.html") in a cell of its own. A row that is only file paths or
+    // links is furniture, not an order.
+    const filled = HEADERS.map(([f]) => o[f]).filter(Boolean)
+    if (filled.every((v) => /^[a-z]:\\|^\\\\|^https?:\/\/|\.html?$/i.test(v))) { skipped++; continue }
     orders.push(o)
   }
   return { orders, skipped, error: null }
