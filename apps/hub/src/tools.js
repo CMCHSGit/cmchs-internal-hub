@@ -5,6 +5,12 @@ import allAnnouncements from '../../../announcements.json'
 // Unknown categories are appended after these; empty ones are hidden.
 const PURPLE = '#554596', GREEN = '#80bd01', ORANGE = '#ef7d00', GREY = '#a7a9ac'
 const CATEGORIES = [
+  // The two apps most people open every day, in one row rather than two
+  // single-card sections stacked on top of each other.
+  ['Everyday',      PURPLE, GREEN],
+  // Kept below so a tool still filed under either name keeps a home; an
+  // empty category is dropped from the page, so neither shows while both
+  // tools sit in Everyday.
   ['Demo',          PURPLE, GREEN],
   ['Service',       PURPLE, ORANGE],
   ['Schedule',      GREEN,  ORANGE],

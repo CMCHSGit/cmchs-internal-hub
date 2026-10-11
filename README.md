@@ -61,7 +61,7 @@ Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's cate
    { "id": "quote", "name": "Quote builder", "description": "One line, shown under the name",
      "link": "/quote/", "category": "Sales", "icon": "calculator", "opens": "here", "visible": true }
    ```
-   - `category`: Demo, Service, Schedule, Sales, Clinical, Admin or Microsoft 365 (shown in that order; new names go at the end).
+   - `category`: Everyday, Demo, Service, Schedule, Sales, Clinical, Admin or Microsoft 365 (shown in that order; new names go at the end).
    - `opens`: `here` (same tab, for pages on this site) or `tab` (new tab, for other sites).
    - `icon`: a [Lucide](https://lucide.dev/icons) name that's listed in `apps/hub/src/Icon.jsx` (add it there if not).
 3. Push to `main`.

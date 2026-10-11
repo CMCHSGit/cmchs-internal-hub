@@ -1,21 +1,21 @@
 [
   {
-    "id": "demo",
-    "name": "Demo equipment tracker",
-    "description": "Scan, loan, and track CMCHS demo equipment",
-    "link": "/demo/",
-    "category": "Demo",
-    "icon": "package",
-    "opens": "here",
-    "visible": true
-  },
-  {
     "id": "schedule",
     "name": "Staff schedule",
     "description": "View rosters, on-call, and leave",
     "link": "/schedule/",
-    "category": "Schedule",
+    "category": "Everyday",
     "icon": "calendar-days",
+    "opens": "here",
+    "visible": true
+  },
+  {
+    "id": "demo",
+    "name": "Demo equipment tracker",
+    "description": "Scan, loan, and track CMCHS demo equipment",
+    "link": "/demo/",
+    "category": "Everyday",
+    "icon": "package",
     "opens": "here",
     "visible": true
   },
