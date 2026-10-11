@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ansur PVT Report Builder</title>
+<!-- Set the theme before anything renders, or the page flashes the wrong
+     colours. A module runs too late for this, so it is inline. The key is
+     shared with the staff schedule: one choice for the whole site. -->
+<script>(function(){try{var t=localStorage.getItem('css_theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
 :root{
   --bg:#f5f7f9; --surface:#ffffff; --ink:#1f2933; --muted:#5f6b7a; --line:#d9dfe5; --accent:#0b6e8a; --accent-ink:#ffffff;
@@ -108,10 +112,12 @@ body.busy{cursor:progress}
 </style>
 </head>
 <body>
-<main>
-  <a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/brand/logo-mark.png" alt="">Internal Hub</a>
+<header>
+<a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/brand/logo-mark.png" alt="">Internal Hub</a>
   <h1>Ansur PVT Report Builder</h1>
-  <p class="sub">Turn Fluke Ansur test records (.mtr) into PDF reports. Everything runs inside this page, so it works offline and nothing is uploaded anywhere.</p>
+  <span class="sub">Turn Fluke Ansur test records (.mtr) into PDF reports. Everything runs inside this page, so it works offline and nothing is uploaded anywhere.</span>
+</header>
+<main>
 
   <section id="drop" class="card" aria-label="Add records">
     <p><strong>Drop .mtr files here</strong> or choose them from your computer.</p>

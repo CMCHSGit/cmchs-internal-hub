@@ -15,6 +15,8 @@ import {
   createMany, removeMany, formatDue, isOverdue, isDone, yearOf,
 } from './store.js'
 import { readWorkbook } from './import.js'
+import '../../shared/tool-chrome.css'
+import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 registerServiceWorker()
 
@@ -507,3 +509,8 @@ stamp.addEventListener('click', async () => {
   setTimeout(() => { stamp.textContent = `v ${built.toISOString().slice(5, 16).replace('T', ' ')} · latest` }, 1500)
 })
 $('who').after(stamp)
+
+
+// The header, back button and light/dark switch are shared with the other
+// tools so they look and behave the same in all of them.
+mountToolChrome()

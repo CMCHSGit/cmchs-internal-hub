@@ -16,6 +16,8 @@ import {
 } from './store.js'
 import { parseServiceOrder, AUTO_FIELDS } from './parse.js'
 import { readWorkbook } from './import.js'
+import '../../shared/tool-chrome.css'
+import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 registerServiceWorker()
 
@@ -403,3 +405,8 @@ if ('serviceWorker' in navigator) {
     msg('A new version is ready — reload the page when you have finished here.')
   })
 }
+
+
+// The header, back button and light/dark switch are shared with the other
+// tools so they look and behave the same in all of them.
+mountToolChrome()

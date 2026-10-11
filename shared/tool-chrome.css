@@ -1,0 +1,94 @@
+/* Shared chrome for the tools on internal.chsnz.co.nz.
+   Imported by every tool so the header, back button and theme switch look and
+   behave the same in all of them.
+
+   It deliberately styles layout only and reads colour from each tool's own
+   tokens. The tools were built separately and their palettes differ in the
+   details; forcing one palette on all of them would be a redesign, not a
+   consistency pass. Every tool defines --bg, --ink, --muted, --line, --accent
+   and --accent-ink, so those are all this relies on. --card is the odd one out
+   (Ansur calls it --surface), hence the fallback chain. */
+
+header.tool-header {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 16px 24px 14px;
+  background: var(--card, var(--surface, var(--bg)));
+  border-bottom: 1px solid var(--line);
+}
+header.tool-header h1 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+}
+header.tool-header .sub {
+  color: var(--muted);
+  font-size: 13px;
+}
+/* Pushes everything after it to the right. A separate element rather than
+   margin-left:auto on the actions, because tools put different things here. */
+header.tool-header .tool-spacer { flex: 1 1 auto; }
+header.tool-header .tool-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Back to the hub. Neutral greys rather than themed colours so it reads the
+   same in either scheme without each tool having to say so. */
+.hub-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 9px;
+  flex: 0 0 100%;
+  align-self: flex-start;
+  width: fit-content;
+  margin: 0 0 4px;
+  border: 1px solid rgba(128, 128, 128, .35);
+  border-radius: 999px;
+  background: rgba(128, 128, 128, .08);
+  color: inherit;
+  text-decoration: none;
+  font: 600 13px/1 "Segoe UI", system-ui, -apple-system, sans-serif;
+  white-space: nowrap;
+}
+.hub-back:hover { background: rgba(128, 128, 128, .18); }
+.hub-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hub-back img { width: 18px; height: 18px; display: block; }
+.hub-back .chev { font-size: 17px; line-height: 1; opacity: .65; }
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--muted); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme-toggle svg { width: 18px; height: 18px; display: block; }
+/* One icon is shown per theme: the sun when dark (press it for light), the
+   moon when light. Swapped in CSS so it is right on the first paint. */
+.theme-toggle .sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .moon { display: none; }
+
+@media (max-width: 760px) {
+  header.tool-header { padding: 12px 14px 10px; gap: 10px; }
+  header.tool-header h1 { font-size: 18px; }
+  /* The subtitle is the first thing worth losing on a phone. */
+  header.tool-header .sub { flex: 1 1 100%; }
+}

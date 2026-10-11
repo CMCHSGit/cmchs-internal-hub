@@ -13,6 +13,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Internal Hub">
+<!-- Set the theme before anything renders, or the page flashes the wrong
+     colours. A module runs too late for this, so it is inline. The key is
+     shared with the staff schedule: one choice for the whole site. -->
+<script>(function(){try{var t=localStorage.getItem('css_theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <style>
 :root{
   --bg:#f5f6f8; --card:#fff; --ink:#1c2230; --muted:#5f6b7a; --line:#dfe3e8; --line-soft:#eef1f4;
@@ -20,12 +24,21 @@
   --ok:#2e7d32; --ok-soft:#e8f5e9; --warn:#b26a00; --warn-soft:#fff4e0;
   --bad:#c62828; --bad-soft:#fdecea; --info:#1565c0; --info-soft:#e6f0fb;
 }
-@media (prefers-color-scheme: dark){ :root{
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#14171c; --card:#1d2129; --ink:#e6e9ee; --muted:#9aa4b2; --line:#30363f; --line-soft:#272c34;
   --accent:#8f7fd4; --accent-ink:#13101f; --accent-soft:#262040;
   --ok:#66bb6a; --ok-soft:#1d2e20; --warn:#f0b04a; --warn-soft:#33291a;
   --bad:#ef6b6b; --bad-soft:#3a1f1f; --info:#5aa2f0; --info-soft:#1d2d42;
 }}
+/* The same palette when dark is chosen outright, rather than inherited
+   from the system. The media query above is guarded so an explicit light
+   choice is not overridden by a dark system setting. */
+:root[data-theme="dark"]{
+  --bg:#14171c; --card:#1d2129; --ink:#e6e9ee; --muted:#9aa4b2; --line:#30363f; --line-soft:#272c34;
+  --accent:#8f7fd4; --accent-ink:#13101f; --accent-soft:#262040;
+  --ok:#66bb6a; --ok-soft:#1d2e20; --warn:#f0b04a; --warn-soft:#33291a;
+  --bad:#ef6b6b; --bad-soft:#3a1f1f; --info:#5aa2f0; --info-soft:#1d2d42;
+}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);
@@ -136,7 +149,7 @@ dialog form{position:relative}
 </head>
 <body>
 <header>
-  <a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/icons/icon-192.png" alt="">Internal Hub</a>
+  <a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/brand/logo-mark.png" alt="">Internal Hub</a>
   <h1>Service Orders</h1>
   <span class="sub">Parts on order, received, shipping back — paste a service order to add one</span>
   <span class="who" id="who"></span>

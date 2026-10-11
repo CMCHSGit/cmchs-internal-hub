@@ -8,6 +8,8 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
 import { startApp } from './app.js'
+import '../../shared/tool-chrome.css'
+import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 // Same Apps Script web app the equipment tracker uses (chs-equipment/index.html, SIMPRO_PROXY_URL).
 const SIMPRO_PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
@@ -143,3 +145,8 @@ onAuthStateChanged(auth, async user => {
     gate('error', 'Something went wrong: ' + (e.message || e))
   }
 })
+
+
+// The header, back button and light/dark switch are shared with the other
+// tools so they look and behave the same in all of them.
+mountToolChrome()

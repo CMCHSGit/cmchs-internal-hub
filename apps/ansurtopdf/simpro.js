@@ -11,6 +11,9 @@
    admin (or have simproAccess granted) and relays an allowlisted request. The
    Simpro key never reaches the page. */
 
+import '../../shared/tool-chrome.css'
+import { mountToolChrome } from '../../shared/tool-chrome.js'
+
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
 
 const $ = (id) => document.getElementById(id)
@@ -457,3 +460,7 @@ hasStoredSession().then((stored) => {
     })
     .catch(() => note(''))
 })
+
+// The header, back button and light/dark switch are shared with the other
+// tools so they look and behave the same in all of them.
+mountToolChrome()
