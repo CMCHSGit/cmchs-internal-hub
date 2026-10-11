@@ -26,8 +26,24 @@ const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', '
  */
 export function parseDue(raw) {
   if (raw == null || raw === '') return null
+
+  // A date-formatted cell arrives from the reader as { date: { y, m, d } },
+  // not as text. Stringifying it gives "[object Object]", which is how every
+  // due date in the first import silently became a default instead.
+  //
+  // The format code is lost by then, so there is no way to tell a cell shown
+  // as "Mar-26" from one shown as "1 Mar 2026" — both are the 1st internally.
+  // Treating day 1 as month-only matches how this sheet is actually kept (the
+  // column is overwhelmingly mmm-yy); the cost is that a real 1st-of-month
+  // date displays as the month, which is a cosmetic loss, not a wrong date.
+  if (typeof raw === 'object' && raw.date && raw.date.y) {
+    const { y, m, d } = raw.date
+    const iso = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    return { due: iso, monthOnly: d === 1 }
+  }
+
   const s = String(raw).trim()
-  if (!s) return null
+  if (!s || s === '[object Object]') return null
 
   // Excel serial date (the reader hands these through as numbers)
   if (/^\d{5}(\.\d+)?$/.test(s)) {
@@ -135,6 +151,20 @@ export async function createMany(entries, who, onProgress) {
     await batch.commit()
     done += chunk.length
     onProgress?.(done, entries.length)
+  }
+  return done
+}
+
+/** Bulk delete, same 400-per-batch limit as the import. */
+export async function removeMany(ids, onProgress) {
+  let done = 0
+  for (let i = 0; i < ids.length; i += 400) {
+    const chunk = ids.slice(i, i + 400)
+    const batch = writeBatch(db)
+    for (const id of chunk) batch.delete(doc(db, COL, id))
+    await batch.commit()
+    done += chunk.length
+    onProgress?.(done, ids.length)
   }
   return done
 }

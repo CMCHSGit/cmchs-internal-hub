@@ -12,7 +12,7 @@ import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
 import {
   PM_TYPES, STATUSES, watchEntries, createEntry, saveEntry, removeEntry,
-  createMany, formatDue, isOverdue, yearOf,
+  createMany, removeMany, formatDue, isOverdue, yearOf,
 } from './store.js'
 import { readWorkbook } from './import.js'
 
@@ -60,6 +60,7 @@ onAuthStateChanged(auth, async (user) => {
     $('who').textContent = `${profile.displayName || user.displayName || user.email}${canEdit ? '' : ' · read only'}`
     $('addBtn').hidden = !canEdit
     $('importBtn').hidden = !canEdit
+    $('clear').hidden = !canEdit
     $('gate').hidden = true
     $('app').hidden = false
     start()
@@ -276,6 +277,24 @@ $('del').addEventListener('click', async () => {
   }
 })
 
+$('clear').addEventListener('click', async () => {
+  const rows = visible()
+  if (!rows.length) return
+  const all = rows.length === entries.length
+  const what = all ? `all ${rows.length} entries` : `the ${rows.length} entries currently shown`
+  if (!confirm(`Delete ${what}? This cannot be undone.`)) return
+  if (!confirm(`Really delete ${rows.length}? Type-check: this is permanent.`)) return
+  $('clear').disabled = true
+  try {
+    await removeMany(rows.map((e) => e.id), (done, total) => msg(`Deleting… ${done} of ${total}`))
+    msg(`Deleted ${rows.length} entries.`, 'ok')
+  } catch (err) {
+    msg('Could not delete: ' + (err.message || err), 'warn')
+  } finally {
+    $('clear').disabled = false
+  }
+})
+
 $('cancel').addEventListener('click', () => $('edit').close())
 $('addBtn').addEventListener('click', () => openEdit(null))
 
@@ -316,7 +335,14 @@ $('file').addEventListener('change', async (ev) => {
   try {
     parsedSheets = await readWorkbook(file)
     $('impSheets').innerHTML = parsedSheets.map((s, i) => {
-      const detail = s.error ? s.error : `${s.entries.length} entries${s.skipped ? `, ${s.skipped} blank rows skipped` : ''}`
+      const bits = [`${s.entries.length} entries`]
+      if (s.skipped) bits.push(`${s.skipped} blank rows skipped`)
+      // Call out unreadable due dates before anything is written. The first
+      // import quietly defaulted them all and nobody could tell.
+      if (s.unreadable?.length) bits.push(`${s.unreadable.length} due dates unreadable`)
+      const missing = ['site', 'dueRaw', 'status'].filter((k) => s.columns?.[k] === undefined)
+      if (missing.length) bits.push(`no ${missing.join('/')} column found`)
+      const detail = s.error ? s.error : bits.join(', ')
       return `<label class="imp-sheet">
         <input type="checkbox" data-i="${i}" style="width:auto;min-height:0"${s.entries.length ? ' checked' : ' disabled'}>
         <span class="grow"><b>${esc(s.name)}</b><br><span class="count">${esc(detail)}</span></span>

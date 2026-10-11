@@ -44,6 +44,9 @@ function readHeader(rows) {
 }
 
 const cell = (row, i) => (i === undefined || row[i] == null ? '' : String(row[i]).replace(/\r/g, '').trim())
+// Date cells arrive as { date: { y, m, d } }. They must reach parseDue as-is:
+// String() on one yields "[object Object]", which parses as nothing.
+const raw = (row, i) => (i === undefined ? null : row[i] ?? null)
 
 function pickStatus(raw, dateComplete) {
   const s = norm(raw)
@@ -77,6 +80,7 @@ export function parseSheet(rows, fallbackYear) {
   const entries = []
   let skipped = 0
   let lastSite = ''
+  const unreadable = []   // raw values of due cells we could not parse
 
   for (let r = headerRow + 1; r < rows.length; r++) {
     const row = rows[r] || []
@@ -89,17 +93,20 @@ export function parseSheet(rows, fallbackYear) {
 
     const wards = cell(row, map.wards)
     const models = cell(row, map.models)
-    const dueRaw = cell(row, map.dueRaw)
+    const dueRaw = raw(row, map.dueRaw)
     const statusRaw = cell(row, map.status)
     const notes = cell(row, map.notes)
     const extraNotes = cell(row, map.extraNotes)
 
     // A row with nothing but an inherited site is spreadsheet padding.
-    if (!wards && !models && !dueRaw && !statusRaw && !notes && !extraNotes) { skipped++; continue }
+    if (!wards && !models && dueRaw == null && !statusRaw && !notes && !extraNotes) { skipped++; continue }
     if (!site) { skipped++; continue }
 
     const due = parseDue(dueRaw)
-    const complete = parseDue(cell(row, map.completeRaw))
+    if (!due && dueRaw != null && String(dueRaw).trim() !== '') {
+      unreadable.push(typeof dueRaw === 'object' ? JSON.stringify(dueRaw) : String(dueRaw))
+    }
+    const complete = parseDue(raw(row, map.completeRaw))
     const status = pickStatus(statusRaw, complete?.due)
 
     // Keep the sheet's own wording when it said more than our four statuses do
@@ -112,7 +119,10 @@ export function parseSheet(rows, fallbackYear) {
       site,
       wards,
       models,
-      due: due?.due || (fallbackYear ? `${fallbackYear}-01-01` : ''),
+      // No fallback. Defaulting an unreadable date to the sheet's year made
+      // 58 rows all claim they were due in January, which looked like real
+      // data. Blank is honest and the import preview counts these.
+      due: due?.due || '',
       monthOnly: due ? due.monthOnly : true,
       pmType: pickPmType(cell(row, map.pmType)),
       status,
@@ -122,7 +132,7 @@ export function parseSheet(rows, fallbackYear) {
     })
   }
 
-  return { entries, skipped, error: null }
+  return { entries, skipped, unreadable, columns: map, error: null }
 }
 
 /** Reads a whole workbook; one result per sheet, in sheet order. */
@@ -139,7 +149,7 @@ export async function readWorkbook(file) {
     } catch (e) {
       error = e.message || String(e)
     }
-    const parsed = error ? { entries: [], skipped: 0, error } : parseSheet(rows, year ? Number(year) : null)
+    const parsed = error ? { entries: [], skipped: 0, unreadable: [], columns: {}, error } : parseSheet(rows, year ? Number(year) : null)
     out.push({ name, ...parsed })
   }
   return out
