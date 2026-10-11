@@ -409,3 +409,22 @@ if ('serviceWorker' in navigator) {
     msg('A new version is ready — reload the page when you have finished here.')
   })
 }
+
+// Build stamp. The version you are looking at is otherwise invisible, which is
+// how a shipped change can sit in front of someone who cannot see it — the
+// service worker serves the page it cached until something reloads it. Now it
+// can be read off the header, and clicking it forces a fresh copy.
+const built = new Date(__BUILT__)
+const stamp = document.createElement('button')
+stamp.type = 'button'
+stamp.style.cssText = 'border:none;background:none;color:inherit;opacity:.55;font:inherit;font-size:12px;padding:0 0 0 8px;min-height:0;cursor:pointer'
+stamp.textContent = `v ${built.toISOString().slice(5, 16).replace('T', ' ')}`
+stamp.title = `This page was built ${built.toLocaleString()}.\nClick to check for a newer version.`
+stamp.addEventListener('click', async () => {
+  stamp.textContent = 'checking…'
+  try { await (await navigator.serviceWorker?.getRegistration())?.update() } catch { /* offline */ }
+  // If a newer worker was found it takes over and the handler below reloads;
+  // if not, nothing happens, so say so rather than leaving it hanging.
+  setTimeout(() => { stamp.textContent = `v ${built.toISOString().slice(5, 16).replace('T', ' ')} · latest` }, 1500)
+})
+$('who').after(stamp)
