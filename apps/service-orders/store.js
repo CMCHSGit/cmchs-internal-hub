@@ -87,7 +87,7 @@ export function watchOrders(onChange, onError) {
   )
 }
 
-export const FIELDS = ['so', 'title', 'sn', 'pn', 'partName', 'needReturn', 'site', 'notes', 'jobs',
+export const FIELDS = ['so', 'title', 'sn', 'pn', 'partName', 'needReturn', 'site', 'notes', 'jobs', 'appliedBy',
   'dateRaised', 'receivedDate', 'oldSo', 'extraNotes', 'stage']
 
 function tidy(order) {

@@ -102,7 +102,11 @@ dialog{border:1px solid var(--line);border-radius:12px;background:var(--card);co
   padding:0;width:min(720px,calc(100vw - 24px));max-height:calc(100vh - 40px)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
 dialog form{display:grid;gap:12px;padding:18px}
-dialog h2{margin:0;font-size:17px}
+dialog h2{margin:0;font-size:17px;padding-right:44px}
+dialog form{position:relative}
+.x{position:absolute;top:10px;right:10px;width:40px;height:40px;padding:0;justify-content:center;
+  border:none;background:transparent;color:var(--muted);font-size:22px;line-height:1}
+.x:hover{background:var(--bg);color:var(--ink)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .msg{font-size:13.5px;min-height:1.2em}
@@ -176,6 +180,7 @@ dialog h2{margin:0;font-size:17px}
 
 <dialog id="paste">
   <form method="dialog">
+    <button type="button" class="x" data-close aria-label="Close">✕</button>
     <h2>Paste a service order</h2>
     <p class="count">Copy the whole service order and paste it below. The fields it can find are filled in for you to check before saving.</p>
     <textarea id="pasteText" placeholder="Paste the full service order text here…"></textarea>
@@ -190,6 +195,7 @@ dialog h2{margin:0;font-size:17px}
 
 <dialog id="edit">
   <form method="dialog">
+    <button type="button" class="x" data-close aria-label="Close">✕</button>
     <h2 id="editTitle">Service order</h2>
     <div class="grid3">
       <label class="f">S.O<input id="e-so"></label>
@@ -202,9 +208,10 @@ dialog h2{margin:0;font-size:17px}
       <label class="f">PN<input id="e-pn" class="mono"></label>
     </div>
     <label class="f">Part name<input id="e-partName"></label>
-    <div class="grid2">
+    <div class="grid3">
       <label class="f">Site<input id="e-site" list="siteList"></label>
       <label class="f">Jobs<input id="e-jobs" placeholder="Simpro job number"></label>
+      <label class="f">Applied by<input id="e-appliedBy" placeholder="Who applied for the RMA"></label>
     </div>
     <label class="f">Notes<textarea id="e-notes" rows="2"></textarea></label>
     <div class="grid3">
@@ -227,6 +234,7 @@ dialog h2{margin:0;font-size:17px}
 
 <dialog id="imp">
   <form method="dialog">
+    <button type="button" class="x" data-close aria-label="Close">✕</button>
     <h2>Import from the spreadsheet</h2>
     <p class="count">Pick the service order workbook. Each tab becomes a stage — In Progress, Received, Ready for shipping, Completed or Sent Back, CHS spare parts order.</p>
     <button type="button" id="pick">Choose .xlsx file…</button>

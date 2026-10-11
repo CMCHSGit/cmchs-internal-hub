@@ -33,6 +33,10 @@ function parts(lines) {
   return out
 }
 
+// Who applied for the RMA. The label hasn't been seen on a real order yet, so
+// these are the likely spellings; the first one present wins.
+const APPLIED_BY = ['Applicant', 'Applied By', 'Applied by', 'Submitted By', 'Submitter', 'Requester', 'Requested By', 'Created By']
+
 /** Returns the order's fields, plus the keys that were actually found. */
 export function parseServiceOrder(text) {
   const lines = linesOf(text)
@@ -50,8 +54,9 @@ export function parseServiceOrder(text) {
     site: after(lines, 'Customer Name'),
     notes: tech ? tech[1].trim() : '',
     dateRaised: parseDate(after(lines, 'Order Submitted')),
+    appliedBy: APPLIED_BY.map((l) => after(lines, l) || after(lines, l + ':') || after(lines, l + '：')).find(Boolean) || '',
   }
   return { order, auto: Object.keys(order).filter((k) => order[k]) }
 }
 
-export const AUTO_FIELDS = ['so', 'title', 'sn', 'pn', 'partName', 'needReturn', 'site', 'notes', 'dateRaised']
+export const AUTO_FIELDS = ['so', 'title', 'sn', 'pn', 'partName', 'needReturn', 'site', 'notes', 'dateRaised', 'appliedBy']

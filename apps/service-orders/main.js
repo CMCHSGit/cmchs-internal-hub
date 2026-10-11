@@ -14,7 +14,7 @@ import {
   STAGES, FIELDS, LATE_DAYS, nextStage, watchOrders, createOrder, saveOrder, removeOrder,
   createMany, formatDate, today, daysWaiting,
 } from './store.js'
-import { parseServiceOrder } from './parse.js'
+import { parseServiceOrder, AUTO_FIELDS } from './parse.js'
 import { readWorkbook } from './import.js'
 
 registerServiceWorker()
@@ -88,7 +88,7 @@ const isLate = (o) => (daysWaiting(o) ?? 0) >= LATE_DAYS
 // ── filtering and sorting ─────────────────────────────────────────────────
 const COLUMNS = [
   ['so', 'S.O'], ['sn', 'SN'], ['partName', 'Part'], ['needReturn', 'Return'], ['site', 'Site'],
-  ['notes', 'Notes'], ['jobs', 'Jobs'], ['dateRaised', 'Raised'], ['receivedDate', 'Received'],
+  ['notes', 'Notes'], ['jobs', 'Jobs'], ['appliedBy', 'Applied by'], ['dateRaised', 'Raised'], ['receivedDate', 'Received'],
 ]
 
 function visible() {
@@ -146,6 +146,7 @@ function row(o) {
       <td data-label="Site">${esc(o.site)}</td>
       <td data-label="Notes"><div class="ml">${esc(o.notes)}${more ? `<span class="small ml">${esc(more)}</span>` : ''}</div></td>
       <td data-label="Jobs">${esc(o.jobs)}</td>
+      <td data-label="Applied by">${esc(o.appliedBy)}</td>
       <td data-label="Raised">${esc(formatDate(o.dateRaised))}${waitPill}</td>
       <td data-label="Received">${esc(formatDate(o.receivedDate))}</td>
     </tr>`
@@ -212,7 +213,7 @@ function openEdit(order, prefill = null, auto = []) {
     const dup = o.so && orders.find((x) => x.so === o.so)
     editMsg(dup
       ? `S.O ${o.so} is already in ${dup.stage}. Saving will add a second copy.`
-      : `${auto.length} of 9 fields found — green ones came from the service order. Add the Simpro job if there is one.`, dup ? 'warn' : '')
+      : `${auto.length} of ${AUTO_FIELDS.length} fields found — green ones came from the service order. Add the Simpro job if there is one.`, dup ? 'warn' : '')
   }
   $('edit').showModal()
 }
@@ -268,6 +269,9 @@ $('del').addEventListener('click', async () => {
   }
 })
 
+// Every pop-up's ✕ (Esc already closes them, natively).
+for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => b.closest('dialog').close())
+
 // ── paste a service order ─────────────────────────────────────────────────
 $('pasteBtn').addEventListener('click', () => {
   $('pasteText').value = ''
@@ -292,10 +296,10 @@ $('pasteGo').addEventListener('click', () => {
 // ── CSV out ───────────────────────────────────────────────────────────────
 $('csv').addEventListener('click', () => {
   const q = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"'
-  const head = ['Stage', 'S.O', 'SO Title', 'SN', 'PN', 'Part Name', 'Need Return', 'Site', 'Notes', 'Jobs', 'Date Raised', 'Received Date', 'Old SO', 'Additional Notes']
+  const head = ['Stage', 'S.O', 'SO Title', 'SN', 'PN', 'Part Name', 'Need Return', 'Site', 'Notes', 'Jobs', 'Applied By', 'Date Raised', 'Received Date', 'Old SO', 'Additional Notes']
   const lines = [head.map(q).join(',')]
   for (const o of visible()) {
-    lines.push([o.stage, o.so, o.title, o.sn, o.pn, o.partName, o.needReturn, o.site, o.notes, o.jobs,
+    lines.push([o.stage, o.so, o.title, o.sn, o.pn, o.partName, o.needReturn, o.site, o.notes, o.jobs, o.appliedBy,
       o.dateRaised, o.receivedDate, o.oldSo, o.extraNotes].map(q).join(','))
   }
   const a = document.createElement('a')
