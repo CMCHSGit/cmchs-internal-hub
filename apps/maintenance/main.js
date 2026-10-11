@@ -11,7 +11,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
 import {
-  PM_TYPES, STATUSES, watchEntries, createEntry, saveEntry, removeEntry,
+  STATUSES, watchEntries, watchSettings, savePmTypes, createEntry, saveEntry, removeEntry,
   createMany, removeMany, formatDue, isOverdue, isDone, yearOf,
 } from './store.js'
 import { readWorkbook } from './import.js'
@@ -26,6 +26,8 @@ let me = null
 let canEdit = false
 let entries = []
 let unwatch = null
+let unwatchSettings = null
+let pmTypes = []
 let sort = { key: 'due', dir: 1 }
 let only = ''            // tile filter: '', 'overdue', 'due90', 'open', 'done'
 
@@ -48,6 +50,7 @@ $('signIn').addEventListener('click', () => {
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     unwatch?.(); unwatch = null
+    unwatchSettings?.(); unwatchSettings = null
     $('app').hidden = true; $('gate').hidden = false
     return gate('Sign in to see the maintenance schedule.', true)
   }
@@ -61,6 +64,7 @@ onAuthStateChanged(auth, async (user) => {
     $('addBtn').hidden = !canEdit
     $('importBtn').hidden = !canEdit
     $('clear').hidden = !canEdit
+    $('editTypes').hidden = !canEdit
     $('gate').hidden = true
     $('app').hidden = false
     start()
@@ -72,6 +76,10 @@ onAuthStateChanged(auth, async (user) => {
 // ── live data ─────────────────────────────────────────────────────────────
 function start() {
   if (unwatch) return
+  unwatchSettings = watchSettings(
+    (s) => { pmTypes = s.pmTypes; render() },
+    () => { pmTypes = [] },   // the entries feed reports the real problem
+  )
   unwatch = watchEntries(
     (list) => { entries = list; render() },
     (err) => {
@@ -169,7 +177,10 @@ function render() {
   fillSelect($('fYear'), [...new Set(entries.map(yearOf).filter(Boolean))].sort().map(String), 'All years')
   fillSelect($('fSite'), [...new Set(entries.map((e) => e.site).filter(Boolean))].sort(), 'All sites')
   fillSelect($('fStatus'), STATUSES, 'Any status')
-  fillSelect($('fType'), PM_TYPES, 'Any PM type')
+  // Include any type the data uses but the list has dropped, so filtering by
+  // it stays possible after someone edits the list.
+  const used = [...new Set(entries.map((e) => e.pmType).filter(Boolean))]
+  fillSelect($('fType'), [...pmTypes, ...used.filter((t) => !pmTypes.includes(t))], 'Any PM type')
 
   $('head').innerHTML = COLUMNS.map(([k, label]) =>
     `<th data-key="${k}">${label}${sort.key === k ? ` <span class="dir">${sort.dir > 0 ? '▲' : '▼'}</span>` : ''}</th>`).join('')
@@ -218,7 +229,11 @@ function openEdit(entry) {
   $('e-complete').value = e.dateComplete || ''
   $('e-notes').value = e.notes || ''
   $('e-extra').value = e.extraNotes || ''
-  $('e-type').innerHTML = '<option value=""></option>' + PM_TYPES.map((t) => `<option${t === e.pmType ? ' selected' : ''}>${t}</option>`).join('')
+  // An entry's own type is always offered, even if it has since been removed
+  // from the list — otherwise opening it would quietly reassign it on save.
+  const options = [...pmTypes]
+  if (e.pmType && !options.includes(e.pmType)) options.push(e.pmType)
+  $('e-type').innerHTML = '<option value=""></option>' + options.map((t) => `<option${t === e.pmType ? ' selected' : ''}>${esc(t)}</option>`).join('')
   $('e-status').innerHTML = STATUSES.map((s) => `<option${s === (e.status || 'Not started') ? ' selected' : ''}>${s}</option>`).join('')
   $('del').hidden = !entry || !canEdit
   // Only offered on a saved entry: copying a form you have not written yet
@@ -326,6 +341,39 @@ $('copy').addEventListener('click', () => {
     : 'The original had no due date — set one, then Save to create it.'
   $('editMsg').className = 'msg'
   $('e-due').focus()
+})
+
+// ── PM types ──────────────────────────────────────────────────────────────
+$('editTypes').addEventListener('click', () => {
+  $('typeList').value = pmTypes.join('\n')
+  $('typeMsg').textContent = ''
+  $('typeMsg').className = 'msg'
+  $('types').showModal()
+})
+$('typeCancel').addEventListener('click', () => $('types').close())
+$('typeSave').addEventListener('click', async () => {
+  const list = $('typeList').value.split('\n').map((t) => t.trim()).filter(Boolean)
+  const unique = [...new Set(list)]
+  if (!unique.length) {
+    $('typeMsg').textContent = 'Keep at least one type.'
+    $('typeMsg').className = 'msg warn'
+    return
+  }
+  // Removing a type does not touch entries already using it; say so rather
+  // than letting someone think it cleaned up after itself.
+  const orphaned = [...new Set(entries.map((e) => e.pmType).filter(Boolean))].filter((t) => !unique.includes(t))
+  if (orphaned.length && !confirm(`${orphaned.join(', ')} ${orphaned.length === 1 ? 'is' : 'are'} still used by existing entries. Those entries keep their current type. Save anyway?`)) return
+  $('typeSave').disabled = true
+  try {
+    await savePmTypes(unique, me.email || me.uid)
+    $('types').close()
+    msg('PM types updated.', 'ok')
+  } catch (err) {
+    $('typeMsg').textContent = 'Could not save: ' + (err.message || err)
+    $('typeMsg').className = 'msg warn'
+  } finally {
+    $('typeSave').disabled = false
+  }
 })
 
 $('cancel').addEventListener('click', () => $('edit').close())

@@ -151,6 +151,7 @@ dialog h2{margin:0;font-size:17px}
       <label class="f">Site<select id="fSite"></select></label>
       <label class="f">Status<select id="fStatus"></select></label>
       <label class="f">PM type<select id="fType"></select></label>
+      <button type="button" id="editTypes" hidden title="Add or rename PM types">PM types…</button>
     </div>
     <div class="bar" style="margin-top:12px">
       <span class="count" id="count"></span>
@@ -195,6 +196,20 @@ dialog h2{margin:0;font-size:17px}
       <span class="spacer"></span>
       <button type="button" id="cancel">Cancel</button>
       <button type="button" id="save" class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="types">
+  <form method="dialog">
+    <h2>PM types</h2>
+    <p class="count">One per line, in the order you want them listed. Renaming one here does not change entries already using the old name.</p>
+    <textarea id="typeList" rows="8" spellcheck="false"></textarea>
+    <p class="msg" id="typeMsg"></p>
+    <div class="bar">
+      <span class="spacer"></span>
+      <button type="button" id="typeCancel">Cancel</button>
+      <button type="button" id="typeSave" class="primary">Save</button>
     </div>
   </form>
 </dialog>

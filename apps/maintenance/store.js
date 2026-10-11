@@ -5,13 +5,23 @@
    Management teams, plus admins, can write (firestore.rules). */
 
 import {
-  collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot,
+  collection, doc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot,
   serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../schedule/src/firebase.js'
 
 export const COL = 'maintenance'
-export const PM_TYPES = ['First PM', 'Second PM', 'Other']
+// The PM types a site can be scheduled for. Editable from the page, because
+// warranties run to different lengths and a third or fourth visit is normal.
+// These are only the starting point for a brand new database.
+export const DEFAULT_PM_TYPES = ['First PM', 'Second PM', 'Third PM', 'Fourth PM', 'Other']
+
+// The list lives in a document inside this same collection rather than a
+// collection of its own, so it is already covered by the maintenance rule.
+// A separate collection would have meant another hand-deployed rules change,
+// and those have been the slowest part of shipping this page.
+export const SETTINGS_ID = '_settings'
+const isSettings = (id) => id.startsWith('_')
 export const STATUSES = ['Not started', 'In progress', 'Completed', 'Completed by Biomeds', 'On hold']
 
 /**
@@ -115,7 +125,8 @@ export const yearOf = (e) => (e.due ? Number(e.due.slice(0, 4)) : null)
 export function watchEntries(onChange, onError) {
   return onSnapshot(
     collection(db, COL),
-    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    // Skip the settings document — it shares the collection but is not a PM.
+    (snap) => onChange(snap.docs.filter((d) => !isSettings(d.id)).map((d) => ({ id: d.id, ...d.data() }))),
     onError,
   )
 }
@@ -166,8 +177,31 @@ export async function createMany(entries, who, onProgress) {
   return done
 }
 
+/** Live feed of the editable lists. Falls back to the defaults when unset. */
+export function watchSettings(onChange, onError) {
+  return onSnapshot(
+    doc(db, COL, SETTINGS_ID),
+    (snap) => {
+      const d = snap.exists() ? snap.data() : {}
+      const list = Array.isArray(d.pmTypes) ? d.pmTypes.filter(Boolean) : []
+      onChange({ pmTypes: list.length ? list : DEFAULT_PM_TYPES })
+    },
+    onError,
+  )
+}
+
+export async function savePmTypes(pmTypes, who) {
+  return setDoc(
+    doc(db, COL, SETTINGS_ID),
+    { pmTypes, updatedAt: serverTimestamp(), updatedBy: who },
+    { merge: true },
+  )
+}
+
 /** Bulk delete, same 400-per-batch limit as the import. */
 export async function removeMany(ids, onProgress) {
+  // Never let a bulk delete take the settings document with it.
+  ids = ids.filter((id) => !isSettings(id))
   let done = 0
   for (let i = 0; i < ids.length; i += 400) {
     const chunk = ids.slice(i, i + 400)

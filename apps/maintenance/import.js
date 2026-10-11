@@ -8,7 +8,7 @@
    before they can use the page. */
 
 import { XLSXLite } from '../simprosync/reader.js'
-import { parseDue, PM_TYPES, STATUSES } from './store.js'
+import { parseDue, STATUSES } from './store.js'
 
 const norm = (s) => String(s ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 
@@ -63,9 +63,19 @@ function pickStatus(raw, dateComplete) {
 function pickPmType(raw) {
   const s = norm(raw)
   if (!s) return ''
-  if (s.includes('first') || s === '1st' || s === '1') return 'First PM'
-  if (s.includes('second') || s === '2nd' || s === '2') return 'Second PM'
-  return PM_TYPES.includes(String(raw).trim()) ? String(raw).trim() : 'Other'
+  // Ordinals rather than just the first two: warranties run to different
+  // lengths, so a third or fourth visit is ordinary. Anything unrecognised is
+  // passed through as written rather than flattened to "Other" — a type the
+  // sheet uses is worth keeping, and the list is editable on the page.
+  const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
+  for (let i = 0; i < ORDINALS.length; i++) {
+    const word = ORDINALS[i]
+    const nth = `${i + 1}${['st', 'nd', 'rd'][i] || 'th'}`
+    if (s.includes(word) || s === nth || s === String(i + 1)) {
+      return `${word[0].toUpperCase()}${word.slice(1)} PM`
+    }
+  }
+  return String(raw).trim()
 }
 
 /**
