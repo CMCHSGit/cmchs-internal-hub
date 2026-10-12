@@ -7,6 +7,7 @@
    edit (enforced in firestore.rules; the buttons here only reflect it). */
 
 import { onAuthStateChanged, signInWithPopup } from 'firebase/auth'
+import { findJobsBySerial, jobLabel } from './simpro.js'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
@@ -215,9 +216,47 @@ function openEdit(order, prefill = null, auto = []) {
     const dup = o.so && orders.find((x) => x.so === o.so)
     editMsg(dup
       ? `S.O ${o.so} is already in ${dup.stage}. Saving will add a second copy.`
-      : `${auto.length} of ${AUTO_FIELDS.length} fields found — green ones came from the service order. Add the Simpro job if there is one.`, dup ? 'warn' : '')
+      : `${auto.length} of ${AUTO_FIELDS.length} fields found — green ones came from the service order.`, dup ? 'warn' : '')
+    // The serial is usually enough to identify the Simpro job, so look it up
+    // rather than asking someone to go and find the number. Fire and forget:
+    // the dialog is already usable, and this must not hold up saving.
+    lookUpJob(o.sn, dup)
   }
   $('edit').showModal()
+}
+
+/**
+ * Fills the Simpro job from the serial, if exactly one job matches.
+ *
+ * Deliberately quiet about failures. Editing service orders is open to
+ * Engineers and Management; querying Simpro needs an admin or someone granted
+ * simproAccess. Someone without it should see a job field they can type into,
+ * not an error about a lookup they did not ask for.
+ */
+async function lookUpJob(sn, dup) {
+  const field = $('e-jobs')
+  if (!sn || !canEdit || field.value.trim()) return
+
+  const note = (text, kind) => { if (!dup) editMsg(text, kind) }
+  field.placeholder = 'Looking for a matching job…'
+
+  const { jobs, error } = await findJobsBySerial(sn)
+
+  // They may have typed one, or moved on, while we were asking.
+  if (!$('edit').open || field.value.trim()) return
+  field.placeholder = 'Simpro job number'
+
+  if (error) return note(`Add the Simpro job if there is one — ${error}.`)
+  if (!jobs.length) return note(`No Simpro job mentions ${sn}. Add the job number if there is one.`)
+
+  if (jobs.length === 1) {
+    field.value = jobs[0].ID
+    field.classList.add('auto')
+    return note(`Simpro job ${jobLabel(jobs[0])} matched on serial ${sn}.`, 'ok')
+  }
+
+  // More than one: filling in the wrong job is worse than filling in none.
+  note(`${jobs.length} Simpro jobs mention ${sn}: ${jobs.map((j) => j.ID).join(', ')}. Pick the right one.`)
 }
 
 function updateAdvance() {
