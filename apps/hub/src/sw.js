@@ -11,7 +11,8 @@
 //    in self.__WB_MANIFEST below.
 import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
-import { NetworkFirst } from 'workbox-strategies'
+import { CacheFirst, NetworkFirst } from 'workbox-strategies'
+import { ExpirationPlugin } from 'workbox-expiration'
 
 // Activate a new deploy immediately instead of waiting for every open tab to
 // close first — otherwise people can be stuck on stale cached UI. This is also
@@ -24,6 +25,28 @@ precacheAndRoute(self.__WB_MANIFEST)
 registerRoute(
   ({ url }) => url.origin === 'https://firestore.googleapis.com',
   new NetworkFirst({ cacheName: 'firestore-cache' })
+)
+
+// A tool's own scripts, styles and fonts, kept the first time it is opened
+// rather than downloaded up front with everything else. They carry a content
+// hash in the filename, so a cached one is never stale — a new build is a new
+// URL. This is what lets the precache stay small without losing offline use of
+// the tools someone actually opens.
+registerRoute(
+  ({ url, request }) =>
+    url.origin === self.location.origin &&
+    ['script', 'style', 'font'].includes(request.destination),
+  new CacheFirst({
+    cacheName: 'tool-assets',
+    plugins: [new ExpirationPlugin({ maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true })],
+  }),
+)
+
+// A tool's page itself: fresh when there is a network, the last copy when
+// there is not. Covers the pages left out of the precache (Ansur, demo).
+registerRoute(
+  ({ url, request }) => request.mode === 'navigate' && url.origin === self.location.origin,
+  new NetworkFirst({ cacheName: 'tool-pages', networkTimeoutSeconds: 4 }),
 )
 
 // The schedule routes client-side, so /schedule/my and friends have no file

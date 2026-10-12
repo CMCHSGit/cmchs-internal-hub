@@ -69,7 +69,28 @@ const { count, size, warnings } = await injectManifest({
   swSrc: join(DIST, 'sw-src.js'),
   swDest: join(DIST, 'sw.js'),
   globDirectory: DIST,
-  globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,webmanifest}'],
+  // Only the hub's own shell, plus each tool's entry page. Precaching
+  // everything meant opening the hub downloaded 3.2 MB, of which 2.6 MB was
+  // tools you may never open - four separate Vite builds each shipping their
+  // own ~490 KB copy of the Firebase SDK. A tool's assets are cached the first
+  // time it is actually opened instead (the runtime route in sw.js), so
+  // offline use of anything you have used is unaffected.
+  globPatterns: [
+    'index.html',
+    '404.html',
+    'manifest.webmanifest',
+    'assets/**/*.{js,css}',
+    'shared/**/*.js',
+    'brand/**/*.png',
+    'icons/**/*.png',
+    // Entry pages are small and make a tool open instantly. The schedule's is
+    // not optional: the worker's NavigationRoute hands deep links to it by URL,
+    // which only resolves if it is precached.
+    'schedule/index.html',
+    'maintenance/index.html',
+    'simprosync/index.html',
+    'service-orders/index.html',
+  ],
   globIgnores: [
     'sw-src.js',
     // Big, rarely opened, or wanted fresh rather than cached. Precaching these

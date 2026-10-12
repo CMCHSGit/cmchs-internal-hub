@@ -97,6 +97,15 @@ export function startApp({ transport, who }) {
   }
   $('company').onchange = () => { store.set('simproSync.company', $('company').value); resetResults(); loadTypes().catch(e => showError(e.message)); };
 
+  // Which sheets are ticked when a workbook is opened: Monitors and IT. Matched
+  // loosely because the tab gets named slightly differently from month to month
+  // ("Monitors", "Monitor", "IT Assets"), and a tick is easy to correct - an
+  // exact match that silently ticked nothing would not be.
+  function isSyncedSheet(name) {
+    const n = String(name || '').trim().toLowerCase();
+    return /^monitors?\b/.test(n) || /\bit\b/.test(n);
+  }
+
   // the "IT" sheet goes in as "Mindray IT"; everything else defaults to "Mindray"
   function defaultTypeIdForSheet(sheetName) {
     const want = /^\s*IT\s*$/i.test(sheetName || '') ? 'mindray it' : 'mindray';
@@ -125,7 +134,11 @@ export function startApp({ transport, who }) {
     });
     el.innerHTML = book.sheets.map((name, i) => {
       const p = prior[i];
-      const checked = p ? p.checked : true;
+      // Default to the two sheets that are actually synced. The workbook also
+      // carries sheets nobody uploads (summaries, notes, other sites), and
+      // having those ticked meant unticking them every single run - the kind
+      // of step that eventually gets forgotten and syncs the wrong thing.
+      const checked = p ? p.checked : isSyncedSheet(name);
       const tid = (p && p.tid) || defaultTypeIdForSheet(name);
       return `<div class="row sheetrow" data-idx="${i}" style="gap:8px;align-items:center;flex-wrap:nowrap">
         <label style="display:flex;align-items:center;gap:6px;min-width:0;flex:2;font-size:14px;color:var(--ink);cursor:pointer">
