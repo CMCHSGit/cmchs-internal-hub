@@ -81,6 +81,9 @@ const SyncCore = (() => {
       const site = asText(r[SITE_COL]); const ser = asText(r[MATCH_FIELD]).toUpperCase();
       if (!ser) { warnings.push({ row: rownum, serial: '', msg: 'No serial number - row skipped' }); continue; }
       if (only && !only.has(ser)) continue;
+      // No site means nothing to match against and nowhere to create it - it
+      // used to fall through as a "create" and only fail at Apply.
+      if (!/^\d+$/.test(site)) { warnings.push({ row: rownum, serial: ser, msg: site ? `Site ID '${site}' is not a number - row skipped` : `No ${SITE_COL} - row skipped` }); continue; }
       const key = `${site}|${ser}`;
       if (seen.has(key)) { warnings.push({ row: rownum, serial: ser, msg: 'Serial appears twice in the sheet - second row skipped' }); continue; }
       seen.add(key);
