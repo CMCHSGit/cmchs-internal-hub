@@ -13,10 +13,13 @@
 //  - Its service worker and push notifications are switched off here. The
 //    site has one worker, the hub's, and one push setup, the schedule's.
 //    Push for the demo tracker stays on demo.chsnz.co.nz.
-//  - Always the desktop layout, phones included (it adapts to narrow
-//    screens). The phone layout has its own sign-in that only passes once
-//    it has matched you against the team list, loaded after it has already
-//    picked a layout.
+//  - The phone layout is used on phone-sized screens only. The tracker
+//    treats "installed" as "phone", which is true on demo.chsnz.co.nz but
+//    not here: the hub is installed on desktops too, and an installed
+//    desktop would otherwise get the phone UI. So standalone is reported by
+//    width instead.
+//  - Your name is taken from the hub sign-in, so neither layout asks who you
+//    are a second time.
 //
 // READ_ONLY = true turns it back into a read-only copy: every write refused
 // before it leaves the browser, editing buttons dimmed, a banner. It was
@@ -38,28 +41,55 @@
   // page: the hub's worker still serves it inside the installed app.
   try { delete Navigator.prototype.serviceWorker } catch (e) {}
 
+  // The tracker asks "am I installed?" to decide between its phone and
+  // desktop layouts. On its own domain that is a fair proxy; inside the hub
+  // it is not, because the hub is installed on laptops as well. Answer by
+  // width so an installed phone gets the phone layout and an installed
+  // desktop does not.
+  var PHONE = '(max-width: 820px)'
   var realMatchMedia = window.matchMedia.bind(window)
   window.matchMedia = function (q) {
-    if (/display-mode:\s*standalone/.test(q)) return realMatchMedia('(width: -1px)') // never matches
+    if (/display-mode:\s*standalone/.test(q)) return realMatchMedia(PHONE)
     return realMatchMedia(q)
   }
-  try { Object.defineProperty(navigator, 'standalone', { value: false }) } catch (e) {}
   try {
-    var params = new URLSearchParams(location.search)
-    if (params.has('mobile')) {
-      params.delete('mobile')
-      var qs = params.toString()
-      history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : '') + location.hash)
-    }
+    Object.defineProperty(navigator, 'standalone', { value: realMatchMedia(PHONE).matches })
   } catch (e) {}
 
-  // "Who are you?" puts your name on the audit log. Read-only had nothing to
-  // log, so it answered with a placeholder; with writes on, that placeholder
-  // must not end up in the log, so clear it and let the tracker ask.
+  // "Who are you?" puts your name on the audit log. You already told the hub
+  // who you are, so asking again is a second sign-in for nothing - take the
+  // name from the Firebase session the hub stores here. It is plain
+  // localStorage, so this is available before the tracker's own first script
+  // runs, which matters: the layout and resume decisions happen immediately.
+  //
+  // Optimistic on purpose. If the name is not one the tracker knows, the
+  // phone layout falls back to its own sign-in and the desktop layout simply
+  // logs the name as given - which is still who did it.
+  function hubName() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i)
+        if (k.indexOf('firebase:authUser:') !== 0) continue
+        var u = JSON.parse(localStorage.getItem(k) || '{}')
+        var n = (u.displayName || '').trim()
+        if (n) return n
+      }
+    } catch (e) {}
+    return ''
+  }
+
   try {
     var op = localStorage.getItem('chs_operator')
     if (READ_ONLY && !op) localStorage.setItem('chs_operator', VIEWER)
-    if (!READ_ONLY && op === VIEWER) localStorage.removeItem('chs_operator')
+    if (!READ_ONLY && op === VIEWER) { localStorage.removeItem('chs_operator'); op = null }
+    if (!READ_ONLY) {
+      var who = hubName()
+      if (who) {
+        localStorage.setItem('chs_operator', who)
+        // The phone layout only skips its sign-in when both of these are set.
+        localStorage.setItem('chs_mobile_auth', '1')
+      }
+    }
   } catch (e) {}
 
   if (!READ_ONLY) return
