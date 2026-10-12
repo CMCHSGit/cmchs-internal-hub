@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/fonts.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/colors.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/typography.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/spacing.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/radius.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/elevation.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/motion.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/tokens/base.css">
+  <link rel="stylesheet" href="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/styles.css">
+  <script src="https://unpkg.com/lucide@0.451.0/dist/umd/lucide.js"></script>
+  <script src="_ds/connected-healthcare-systems-design-syst-914962cd-e731-4d50-8ee9-8e6faf54401d/_ds_bundle.js"></script>
+  <style>html,body{margin:0;height:100%} [role=tab]{border-top:0;border-left:0;border-right:0} a{color:#554596} a:hover{color:#3f3374}</style>
+</helmet>
+<div ref="{{rootRef}}" style="position:relative;height:{{rootH}};display:flex;flex-direction:column;background:#f4f4f5;color:var(--text-body);font:var(--type-body);overflow:hidden">
+
+  <sc-if value="{{isSignin}}" hint-placeholder-val="{{ false }}">
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;background:#ffffff">
+      <div style="width:100%;max-width:380px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:4px"><span style="width:30px;height:5px;background:#554596"></span><span style="width:30px;height:5px;background:#80bd01"></span><span style="width:30px;height:5px;background:#ef7d00"></span></div>
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Logo" width="{{ 180 }}" clear-space="{{ false }}" asset-base="assets" hint-size="180px,48px"></x-import>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">internal.chsnz.co.nz</span>
+          <h2 style="margin:0;font:var(--type-h2);letter-spacing:-.01em;color:#1d1d1d">CMCHS Internal Hub</h2>
+          <p style="margin:0;font:var(--type-body);color:#575756;text-wrap:pretty">Sign in with your Cass Medical Microsoft 365 account to open the demo tracker, staff schedule and service tools.</p>
+        </div>
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" size="lg" block="{{ true }}" on-click="{{signIn}}" hint-size="100%,48px">Sign in with Microsoft</x-import>
+        <span style="font:var(--type-caption);color:#747577">Trouble signing in? Call the office on 0800 424 797.</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{notSignin}}" hint-placeholder-val="{{ true }}">
+    <header style="position:relative;z-index:6;background:#ffffff;flex:0 0 auto">
+      <div style="display:flex;align-items:center;gap:20px;padding:0 {{pad}};min-height:64px">
+        <div onClick="{{goHome}}" style="display:flex;align-items:center;gap:14px;flex:0 0 auto;cursor:pointer">
+          <sc-if value="{{showFullLogo}}" hint-placeholder-val="{{ true }}">
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Logo" width="{{ 150 }}" clear-space="{{ false }}" asset-base="assets" hint-size="150px,40px"></x-import>
+            <span style="width:1px;height:28px;background:#d1d3d4"></span>
+          </sc-if>
+          <sc-if value="{{showMarkLogo}}" hint-placeholder-val="{{ false }}">
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Logo" variant="mark" width="{{ 32 }}" clear-space="{{ false }}" asset-base="assets" hint-size="32px,32px"></x-import>
+          </sc-if>
+          <span style="font:var(--type-h4);color:#1d1d1d;white-space:nowrap">Internal Hub</span>
+        </div>
+        <sc-if value="{{showTabs}}" hint-placeholder-val="{{ true }}">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tabs" tabs="{{navTabs}}" value="{{navValue}}" on-change="{{setScreen}}" style="border-bottom:none;align-self:flex-end" hint-size="320px,48px"></x-import>
+        </sc-if>
+        <div style="flex:1"></div>
+        <sc-if value="{{showHeaderSearch}}" hint-placeholder-val="{{ true }}">
+          <div style="position:relative;width:340px;max-width:40vw">
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{q}}" placeholder="Search tools and people" size="sm" on-change="{{setQ}}" icon-left="{{searchIcon}}" style="width:100%" hint-size="340px,36px"></x-import>
+            <sc-if value="{{showHeaderResults}}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:44px;right:0;width:400px;max-width:90vw;background:#ffffff;border-radius:10px;box-shadow:0 16px 48px rgba(29,29,29,.2);padding:8px;display:flex;flex-direction:column;gap:2px">
+                <sc-for list="{{toolHits}}" as="h" hint-placeholder-count="2">
+                  <button onClick="{{h.onOpen}}" style="display:flex;align-items:center;gap:12px;border:0;background:transparent;padding:8px 10px;border-radius:6px;cursor:pointer;text-align:left;font-family:var(--font-body)" style-hover="background:#f4f4f5">
+                    <span style="width:32px;height:32px;border-radius:6px;background:#dbd7ed;color:#554596;display:flex;align-items:center;justify-content:center;flex:0 0 auto"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{h.icon}}" size="{{ 16 }}" hint-size="16px,16px"></x-import></span>
+                    <span style="display:flex;flex-direction:column;min-width:0"><span style="font:var(--type-body-strong);color:#1d1d1d">{{h.name}}</span><span style="font:var(--type-caption);color:#747577">{{h.desc}}</span></span>
+                  </button>
+                </sc-for>
+                <sc-for list="{{peopleHits}}" as="p" hint-placeholder-count="0">
+                  <button onClick="{{goPeople}}" style="display:flex;align-items:center;gap:12px;border:0;background:transparent;padding:8px 10px;border-radius:6px;cursor:pointer;text-align:left;font-family:var(--font-body)" style-hover="background:#f4f4f5">
+                    <span style="width:32px;height:32px;border-radius:999px;background:#f4f4f5;color:#575756;display:flex;align-items:center;justify-content:center;font:600 12px/1 var(--font-body);flex:0 0 auto">{{p.initials}}</span>
+                    <span style="display:flex;flex-direction:column;min-width:0"><span style="font:var(--type-body-strong);color:#1d1d1d">{{p.name}}</span><span style="font:var(--type-caption);color:#747577">{{p.deptName}} · {{p.where}}</span></span>
+                  </button>
+                </sc-for>
+                <sc-if value="{{noHits}}" hint-placeholder-val="{{ false }}">
+                  <span style="padding:10px;font:var(--type-body-sm);color:#747577">No tools or people match that search.</span>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+        <div style="display:flex;align-items:center;gap:10px;flex:0 0 auto">
+          <span style="width:34px;height:34px;border-radius:999px;background:#554596;color:#ffffff;display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-body)">PL</span>
+          <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><span style="display:flex;flex-direction:column;line-height:1.2"><span style="font:600 14px/1.2 var(--font-body);color:#1d1d1d">Peter Lin</span><span style="font:var(--type-caption);color:#747577">Service</span></span></sc-if>
+        </div>
+      </div>
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.StripeRule" thickness="{{ 4 }}" hint-size="100%,4px"></x-import>
+    </header>
+
+    <div style="flex:1;min-height:0;display:flex">
+
+      <sc-if value="{{showSidebar}}" hint-placeholder-val="{{ false }}">
+        <aside style="width:256px;flex:0 0 auto;background:#ffffff;border-right:1px solid #e8e9ea;display:flex;flex-direction:column;gap:16px;padding:16px;overflow:auto">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{q}}" placeholder="Search tools" size="sm" on-change="{{setQ}}" icon-left="{{searchIcon}}" style="width:100%" hint-size="100%,36px"></x-import>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577;padding:0 10px 6px">Tools</span>
+            <sc-for list="{{sideTools}}" as="t" hint-placeholder-count="7">
+              <button onClick="{{t.onOpen}}" style="display:flex;align-items:center;gap:10px;border:0;background:{{t.sideBg}};color:{{t.sideFg}};padding:9px 10px;border-radius:6px;cursor:pointer;text-align:left;font:400 15px/1.3 var(--font-body);min-height:40px" style-hover="background:#f4f4f5">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{t.icon}}" size="{{ 18 }}" hint-size="18px,18px"></x-import>
+                <span style="flex:1;min-width:0">{{t.name}}</span>
+                <sc-if value="{{t.isTab}}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="external-link" size="{{ 14 }}" style="color:#a7a9ac" hint-size="14px,14px"></x-import></sc-if>
+              </button>
+            </sc-for>
+            <sc-if value="{{noSideTools}}" hint-placeholder-val="{{ false }}"><span style="padding:8px 10px;font:var(--type-body-sm);color:#747577">No tools match that search.</span></sc-if>
+          </div>
+          <div style="height:1px;background:#e8e9ea"></div>
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{sideNav}}" as="n" hint-placeholder-count="3">
+              <button onClick="{{n.onClick}}" style="display:flex;align-items:center;gap:10px;border:0;background:{{n.bg}};color:{{n.fg}};padding:9px 10px;border-radius:6px;cursor:pointer;text-align:left;font:400 15px/1.3 var(--font-body);min-height:40px" style-hover="background:#f4f4f5">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{n.icon}}" size="{{ 18 }}" hint-size="18px,18px"></x-import>{{n.label}}
+              </button>
+            </sc-for>
+          </div>
+        </aside>
+      </sc-if>
+
+      <main style="flex:1;min-width:0;display:flex;flex-direction:column;overflow:{{mainOverflow}}">
+
+        <!-- TOOL VIEW -->
+        <sc-if value="{{isTool}}" hint-placeholder-val="{{ false }}">
+          <div style="flex:0 0 auto;display:flex;align-items:center;gap:12px;padding:8px {{pad}};background:#ffffff;border-bottom:1px solid #e8e9ea;min-height:52px">
+            <sc-if value="{{noSidebar}}" hint-placeholder-val="{{ true }}">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="ghost" size="sm" on-click="{{goHome}}" icon-left="{{backIcon}}" hint-size="100px,32px">{{backLabel}}</x-import>
+              <span style="width:1px;height:24px;background:#d1d3d4"></span>
+            </sc-if>
+            <span style="width:30px;height:30px;border-radius:6px;background:#dbd7ed;color:#554596;display:flex;align-items:center;justify-content:center;flex:0 0 auto"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{cur.icon}}" size="{{ 16 }}" hint-size="16px,16px"></x-import></span>
+            <div style="display:flex;flex-direction:column;min-width:0;flex:1">
+              <span style="font:600 16px/1.2 var(--font-body);color:#1d1d1d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{cur.name}}</span>
+              <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><span style="font:400 11.5px/1.3 var(--font-mono);color:#747577">{{cur.host}}</span></sc-if>
+            </div>
+            <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:6px">
+                <sc-for list="{{switchTools}}" as="s" hint-placeholder-count="3">
+                  <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tag" on-click="{{s.onOpen}}" style="white-space:nowrap" hint-size="110px,30px">{{s.name}}</x-import>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="secondary" size="sm" on-click="{{popCur}}" icon-right="{{popIcon}}" hint-size="110px,32px">Pop out</x-import>
+            </sc-if>
+            <sc-if value="{{narrow}}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Open in a new tab" on-click="{{popCur}}" hint-size="40px,40px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="external-link" hint-size="20px,20px"></x-import></x-import>
+            </sc-if>
+          </div>
+          <iframe src="{{cur.url}}" title="{{cur.name}}" style="flex:1;width:100%;border:0;background:#ffffff;display:block"></iframe>
+        </sc-if>
+
+        <!-- HOME · LAUNCHER -->
+        <sc-if value="{{isLauncher}}" hint-placeholder-val="{{ true }}">
+          <div style="width:100%;max-width:1180px;margin:0 auto;padding:{{pagePad}};box-sizing:border-box;display:flex;flex-direction:column;gap:28px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">{{dateLabel}}</span>
+              <h1 style="margin:0;font:var(--type-h1);letter-spacing:-.02em;color:#1d1d1d">Kia ora, Peter</h1>
+            </div>
+            <div style="display:grid;grid-template-columns:{{todayCols}};gap:12px">
+              <sc-for list="{{todayCards}}" as="c" hint-placeholder-count="3">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="16px 18px" interactive="{{ true }}" on-click="{{openSchedule}}" hint-size="100%,96px">
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <span style="display:flex;align-items:center;gap:8px;font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{c.icon}}" size="{{ 14 }}" hint-size="14px,14px"></x-import>{{c.label}}</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <sc-for list="{{c.chips}}" as="ch" hint-placeholder-count="2">
+                        <span style="background:{{ch.bg}};border-radius:3px;padding:2px 8px;font-size:14px;color:#1d1d1d;white-space:nowrap">{{ch.name}}</span>
+                      </sc-for>
+                      <sc-if value="{{c.empty}}" hint-placeholder-val="{{ false }}"><span style="font:var(--type-body-sm);color:#747577">{{c.emptyText}}</span></sc-if>
+                    </div>
+                  </div>
+                </x-import>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:{{homeCols}};gap:28px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:28px;min-width:0">
+                <sc-if value="{{hasRecent}}" hint-placeholder-val="{{ true }}">
+                  <div style="display:flex;flex-direction:column;gap:10px">
+                    <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Recently used</span>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <sc-for list="{{recentTools}}" as="r" hint-placeholder-count="3">
+                        <button onClick="{{r.onOpen}}" style="display:flex;align-items:center;gap:10px;border:1px solid #d1d3d4;background:#ffffff;padding:8px 14px 8px 10px;border-radius:6px;cursor:pointer;font:600 14px/1.2 var(--font-body);color:#1d1d1d;min-height:44px;transition:background 150ms cubic-bezier(.2,.6,.2,1)" style-hover="background:#dbd7ed;border-color:#cac4e3">
+                          <span style="color:#554596;display:flex"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{r.icon}}" size="{{ 18 }}" hint-size="18px,18px"></x-import></span>{{r.name}}
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+                <sc-for list="{{toolGroups}}" as="g" hint-placeholder-count="4">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="display:flex;gap:3px"><span style="width:12px;height:4px;background:{{g.c1}}"></span><span style="width:12px;height:4px;background:{{g.c2}}"></span></span>
+                    <span style="font:var(--type-h4);color:#1d1d1d">{{g.name}}</span>
+                    <span style="font:400 11.5px/1 var(--font-mono);color:#a7a9ac">{{g.count}}</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px">
+                    <sc-for list="{{g.tools}}" as="t" hint-placeholder-count="3">
+                      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="18px" interactive="{{ true }}" on-click="{{t.onOpen}}" style="height:100%;box-sizing:border-box" hint-size="100%,170px">
+                        <div style="display:flex;flex-direction:column;gap:10px;height:100%">
+                          <div style="display:flex;align-items:flex-start;justify-content:space-between">
+                            <span style="width:40px;height:40px;border-radius:6px;background:#dbd7ed;color:#554596;display:flex;align-items:center;justify-content:center"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{t.icon}}" size="{{ 20 }}" hint-size="20px,20px"></x-import></span>
+                            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Open in a new tab" on-click="{{t.onPop}}" hint-size="36px,36px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="external-link" size="{{ 16 }}" hint-size="16px,16px"></x-import></x-import>
+                          </div>
+                          <div style="display:flex;flex-direction:column;gap:2px;flex:1">
+                            <span style="font:600 16px/1.3 var(--font-body);color:#1d1d1d">{{t.name}}</span>
+                            <span style="font:var(--type-body-sm);color:#575756;text-wrap:pretty">{{t.desc}}</span>
+                          </div>
+                          <span style="font:400 11.5px/1.3 var(--font-mono);color:#747577;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0">{{t.host}}</span>
+                        </div>
+                      </x-import>
+                    </sc-for>
+                  </div>
+                </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+                <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Announcements</span>
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="0" accent="stripes" hint-size="100%,320px">
+                  <div style="display:flex;flex-direction:column">
+                    <sc-for list="{{anns}}" as="a" hint-placeholder-count="3">
+                      <div style="display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-top:{{a.rule}}">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <sc-if value="{{a.pinned}}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Badge" tone="orange" hint-size="60px,22px">Pinned</x-import></sc-if>
+                          <span style="font:var(--type-caption);color:#747577">{{a.date}} · {{a.author}}</span>
+                        </div>
+                        <span style="font:600 15px/1.35 var(--font-body);color:#1d1d1d">{{a.title}}</span>
+                        <span style="font:var(--type-body-sm);color:#575756;text-wrap:pretty">{{a.body}}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </x-import>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- HOME · SIDEBAR DASHBOARD -->
+        <sc-if value="{{isSideHome}}" hint-placeholder-val="{{ false }}">
+          <div style="width:100%;max-width:1040px;padding:32px 32px 48px;box-sizing:border-box;display:flex;flex-direction:column;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">{{dateLabel}}</span>
+              <h1 style="margin:0;font:var(--type-h1);letter-spacing:-.02em;color:#1d1d1d">Kia ora, Peter</h1>
+            </div>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="0" hint-size="100%,120px">
+              <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr))">
+                <sc-for list="{{todayCards}}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex;flex-direction:column;gap:10px;padding:18px 20px;border-left:{{c.rule}}">
+                    <span style="display:flex;align-items:center;gap:8px;font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{c.icon}}" size="{{ 14 }}" hint-size="14px,14px"></x-import>{{c.label}}</span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <sc-for list="{{c.chips}}" as="ch" hint-placeholder-count="2">
+                        <span style="background:{{ch.bg}};border-radius:3px;padding:2px 8px;font-size:14px;color:#1d1d1d;white-space:nowrap">{{ch.name}}</span>
+                      </sc-for>
+                      <sc-if value="{{c.empty}}" hint-placeholder-val="{{ false }}"><span style="font:var(--type-body-sm);color:#747577">{{c.emptyText}}</span></sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="border-top:1px solid #e8e9ea;padding:10px 20px;display:flex;justify-content:flex-end">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" variant="ghost" size="sm" on-click="{{openSchedule}}" hint-size="150px,32px">Open staff schedule</x-import>
+              </div>
+            </x-import>
+            <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Recently used</span>
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="6px" hint-size="100%,200px">
+                  <div style="display:flex;flex-direction:column">
+                    <sc-for list="{{recentTools}}" as="r" hint-placeholder-count="3">
+                      <button onClick="{{r.onOpen}}" style="display:flex;align-items:center;gap:12px;border:0;background:transparent;padding:10px 12px;border-radius:6px;cursor:pointer;text-align:left;font-family:var(--font-body);min-height:56px" style-hover="background:#f4f4f5">
+                        <span style="width:36px;height:36px;border-radius:6px;background:#dbd7ed;color:#554596;display:flex;align-items:center;justify-content:center;flex:0 0 auto"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{r.icon}}" size="{{ 18 }}" hint-size="18px,18px"></x-import></span>
+                        <span style="display:flex;flex-direction:column;min-width:0;flex:1"><span style="font:600 15px/1.3 var(--font-body);color:#1d1d1d">{{r.name}}</span><span style="font:var(--type-caption);color:#747577">{{r.desc}}</span></span>
+                        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="chevron-right" size="{{ 18 }}" style="color:#a7a9ac" hint-size="18px,18px"></x-import>
+                      </button>
+                    </sc-for>
+                  </div>
+                </x-import>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Announcements</span>
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="0" accent="stripes" hint-size="100%,300px">
+                  <div style="display:flex;flex-direction:column">
+                    <sc-for list="{{anns}}" as="a" hint-placeholder-count="3">
+                      <div style="display:flex;flex-direction:column;gap:4px;padding:16px 18px;border-top:{{a.rule}}">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <sc-if value="{{a.pinned}}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Badge" tone="orange" hint-size="60px,22px">Pinned</x-import></sc-if>
+                          <span style="font:var(--type-caption);color:#747577">{{a.date}} · {{a.author}}</span>
+                        </div>
+                        <span style="font:600 15px/1.35 var(--font-body);color:#1d1d1d">{{a.title}}</span>
+                        <span style="font:var(--type-body-sm);color:#575756;text-wrap:pretty">{{a.body}}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </x-import>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- HOME · SEARCH FIRST -->
+        <sc-if value="{{isSearchHome}}" hint-placeholder-val="{{ false }}">
+          <div style="background:#ffffff;border-bottom:1px solid #e8e9ea">
+            <div style="width:100%;max-width:760px;margin:0 auto;padding:{{heroPad}};box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">{{dateLabel}} · Kia ora, Peter</span>
+              <h1 style="margin:0;font:var(--type-h1);letter-spacing:-.02em;color:#1d1d1d">What do you need today?</h1>
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{q}}" placeholder="Search tools and people" size="lg" on-change="{{setQ}}" icon-left="{{searchIcon}}" style="width:100%" hint-size="100%,48px"></x-import>
+              <sc-if value="{{hasRecent}}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                  <span style="font:var(--type-caption);color:#747577">Recent</span>
+                  <sc-for list="{{recentTools}}" as="r" hint-placeholder-count="3">
+                    <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tag" on-click="{{r.onOpen}}" style="white-space:nowrap" hint-size="110px,30px">{{r.name}}</x-import>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+          <div style="width:100%;max-width:760px;margin:0 auto;padding:{{bodyPad}};box-sizing:border-box;display:flex;flex-direction:column;gap:28px">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">{{listTitle}}</span>
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="6px" hint-size="100%,400px">
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{listTools}}" as="t" hint-placeholder-count="7">
+                    <div onClick="{{t.onOpen}}" style="display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:6px;cursor:pointer;min-height:56px" style-hover="background:#f4f4f5">
+                      <span style="width:38px;height:38px;border-radius:6px;background:#dbd7ed;color:#554596;display:flex;align-items:center;justify-content:center;flex:0 0 auto"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{t.icon}}" size="{{ 18 }}" hint-size="18px,18px"></x-import></span>
+                      <span style="display:flex;flex-direction:column;min-width:0;flex:1"><span style="font:600 15px/1.3 var(--font-body);color:#1d1d1d">{{t.name}}</span><span style="font:var(--type-body-sm);color:#747577;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{t.desc}}</span></span>
+                      <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Badge" tone="neutral" hint-size="70px,22px">{{t.team}}</x-import></sc-if>
+                      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Open in a new tab" on-click="{{t.onPop}}" hint-size="36px,36px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="external-link" size="{{ 16 }}" hint-size="16px,16px"></x-import></x-import>
+                    </div>
+                  </sc-for>
+                  <sc-for list="{{peopleHits}}" as="p" hint-placeholder-count="0">
+                    <div onClick="{{goPeople}}" style="display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:6px;cursor:pointer;min-height:56px" style-hover="background:#f4f4f5">
+                      <span style="width:38px;height:38px;border-radius:999px;background:#f4f4f5;color:#575756;display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-body);flex:0 0 auto">{{p.initials}}</span>
+                      <span style="display:flex;flex-direction:column;min-width:0;flex:1"><span style="font:600 15px/1.3 var(--font-body);color:#1d1d1d">{{p.name}}</span><span style="font:var(--type-body-sm);color:#747577">{{p.deptName}} · {{p.where}}</span></span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{noHits}}" hint-placeholder-val="{{ false }}"><span style="padding:14px 12px;font:var(--type-body-sm);color:#747577">No tools or people match that search.</span></sc-if>
+                </div>
+              </x-import>
+            </div>
+            <div style="display:grid;grid-template-columns:{{searchCols}};gap:14px">
+              <sc-for list="{{todayCards}}" as="c" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <span style="display:flex;align-items:center;gap:8px;font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{c.icon}}" size="{{ 14 }}" hint-size="14px,14px"></x-import>{{c.label}}</span>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <sc-for list="{{c.chips}}" as="ch" hint-placeholder-count="2"><span style="background:{{ch.bg}};border:1px solid #e8e9ea;border-radius:3px;padding:2px 8px;font-size:14px;color:#1d1d1d;white-space:nowrap">{{ch.name}}</span></sc-for>
+                    <sc-if value="{{c.empty}}" hint-placeholder-val="{{ false }}"><span style="font:var(--type-body-sm);color:#747577">{{c.emptyText}}</span></sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Announcements</span>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{anns}}" as="a" hint-placeholder-count="3">
+                  <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="14px 18px" accent="{{a.accent}}" hint-size="100%,90px">
+                    <div style="display:flex;flex-direction:column;gap:4px">
+                      <span style="font:var(--type-caption);color:#747577">{{a.date}} · {{a.author}}</span>
+                      <span style="font:600 15px/1.35 var(--font-body);color:#1d1d1d">{{a.title}}</span>
+                      <span style="font:var(--type-body-sm);color:#575756;text-wrap:pretty">{{a.body}}</span>
+                    </div>
+                  </x-import>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- PEOPLE -->
+        <sc-if value="{{isPeople}}" hint-placeholder-val="{{ false }}">
+          <div style="width:100%;max-width:1180px;margin:0 auto;padding:{{pagePad}};box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Staff directory</span>
+              <h2 style="margin:0;font:var(--type-h2);letter-spacing:-.01em;color:#1d1d1d">Who's where today</h2>
+              <span style="font:var(--type-body-sm);color:#747577">{{peopleSub}}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{dq}}" placeholder="Search person" size="sm" on-change="{{setDq}}" style="width:{{dirSearchW}}" hint-size="220px,36px"></x-import>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <sc-for list="{{deptTags}}" as="t" hint-placeholder-count="6">
+                  <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tag" selected="{{t.selected}}" on-click="{{t.onClick}}" style="white-space:nowrap" hint-size="90px,30px">{{t.name}}</x-import>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">
+              <sc-for list="{{dirPeople}}" as="p" hint-placeholder-count="12">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="12px 14px" hint-size="100%,64px">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="width:38px;height:38px;border-radius:999px;background:{{p.avBg}};color:{{p.avFg}};display:flex;align-items:center;justify-content:center;font:600 13px/1 var(--font-body);flex:0 0 auto">{{p.initials}}</span>
+                    <div style="display:flex;flex-direction:column;min-width:0;flex:1">
+                      <span style="font:600 15px/1.3 var(--font-body);color:#1d1d1d">{{p.label}}</span>
+                      <span style="display:flex;align-items:center;gap:6px;font:var(--type-body-sm);color:#575756;min-width:0"><span style="width:10px;height:10px;border-radius:3px;background:{{p.bg}};border:1px solid #a7a9ac;flex:0 0 auto"></span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{p.where}}</span></span>
+                    </div>
+                    <span style="font:var(--type-caption);color:#747577">{{p.deptName}}</span>
+                  </div>
+                </x-import>
+              </sc-for>
+            </div>
+            <sc-if value="{{noDir}}" hint-placeholder-val="{{ false }}"><span style="font:var(--type-body-sm);color:#747577">No one matches that search.</span></sc-if>
+          </div>
+        </sc-if>
+
+        <!-- MANAGE -->
+        <sc-if value="{{isAdmin}}" hint-placeholder-val="{{ false }}">
+          <div style="width:100%;max-width:1180px;margin:0 auto;padding:{{pagePad}};box-sizing:border-box;display:flex;flex-direction:column;gap:20px">
+            <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:220px">
+                <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Manage</span>
+                <h2 style="margin:0;font:var(--type-h2);letter-spacing:-.01em;color:#1d1d1d">Tools and announcements</h2>
+              </div>
+              <sc-if value="{{adminTools}}" hint-placeholder-val="{{ true }}">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" on-click="{{openAdd}}" icon-left="{{plusIcon}}" hint-size="120px,40px">Add a tool</x-import>
+              </sc-if>
+              <sc-if value="{{adminAnns}}" hint-placeholder-val="{{ false }}">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Button" on-click="{{openAnn}}" icon-left="{{plusIcon}}" hint-size="170px,40px">Post announcement</x-import>
+              </sc-if>
+            </div>
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Tabs" tabs="{{adminTabs}}" value="{{adminTab}}" on-change="{{setAdminTab}}" hint-size="100%,48px"></x-import>
+
+            <sc-if value="{{adminTools}}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;grid-template-columns:{{adminCols}};gap:20px;align-items:start">
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="0" style="overflow:hidden" hint-size="100%,460px">
+                  <div style="display:flex;flex-direction:column">
+                    <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}">
+                      <div style="display:grid;grid-template-columns:minmax(0,1.6fr) 110px 110px 80px 44px;gap:12px;padding:12px 18px;border-bottom:1px solid #e8e9ea;background:#f4f4f5">
+                        <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Tool</span>
+                        <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Category</span>
+                        <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Opens</span>
+                        <span style="font:var(--type-overline);letter-spacing:.14em;text-transform:uppercase;color:#747577">Shown</span>
+                        <span></span>
+                      </div>
+                    </sc-if>
+                    <sc-for list="{{adminRows}}" as="t" hint-placeholder-count="7">
+                      <div style="display:grid;grid-template-columns:{{rowCols}};gap:12px;align-items:center;padding:12px 18px;border-top:{{t.rule}};opacity:{{t.op}}">
+                        <div style="display:flex;align-items:center;gap:12px;min-width:0">
+                          <span style="width:34px;height:34px;border-radius:6px;background:#dbd7ed;color:#554596;display:flex;align-items:center;justify-content:center;flex:0 0 auto"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{t.icon}}" size="{{ 16 }}" hint-size="16px,16px"></x-import></span>
+                          <span style="display:flex;flex-direction:column;min-width:0"><span style="font:600 15px/1.3 var(--font-body);color:#1d1d1d">{{t.name}}</span><span style="font:400 11.5px/1.3 var(--font-mono);color:#747577;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{t.host}}</span></span>
+                        </div>
+                        <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><span style="font:var(--type-body-sm);color:#575756">{{t.team}}</span></sc-if>
+                        <sc-if value="{{wide}}" hint-placeholder-val="{{ true }}"><span style="font:var(--type-body-sm);color:#575756">{{t.modeLabel}}</span></sc-if>
+                        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Switch" checked="{{t.visible}}" on-change="{{t.onToggle}}" hint-size="44px,26px"></x-import>
+                        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Edit tool" on-click="{{t.onEdit}}" hint-size="36px,36px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="pencil" size="{{ 16 }}" hint-size="16px,16px"></x-import></x-import>
+                      </div>
+                    </sc-for>
+                  </div>
+                </x-import>
+                <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" variant="tinted" padding="18px" hint-size="100%,360px">
+                  <div style="display:flex;flex-direction:column;gap:12px">
+                    <span style="display:flex;align-items:center;gap:8px;font:600 15px/1.3 var(--font-body);color:#1d1d1d"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="git-branch" size="{{ 18 }}" hint-size="18px,18px"></x-import>Or edit it in Git</span>
+                    <span style="font:var(--type-body-sm);color:#575756;text-wrap:pretty">Every tool is one entry in <span style="font-family:var(--font-mono);font-size:12.5px">tools.json</span> in the internal-hub repository. Single-file tools go in the <span style="font-family:var(--font-mono);font-size:12.5px">tools/</span> folder. Changes go live on the next push to main.</span>
+                    <pre style="margin:0;background:#1d1d1d;color:#e8e9ea;border-radius:6px;padding:12px 14px;font:400 12px/1.6 var(--font-mono);overflow:auto;white-space:pre">{{jsonSample}}</pre>
+                    <span style="font:var(--type-caption);color:#747577">Tools added with the form here are written to the same file.</span>
+                  </div>
+                </x-import>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{adminAnns}}" hint-placeholder-val="{{ false }}">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Card" padding="0" hint-size="100%,300px">
+                <div style="display:flex;flex-direction:column">
+                  <sc-for list="{{annRows}}" as="a" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:14px;padding:14px 18px;border-top:{{a.rule}}">
+                      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
+                        <span style="font:600 15px/1.3 var(--font-body);color:#1d1d1d">{{a.title}}</span>
+                        <span style="font:var(--type-caption);color:#747577">{{a.date}} · {{a.author}}</span>
+                      </div>
+                      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Switch" label="Pinned" checked="{{a.pinned}}" on-change="{{a.onPin}}" hint-size="90px,26px"></x-import>
+                      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.IconButton" label="Remove" on-click="{{a.onRemove}}" hint-size="36px,36px"><x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="trash-2" size="{{ 16 }}" hint-size="16px,16px"></x-import></x-import>
+                    </div>
+                  </sc-for>
+                </div>
+              </x-import>
+            </sc-if>
+          </div>
+        </sc-if>
+      </main>
+    </div>
+
+    <sc-if value="{{showBottomNav}}" hint-placeholder-val="{{ false }}">
+      <nav style="flex:0 0 auto;display:grid;grid-template-columns:repeat(3,1fr);background:#ffffff;border-top:1px solid #e8e9ea;padding-bottom:env(safe-area-inset-bottom)">
+        <sc-for list="{{bottomNav}}" as="n" hint-placeholder-count="3">
+          <button onClick="{{n.onClick}}" style="border:0;background:transparent;color:{{n.fg}};min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font:600 11px/1.2 var(--font-body)">
+            <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{n.icon}}" size="{{ 22 }}" hint-size="22px,22px"></x-import>{{n.label}}
+          </button>
+        </sc-for>
+      </nav>
+    </sc-if>
+  </sc-if>
+
+  <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Dialog" open="{{addOpen}}" title="{{dlgTitle}}" description="It appears on everyone's home page as soon as you save." width="{{ 560 }}" on-close="{{closeDlg}}" footer="{{dlgFooter}}" hint-size="0px,0px">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="Tool name" required="{{ true }}" hint-size="100%,70px">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{draft.name}}" placeholder="Quote builder" on-change="{{dName}}" hint-size="100%,40px"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="Link" required="{{ true }}" hint="A web address, or a file path in the tools/ folder." hint-size="100%,90px">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{draft.url}}" placeholder="tools/Quote Builder.html" on-change="{{dUrl}}" hint-size="100%,40px"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="What it does" required="{{ true }}" hint="One line. Shown under the name." hint-size="100%,90px">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{draft.desc}}" placeholder="Build a priced quote from the Mindray price list" on-change="{{dDesc}}" hint-size="100%,40px"></x-import>
+      </x-import>
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="Category" hint-size="100%,70px">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Select" value="{{draft.team}}" options="{{teamOptions}}" on-change="{{dTeam}}" hint-size="100%,40px"></x-import>
+        </x-import>
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="Opens" hint-size="100%,70px">
+          <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Select" value="{{draft.mode}}" options="{{modeOptions}}" on-change="{{dMode}}" hint-size="100%,40px"></x-import>
+        </x-import>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span style="font:600 14px/1.3 var(--font-body);color:#1d1d1d">Icon</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <sc-for list="{{iconChoices}}" as="ic" hint-placeholder-count="10">
+            <button onClick="{{ic.onClick}}" aria-label="{{ic.name}}" style="width:44px;height:44px;border-radius:6px;border:1px solid {{ic.border}};background:{{ic.bg}};color:{{ic.fg}};display:flex;align-items:center;justify-content:center;cursor:pointer">
+              <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Icon" name="{{ic.name}}" size="{{ 18 }}" hint-size="18px,18px"></x-import>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </x-import>
+
+  <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Dialog" open="{{annOpen}}" title="Post announcement" description="Shown on the home page for everyone." width="{{ 520 }}" on-close="{{closeDlg}}" footer="{{annFooter}}" hint-size="0px,0px">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="Title" required="{{ true }}" hint-size="100%,70px">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Input" value="{{annDraft.title}}" on-change="{{aTitle}}" hint-size="100%,40px"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Field" label="Message" hint-size="100%,120px">
+        <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Textarea" value="{{annDraft.body}}" rows="{{ 4 }}" on-change="{{aBody}}" hint-size="100%,100px"></x-import>
+      </x-import>
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Switch" label="Pin to the top" checked="{{annDraft.pinned}}" on-change="{{aPin}}" hint-size="160px,26px"></x-import>
+    </div>
+  </x-import>
+
+  <sc-if value="{{hasToast}}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;right:20px;bottom:{{toastBottom}};z-index:30;max-width:360px">
+      <x-import component-from-global-scope="ConnectedHealthcareSystemsDesignSystem_914962.Toast" tone="success" title="{{toast}}" on-dismiss="{{dismissToast}}" hint-size="320px,56px"></x-import>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;launcher&quot;,&quot;sidebar&quot;,&quot;search&quot;],&quot;default&quot;:&quot;launcher&quot;,&quot;tsType&quot;:&quot;'launcher'|'sidebar'|'search'&quot;},&quot;initialScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;tool&quot;,&quot;directory&quot;,&quot;admin&quot;,&quot;signin&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;initialTool&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;demo&quot;,&quot;schedule&quot;,&quot;parser&quot;,&quot;ansur&quot;,&quot;simpro&quot;],&quot;default&quot;:&quot;schedule&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;initialDialog&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;'add'|'ann'|null&quot;},&quot;forceMobile&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;frameHeight&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;string&quot;}}">
+const ST={office:{label:'Cass Office',bg:'#ffffff'},site:{label:'Site visit',bg:'#ffffff'},remote:{label:'Remote Support',bg:'#ffffff'},wfh:{label:'Work from Home',bg:'#ffffff'},calls:{label:'Customer Calls',bg:'#FFFF00'},oncall:{label:'On call',bg:'#FF7C80'},leave:{label:'Leave',bg:'#FFC000'},nwd:{label:'Non-Working Day',bg:'#D9D9D9'},holiday:{label:'Public Holiday',bg:'#dbd7ed'},training:{label:'Training',bg:'#e9f2da'}};
+const CODES={O:'office',S:'site',R:'remote',W:'wfh',C:'calls',L:'leave',N:'nwd',H:'holiday',T:'training',X:'oncall'};
+const DEPTS=[{id:'admin',name:'Admin'},{id:'mgmt',name:'Management'},{id:'eng',name:'Engineers'},{id:'sales',name:'Sales'},{id:'apps',name:'Applications'}];
+const T5=s=>[s,s,s,s,s].join(';');
+const RAW=[
+['karen','Karen','admin',T5('O')],['jan','Jan','admin',T5('L')],['lisa','Lisa','admin',T5('O')],['fiona','Fiona','admin',T5('N')],['carolyn','Carolyn','admin','O;O;O;O;W'],
+['mark','Mark','mgmt','S:Manukau;S:Albany;S:Manukau;L;L'],['preston','Preston','mgmt','S:Tauranga;S:Tauranga;S:Hamilton;S:Tauranga;S:Tauranga'],['andrew','Andrew','mgmt','S:Car Service;O;R;O;N'],['james','James','mgmt','N;O;O;O;O:Cass Office / Anglesea'],['steve','Steve','mgmt','S:Tauranga;S:Tauranga;S:Hamilton;S:Tauranga;S:Tauranga'],
+['richard','Richard','eng','C:Cass Office / Customer Calls;O;O;O:Starship/Cass Office;O'],['mike','Mike','eng',T5('L')],['jonathan','Jonathan','eng','L;O;O:NSH/Cass Office;O;O'],['peter','Peter','eng',T5('O')],['adam','Adam','eng','S:Palmy;S:Palmy;S:Dunedin;S:Dunedin;S:Palmy'],['bryan','Bryan','eng','S:MMH|O;R|S:ADHB appt;C:Cass Office / Customer Calls;C:Cass Office / Customer Calls;S:ADHB appt / PMV'],['glen','Glen','eng','R;C:Remote Support / Customer Calls;N;R;C:Remote Support / Customer Calls'],['jack','Jack','eng','O;O;R;O;O'],['george','George','eng',T5('N')],
+['kenneth','Kenneth','sales','S:Alexandra;S:Dunedin;S:Dunedin;S:Dunedin;N'],['theresa','Theresa','sales','S:NSH/ASC;S:MMH/WTH;S:NSH;S:MHP;S:Auckland'],['jacqui','Jacqui','sales',T5('L')],['jessc','Jess Chalklen','sales','S:Tauranga;O;S:Auckland;S:Auckland;S:Auckland'],['ciaran','Ciaran','sales',T5('S:Invercargill')],['mel','Mel','sales','S:Tauranga;S:Tauranga;S:Auckland;S:Tauranga;S:Tauranga'],['sam','Sam','sales','S:Waikato;S:Tauranga;S:Waikato;S:?Rotorua;S:Waikato'],
+['paul','Paul','apps','O;R;O;R;O'],['john','John','apps','R;R;R;S:Starship Room 1 Decommission;R'],['teri','Teri','apps','S:Waikato;S:Invercargill;S:Invercargill;S:Invercargill;'],['grant','Grant','apps','S:Hutt;S:Hutt;S:Hutt;S:Hutt;S:Palmy'],['markh','Mark Henderwood','apps',T5('S:Wellington')],['jessb','Jess Broughan','apps',T5('S:Christchurch')],['joann','Jo-ann','apps','S:Auckland;L;S:Auckland;S:Auckland;S:Auckland'],['ben','Ben','apps',T5('O')]
+];
+const DEPTNAME={};DEPTS.forEach(d=>DEPTNAME[d.id]=d.name);
+const ONCALL='bryan';
+function parseDay(c){c=(c||'').trim();if(!c)return null;if(c.indexOf('|')>=0)c=c.split('|')[0];const i=c.indexOf(':');const s=CODES[i>=0?c.slice(0,i):c]||'office';return {s,t:i>=0?c.slice(i+1):''};}
+const PEOPLE=RAW.map(r=>{const e=parseDay(r[3].split(';')[0]);const where=!e?'No entry':(e.t||ST[e.s].label);const initials=r[1].split(/[\s-]+/).map(x=>x[0]).join('').slice(0,2).toUpperCase();
+  return {id:r[0],name:r[1],dept:r[2],deptName:DEPTNAME[r[2]],s:e?e.s:'none',where,bg:e?ST[e.s].bg:'#f4f4f5',initials};});
+const TOOLS=[
+ {id:'demo',name:'Demo equipment tracker',desc:'Scan, loan, and track CMCHS demo equipment',url:'https://demo.chsnz.co.nz',host:'demo.chsnz.co.nz',icon:'package',team:'Demo',mode:'hub',visible:true},
+ {id:'schedule',name:'Staff schedule',desc:'View rosters, on-call, and leave',url:'Staff Schedule.dc.html',host:'schedule.chsnz.co.nz',icon:'calendar-days',team:'Schedule',mode:'hub',visible:true},
+ {id:'parser',name:'Service Order Parser',desc:'Paste a service order, extract the fields, copy to the sheet',url:'tools/Service Order Parser.html',host:'internal.chsnz.co.nz/tools/service-order-parser',icon:'clipboard-list',team:'Service',mode:'hub',visible:true},
+ {id:'ansur',name:'Ansur PVT Report Builder',desc:'Turn Fluke Ansur test records (.mtr) into PDF reports',url:'tools/Ansur PVT Report Builder.html',host:'internal.chsnz.co.nz/tools/ansur-pvt',icon:'file-check',team:'Service',mode:'hub',visible:true},
+ {id:'simpro',name:'Simpro Asset Sync',desc:'Updates and adds customer assets in cass.simprosuite.com from an asset list',url:'tools/SimproSync.html',host:'internal.chsnz.co.nz/tools/simpro-sync',icon:'refresh-cw',team:'Service',mode:'hub',visible:true},
+ {id:'outlook',name:'Outlook',desc:'Email and calendar',url:'https://outlook.office.com',host:'outlook.office.com',icon:'mail',team:'Microsoft 365',mode:'tab',visible:true},
+ {id:'teams',name:'Teams',desc:'Chat, calls and meetings',url:'https://teams.microsoft.com',host:'teams.microsoft.com',icon:'message-square',team:'Microsoft 365',mode:'tab',visible:true}
+];
+const ANNS=[
+ {id:1,title:'Labour Day, Monday 26 October',body:'The office is closed. Check the staff schedule for on-call cover.',date:'5 Oct',author:'Karen',pinned:true},
+ {id:2,title:'Mindray A9 training, Wednesday 14 October',body:'Jonathan is running A9 training. Talk to him if you would like to join.',date:'2 Oct',author:'Jonathan',pinned:false},
+ {id:3,title:'Ansur PVT Report Builder is now in the hub',body:'Build PDF reports from Fluke Ansur .mtr records. It runs in the browser, so nothing is uploaded.',date:'1 Oct',author:'Peter Lin',pinned:false}
+];
+const ICONS=['wrench','clipboard-list','file-text','calculator','package','calendar-days','users','stethoscope','graduation-cap','chart-line','refresh-cw','link'];
+const TEAMS=['Demo','Service','Schedule','Sales','Clinical','Admin','Microsoft 365'];
+const CATC={Demo:['#554596','#80bd01'],Service:['#554596','#ef7d00'],Schedule:['#80bd01','#ef7d00'],Sales:['#ef7d00','#554596'],Clinical:['#80bd01','#554596'],Admin:['#554596','#554596'],'Microsoft 365':['#a7a9ac','#a7a9ac']};
+const RKEY='cmchs-hub-recent';
+const blank=()=>({name:'',url:'',desc:'',team:'Service',mode:'hub',icon:'wrench'});
+
+class Component extends DCLogic {
+  rootRef=React.createRef();
+  state={screen:this.props.initialScreen||'home',tool:this.props.initialTool||'schedule',q:'',dq:'',depts:[],tools:TOOLS,anns:ANNS,
+    recent:this.loadRecent(),dialog:this.props.initialDialog||null,draft:blank(),editId:null,annDraft:{title:'',body:'',pinned:false},adminTab:'tools',toast:'',width:1200};
+  loadRecent(){try{const r=JSON.parse(localStorage.getItem(RKEY)||'null');if(Array.isArray(r))return r;}catch(e){}return ['schedule','parser','demo'];}
+  componentDidMount(){const el=this.rootRef.current;if(!el)return;this.ro=new ResizeObserver(es=>{const w=es[0].contentRect.width;if(Math.abs(w-this.state.width)>2)this.setState({width:w});});this.ro.observe(el);}
+  componentWillUnmount(){this.ro&&this.ro.disconnect();clearTimeout(this.tt);}
+  showToast(t){clearTimeout(this.tt);this.setState({toast:t});this.tt=setTimeout(()=>this.setState({toast:''}),3200);}
+  open(t){if(t.mode==='tab'){window.open(t.url,'_blank','noopener');this.touch(t.id);return;}this.touch(t.id);this.setState({screen:'tool',tool:t.id,q:''});}
+  touch(id){const r=[id].concat(this.state.recent.filter(x=>x!==id)).slice(0,4);try{localStorage.setItem(RKEY,JSON.stringify(r));}catch(e){}this.setState({recent:r});}
+  pop(t,e){e&&e.stopPropagation&&e.stopPropagation();window.open(t.url,'_blank','noopener');this.touch(t.id);}
+  saveTool(){const d=this.state.draft;if(!d.name.trim()||!d.url.trim()||!d.desc.trim()){this.showToast('Name, link and description are required.');return;}
+    const host=/^https?:/.test(d.url)?d.url.replace(/^https?:\/\//,'').replace(/\/$/,''):'internal.chsnz.co.nz/'+d.url.replace(/\.html?$/,'').toLowerCase().replace(/\s+/g,'-');
+    if(this.state.editId){this.setState(s=>({tools:s.tools.map(t=>t.id===s.editId?{...t,...d,host}:t),dialog:null,editId:null}));this.showToast(d.name+' updated.');}
+    else{const t={...d,id:'t'+Date.now(),host,visible:true};this.setState(s=>({tools:s.tools.concat([t]),dialog:null,draft:blank()}));this.showToast(d.name+' added to the hub.');}}
+  saveAnn(){const a=this.state.annDraft;if(!a.title.trim()){this.showToast('A title is required.');return;}
+    this.setState(s=>({anns:[{id:Date.now(),title:a.title,body:a.body,pinned:a.pinned,date:'5 Oct',author:'Peter Lin'}].concat(s.anns),dialog:null,annDraft:{title:'',body:'',pinned:false}}));this.showToast('Announcement posted.');}
+  renderVals(){
+    const s=this.state,p=this.props;
+    const narrow=!!p.forceMobile||s.width<760, wide=!narrow;
+    const layout=p.layout||'launcher';
+    const screen=s.screen;
+    const ic=(n,sz)=>React.createElement(window.ConnectedHealthcareSystemsDesignSystem_914962?window.ConnectedHealthcareSystemsDesignSystem_914962.Icon:'span',{name:n,size:sz||16});
+    const q=s.q.trim().toLowerCase();
+    const visible=s.tools.filter(t=>t.visible);
+    const dec=t=>({...t,onOpen:()=>this.open(t),onPop:e=>this.pop(t,e),isTab:t.mode==='tab',modeLabel:t.mode==='tab'?'New tab':'Inside the hub',team:t.team});
+    const match=t=>!q||(t.name+' '+t.desc+' '+t.team).toLowerCase().indexOf(q)>=0;
+    const toolHits=q?visible.filter(match).map(dec):[];
+    const peopleHits=q?PEOPLE.filter(x=>(x.name+' '+x.deptName).toLowerCase().indexOf(q)>=0).slice(0,5):[];
+    const cur=s.tools.find(t=>t.id===s.tool)||s.tools[1];
+    const isHome=screen==='home';
+    const sidebar=wide&&layout==='sidebar';
+    const leave=PEOPLE.filter(x=>x.s==='leave'), nwd=PEOPLE.filter(x=>x.s==='nwd'), calls=PEOPLE.filter(x=>x.s==='calls');
+    const oc=PEOPLE.find(x=>x.id===ONCALL);
+    const chip=(x,bg)=>({name:x.name,bg});
+    const todayCards=[
+      {label:'On call this week',icon:'phone',chips:oc?[chip(oc,'#FF7C80')]:[],empty:!oc,emptyText:'No one assigned.'},
+      {label:'Customer calls today',icon:'headset',chips:calls.map(x=>chip(x,'#FFFF00')),empty:!calls.length,emptyText:'No one assigned.'},
+      {label:'Out today',icon:'calendar-x',chips:leave.map(x=>chip(x,'#FFC000')).concat(nwd.map(x=>chip(x,'#D9D9D9'))),empty:!(leave.length+nwd.length),emptyText:'Everyone is in.'}
+    ].map((c,i)=>({...c,rule:i?'1px solid #e8e9ea':'0'}));
+    const recentTools=s.recent.map(id=>visible.find(t=>t.id===id)).filter(Boolean).map(dec);
+    const anns=s.anns.slice().sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0)).map((a,i)=>({...a,rule:i?'1px solid #e8e9ea':'0',accent:a.pinned?'orange':undefined}));
+    const setScreen=v=>this.setState({screen:v,q:''});
+    const dq=s.dq.trim().toLowerCase();
+    const dirPeople=PEOPLE.filter(x=>(!s.depts.length||s.depts.indexOf(x.dept)>=0)&&(!dq||x.name.toLowerCase().indexOf(dq)>=0)).map(x=>{const isOc=x.id===ONCALL;
+      return {...x,label:isOc?x.name+' - OnCall':x.name,avBg:isOc?'#FF7C80':'#f4f4f5',avFg:isOc?'#1d1d1d':'#575756'};});
+    const draft=s.draft;
+    const sampleTool=cur.mode==='tab'?s.tools[2]:cur;
+    const jsonSample=JSON.stringify({id:s.tools[2].id,name:s.tools[2].name,description:s.tools[2].desc,link:s.tools[2].url,team:s.tools[2].team,icon:s.tools[2].icon,opens:'hub'},null,2);
+    const Btn=window.ConnectedHealthcareSystemsDesignSystem_914962?window.ConnectedHealthcareSystemsDesignSystem_914962.Button:'button';
+    const footer=(label,onOk)=>React.createElement('div',{style:{display:'flex',gap:8,justifyContent:'flex-end'}},
+      React.createElement(Btn,{variant:'ghost',onClick:()=>this.setState({dialog:null,editId:null})},'Cancel'),
+      React.createElement(Btn,{onClick:onOk},label));
+    const setD=k=>e=>{const v=e&&e.target?e.target.value:e;this.setState(st=>({draft:{...st.draft,[k]:v}}));};
+    const setA=k=>e=>{const v=e&&e.target?e.target.value:e;this.setState(st=>({annDraft:{...st.annDraft,[k]:v}}));};
+    const bottomNav=[['home','Home','house'],['directory','People','users'],['admin','Manage','settings']].map(([v,l,i])=>({label:l,icon:i,onClick:()=>setScreen(v),fg:(screen===v)?'#554596':'#747577'}));
+    return {
+      rootRef:this.rootRef,rootH:p.frameHeight||'100vh',narrow,wide,pad:narrow?'16px':'24px',
+      pagePad:narrow?'20px 16px 32px':'32px 24px 56px',heroPad:narrow?'24px 16px':'48px 24px 32px',bodyPad:narrow?'20px 16px 32px':'28px 24px 56px',
+      showFullLogo:wide&&screen!=='tool',showMarkLogo:narrow&&screen!=='tool',
+      isSignin:screen==='signin',notSignin:screen!=='signin',signIn:()=>this.setState({screen:'home'}),
+      showTabs:wide&&!sidebar,navTabs:[{value:'home',label:'Home'},{value:'directory',label:'People'},{value:'admin',label:'Manage'}],navValue:screen==='tool'?'home':screen,setScreen,
+      goHome:()=>setScreen('home'),goPeople:()=>setScreen('directory'),
+      showHeaderSearch:wide&&!sidebar&&!(layout==='search'&&isHome),q:s.q,setQ:e=>this.setState({q:e.target.value}),searchIcon:ic('search',16),
+      showHeaderResults:!!q&&!(layout==='search'&&isHome),toolHits,peopleHits,noHits:!!q&&!toolHits.length&&!peopleHits.length,
+      showSidebar:sidebar,noSidebar:!sidebar,
+      sideTools:visible.filter(match).map(t=>({...dec(t),sideBg:screen==='tool'&&s.tool===t.id?'#dbd7ed':'transparent',sideFg:screen==='tool'&&s.tool===t.id?'#554596':'#1d1d1d'})),
+      noSideTools:!visible.filter(match).length,
+      sideNav:[['home','Home','house'],['directory','People','users'],['admin','Manage','settings']].map(([v,l,i])=>({label:l,icon:i,onClick:()=>setScreen(v),bg:screen===v?'#dbd7ed':'transparent',fg:screen===v?'#554596':'#1d1d1d'})),
+      mainOverflow:screen==='tool'?'hidden':'auto',
+      isTool:screen==='tool',cur,backIcon:ic('chevron-left',16),backLabel:narrow?'Back':'All tools',popIcon:ic('external-link',14),popCur:()=>this.pop(cur),
+      switchTools:recentTools.filter(t=>t.id!==cur.id&&t.mode==='hub').slice(0,3),
+      isLauncher:isHome&&(layout==='launcher'||(layout==='sidebar'&&narrow)),isSideHome:isHome&&sidebar,isSearchHome:isHome&&layout==='search',
+      dateLabel:'Monday 5 October',todayCards,todayCols:narrow?'1fr':'repeat(3,minmax(0,1fr))',homeCols:narrow?'1fr':'minmax(0,1fr) 340px',searchCols:narrow?'1fr':'repeat(3,minmax(0,1fr))',
+      openSchedule:()=>this.open(s.tools.find(t=>t.id==='schedule')),
+      hasRecent:recentTools.length>0,recentTools,gridTools:visible.map(dec),toolGroups:TEAMS.concat(visible.map(t=>t.team).filter(c=>TEAMS.indexOf(c)<0).filter((c,i,a)=>a.indexOf(c)===i)).map(c=>{const ts=visible.filter(t=>t.team===c).map(dec);const cc=CATC[c]||['#554596','#554596'];return {name:c,count:String(ts.length),tools:ts,c1:cc[0],c2:cc[1]};}).filter(g=>g.tools.length),toolCount:String(visible.length),anns,
+      listTitle:q?'Results':'All tools',listTools:(q?toolHits:visible.map(dec)),
+      isPeople:screen==='directory',dq:s.dq,setDq:e=>this.setState({dq:e.target.value}),dirSearchW:narrow?'100%':'220px',
+      peopleSub:PEOPLE.length+' people · from the staff schedule · '+(oc?oc.name+' is on call':'no one on call'),
+      deptTags:[{name:'All',selected:!s.depts.length,onClick:()=>this.setState({depts:[]})}].concat(DEPTS.map(d=>({name:d.name,selected:s.depts.indexOf(d.id)>=0,onClick:()=>this.setState(st=>({depts:st.depts.indexOf(d.id)>=0?st.depts.filter(x=>x!==d.id):st.depts.concat([d.id])}))}))),
+      dirPeople,noDir:!dirPeople.length,
+      isAdmin:screen==='admin',adminTabs:[{value:'tools',label:'Tools',count:s.tools.length},{value:'anns',label:'Announcements',count:s.anns.length}],adminTab:s.adminTab,setAdminTab:v=>this.setState({adminTab:v}),
+      adminTools:s.adminTab==='tools',adminAnns:s.adminTab==='anns',adminCols:narrow?'1fr':'minmax(0,1fr) 340px',
+      rowCols:narrow?'minmax(0,1fr) 44px 36px':'minmax(0,1.6fr) 110px 110px 80px 44px',
+      adminRows:s.tools.map((t,i)=>({...dec(t),rule:i?'1px solid #e8e9ea':'0',op:t.visible?1:.55,
+        onToggle:v=>{this.setState(st=>({tools:st.tools.map(x=>x.id===t.id?{...x,visible:v}:x)}));this.showToast(t.name+(v?' is shown on the home page.':' is hidden from the home page.'));},
+        onEdit:()=>this.setState({dialog:'add',editId:t.id,draft:{name:t.name,url:t.url,desc:t.desc,team:t.team,mode:t.mode,icon:t.icon}})})),
+      jsonSample,plusIcon:ic('plus',16),
+      openAdd:()=>this.setState({dialog:'add',editId:null,draft:blank()}),openAnn:()=>this.setState({dialog:'ann'}),
+      annRows:s.anns.map((a,i)=>({...a,rule:i?'1px solid #e8e9ea':'0',onPin:v=>this.setState(st=>({anns:st.anns.map(x=>x.id===a.id?{...x,pinned:v}:x)})),
+        onRemove:()=>{this.setState(st=>({anns:st.anns.filter(x=>x.id!==a.id)}));this.showToast('Announcement removed.');}})),
+      addOpen:s.dialog==='add',annOpen:s.dialog==='ann',closeDlg:()=>this.setState({dialog:null,editId:null}),
+      dlgTitle:s.editId?'Edit tool':'Add a tool',dlgFooter:footer(s.editId?'Save changes':'Add tool',()=>this.saveTool()),annFooter:footer('Post',()=>this.saveAnn()),
+      draft,dName:setD('name'),dUrl:setD('url'),dDesc:setD('desc'),dTeam:setD('team'),dMode:setD('mode'),
+      teamOptions:TEAMS,modeOptions:[{value:'hub',label:'Inside the hub'},{value:'tab',label:'New browser tab'}],
+      iconChoices:ICONS.map(n=>({name:n,onClick:()=>this.setState(st=>({draft:{...st.draft,icon:n}})),border:draft.icon===n?'#554596':'#d1d3d4',bg:draft.icon===n?'#dbd7ed':'#ffffff',fg:draft.icon===n?'#554596':'#575756'})),
+      annDraft:s.annDraft,aTitle:setA('title'),aBody:setA('body'),aPin:setA('pinned'),
+      showBottomNav:narrow&&screen!=='tool',bottomNav,
+      hasToast:!!s.toast,toast:s.toast,dismissToast:()=>this.setState({toast:''}),toastBottom:narrow?'76px':'20px'
+    };
+  }
+}
+</script>
+</body>
+</html>
