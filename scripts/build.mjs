@@ -12,7 +12,7 @@
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
-import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { injectManifest } from 'workbox-build'
@@ -107,6 +107,30 @@ const { count, size, warnings } = await injectManifest({
 })
 warnings.forEach(w => console.warn('  workbox: ' + w))
 rmSync(join(DIST, 'sw-src.js'))
+
+// The sign-in settings, published for pages that are not part of this build —
+// the demo tracker, which lives in the chs-equipment repo and runs on two
+// origins. It needs the staff schedule's Firebase web config to pick up the
+// hub's Microsoft sign-in, and that config is kept out of repos (it lives in
+// Actions secrets). This is the same information already compiled into every
+// bundle on this site, which is why publishing it is fine: Firebase web config
+// identifies the project, it does not grant anything.
+//
+// Written AFTER injectManifest so it is never precached: a page asking for it
+// should get today's values, not a copy from the last install.
+{
+  const read = (k) => (process.env[k] || (new RegExp('^' + k + '=(.*)$', 'm').exec(fromFile) || [])[1] || '').trim()
+  const cfg = {
+    apiKey: read('VITE_FIREBASE_API_KEY'),
+    authDomain: read('VITE_FIREBASE_AUTH_DOMAIN'),
+    projectId: read('VITE_FIREBASE_PROJECT_ID'),
+    appId: read('VITE_FIREBASE_APP_ID'),
+    tenant: read('VITE_AZURE_TENANT_ID'),
+  }
+  mkdirSync(join(DIST, 'shared'), { recursive: true })
+  writeFileSync(join(DIST, 'shared', 'auth-config.json'), JSON.stringify(cfg) + '\n')
+  console.log('  shared/auth-config.json ' + (cfg.apiKey ? 'written' : 'written EMPTY (no env) — sign-in will not work from it'))
+}
 console.log(`  service worker: ${count} files precached, ${(size / 1024 / 1024).toFixed(2)} MB`)
 
 console.log('Site assembled in dist/')
