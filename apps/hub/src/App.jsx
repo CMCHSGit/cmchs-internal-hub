@@ -24,7 +24,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Header user={user} />
+      <Header user={user} search={false} />
       <Home user={user} />
     </div>
   )

@@ -73,3 +73,11 @@ export function markUsed(tool) {
 
 export const announcements = [...allAnnouncements].sort((a, b) =>
   (b.pinned === true) - (a.pinned === true) || String(b.date).localeCompare(String(a.date)))
+
+// News categories (the filter tags) and their badge colours.
+export const NEWS_CATEGORIES = ['Announcements', 'Events', 'Tool updates']
+export const NEWS_TONE = { Announcements: 'purple', Events: 'green', 'Tool updates': 'orange' }
+export const newsCategory = a => (NEWS_CATEGORIES.includes(a.category) ? a.category : 'Announcements')
+
+/** An announcement's `image`: a full URL, or a path in apps/hub/public ("news/x.jpg"). */
+export const newsImage = a => (!a.image ? '' : /^(https?:)?\/\//.test(a.image) || a.image.startsWith('/') ? a.image : '/' + a.image)

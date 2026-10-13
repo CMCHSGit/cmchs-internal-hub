@@ -2,6 +2,7 @@
   {
     "id": "schedule",
     "name": "Staff schedule",
+    "short": "Staff schedule",
     "description": "View rosters, on-call, and leave",
     "link": "/schedule/",
     "category": "Everyday",
@@ -12,6 +13,7 @@
   {
     "id": "demo",
     "name": "Demo equipment tracker",
+    "short": "Demo tracker",
     "description": "Scan, loan, and track CMCHS demo equipment",
     "link": "/demo/",
     "category": "Everyday",
@@ -22,6 +24,7 @@
   {
     "id": "service-orders",
     "name": "Service Orders",
+    "short": "Service orders",
     "description": "Parts on order, received and shipping back. Paste a service order to add one",
     "link": "/service-orders/",
     "category": "Service",
@@ -32,6 +35,7 @@
   {
     "id": "ansur",
     "name": "Ansur PVT Report Builder",
+    "short": "Ansur reports",
     "description": "Turn Fluke Ansur test records (.mtr) into PDF reports",
     "link": "/ansurtopdf/",
     "category": "Service",
@@ -42,6 +46,7 @@
   {
     "id": "simpro",
     "name": "Simpro Asset Sync",
+    "short": "Simpro sync",
     "description": "Updates and adds customer assets in cass.simprosuite.com from an asset list",
     "link": "/simprosync/",
     "category": "Service",
@@ -52,6 +57,7 @@
   {
     "id": "maintenance",
     "name": "Maintenance Schedule",
+    "short": "Maintenance",
     "description": "Planned maintenance by site — what is due, and what is done",
     "link": "/maintenance/",
     "category": "Service",
@@ -62,6 +68,7 @@
   {
     "id": "outlook",
     "name": "Outlook",
+    "short": "Outlook",
     "description": "Email and calendar",
     "link": "https://outlook.office.com",
     "category": "Microsoft 365",
@@ -72,6 +79,7 @@
   {
     "id": "teams",
     "name": "Teams",
+    "short": "Teams",
     "description": "Chat, calls and meetings",
     "link": "https://teams.microsoft.com",
     "category": "Microsoft 365",

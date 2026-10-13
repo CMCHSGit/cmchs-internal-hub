@@ -88,7 +88,8 @@ function Account({ user }) {
   )
 }
 
-export default function Header({ user }) {
+// `search={false}` on Home, where the hero has the search box instead.
+export default function Header({ user, search = true }) {
   return (
     <header className="header">
       <div className="header-row">
@@ -99,7 +100,7 @@ export default function Header({ user }) {
           <span className="brand-name">Internal Hub</span>
         </a>
         <div className="spacer" />
-        <div className="wide-only"><Search /></div>
+        {search && <div className="wide-only"><Search /></div>}
         <Account user={user} />
       </div>
       <div className="stripe-rule" aria-hidden="true"><span /><span /><span /></div>

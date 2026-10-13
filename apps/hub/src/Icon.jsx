@@ -2,12 +2,20 @@
 // listed here are bundled; an unknown name falls back to a link icon. Adding a
 // tool with a new icon = add it to this map.
 import {
-  Calculator, CalendarDays, ChartLine, ChevronDown, ClipboardList, ExternalLink, FileCheck,
-  FileText, GraduationCap, Headset, Link, LogOut, Mail, MessageSquare, Package, Phone,
-  RefreshCw, Search, Stethoscope, Users, Wrench,
+  ArrowRight, Building, Calculator, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
+  ChevronRight, ClipboardList, ExternalLink, FileCheck, FileText, GraduationCap, Headset, Laptop,
+  Link, LogOut, Mail, MapPin, MessageSquare, Package, Phone, RefreshCw, Search, Stethoscope, Users,
+  Wrench,
 } from 'lucide-react'
 
 const ICONS = {
+  'arrow-right': ArrowRight,
+  'building': Building,
+  'calendar-x': CalendarX,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
+  'laptop': Laptop,
+  'map-pin': MapPin,
   'calculator': Calculator,
   'calendar-days': CalendarDays,
   'chart-line': ChartLine,

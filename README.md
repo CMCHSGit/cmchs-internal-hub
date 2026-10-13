@@ -59,16 +59,26 @@ Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's cate
 2. Add an entry to `tools.json`:
    ```json
    { "id": "quote", "name": "Quote builder", "description": "One line, shown under the name",
-     "link": "/quote/", "category": "Sales", "icon": "calculator", "opens": "here", "visible": true }
+     "link": "/quote/", "category": "Sales", "icon": "calculator", "opens": "here", "visible": true, "short": "Quotes" }
    ```
    - `category`: Everyday, Demo, Service, Schedule, Sales, Clinical, Admin or Microsoft 365 (shown in that order; new names go at the end).
    - `opens`: `here` (same tab, for pages on this site) or `tab` (new tab, for other sites).
+   - `short` (optional): the label under its round button in the home page hero; falls back to `name`.
    - `icon`: a [Lucide](https://lucide.dev/icons) name that's listed in `apps/hub/src/Icon.jsx` (add it there if not).
 3. Push to `main`.
 
 **Moving a tool's address:** add the old path to `MOVED` in `apps/hub/public/404.html` so bookmarks forward (e.g. `/order-parser/` → `/service-orders/`).
 
-**Announcements:** `announcements.json`, `{ "id", "title", "body", "date": "2026-10-07", "author", "pinned" }`. Pinned first, then newest.
+## The home page
+
+Built from `design/CMCHS Internal Hub v2.dc.html` (notes in `design/UPGRADE-v2.md`). What feeds each part:
+
+- **News and announcements**: `announcements.json`, `{ "id", "title", "body", "date": "2026-10-14", "author", "pinned", "category", "image" }`. `category` is Announcements, Events or Tool updates (the filter tags; anything else counts as Announcements). `image` is optional: a photo in `apps/hub/public/news/` written as `"news/photo.jpg"`, or a full URL; without one the card shows a grey block. Pinned first, then newest; three show, the rest behind "Show all".
+- **Calendar**: `events.json`, `{ "date": "2026-10-21", "title", "time": "Cass Office · 9:00 am", "tag": "Training" }`. NZ public holidays are added automatically from the staff schedule's own list, so don't type them in; `"kind": "holiday"` adds a one-off closure.
+- **At a glance, Who's where today, the hero's "out today / on call" line, people in search**: read live from the staff schedule's Firestore (`users`, this week's `schedules`, `oncall`) by `apps/hub/src/today.js`, using the schedule's own code (`apps/schedule/src/utils`) to read each entry, so the two never disagree. At the weekend they show Monday. If the schedule can't be read, those blocks are hidden. "See all people" links to the schedule's Day view (`/schedule/day`) until the hub has a People page.
+- **Tools**: `tools.json`, as above. Recent tools come from this browser's history.
+
+`npm run dev` without a `.env` uses sample people (`apps/hub/src/dev-fixture.js`, never in real builds). `npm test -w apps/hub` checks how entries are read.
 
 **A whole new app** (its own build, like the schedule): add a folder under `apps/`, build it with its own base path (e.g. Vite `base: '/schedule/'`), and add it to `APPS` in `scripts/build.mjs`. Prefix any localStorage keys with the app name, because every app shares this origin. Don't give it its own manifest or service worker — see below.
 
@@ -108,4 +118,4 @@ For real sign-in locally, copy `.env.example` to `.env` and fill it in with the 
 - **Firebase:** console → Authentication → Settings → Authorized domains → add `internal.chsnz.co.nz`.
 
 ## Design
-`design/` is the original design handoff (`design/HANDOFF.md`) and prototypes. Reference only, not shipped. Colours, type and spacing come from the Connected Healthcare Systems design system in `shared/tokens/`.
+`design/` is the original design handoff (`design/HANDOFF.md`), the v2 home page (`design/CMCHS Internal Hub v2.dc.html`, `design/UPGRADE-v2.md`) and prototypes. Reference only, not shipped. Colours, type and spacing come from the Connected Healthcare Systems design system in `shared/tokens/`.

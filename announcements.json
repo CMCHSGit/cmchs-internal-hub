@@ -1,6 +1,43 @@
 [
   {
+    "id": "2026-10-14-labour-day",
+    "category": "Announcements",
+    "title": "Labour Day, Monday 26 October",
+    "body": "The office is closed for Labour Day. Check the staff schedule for on-call cover.",
+    "date": "2026-10-14",
+    "author": "Peter Lin",
+    "pinned": true
+  },
+  {
+    "id": "2026-10-12-service-orders",
+    "category": "Tool updates",
+    "title": "Service Orders replaces the service order sheet",
+    "body": "Parts on order, received and shipping back, all in one place. Paste a service order to add one.",
+    "date": "2026-10-12",
+    "author": "Peter Lin",
+    "pinned": false
+  },
+  {
+    "id": "2026-10-12-maintenance",
+    "category": "Tool updates",
+    "title": "Maintenance Schedule is in the hub",
+    "body": "Planned maintenance by site: what is due, and what is done.",
+    "date": "2026-10-12",
+    "author": "Jonathan Nasrun",
+    "pinned": false
+  },
+  {
+    "id": "2026-10-08-ansur",
+    "category": "Tool updates",
+    "title": "Ansur PVT reports now live in the hub",
+    "body": "Build PDF reports from Fluke Ansur .mtr records at internal.chsnz.co.nz/ansurtopdf. It runs in the browser, so nothing is uploaded.",
+    "date": "2026-10-08",
+    "author": "Jonathan Nasrun",
+    "pinned": false
+  },
+  {
     "id": "2026-10-09-team-update",
+    "category": "Announcements",
     "title": "Team update: StepUp4ICU Challenge + places to be",
     "body": "Thanks to everyone who's filled in the schedule — if you haven't yet, check the CMCHS Staff Schedule and the Planning Resources install planner on SharePoint. Week One of the Intensive Care Foundation StepUp4ICU Challenge is done, with Theresa leading on 166,533 steps, followed by Jack (126,622) and Preston (92,898) — it's not too late to join the team and help drum up some donations. The team's been all over the country this fortnight, from the Invercargill Defib go-live and installs at Franklin Vets and Hamilton Zoo to A9 upgrades in Hawkes Bay, with next week bringing the New Dunedin Hospital opening, a Clutha Health install, and sites from Gisborne to Taranaki. Thanks for everything you do, and have a relaxing weekend!",
     "date": "2026-10-09",
