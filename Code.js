@@ -139,18 +139,14 @@ function doPost(e) {
   }
 }
 
-// ── GET handler — for manual browser testing only ─────────────────────────────
-function doGet(e) {
-  try {
-    if (!e || !e.parameter || !e.parameter.data) {
-      return respond({ status: 'CHS Simpro Proxy is live' });
-    }
-    const payload = JSON.parse(e.parameter.data);
-    return handlePayload(payload);
-  } catch (err) {
-    Logger.log('doGet error: ' + err);
-    return respond({ success: false, error: err.toString() });
-  }
+// ── GET handler — a health check, nothing more ──────────────────────────────
+// This used to run any payload passed as ?data=, which made every action the
+// POST handler takes — closing or updating a Simpro job — something a plain
+// link could do: pasted in a chat, prefetched by a mail scanner, or opened
+// by a crawler. Nothing used it (the tracker and the tools all POST), so it
+// now only answers whether the proxy is up.
+function doGet() {
+  return respond({ status: 'CHS Simpro Proxy is live' });
 }
 
 // ── Core logic ────────────────────────────────────────────────────────────────
@@ -598,33 +594,106 @@ function loanReturnToken_(loanTo, endDate) {
 // which then handles the actual per-browser push delivery itself. See the
 // PUSH NOTIFICATIONS SETUP note at the top of this file for the one-off
 // Script Properties setup this depends on.
-function getFcmAccessToken_() {
+// The chs-equipment service account (Script Property FCM_SERVICE_ACCOUNT_KEY,
+// downloaded from Firebase console → Project settings → Service accounts).
+// Named for push because that is what it was first added for; it now also
+// signs this script's database requests.
+function serviceAccountKey_() {
   const raw = PropertiesService.getScriptProperties().getProperty('FCM_SERVICE_ACCOUNT_KEY');
-  if (!raw) { Logger.log('FCM_SERVICE_ACCOUNT_KEY script property is not set — push notifications are not configured yet.'); return null; }
-  let key;
-  try { key = JSON.parse(raw); } catch (err) { Logger.log('FCM_SERVICE_ACCOUNT_KEY is not valid JSON: ' + err); return null; }
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (err) { Logger.log('FCM_SERVICE_ACCOUNT_KEY is not valid JSON: ' + err); return null; }
+}
 
+// An OAuth access token for the service account with the given scopes.
+function serviceAccountAccessToken_(key, scope) {
   const b64url = function(obj) { return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, ''); };
   const now = Math.floor(Date.now() / 1000);
   const unsigned = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
     iss: key.client_email,
-    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    scope: scope,
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600
   });
   const signature = Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature(unsigned, key.private_key)).replace(/=+$/, '');
-  const jwt = unsigned + '.' + signature;
-
   const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
     method: 'post',
     contentType: 'application/x-www-form-urlencoded',
-    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: jwt },
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + signature },
     muteHttpExceptions: true
   });
   const json = JSON.parse(resp.getContentText());
-  if (!json.access_token) { Logger.log('FCM OAuth2 token exchange failed: ' + resp.getContentText()); return null; }
-  return { accessToken: json.access_token, projectId: key.project_id };
+  if (!json.access_token) { Logger.log('Service account token exchange failed (' + scope + '): ' + resp.getContentText()); return null; }
+  return json.access_token;
+}
+
+function getFcmAccessToken_() {
+  const key = serviceAccountKey_();
+  if (!key) { Logger.log('FCM_SERVICE_ACCOUNT_KEY script property is not set — push notifications are not configured yet.'); return null; }
+  const token = serviceAccountAccessToken_(key, 'https://www.googleapis.com/auth/firebase.messaging');
+  return token ? { accessToken: token, projectId: key.project_id } : null;
+}
+
+// Database access for this script. The tracker's Realtime Database used to be
+// open to anyone; it is being locked so only signed-in staff and these
+// back-office jobs can read or write it. This token is the jobs' way in — an
+// admin service account, so security rules do not apply to it.
+//
+// Cached for 50 of its 60 minutes: the reminder triggers make dozens of calls
+// per run and should not each sign a JWT.
+//
+// If the key is missing or the exchange fails this returns null and callers
+// carry on unauthenticated. That keeps everything working while the database
+// is still open, and fails loudly in the log rather than silently once it is
+// locked.
+function firebaseDbToken_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('rtdbAccessToken');
+  if (hit) return hit;
+  const key = serviceAccountKey_();
+  if (!key) { Logger.log('No service account key — database calls are unauthenticated.'); return null; }
+  const token = serviceAccountAccessToken_(key,
+    'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email');
+  if (token) cache.put('rtdbAccessToken', token, 50 * 60);
+  return token;
+}
+
+// The one place this script talks to the database, so no call can be left
+// unsigned.
+//
+// If the signed request is refused (401/403) it is retried unsigned and the
+// refusal logged. While the database is still open that keeps every reminder
+// working even if the service account turned out to lack database rights;
+// once the database is locked the unsigned retry fails too, which is correct.
+// checkDatabaseAuth() below is the way to confirm signing works BEFORE the lock.
+function firebaseFetch_(path, opts) {
+  opts = Object.assign({ muteHttpExceptions: true }, opts || {});
+  const url = FIREBASE_BASE + path;
+  const token = firebaseDbToken_();
+  if (token) {
+    const signed = UrlFetchApp.fetch(url + (url.indexOf('?') === -1 ? '?' : '&') + 'access_token=' + encodeURIComponent(token), opts);
+    const code = signed.getResponseCode();
+    if (code !== 401 && code !== 403) return signed;
+    Logger.log('Database refused the service account token (' + code + ') for ' + path + ' — retrying unsigned.');
+    CacheService.getScriptCache().remove('rtdbAccessToken');
+  }
+  return UrlFetchApp.fetch(url, opts);
+}
+
+// Run this from the Apps Script editor before the database is locked. It reads
+// one small path signed and unsigned and says whether the lock is safe.
+function checkDatabaseAuth() {
+  CacheService.getScriptCache().remove('rtdbAccessToken');
+  const token = firebaseDbToken_();
+  if (!token) { Logger.log('NOT READY — no service account token. Check FCM_SERVICE_ACCOUNT_KEY.'); return; }
+  const url = FIREBASE_BASE + '/simproConfig.json';
+  const signed = UrlFetchApp.fetch(url + '?access_token=' + encodeURIComponent(token), { muteHttpExceptions: true }).getResponseCode();
+  const unsigned = UrlFetchApp.fetch(url, { muteHttpExceptions: true }).getResponseCode();
+  Logger.log('Signed read: ' + signed + '   Unsigned read: ' + unsigned);
+  Logger.log(signed === 200
+    ? (unsigned === 200 ? 'READY — signing works. The database is still open (unsigned 200), so it is safe to lock.'
+                        : 'LOCKED and working — signed reads succeed, unsigned are refused.')
+    : 'NOT READY — the service account cannot read the database. Do not lock it.');
 }
 
 // am.fcmTokens is an array (one person can have more than one device).
@@ -774,7 +843,7 @@ function isStartingSoonBusinessDays(todayStr, startDateStr, island) {
 
 function fetchFirebaseJson(path) {
   try {
-    const resp = UrlFetchApp.fetch(FIREBASE_BASE + path, { muteHttpExceptions: true });
+    const resp = firebaseFetch_(path);
     if (resp.getResponseCode() >= 300) return null;
     return JSON.parse(resp.getContentText());
   } catch (err) {
@@ -784,23 +853,20 @@ function fetchFirebaseJson(path) {
 }
 
 function putFirebaseJson(path, obj) {
-  UrlFetchApp.fetch(FIREBASE_BASE + path, {
+  firebaseFetch_(path, {
     method: 'put',
     headers: { 'Content-Type': 'application/json' },
-    payload: JSON.stringify(obj),
-    muteHttpExceptions: true
+    payload: JSON.stringify(obj)
   });
 }
 
 // ── Write job ID back to Firebase so the tracker can reference it ─────────────
 function writeJobIdToFirebase(pdfKey, jobId) {
   try {
-    const url = FIREBASE_BASE + '/loanDocs/' + encodeURIComponent(pdfKey) + '/simproJobId.json';
-    UrlFetchApp.fetch(url, {
+    firebaseFetch_('/loanDocs/' + encodeURIComponent(pdfKey) + '/simproJobId.json', {
       method: 'put',
       headers: { 'Content-Type': 'application/json' },
-      payload: JSON.stringify(jobId),
-      muteHttpExceptions: true
+      payload: JSON.stringify(jobId)
     });
     Logger.log('Firebase write: ' + pdfKey + ' = ' + jobId);
   } catch (err) {
