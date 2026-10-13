@@ -80,12 +80,12 @@ function dailyBackup() {
   try {
     // 1. Fetch from Firebase — /data.json (equipment + history + loanMeta,
     // one document) plus the two separate top-level nodes it doesn't cover.
-    const data        = JSON.parse(UrlFetchApp.fetch(FIREBASE_URL).getContentText()) || {};
+    const data        = JSON.parse(firebaseGet_('/data.json').getContentText()) || {};
     const equipment   = Array.isArray(data.equipment) ? data.equipment : [];
     const history     = Array.isArray(data.history)   ? data.history   : [];
     const loanMeta    = (data.loanMeta && typeof data.loanMeta === 'object') ? data.loanMeta : {};
-    const loanDocsRaw = JSON.parse(UrlFetchApp.fetch(FIREBASE_BASE + '/loanDocs.json').getContentText()) || {};
-    const upcomingRaw = JSON.parse(UrlFetchApp.fetch(FIREBASE_BASE + '/upcomingLoans.json').getContentText()) || {};
+    const loanDocsRaw = JSON.parse(firebaseGet_('/loanDocs.json').getContentText()) || {};
+    const upcomingRaw = JSON.parse(firebaseGet_('/upcomingLoans.json').getContentText()) || {};
 
     // 2. Find or create backup folder in Google Drive
     const folders = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
@@ -225,4 +225,72 @@ function installDailyBackupTrigger() {
     .inTimezone('Pacific/Auckland')
     .create();
   console.log('Daily backup trigger installed (3am NZ time).');
+}
+
+// ── Signed database reads ───────────────────────────────────────────────────
+// The tracker's Realtime Database is being locked so only signed-in staff and
+// back-office jobs can read it. This backup is one of those jobs, so it signs
+// its reads with the chs-equipment service account.
+//
+// SETUP (once): Project Settings → Script Properties → add
+//   Name:  FIREBASE_SERVICE_ACCOUNT_KEY
+//   Value: the same service account JSON the Simpro proxy holds as
+//          FCM_SERVICE_ACCOUNT_KEY (Firebase console → Project settings →
+//          Service accounts → Generate new private key). Never paste it into
+//          this file — the repo is public.
+//
+// Until that property exists the reads go unsigned, which works only while the
+// database is still open. Run checkBackupDatabaseAuth() to confirm before the
+// lock — a backup that silently stops is the worst kind of failure.
+
+function backupDbToken_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('rtdbAccessToken');
+  if (hit) return hit;
+  const raw = PropertiesService.getScriptProperties().getProperty('FIREBASE_SERVICE_ACCOUNT_KEY');
+  if (!raw) { Logger.log('FIREBASE_SERVICE_ACCOUNT_KEY not set — backup reads are unsigned.'); return null; }
+  let key;
+  try { key = JSON.parse(raw); } catch (err) { Logger.log('FIREBASE_SERVICE_ACCOUNT_KEY is not valid JSON: ' + err); return null; }
+  const b64url = function(obj) { return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, ''); };
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
+    iss: key.client_email,
+    scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600
+  });
+  const sig = Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature(unsigned, key.private_key)).replace(/=+$/, '');
+  const resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/token', {
+    method: 'post',
+    contentType: 'application/x-www-form-urlencoded',
+    payload: { grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: unsigned + '.' + sig },
+    muteHttpExceptions: true
+  });
+  const json = JSON.parse(resp.getContentText());
+  if (!json.access_token) { Logger.log('Service account token exchange failed: ' + resp.getContentText()); return null; }
+  cache.put('rtdbAccessToken', json.access_token, 50 * 60);
+  return json.access_token;
+}
+
+function firebaseGet_(path) {
+  const url = FIREBASE_BASE + path;
+  const token = backupDbToken_();
+  if (token) {
+    const signed = UrlFetchApp.fetch(url + '?access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    const code = signed.getResponseCode();
+    if (code !== 401 && code !== 403) return signed;
+    Logger.log('Database refused the service account token (' + code + ') for ' + path + ' — retrying unsigned.');
+    CacheService.getScriptCache().remove('rtdbAccessToken');
+  }
+  return UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+}
+
+function checkBackupDatabaseAuth() {
+  CacheService.getScriptCache().remove('rtdbAccessToken');
+  const token = backupDbToken_();
+  if (!token) { Logger.log('NOT READY — set FIREBASE_SERVICE_ACCOUNT_KEY first.'); return; }
+  const url = FIREBASE_BASE + '/upcomingLoans.json?shallow=true';
+  const code = UrlFetchApp.fetch(url + '&access_token=' + encodeURIComponent(token), { muteHttpExceptions: true }).getResponseCode();
+  Logger.log(code === 200 ? 'READY — the backup can read the database signed.' : 'NOT READY — signed read returned ' + code + '.');
 }
