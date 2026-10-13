@@ -56,40 +56,15 @@
     Object.defineProperty(navigator, 'standalone', { value: realMatchMedia(PHONE).matches })
   } catch (e) {}
 
-  // "Who are you?" puts your name on the audit log. You already told the hub
-  // who you are, so asking again is a second sign-in for nothing - take the
-  // name from the Firebase session the hub stores here. It is plain
-  // localStorage, so this is available before the tracker's own first script
-  // runs, which matters: the layout and resume decisions happen immediately.
-  //
-  // Optimistic on purpose. If the name is not one the tracker knows, the
-  // phone layout falls back to its own sign-in and the desktop layout simply
-  // logs the name as given - which is still who did it.
-  function hubName() {
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i)
-        if (k.indexOf('firebase:authUser:') !== 0) continue
-        var u = JSON.parse(localStorage.getItem(k) || '{}')
-        var n = (u.displayName || '').trim()
-        if (n) return n
-      }
-    } catch (e) {}
-    return ''
-  }
-
+  // "Who are you?" is now answered by the tracker itself: its staff sign-in
+  // module picks up the hub's saved session and selects the matching account
+  // manager. (An earlier version of this file tried to read that session from
+  // localStorage, but the hub keeps it in IndexedDB, so it never found it.)
+  // All that is left here is the read-only placeholder.
   try {
     var op = localStorage.getItem('chs_operator')
     if (READ_ONLY && !op) localStorage.setItem('chs_operator', VIEWER)
-    if (!READ_ONLY && op === VIEWER) { localStorage.removeItem('chs_operator'); op = null }
-    if (!READ_ONLY) {
-      var who = hubName()
-      if (who) {
-        localStorage.setItem('chs_operator', who)
-        // The phone layout only skips its sign-in when both of these are set.
-        localStorage.setItem('chs_mobile_auth', '1')
-      }
-    }
+    if (!READ_ONLY && op === VIEWER) localStorage.removeItem('chs_operator')
   } catch (e) {}
 
   if (!READ_ONLY) return
