@@ -44,6 +44,35 @@ FIREBASE_URL = os.environ.get(
     "FIREBASE_URL",
     "https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app",
 )
+# The tracker's database is being locked so only signed-in staff and
+# back-office jobs can write to it. This job signs its writes with the
+# chs-equipment service account, passed in as the FIREBASE_SERVICE_ACCOUNT
+# secret (the JSON key, whole). Without it the writes go unsigned, which only
+# works while the database is still open.
+FIREBASE_SERVICE_ACCOUNT = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+
+
+def firebase_auth_query() -> str:
+    """'?access_token=...' for the database, or '' if no key is configured."""
+    if not FIREBASE_SERVICE_ACCOUNT:
+        print("  NOTE: FIREBASE_SERVICE_ACCOUNT not set - writing unsigned.")
+        return ""
+    import json
+    from urllib.parse import quote
+    from google.oauth2 import service_account
+    from google.auth.transport.requests import Request
+
+    creds = service_account.Credentials.from_service_account_info(
+        json.loads(FIREBASE_SERVICE_ACCOUNT),
+        scopes=[
+            "https://www.googleapis.com/auth/firebase.database",
+            "https://www.googleapis.com/auth/userinfo.email",
+        ],
+    )
+    creds.refresh(Request())
+    return "?access_token=" + quote(creds.token, safe="")
+
+
 TILE_EMAIL = os.environ.get("TILE_EMAIL")
 TILE_PASSWORD = os.environ.get("TILE_PASSWORD")
 
@@ -180,8 +209,9 @@ async def main():
             + (f", {skipped_no_location} with no location yet" if skipped_no_location else "")
         )
 
+        auth = firebase_auth_query()
         print("Clearing old tile data from Firebase...")
-        async with session.delete(f"{FIREBASE_URL}/tileLocations.json") as resp:
+        async with session.delete(f"{FIREBASE_URL}/tileLocations.json{auth}") as resp:
             if resp.status != 200:
                 print(f"  WARNING: could not clear old data ({resp.status})")
 
@@ -189,7 +219,7 @@ async def main():
         success = 0
         for tile_no, payload in records.items():
             async with session.put(
-                f"{FIREBASE_URL}/tileLocations/{tile_no}.json", json=payload
+                f"{FIREBASE_URL}/tileLocations/{tile_no}.json{auth}", json=payload
             ) as resp:
                 if resp.status == 200:
                     success += 1
