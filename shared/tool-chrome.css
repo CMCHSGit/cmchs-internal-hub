@@ -9,6 +9,9 @@
    and --accent-ink, so those are all this relies on. --card is the odd one out
    (Ansur calls it --surface), hence the fallback chain. */
 
+/* The back-to-hub pill (shared with the staff schedule). */
+@import './hub-back.css';
+
 header.tool-header {
   display: flex;
   align-items: baseline;
@@ -23,6 +26,8 @@ header.tool-header h1 {
   font-size: 20px;
   line-height: 1.25;
 }
+/* Level with the top of the title, even when the subtitle wraps. */
+header.tool-header .hub-back { align-self: flex-start; }
 header.tool-header .sub {
   color: var(--muted);
   font-size: 13px;
@@ -38,30 +43,6 @@ header.tool-header .tool-actions {
   font-size: 13px;
   color: var(--muted);
 }
-
-/* Back to the hub. Neutral greys rather than themed colours so it reads the
-   same in either scheme without each tool having to say so. */
-.hub-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px 6px 9px;
-  flex: 0 0 100%;
-  align-self: flex-start;
-  width: fit-content;
-  margin: 0 0 4px;
-  border: 1px solid rgba(128, 128, 128, .35);
-  border-radius: 999px;
-  background: rgba(128, 128, 128, .08);
-  color: inherit;
-  text-decoration: none;
-  font: 600 13px/1 "Segoe UI", system-ui, -apple-system, sans-serif;
-  white-space: nowrap;
-}
-.hub-back:hover { background: rgba(128, 128, 128, .18); }
-.hub-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.hub-back img { width: 18px; height: 18px; display: block; }
-.hub-back .chev { font-size: 17px; line-height: 1; opacity: .65; }
 
 .theme-toggle {
   display: inline-flex;

@@ -46,13 +46,6 @@ body{margin:0;background:var(--bg);color:var(--ink);
 a{color:inherit}
 
 /* Back to the hub. Neutral greys so it works on either colour scheme. */
-.hub-back{display:inline-flex;align-items:center;gap:8px;padding:6px 12px 6px 9px;
-  flex:0 0 100%;align-self:flex-start;width:fit-content;margin:0 0 4px;
-  border:1px solid rgba(128,128,128,.35);border-radius:999px;background:rgba(128,128,128,.08);
-  color:inherit;text-decoration:none;font:600 13px/1 "Segoe UI",system-ui,sans-serif;white-space:nowrap}
-.hub-back:hover{background:rgba(128,128,128,.18)}
-.hub-back img{width:18px;height:18px;display:block}
-.hub-back .chev{font-size:17px;line-height:1;opacity:.65}
 
 header{background:var(--card);border-bottom:1px solid var(--line);padding:16px 24px 14px;
   display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
@@ -149,7 +142,7 @@ dialog form{position:relative}
 </head>
 <body>
 <header>
-  <a class="hub-back" href="/"><span class="chev" aria-hidden="true">&lsaquo;</span><img src="/brand/logo-mark.png" alt="">Internal Hub</a>
+  <a class="hub-back" href="/" aria-label="Back to the Internal Hub"><svg class="hub-back-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg><img src="/brand/logo-mark.png" alt=""><span class="hub-back-long">Internal Hub</span><span class="hub-back-short">Hub</span></a>
   <h1>Service Orders</h1>
   <span class="sub">Parts on order, received, shipping back — paste a service order to add one</span>
   <span class="who" id="who"></span>

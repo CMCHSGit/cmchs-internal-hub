@@ -8,6 +8,7 @@ import '@fontsource/source-sans-3/latin-600.css'
 import '@fontsource/titillium-web/latin-600.css'
 import App from './App.jsx'
 import './index.css'
+import '../../../shared/hub-back.css'
 // VitePWA used to inject this registration. The site now has one worker, owned
 // by the hub and shared by every tool, so it's registered explicitly instead.
 import { registerServiceWorker } from '../../../shared/register-sw.js'

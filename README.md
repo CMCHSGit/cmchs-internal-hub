@@ -46,7 +46,7 @@ Plain HTML pages join in with two lines at the top of `<head>` (the retired Serv
 <script type="module" src="/shared/gate.js"></script>
 ```
 
-Signed in: the page shows with a slim "Internal Hub" bar on top. Signed out: they go to the hub's sign-in, then straight back.
+Signed in: the page shows, with a slim "Internal Hub" bar on top unless it has its own "‹ Internal Hub" pill. Signed out: they go to the hub's sign-in, then straight back.
 
 **The site files are public** (GitHub Pages can't password-protect them). Anything confidential must come from Firebase behind its security rules, never sit in this repo. This repo is public too, so **no API keys** — and remember the sign-in gate is not a wall: anything served from here can be fetched without it.
 
@@ -55,7 +55,7 @@ SimproSync is the pattern to copy for a tool that needs a third-party key: the S
 ## Add a tool
 Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's category, not the address, says what it's for).
 
-1. A single-file tool: put it at `apps/<name>/index.html`, add the two gate lines, and add `{ dir: 'apps/<name>', path: '<name>', output: '.' }` to `APPS` in `scripts/build.mjs`.
+1. A single-file tool: put it at `apps/<name>/index.html`, add the two gate lines, put the "‹ Internal Hub" pill first in its header (markup and styles in `shared/hub-back.css`; `shared/tool-chrome.css` already includes it), and add `{ dir: 'apps/<name>', path: '<name>', output: '.' }` to `APPS` in `scripts/build.mjs`.
 2. Add an entry to `tools.json`:
    ```json
    { "id": "quote", "name": "Quote builder", "description": "One line, shown under the name",

@@ -1,0 +1,52 @@
+/* The "‹ Internal Hub" pill: the way back to the hub from every tool.
+
+   One look everywhere, taken from the demo tracker's (whose own copy lives in
+   the chs-equipment repo, because it is also served from demo.chsnz.co.nz).
+   Imported by shared/tool-chrome.css for the service tools, and directly by
+   the staff schedule.
+
+   Markup, the same in every tool:
+     <a class="hub-back" href="/" aria-label="Back to the Internal Hub">
+       <svg class="hub-back-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+       <img src="/brand/logo-mark.png" alt="">
+       <span class="hub-back-long">Internal Hub</span><span class="hub-back-short">Hub</span>
+     </a>
+
+   Brand purple on white rather than the old neutral grey, so it is the first
+   thing you see when you want out. It sizes to its content and never shrinks,
+   so it can't squeeze or cover the logo or title beside it. On a narrow phone
+   the label shortens to "Hub" instead of crowding the header. */
+.hub-back {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  flex: 0 0 auto;
+  width: max-content;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 13px 0 8px;
+  border: 1px solid #cac4e3;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3f3374;
+  font: 600 14px/1 "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  letter-spacing: 0;
+  text-decoration: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(29, 29, 29, .08);
+  transition: background-color 150ms cubic-bezier(.2, .6, .2, 1), border-color 150ms cubic-bezier(.2, .6, .2, 1);
+}
+.hub-back:hover { background: #dbd7ed; border-color: #968ac1; color: #3f3374; text-decoration: none; }
+.hub-back:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(85, 69, 150, .35); }
+.hub-back-chev { width: 16px; height: 16px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.hub-back img { width: 20px; height: 20px; display: block; flex: 0 0 auto; }
+.hub-back-short { display: none; }
+
+:root[data-theme="dark"] .hub-back { background: #2c2649; border-color: #5b4f93; color: #ece9f8; box-shadow: none; }
+:root[data-theme="dark"] .hub-back:hover { background: #3a3266; border-color: #968ac1; color: #ffffff; }
+
+@media (max-width: 420px) {
+  .hub-back { padding-right: 11px; }
+  .hub-back-long { display: none; }
+  .hub-back-short { display: inline; }
+}

@@ -62,7 +62,9 @@ const unsubscribe = watchUser(user => {
   decided = true
   queueMicrotask(() => unsubscribe?.())
   if (!user) return goToSignIn()
-  const show = () => { addBar(user); reveal() }
+  // A page that has its own "‹ Internal Hub" pill (the demo tracker does)
+  // gets no second way back stacked on top of it.
+  const show = () => { if (!document.querySelector('.hub-back')) addBar(user); reveal() }
   if (document.body) show()
   else document.addEventListener('DOMContentLoaded', show, { once: true })
 })
