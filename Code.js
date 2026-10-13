@@ -154,6 +154,24 @@ function handlePayload(payload) {
   // Test-notification panel (desktop Settings / mobile More → Test
   // notifications) isn't a Simpro job action at all, so it's dispatched
   // before anything below ever looks at jobId.
+  // The demo tracker trades a hub (staff schedule) sign-in for a pass to its
+  // own database — see rtdbTokenProxy_.
+  if (payload.action === 'rtdbToken') return rtdbTokenProxy_(payload);
+
+  // Everything below this point used to accept any caller. The tracker now
+  // sends the signed-in person's ID token with each request; until every
+  // installed copy has updated, a request without one is still served and
+  // logged. Setting the Script Property REQUIRE_TRACKER_SIGNIN to true refuses
+  // them — no redeploy needed, and unset again to roll back.
+  if (payload.action !== 'simproSync') {
+    const caller = tryVerifyStaff_(payload.idToken);
+    if (!caller) {
+      const enforce = PropertiesService.getScriptProperties().getProperty('REQUIRE_TRACKER_SIGNIN') === 'true';
+      Logger.log('Tracker request without a valid sign-in (' + (payload.action || (payload.close ? 'close' : payload.jobId ? 'update' : 'create')) + ')' + (enforce ? ' — refused.' : ' — allowed, not enforced yet.'));
+      if (enforce) return respond({ success: false, error: 'Sign in to use this.' });
+    }
+  }
+
   if (payload.action === 'testPush') return sendTestPush_(payload);
 
   // SimproSync (schedule.chsnz.co.nz/simprosync/) relaying Simpro calls
@@ -968,6 +986,115 @@ function decodeFirebaseIdToken_(idToken) {
 // Cheap pre-filter only (aud/iss/exp) — the real signature check happens
 // when the Firestore request below is made using this same token: Firestore
 // itself rejects an invalid, expired, or wrong-project token.
+// ── Staff sign-in for the demo tracker ──────────────────────────────────────
+//
+// The tracker's Realtime Database lives in the chs-equipment Firebase project,
+// but people sign in through the staff schedule's project (one Microsoft
+// sign-in for every tool). A schedule ID token is not accepted by the
+// chs-equipment database, so this proxy bridges them: it checks the schedule
+// token, then mints a chs-equipment custom token carrying {staff:true}, which
+// the tracker exchanges for an ID token its database will accept.
+//
+// "Staff" = someone with a real (non-placeholder) record in the schedule's
+// users collection. Firestore does the signature check, the same way
+// simproSyncVerifyAdmin_ does: the record is read using the caller's own token,
+// so a forged or expired token gets a 401 from Firestore rather than a profile.
+
+function verifyStaff_(idToken) {
+  const decoded = verifyScheduleIdTokenShape_(idToken);
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'staff_' + Utilities.base64Encode(
+    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, idToken)
+  );
+  const cached = cache.get(cacheKey);
+  if (cached) return JSON.parse(cached);
+
+  const url = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() +
+    '/databases/(default)/documents/users/' + encodeURIComponent(decoded.uid);
+  const resp = UrlFetchApp.fetch(url, { headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) throw new Error('Could not verify sign-in (' + resp.getResponseCode() + ')');
+  const f = (JSON.parse(resp.getContentText()).fields) || {};
+  if (f.pending && f.pending.booleanValue === true) throw new Error('This account has not finished signing in.');
+
+  const staff = {
+    uid: decoded.uid,
+    email: decoded.email,
+    name: (f.displayName && f.displayName.stringValue) || decoded.email,
+    admin: !!(f.role && f.role.stringValue === 'admin'),
+  };
+  const ttl = Math.max(1, Math.min(600, decoded.exp - Math.floor(Date.now() / 1000)));
+  cache.put(cacheKey, JSON.stringify(staff), ttl);
+  return staff;
+}
+
+// Like verifyStaff_, but null instead of throwing — for the soft check in front
+// of the tracker's job and push actions.
+function tryVerifyStaff_(idToken) {
+  if (!idToken) return null;
+  try { return verifyStaff_(idToken); } catch (err) { Logger.log('Sign-in check failed: ' + err); return null; }
+}
+
+// A Firebase custom token for the chs-equipment project, signed with its
+// service account. Claims are what the database rules check.
+function mintChsCustomToken_(staff) {
+  const key = serviceAccountKey_();
+  if (!key) throw new Error('Service account key is not configured');
+  if (key.project_id !== 'chs-equipment') throw new Error('Service account is for ' + key.project_id + ', not chs-equipment');
+  const b64url = function(obj) { return Utilities.base64EncodeWebSafe(JSON.stringify(obj)).replace(/=+$/, ''); };
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
+    iss: key.client_email,
+    sub: key.client_email,
+    aud: 'https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit',
+    iat: now,
+    exp: now + 3600,
+    uid: String(staff.uid).slice(0, 128),
+    claims: { staff: true, admin: !!staff.admin, name: String(staff.name || '').slice(0, 100) }
+  });
+  const sig = Utilities.base64EncodeWebSafe(Utilities.computeRsaSha256Signature(unsigned, key.private_key)).replace(/=+$/, '');
+  return unsigned + '.' + sig;
+}
+
+function rtdbTokenProxy_(payload) {
+  let staff;
+  try {
+    staff = verifyStaff_(payload.idToken);
+  } catch (err) {
+    return respond({ success: false, error: 'Not signed in: ' + err.message });
+  }
+  try {
+    return respond({ success: true, customToken: mintChsCustomToken_(staff), name: staff.name, admin: staff.admin });
+  } catch (err) {
+    Logger.log('rtdbToken: ' + err);
+    return respond({ success: false, error: 'Could not issue a database pass: ' + err.message });
+  }
+}
+
+// The chs-equipment web API key. Not a secret — it is the same public value in
+// FIREBASE_CONFIG in index.html, and only identifies the project. Used solely
+// by the self-test below to exchange a custom token the way the tracker does.
+const CHS_WEB_API_KEY = 'AIzaSyB-A5wIEoqD9SBQPJnc6bs_qjHytZFDaBA';
+
+// Run from the editor. Proves the whole path the tracker will use: mint a
+// custom token, exchange it, read the database with the resulting ID token.
+function checkCustomTokenMinting() {
+  const token = mintChsCustomToken_({ uid: 'proxy-selftest', name: 'Proxy self-test', admin: false });
+  const ex = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=' + CHS_WEB_API_KEY, {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ token: token, returnSecureToken: true }), muteHttpExceptions: true
+  });
+  const exJson = JSON.parse(ex.getContentText());
+  if (!exJson.idToken) {
+    Logger.log('NOT READY — exchange failed (' + ex.getResponseCode() + '): ' + ex.getContentText().slice(0, 300) +
+      '\nIf it mentions CONFIGURATION_NOT_FOUND or a disabled API: Firebase console → chs-equipment → Authentication → Get started.');
+    return;
+  }
+  const read = UrlFetchApp.fetch(FIREBASE_BASE + '/simproConfig.json?auth=' + encodeURIComponent(exJson.idToken), { muteHttpExceptions: true }).getResponseCode();
+  Logger.log(read === 200
+    ? 'READY — a staff pass can read the database (200).'
+    : 'NOT READY — exchange worked but the database read returned ' + read + '.');
+}
+
 function verifyScheduleIdTokenShape_(idToken) {
   const claims = decodeFirebaseIdToken_(idToken);
   const projectId = scheduleFirebaseProjectId_();
