@@ -724,8 +724,14 @@ function checkDatabaseAuth() {
 // sendTestPush_() surfaces it in its response so a test send can show
 // exactly which of a person's devices actually accepted the push, without
 // needing Cloud Logging wired up to read the alternative (Logger.log).
-function sendPushToPerson_(am, title, body, url) {
+//
+// am.notify === false: an admin switched this person off demo reminders on
+// the Internal Hub's Admin settings → Notifications, so every reminder skips
+// them. Missing means on. `force` is for the test sends only, which an admin
+// uses to check someone's phone works whatever their reminders are set to.
+function sendPushToPerson_(am, title, body, url, force) {
   if (!am || !Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return [];
+  if (am.notify === false && !force) { Logger.log('Push skipped for ' + am.name + ': reminders switched off in Admin'); return []; }
   const auth = getFcmAccessToken_();
   if (!auth) return [];
   const deadTokens = [];
@@ -807,7 +813,7 @@ function sendTestPush_(payload) {
   if (!Array.isArray(am.fcmTokens) || !am.fcmTokens.length) {
     return respond({ success: false, error: am.name + ' has no registered device — they need to tap "Enable push notifications" first.' });
   }
-  const results = sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1');
+  const results = sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1', true);
   Logger.log('Test push sent to ' + am.name + ' (' + am.fcmTokens.length + ' device(s)), requested by ' + requester.name);
   return respond({ success: true, sentTo: am.name, deviceCount: am.fcmTokens.length, results: results });
 }
@@ -830,7 +836,7 @@ function testSendPushOnly() {
     return;
   }
   Logger.log('Sending test push to ' + am.name + ' (' + am.fcmTokens.length + ' registered device(s))...');
-  sendPushToPerson_(am, 'Test notification', 'This is a test push from the CHS Equipment Tracker — no email or Simpro job was touched.', TRACKER_URL + '?mobile=1');
+  sendPushToPerson_(am, 'Test notification', 'This is a test push from the CHS Equipment Tracker — no email or Simpro job was touched.', TRACKER_URL + '?mobile=1', true);
 }
 
 // Mirrors the tracker's client-side isStartingSoon(): counts weekdays
