@@ -1,6 +1,6 @@
 # Excel → schedule, automatically (runs on a PC)
 
-Imports the company staff-schedule workbook into the schedule every 15 minutes, so people who still
+Imports the company staff-schedule workbook into the schedule every 5 minutes, so people who still
 fill in the Excel show up at internal.chsnz.co.nz/schedule without anyone pressing Import. It reads the
 **OneDrive-synced copy** of the workbook on a PC, so it needs no Microsoft (Graph) permission and no IT.
 The trade-off: it only runs while that PC is on, signed in, with OneDrive running — when it's off, the
@@ -58,7 +58,7 @@ Admin → Excel, so both write exactly the same thing).
    The first real import may bring in more than usual; if it's refused for that reason and the dry run
    looked right, run it once by hand with `--apply --max-changes <the number it reported>`.
 
-4. **Schedule it** (every 15 minutes while you're signed in, no window pops up):
+4. **Schedule it** (every 5 minutes while you're signed in, no window pops up):
 
    ```
    powershell -ExecutionPolicy Bypass -File apps\schedule\scripts\install-excel-import-task.ps1
@@ -70,5 +70,5 @@ Admin → Excel, so both write exactly the same thing).
 
 - The log: `%USERPROFILE%\.cmchs\excel-import.log` — "Imported", "Up to date", "REFUSED" or "FAILED"
   with a reason.
-- Run once now regardless of the 15-minute timer: `node apps/schedule/scripts/excel-import.mjs --apply --force`.
+- Run once now regardless of the 5-minute timer: `node apps/schedule/scripts/excel-import.mjs --apply --force`.
 - The scheduled task runs the script from this repo folder, so `git pull` updates it.

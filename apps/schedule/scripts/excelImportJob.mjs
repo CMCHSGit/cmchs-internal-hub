@@ -1,6 +1,6 @@
 /**
  * One run of the automatic Excel → schedule import, with the database passed in as `store` so it can be
- * tested without Firebase. scripts/excel-import.mjs runs it on a PC every 15 minutes against the
+ * tested without Firebase. scripts/excel-import.mjs runs it on a PC every 5 minutes against the
  * OneDrive-synced copy of the company workbook — no Microsoft (Graph) permission needed, so no IT.
  *
  * The rules are Admin → Excel's (src/utils/excelPlan.js), applied the way an unattended run should:
