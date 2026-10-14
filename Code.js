@@ -533,10 +533,18 @@ function sendReturnReminders() {
 
   // Test loans (BatchID prefixed "testbatch_" — see index.html's
   // isTestBatch()) never get real reminders, same as the tracker itself
-  // hides them from view outside test mode.
+  // hides them from view outside test mode. OnLoanTo/LoanEndDate get set
+  // on the equipment record the moment a booking is created — not when it's
+  // actually picked up — so a short Scheduled loan can have its due date
+  // fall inside the notice window before it's even started. Found live:
+  // a 1-day booking (19–20 Oct) got a "due back soon" push on the 15th,
+  // four days before the gear was due to leave the building. Require
+  // LoanStartDate to have actually arrived, same as every other check in
+  // this file that distinguishes Active from merely Scheduled.
   const groups = {};
   items.filter(function(e) {
     return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanEndDate &&
+      e.LoanStartDate && e.LoanStartDate <= todayStr &&
       !(e.BatchID && e.BatchID.indexOf('testbatch_') === 0);
   }).forEach(function(e) {
     const key = e.OnLoanTo + '|||' + e.LoanEndDate;
