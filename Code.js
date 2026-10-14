@@ -339,12 +339,14 @@ function sendDemoReminders() {
   // NOTE: the notice window now depends on shipping island (see
   // isStartingSoonBusinessDays()), and island lives on the loan's loanDoc,
   // not on the equipment record — so the businessDays check can't happen
-  // here any more. Group first by future-dated on-loan equipment only
-  // (todayStr < LoanStartDate), then check each group's actual window once
-  // its loanDoc (and island) has been fetched below.
+  // here any more. Group first by on-loan equipment starting today or later
+  // (todayStr <= LoanStartDate), then check each group's actual window once
+  // its loanDoc (and island) has been fetched below — a same-day start skips
+  // that window check entirely (see below) rather than being excluded here,
+  // since silence isn't the right call for something starting today.
   const groups = {};
   items.filter(function(e) {
-    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate && e.LoanStartDate > todayStr;
+    return e && e.OnLoanTo && e.Returned !== 'Yes' && e.LoanStartDate && e.LoanStartDate >= todayStr;
   }).forEach(function(e) {
     const key = e.OnLoanTo + '|||' + e.LoanStartDate;
     if (!groups[key]) groups[key] = { loanTo: e.OnLoanTo, startDate: e.LoanStartDate, batchId: e.BatchID || null, items: [] };
@@ -374,10 +376,15 @@ function sendDemoReminders() {
         Logger.log('Skipping long-term loan for ' + key);
         return;
       }
-      if (!isStartingSoonBusinessDays(todayStr, g.startDate, loanDoc.island)) {
+      // isStartingSoonBusinessDays() treats "starts today" as past the point
+      // of needing advance notice and returns false — right for every other
+      // day, wrong for today: a same-day booking still deserves an immediate
+      // heads-up instead of silently never being mentioned at all.
+      const startsToday = g.startDate === todayStr;
+      if (!startsToday && !isStartingSoonBusinessDays(todayStr, g.startDate, loanDoc.island)) {
         return; // not yet within this loan's notice window
       }
-      sendDemoReminderPush(g, loanDoc, serviceTeam);
+      sendDemoReminderPush(g, loanDoc, serviceTeam, startsToday);
       putFirebaseJson('/demoReminders/' + encodeURIComponent(key) + '.json', { sentAt: new Date().toISOString() });
       Logger.log('Demo reminder sent for ' + g.loanTo + ' starting ' + g.startDate);
     } catch (err) {
@@ -400,13 +407,15 @@ function amEffectiveRole_(am) {
 // Service & Projects team's phones, since they're the ones actually
 // testing/dispatching the gear. (Used to have an emailed .ics calendar
 // invite twin too — removed 2026-10-05, see the note at the top of this
-// file under DEMO REMINDER SETUP.)
-function sendDemoReminderPush(g, loanDoc, serviceTeam) {
+// file under DEMO REMINDER SETUP.) startsToday says this with more urgency
+// ("Starting TODAY" rather than a date that happens to be today, easy to
+// read past in a notification) — see the comment above its caller.
+function sendDemoReminderPush(g, loanDoc, serviceTeam, startsToday) {
   if (!serviceTeam || !serviceTeam.length) return;
   const islandNote = loanDoc.island ? (loanDoc.island === 'North' ? ' (North Island)' : ' (South Island)') : '';
-  const title = 'Upcoming demo: ' + g.loanTo;
-  const body = 'Starts ' + fmtDate(g.startDate) + islandNote + (loanDoc.location ? ' — ' + loanDoc.location : '') +
-    ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : '');
+  const title = (startsToday ? 'Demo starting TODAY: ' : 'Upcoming demo: ') + g.loanTo;
+  const body = (startsToday ? 'Starts today' : 'Starts ' + fmtDate(g.startDate)) + islandNote +
+    (loanDoc.location ? ' — ' + loanDoc.location : '') + ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : '');
   serviceTeam.forEach(function(am) {
     try { sendPushToPerson_(am, title, body, TRACKER_URL + '?mobile=1'); }
     catch (err) { Logger.log('Demo reminder push failed for ' + am.name + ': ' + err); }
