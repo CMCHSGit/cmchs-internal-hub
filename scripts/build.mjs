@@ -7,6 +7,7 @@
 //   apps/service-orders (Vite) -> /service-orders/
 //   apps/simprosync  (Vite)    -> /simprosync/
 //   apps/ansurtopdf  (Vite)    -> /ansurtopdf/
+//   apps/admin       (Vite)    -> /admin/     admin settings (people, Simpro access…)
 //   apps/demo        (fetched) -> /demo/  read-only copy of demo.chsnz.co.nz,
 //                                         built from the chs-equipment repo
 //
@@ -29,6 +30,7 @@ const APPS = [
   { dir: 'apps/service-orders', path: 'service-orders', build: 'npm run build -w apps/service-orders', output: 'dist' },
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
+  { dir: 'apps/admin',      path: 'admin',      build: 'npm run build -w apps/admin',    output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]
 
@@ -90,6 +92,7 @@ const { count, size, warnings } = await injectManifest({
     'maintenance/index.html',
     'simprosync/index.html',
     'service-orders/index.html',
+    'admin/index.html',
   ],
   globIgnores: [
     'sw-src.js',

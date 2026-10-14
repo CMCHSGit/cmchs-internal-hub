@@ -2,7 +2,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore'
 import { db } from '../firebase'
 
 /**
- * "Who changed what" — one line per save, read back on Admin → Activity log.
+ * "Who changed what" — one line per save, read back on the hub's Admin settings → Activity log (apps/admin).
  * Fire-and-forget, same as the Excel mirror: a logging failure (offline, the
  * rules not yet published) never blocks or fails the action it's logging,
  * it just means that one action goes unrecorded.

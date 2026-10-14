@@ -9,7 +9,7 @@ import Icon from './Icon.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
 import {
   NEWS_CATEGORIES, NEWS_TONE, announcements, hostOf, markUsed, newsCategory, newsImage,
-  opensInTab, recentTools, searchTools, toolGroups, tools,
+  openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
 } from './tools.js'
 
 // The hub has no People screen of its own yet; the schedule's Day view is who's
@@ -30,7 +30,7 @@ function ToolLink({ tool, className, children, title }) {
   return (
     <a className={className} href={tool.link} title={title}
        target={tab ? '_blank' : undefined} rel={tab ? 'noopener' : undefined}
-       onClick={() => markUsed(tool)}>
+       onClick={e => { markUsed(tool); if (openPhoneApp(tool)) e.preventDefault() }}>
       {children}
     </a>
   )
@@ -79,6 +79,7 @@ function HeroSearch({ people }) {
           if (e.key === 'Escape') { setOpen(false); e.currentTarget.blur() }
           if (e.key === 'Enter' && toolHits[0]) {
             markUsed(toolHits[0])
+            if (openPhoneApp(toolHits[0])) return
             if (opensInTab(toolHits[0])) window.open(toolHits[0].link, '_blank', 'noopener')
             else location.href = toolHits[0].link
           }

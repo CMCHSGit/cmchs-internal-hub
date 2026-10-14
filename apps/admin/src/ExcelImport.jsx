@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { collection, getDocs } from 'firebase/firestore'
 import { FileSpreadsheet, TriangleAlert, Check } from 'lucide-react'
-import { db } from '../firebase'
-import { useAuth } from '../contexts/AuthContext'
-import { indexWorkbook, readPeople } from '../utils/excelSchedule'
-import { excelPeople, matchPeople, buildMapping, planImport, nameKey } from '../utils/excelPlan'
-import { loadExisting, applyImportPlan } from '../utils/excelImportWrite'
-import { logActivity } from '../utils/activityLog'
-import { getCurrentWeekStart, weekDates, dayMonth, dayMonthYear, DAY_SHORT } from '../utils/week'
-import { recentQuarters, quarterSlices } from '../utils/outOfTown'
-import { teamLabel } from '../utils/teams'
-import { shortNames } from '../utils/names'
-import { Alert, Badge, Button, Loading, Switch } from './ui'
+// Reading, matching and writing stay in the schedule's utils, next to their
+// tests (apps/schedule/tests). Only this screen moved to the hub.
+import { db } from '../../schedule/src/firebase'
+import { useAuth } from '../../schedule/src/contexts/AuthContext'
+import { indexWorkbook, readPeople } from '../../schedule/src/utils/excelSchedule'
+import { excelPeople, matchPeople, buildMapping, planImport, nameKey } from '../../schedule/src/utils/excelPlan'
+import { loadExisting, applyImportPlan } from '../../schedule/src/utils/excelImportWrite'
+import { logActivity } from '../../schedule/src/utils/activityLog'
+import { getCurrentWeekStart, weekDates, dayMonth, dayMonthYear, DAY_SHORT } from '../../schedule/src/utils/week'
+import { recentQuarters, quarterSlices } from '../../schedule/src/utils/outOfTown'
+import { teamLabel } from '../../schedule/src/utils/teams'
+import { shortNames } from '../../schedule/src/utils/names'
+import { Alert, Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
 
 /** Where an import starts from — the end is always the newest sheet. */
 const RANGES = [
@@ -27,11 +28,11 @@ const plural = (n, one, many = `${one}s`) => `${n.toLocaleString('en-NZ')} ${n =
 const savedLabel = ms => new Date(ms).toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 
 /**
- * Admin → Excel: fills the schedule from the company Excel file. Pick the
+ * Admin settings → Excel: fills the schedule from the company Excel file. Pick the
  * file (it's read in this browser — nothing is uploaded anywhere but the
  * resulting entries), see exactly what would change, then press Import.
  * Nothing is written until then, and nothing in the app is overwritten
- * unless asked (see utils/excelPlan.js for the rules).
+ * unless asked (see apps/schedule/src/utils/excelPlan.js for the rules).
  */
 export default function ExcelImport() {
   const { user } = useAuth()
@@ -202,7 +203,7 @@ export default function ExcelImport() {
                 Added or updated {plural(done.entries, 'entry', 'entries')} for {plural(done.people, 'person', 'people')}
                 {done.newPeople ? `, including ${plural(done.newPeople, 'person', 'people')} who haven’t signed in yet` : ''}.
                 {done.kept ? ` ${plural(done.kept, 'entry', 'entries')} that differ were left as they are in the app.` : ''}{' '}
-                <Link to="/">See it in Team week</Link>
+                <a href="/schedule/">See it in Team week</a>
               </Alert>
             )}
 

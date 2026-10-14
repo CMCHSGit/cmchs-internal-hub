@@ -8,7 +8,7 @@ import TeamWeek      from './pages/TeamWeek'
 import DayView       from './pages/DayView'
 import LeaveCalendar from './pages/LeaveCalendar'
 import OnCall        from './pages/OnCall'
-import Admin         from './pages/Admin'
+import AdminMoved    from './pages/AdminMoved'
 import OutOfTown     from './pages/OutOfTown'
 import TeamOnboarding from './components/TeamOnboarding'
 import PullToRefresh  from './components/PullToRefresh'
@@ -82,7 +82,7 @@ function AppRoutes() {
           <Route path="/day"    element={<DayView />} />
           <Route path="/leave"  element={<LeaveCalendar />} />
           <Route path="/oncall" element={<OnCall />} />
-          <Route path="/admin"  element={<Admin />} />
+          <Route path="/admin"  element={<AdminMoved />} />
           <Route path="/out-of-town" element={<OutOfTown />} />
           {/* /team was Team week's path before it became the default — kept
               working for anyone's old bookmark or home-screen shortcut. */}
@@ -138,11 +138,13 @@ function AppHeader() {
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </IconButton>
         <AccountMenu />
+        {/* Admin moved to the hub (/admin/, apps/admin). A plain <a>, not a
+            NavLink: like the hub pill, it's outside this router's basename. */}
         {profile?.role === 'admin' && (
-          <NavLink to="/admin" className={({ isActive }) => `header-admin${isActive ? ' active' : ''}`} aria-label="Admin">
+          <a href="/admin/" className="header-admin" aria-label="Admin settings, in the Internal Hub" title="Admin settings moved to the Internal Hub">
             <Settings size={20} aria-hidden="true" />
             <span className="header-admin-label">Admin</span>
-          </NavLink>
+          </a>
         )}
         </div>
       </div>

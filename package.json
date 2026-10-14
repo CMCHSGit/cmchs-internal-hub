@@ -8,7 +8,8 @@
     "apps/simprosync",
     "apps/ansurtopdf",
     "apps/maintenance",
-    "apps/service-orders"
+    "apps/service-orders",
+    "apps/admin"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

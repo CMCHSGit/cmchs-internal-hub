@@ -4,7 +4,7 @@
 import {
   ArrowRight, Building, Calculator, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
   ChevronRight, ClipboardList, ExternalLink, FileCheck, FileText, GraduationCap, Headset, Laptop,
-  Link, LogOut, Mail, MapPin, MessageSquare, Package, Phone, RefreshCw, Search, Stethoscope, Users,
+  Link, LogOut, Mail, MapPin, MessageSquare, Package, Phone, RefreshCw, Search, Settings, Stethoscope, Users,
   Wrench,
 } from 'lucide-react'
 
@@ -34,6 +34,7 @@ const ICONS = {
   'phone': Phone,
   'refresh-cw': RefreshCw,
   'search': Search,
+  'settings': Settings,
   'stethoscope': Stethoscope,
   'users': Users,
   'wrench': Wrench,

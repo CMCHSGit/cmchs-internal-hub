@@ -35,6 +35,28 @@ export function toolGroups() {
 /** Opens in a new tab: anything marked "tab" (other sites, Microsoft 365). */
 export const opensInTab = tool => tool.opens === 'tab'
 
+// On a phone, Outlook and Teams open in their own apps. Their web versions
+// don't work there: opened from the installed hub they land in its in-app
+// browser, which Microsoft rejects as "browser version is unsupported" (and
+// Teams on the web doesn't support phones at all). If the app isn't
+// installed, nothing takes over the screen, and the web version opens after
+// a moment instead.
+const PHONE_APPS = { outlook: 'ms-outlook://', teams: 'msteams://' }
+const IS_PHONE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) // iPadOS reports as a Mac
+
+/** True if it handled the tool by opening its phone app. */
+export function openPhoneApp(tool) {
+  const app = IS_PHONE && PHONE_APPS[tool.id]
+  if (!app) return false
+  const fallback = setTimeout(() => {
+    if (!document.hidden) window.open(tool.link, '_blank', 'noopener')
+  }, 1500)
+  document.addEventListener('visibilitychange', () => clearTimeout(fallback), { once: true })
+  location.href = app
+  return true
+}
+
 /** "internal.chsnz.co.nz/service-orders" — shown in mono under each tool. */
 export function hostOf(tool) {
   try {

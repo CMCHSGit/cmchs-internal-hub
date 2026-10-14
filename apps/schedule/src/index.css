@@ -779,17 +779,9 @@ button.wkw-main { cursor: pointer; }
 .editing-note { padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-brand-tint); color: var(--text-strong); }
 
 /* ════════════════════════════════════════════════════════════════════
-   Admin, sign-in, team picker
+   Sign-in, team picker. (Admin moved to the hub, apps/admin, and took its
+   styles with it; it still imports this file for everything else.)
    ════════════════════════════════════════════════════════════════════ */
-.tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--border-subtle); }
-.tab { background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 10px 0 12px; color: var(--text-muted); font: var(--type-body); cursor: pointer; }
-.tab.active { border-bottom-color: var(--accent-fg); color: var(--text-strong); font: var(--type-body-strong); }
-.admin-list { overflow: hidden; }
-.admin-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
-.admin-item:last-child { border-bottom: none; }
-.admin-item-name { font: var(--weight-semibold) 15px/1.35 var(--font-body); color: var(--text-strong); display: flex; align-items: center; gap: 6px; }
-.admin-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.admin-controls select, .admin-controls .input { width: auto; padding-top: 7px; padding-bottom: 7px; }
 .version-tag {
   position: fixed; right: 8px; z-index: 35;
   bottom: calc(var(--nav-h) + 6px + env(safe-area-inset-bottom)); /* just above the phone tab bar */
@@ -800,62 +792,12 @@ button.wkw-main { cursor: pointer; }
 }
 @media (min-width: 760px) { .version-tag { bottom: 8px; right: 12px; } }
 @media print { .version-tag { display: none; } }
-/* Admin on desktop: a side panel (intro, add form, imports) beside the
-   list — locations in columns, people as a table. Phones keep one column. */
-.admin-page { max-width: 1440px; }
-.admin-layout { display: flex; flex-direction: column; gap: 18px; }
-.admin-side, .admin-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.admin-side-title { font: var(--type-h4); color: var(--text-strong); }
-.admin-side-title + p { margin-top: -8px; }
-.admin-side p + .admin-side-title { margin-top: 12px; }
-.admin-people-head { display: none; }
-@media (min-width: 1000px) {
-  .admin-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 32px; align-items: start; }
-  .admin-side { position: sticky; top: 96px; }
-  .admin-list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-  .admin-list-grid .admin-item:last-child { border-bottom: 1px solid var(--border-subtle); }
-  .admin-people .admin-item { display: grid; grid-template-columns: minmax(0, 1fr) 170px 130px 80px; gap: 12px; }
-  .admin-people .admin-remove { justify-self: start; }
-  .admin-people .admin-controls { display: contents; }
-  .admin-people .admin-controls select, .admin-people .admin-controls .input { width: 100% !important; }
-  .admin-people-head { display: grid; padding-top: 10px; padding-bottom: 10px; background: var(--surface-subtle); }
-  .admin-people-head span { font: var(--type-overline); letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--text-muted); }
-}
-/* Activity log — one line per action, newest first. */
-.activity-list { max-height: 70vh; overflow-y: auto; }
-.activity-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); font: var(--type-body-sm); }
-.activity-row:last-child { border-bottom: none; }
-.activity-when { flex: 0 0 auto; width: 120px; color: var(--text-muted); font: var(--type-caption); }
-.activity-who { flex: 0 0 auto; font-weight: var(--weight-semibold); color: var(--text-strong); }
-.activity-what { flex: 1 1 260px; min-width: 0; color: var(--text-body); }
-
-.admin-lock { max-width: 380px; margin: 40px auto 0; padding: 28px 24px; display: flex; flex-direction: column; gap: 12px; align-items: stretch; text-align: center; }
-.admin-lock-icon { align-self: center; color: var(--accent-fg); }
-.excel-pick { align-self: flex-start; cursor: pointer; }
-.excel-pick.is-disabled { opacity: .5; cursor: default; pointer-events: none; }
-.excel-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; color: var(--text-muted); text-align: center; }
-.excel-section { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px; }
-.excel-heading { font: var(--type-h4); color: var(--text-strong); }
-.excel-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.excel-row select { width: auto; min-width: 240px; }
-.excel-people { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); max-height: 420px; overflow-y: auto; }
-.excel-person { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(180px, 1.4fr) auto; gap: 12px; align-items: center; padding: 6px 12px; border-top: 1px solid var(--border-subtle); }
-.excel-person:first-child { border-top: none; }
-.excel-person select { padding-top: 6px; padding-bottom: 6px; }
-.excel-person-name { font: var(--type-body-strong); color: var(--text-strong); display: flex; flex-direction: column; }
-.excel-person-status { min-width: 110px; text-align: right; }
-.excel-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
-.excel-stats > div { display: flex; flex-direction: column; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-subtle); }
-.excel-stats strong { font: var(--weight-semibold) 22px/1.2 var(--font-display); color: var(--text-strong); }
-.excel-stats span { font: var(--type-caption); color: var(--text-muted); }
+/* Fold-out detail boxes — Out of town here, and the Excel import in the hub. */
 .excel-details { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px; }
 .excel-details summary { cursor: pointer; font: var(--weight-semibold) 14px/1.4 var(--font-body); color: var(--text-strong); }
 .excel-details ul { margin: 8px 0 0 18px; display: flex; flex-direction: column; gap: 4px; font: var(--type-body-sm); color: var(--text-body); }
-.excel-weeks { margin-top: 8px; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; }
-.excel-weeks > div { display: grid; grid-template-columns: 1.2fr 1fr .7fr .8fr; gap: 8px; padding: 4px 0; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); color: var(--text-body); }
-.excel-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-@media (max-width: 759.98px) { .excel-person { grid-template-columns: 1fr; gap: 4px; } .excel-person-status { text-align: left; } }
-.version-note { text-align: center; font: var(--type-caption); color: var(--text-muted); padding: 8px 0 16px; }
+/* /schedule/admin, for old bookmarks: a pointer to where Admin went. */
+.admin-moved { margin-top: 24px; padding: 24px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
 code { font-family: var(--font-mono); font-size: .92em; }
 
 .login-page { min-height: 100dvh; display: flex; flex-direction: column; }

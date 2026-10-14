@@ -1,6 +1,7 @@
-/* SimproSync entry point - admin-only gate in front of the sync tool.
+/* SimproSync entry point - gate in front of the sync tool: admins, plus anyone
+   given Simpro access (users/{uid}.simproAccess) in the hub's Admin settings.
    Uses the CMCHS Staff Schedule Firebase project (same Microsoft sign-in,
-   same users/{uid}.role). Simpro calls go through chs-equipment's existing
+   same users/{uid} record). Simpro calls go through chs-equipment's existing
    Apps Script proxy, authenticated with this user's Firebase ID token - the
    Simpro key itself never reaches the browser. */
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
@@ -129,13 +130,19 @@ gate('loading', 'Checking sign-in…')
 
 onAuthStateChanged(auth, async user => {
   if (started) { if (!user) location.reload(); return }
-  if (!user) return gate('signin', 'Sign in with your Cass / CHS Microsoft account. SimproSync is for CMCHS Staff Schedule admins only.')
+  if (!user) return gate('signin', 'Sign in with your Cass / CHS Microsoft account. SimproSync is for admins and people given Simpro access.')
   try {
     gate('loading', 'Checking access…')
     const prof = await getDoc(doc(db, 'users', user.uid))
     const p = prof.exists() ? prof.data() : null
-    if (!p || p.role !== 'admin')
-      return gate('denied', `${user.email} is not an admin in the CMCHS Staff Schedule, so SimproSync is not available. An existing admin can give you the admin role.`)
+    // Admins always; anyone else once an admin turns on their Simpro access in
+    // the hub's Admin settings — the same rule the proxy applies to every call.
+    const admin = p?.role === 'admin'
+    if (!admin && p?.simproAccess !== true)
+      return gate('denied', `${user.email} doesn't have Simpro access, so SimproSync is not available. An admin can turn it on for you in Admin settings on the Internal Hub.`)
+    // Deleting assets stays admin-only (the proxy refuses DELETE from anyone
+    // else), so there's no point showing it to them.
+    $('delCard').hidden = !admin
     const name = p.displayName || user.displayName || user.email
     $('whoName').textContent = `${name} (${user.email})`
     started = true

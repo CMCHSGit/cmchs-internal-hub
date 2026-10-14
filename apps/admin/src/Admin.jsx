@@ -3,15 +3,14 @@ import {
   collection, getDocs, addDoc, deleteDoc, doc, setDoc, updateDoc,
   query, orderBy, limit, serverTimestamp
 } from 'firebase/firestore'
-import { db } from '../firebase'
-import { useAuth } from '../contexts/AuthContext'
+import { db } from '../../schedule/src/firebase'
+import { useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Bell, Lock, ScrollText } from 'lucide-react'
-import Toast from '../components/Toast'
-import { TEAMS, teamLabel } from '../utils/teams'
-import { logActivity } from '../utils/activityLog'
-import { Alert, Badge, Button, Loading } from '../components/ui'
-import ExcelImport from '../components/ExcelImport'
-import { APP_VERSION } from '../version'
+import Toast from '../../schedule/src/components/Toast'
+import { TEAMS, teamLabel } from '../../schedule/src/utils/teams'
+import { logActivity } from '../../schedule/src/utils/activityLog'
+import { Alert, Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
+import ExcelImport from './ExcelImport'
 
 /**
  * Admin also asks for a password — a second step on top of the admin role,
@@ -51,7 +50,7 @@ function AdminLock({ onUnlock }) {
     <div className="page page-narrow">
       <form className="card admin-lock" onSubmit={submit}>
         <Lock size={28} aria-hidden="true" className="admin-lock-icon" />
-        <h1 className="page-title">Admin</h1>
+        <h2 className="page-title">Unlock admin settings</h2>
         <p className="text-sm text-muted">Enter the admin password to continue.</p>
         <input
           className="input"
@@ -70,27 +69,30 @@ function AdminLock({ onUnlock }) {
   )
 }
 
+const TABS = [['users', 'People'], ['locations', 'Locations'], ['excel', 'Excel'], ['activity', 'Activity log']]
+
+/** The open tab lives in the address (/admin/#locations), so a link or a reload lands on it. */
+function tabFromHash() {
+  const t = location.hash.slice(1)
+  return TABS.some(([id]) => id === t) ? t : 'users'
+}
+
+/** Only rendered for admins — App.jsx turns everyone else away first. */
 export default function Admin() {
-  const { profile } = useAuth()
-  const [tab, setTab] = useState('locations')
+  const [tab, setTabState] = useState(tabFromHash)
   const [unlocked, setUnlocked] = useState(isUnlocked)
 
-  if (profile?.role !== 'admin') {
-    return (
-      <div className="page page-narrow">
-        <p className="text-muted">Admin access only.</p>
-      </div>
-    )
+  function setTab(t) {
+    setTabState(t)
+    history.replaceState(null, '', t === 'users' ? location.pathname : `#${t}`)
   }
 
   if (!unlocked) return <AdminLock onUnlock={() => setUnlocked(true)} />
 
   return (
     <div className="page admin-page">
-      <h1 className="page-title">Admin</h1>
-
       <div className="tabs" role="tablist">
-        {[['locations', 'Locations'], ['users', 'People'], ['excel', 'Excel'], ['activity', 'Activity log']].map(([t, label]) => (
+        {TABS.map(([t, label]) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
             {label}
           </button>
@@ -101,8 +103,6 @@ export default function Admin() {
       {tab === 'users'     && <UsersTab />}
       {tab === 'excel'     && <ExcelImport />}
       {tab === 'activity'  && <ActivityTab />}
-
-      <p className="version-note">CMCHS Staff Schedule v{APP_VERSION}</p>
     </div>
   )
 }
@@ -225,11 +225,22 @@ function UsersTab() {
 
   async function updateUser(uid, field, value) {
     const person = users.find(u => u.uid === uid)
-    await updateDoc(doc(db, 'users', uid), { [field]: value })
+    const name = person?.displayName || uid
+    try {
+      await updateDoc(doc(db, 'users', uid), { [field]: value })
+    } catch (e) {
+      console.error(e)
+      return showToast('Could not save that — try again.')
+    }
     setUsers(prev => prev.map(u => u.uid === uid ? { ...u, [field]: value } : u))
+    showToast('Saved.')
+    if (field === 'simproAccess') {
+      logActivity(user, value ? `Gave ${name} Simpro access in Admin.` : `Took away ${name}'s Simpro access in Admin.`)
+      return
+    }
     const fieldLabel = field === 'team' ? 'team' : 'role'
     const valueLabel = field === 'team' ? (teamLabel(value) || 'No team') : value
-    logActivity(user, `Set ${person?.displayName || uid}'s ${fieldLabel} to ${valueLabel} in Admin.`)
+    logActivity(user, `Set ${name}'s ${fieldLabel} to ${valueLabel} in Admin.`)
   }
 
   /**
@@ -283,6 +294,12 @@ function UsersTab() {
         Admins can update anyone’s schedule from Team week and run the on-call roster.
       </p>
 
+      <h2 className="admin-side-title">Simpro access</h2>
+      <p className="text-sm text-muted">
+        Lets someone use the tools that read or write Simpro: SimproSync, the Ansur report upload and the
+        Service Orders job lookup. Admins always have it. Deleting assets in Simpro stays admins only.
+      </p>
+
       <h2 className="admin-side-title">Add a person</h2>
       <p className="text-sm text-muted">
         For someone who hasn’t signed in yet, so they can be scheduled now. Use their full name —
@@ -310,7 +327,7 @@ function UsersTab() {
       {loading ? <Loading /> : (
         <div className="card admin-list admin-people">
           <div className="admin-item admin-people-head" aria-hidden="true">
-            <span>Name</span><span>Team</span><span>Role</span>
+            <span>Name</span><span>Team</span><span>Role</span><span>Simpro</span>
           </div>
           {users.map(u => (
             <div key={u.uid} className="admin-item">
@@ -328,7 +345,7 @@ function UsersTab() {
               <div className="admin-controls">
                 <select
                   value={u.team || ''}
-                  onChange={e => { updateUser(u.uid, 'team', e.target.value || null); showToast('Saved.') }}
+                  onChange={e => updateUser(u.uid, 'team', e.target.value || null)}
                   style={{ width: 150 }}
                   aria-label="Team"
                 >
@@ -337,13 +354,14 @@ function UsersTab() {
                 </select>
                 <select
                   value={u.role || 'user'}
-                  onChange={e => { updateUser(u.uid, 'role', e.target.value); showToast('Saved.') }}
+                  onChange={e => updateUser(u.uid, 'role', e.target.value)}
                   style={{ width: 110 }}
                   aria-label="Role"
                 >
                   <option value="user">User</option>
                   <option value="admin">Admin</option>
                 </select>
+                <SimproAccess person={u} onChange={on => updateUser(u.uid, 'simproAccess', on)} />
                 {u.pending && (
                   <Button variant="ghost" size="sm" className="admin-remove" style={{ color: 'var(--status-critical)' }} onClick={() => removePerson(u)}>Remove</Button>
                 )}
@@ -357,6 +375,24 @@ function UsersTab() {
       <Toast message={toast} />
     </div>
   )
+}
+
+/**
+ * users/{uid}.simproAccess. The Apps Script proxy that relays Simpro calls
+ * lets through admins always, and anyone else only with this set to true, so
+ * an admin's switch is shown on and fixed rather than one that does nothing.
+ * Not offered for a "not signed in yet" placeholder: that record is replaced
+ * by a fresh one on their first sign-in, which wouldn't carry it over.
+ */
+function SimproAccess({ person, onChange }) {
+  // "Simpro:" is for phones, where there is no column heading to say so.
+  if (person.role === 'admin') {
+    return <span className="admin-simpro text-sm text-muted" title="Admins always have Simpro access"><span className="admin-simpro-key">Simpro: </span>Always (admin)</span>
+  }
+  if (person.pending) {
+    return <span className="admin-simpro text-sm text-muted"><span className="admin-simpro-key">Simpro: </span>After they sign in</span>
+  }
+  return <Switch className="admin-simpro" checked={person.simproAccess === true} onChange={onChange} label="Simpro access" />
 }
 
 /* ── Activity log tab ── */

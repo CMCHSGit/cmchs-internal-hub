@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import Icon from './Icon.jsx'
-import { markUsed, opensInTab, searchTools } from './tools.js'
+import { markUsed, openPhoneApp, opensInTab, searchTools } from './tools.js'
 
 function openTool(tool) {
   markUsed(tool)
+  if (openPhoneApp(tool)) return
   if (opensInTab(tool)) window.open(tool.link, '_blank', 'noopener')
   else location.href = tool.link
 }

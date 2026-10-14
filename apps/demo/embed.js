@@ -7,9 +7,9 @@
 // a loan made in either place shows up in both.
 //
 // What this file changes, always:
-//  - The tracker's team password is skipped: the hub's Microsoft sign-in
-//    already let you in. (Its separate admin password for delete / retire /
-//    edit still applies.)
+//  - The tracker's own sign-in check is skipped: the hub's Microsoft sign-in
+//    already let you in, and it is the same sign-in the tracker uses. (Its
+//    separate admin password for delete / retire / edit still applies.)
 //  - Its service worker and push notifications are switched off here. The
 //    site has one worker, the hub's, and one push setup, the schedule's.
 //    Push for the demo tracker stays on demo.chsnz.co.nz.

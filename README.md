@@ -11,6 +11,7 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
+| `/admin/` | Admin settings: people, teams, roles, Simpro access, the schedule's locations, Excel import and activity log. Admins only | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 
@@ -50,7 +51,7 @@ Signed in: the page shows, with a slim "Internal Hub" bar on top unless it has i
 
 **The site files are public** (GitHub Pages can't password-protect them). Anything confidential must come from Firebase behind its security rules, never sit in this repo. This repo is public too, so **no API keys** — and remember the sign-in gate is not a wall: anything served from here can be fetched without it.
 
-SimproSync is the pattern to copy for a tool that needs a third-party key: the Simpro key lives in a Script Property on the Apps Script proxy, the browser sends only the user's Firebase ID token, and the proxy checks that token is a real admin before relaying an allowlisted call. The key never reaches the page.
+SimproSync is the pattern to copy for a tool that needs a third-party key: the Simpro key lives in a Script Property on the Apps Script proxy, the browser sends only the user's Firebase ID token, and the proxy checks that token belongs to an admin, or to someone given Simpro access in Admin settings (`users/{uid}.simproAccess`), before relaying an allowlisted call. The key never reaches the page.
 
 ## Add a tool
 Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's category, not the address, says what it's for).

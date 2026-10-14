@@ -28,7 +28,7 @@ async function transferSchedules(pendingId, realUid) {
 }
 
 /**
- * Admin → Users can bulk-create "pending" placeholder profiles (team,
+ * Admin settings (the hub's apps/admin) can bulk-create "pending" placeholder profiles (team,
  * excelName) for staff who haven't signed in yet, keyed by a made-up id
  * rather than their eventual real uid (which doesn't exist until they do).
  * On an actual first sign-in, adopt one of those placeholders — preferring
