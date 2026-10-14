@@ -479,10 +479,6 @@ function TrackerRole({ person, tracker, onChange }) {
  *    Script senders (chs-equipment .gas-proxy) skip anyone with it false.
  * Missing means on, so nobody's reminders changed when this arrived.
  *
- * One switch per person covers both tools: it turns on or off whichever of
- * the two they're in. If the two disagree (set separately before), it shows
- * off and says which one is still on; switching it on puts both on.
- *
  * A switch can only stop notifications. Getting them at all still needs the
  * person to tap "Enable notifications" on their own phone, which browsers
  * require; the phone counts show who has.
@@ -505,36 +501,36 @@ function NotificationsTab() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  async function saveSchedule(person, on) {
-    await updateDoc(doc(db, 'users', person.uid), { 'notifications.scheduleReminder': on })
+  async function setScheduleReminder(person, on) {
+    const name = person.displayName || person.email
+    try {
+      await updateDoc(doc(db, 'users', person.uid), { 'notifications.scheduleReminder': on })
+    } catch (e) {
+      console.error(e)
+      return showToast('Could not save that — try again.')
+    }
     setUsers(prev => prev.map(u => u.uid === person.uid ? { ...u, notifications: { ...u.notifications, scheduleReminder: on } } : u))
-  }
-
-  async function saveDemo(member, on) {
-    await tracker.update(list => {
-      const m = list.find(x => x.name === member.name && (x.email || '') === (member.email || ''))
-      if (!m) throw new Error(`${member.name} is no longer on the demo tracker's team.`)
-      if (on) delete m.notify
-      else m.notify = false
-    })
-  }
-
-  /** Turns `person` (a staff user, or null) and `member` (their demo tracker entry, or null) on or off together. */
-  async function setReminders(person, member, on) {
-    const name = person ? (person.displayName || person.email) : member.name
-    const failed = []
-    if (person) {
-      try { await saveSchedule(person, on) } catch (e) { console.error(e); failed.push('the staff schedule') }
-    }
-    if (member) {
-      try { await saveDemo(member, on) } catch (e) { console.error(e); failed.push('the demo tracker') }
-    }
-    if (failed.length) return showToast(`Could not save to ${failed.join(' or ')} — try again.`)
     showToast('Saved.')
-    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${name}'s notifications in Admin.`)
+    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${name}'s staff schedule reminder in Admin.`)
   }
 
-  const phones = n => (n ? `${n} phone${n === 1 ? '' : 's'}` : 'no phone yet')
+  async function setDemoReminders(member, on) {
+    try {
+      await tracker.update(list => {
+        const m = list.find(x => x.name === member.name && (x.email || '') === (member.email || ''))
+        if (!m) throw new Error(`${member.name} is no longer on the demo tracker's team.`)
+        if (on) delete m.notify
+        else m.notify = false
+      })
+    } catch (e) {
+      console.error(e)
+      return showToast(e.message || 'Could not save to the demo tracker — try again.')
+    }
+    showToast('Saved.')
+    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${member.name}'s demo tracker reminders in Admin.`)
+  }
+
+  const phones = n => (n ? `${n} phone${n === 1 ? '' : 's'}` : 'No phone yet')
   const trackerOnly = (tracker.team || []).filter(m => !(users || []).some(u => !u.pending && findMember([m], u)))
 
   return (
@@ -562,36 +558,38 @@ function NotificationsTab() {
         {users === null ? <Loading /> : (
           <div className="card admin-list admin-notify">
             <div className="admin-item admin-notify-head" aria-hidden="true">
-              <span>Name</span><span>Notifications</span><span>Where</span>
+              <span>Name</span><span>Staff schedule reminder</span><span>Demo tracker reminders</span>
             </div>
             {tracker.error && (
-              <div className="admin-item"><span className="text-sm text-muted">Couldn’t load the demo tracker’s team ({tracker.error}), so the switches below only cover the staff schedule.</span></div>
+              <div className="admin-item"><span className="text-sm text-muted">Couldn’t load the demo tracker’s team ({tracker.error}), so its reminders aren’t shown.</span></div>
             )}
             {users.map(u => {
               const m = !u.pending && tracker.team ? findMember(tracker.team, u) : null
-              const schedOn = u.notifications?.scheduleReminder !== false
-              const demoOn = m ? m.notify !== false : null
               return (
                 <div key={u.uid} className="admin-item">
                   <div className="admin-notify-who">
                     <div className="admin-item-name">{u.displayName || '(no name)'}</div>
                     <div className="text-sm text-muted admin-ellipsis">{u.pending ? <Badge tone="neutral">Not signed in yet</Badge> : u.email}</div>
                   </div>
-                  {u.pending
-                    ? <div className="admin-notify-cell"><span className="text-sm text-muted">After they sign in</span></div>
-                    : <>
-                        <div className="admin-notify-cell">
-                          {tracker.loading
-                            ? <span className="text-sm text-muted">Loading…</span>
-                            : <Switch checked={schedOn && demoOn !== false} onChange={on => setReminders(u, m, on)} label="Notifications" />}
-                        </div>
-                        <div className="admin-notify-where text-sm text-muted">
-                          <div>Staff schedule · {phones(u.fcmTokens?.length || 0)}{m && !schedOn ? ' · off' : ''}</div>
-                          {tracker.loading ? <div>Demo tracker · loading…</div>
-                            : m ? <div>Demo tracker · {phones(m.fcmTokens?.length || 0)}{!demoOn ? ' · off' : ''}</div>
-                            : !tracker.error && <div>Not on the demo tracker’s team</div>}
-                        </div>
-                      </>}
+                  <div className="admin-notify-cell">
+                    <span className="admin-notify-key">Staff schedule</span>
+                    {u.pending
+                      ? <span className="text-sm text-muted">After they sign in</span>
+                      : <>
+                          <Switch checked={u.notifications?.scheduleReminder !== false} onChange={on => setScheduleReminder(u, on)} label="Staff schedule reminder" />
+                          <span className="text-sm text-muted">{phones(u.fcmTokens?.length || 0)}</span>
+                        </>}
+                  </div>
+                  <div className="admin-notify-cell">
+                    <span className="admin-notify-key">Demo tracker</span>
+                    {tracker.loading ? <span className="text-sm text-muted">Loading…</span>
+                      : tracker.error ? <span className="text-sm text-muted">—</span>
+                      : m ? <>
+                          <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
+                          <span className="text-sm text-muted">{phones(m.fcmTokens?.length || 0)}</span>
+                        </>
+                      : <span className="text-sm text-muted">{u.pending ? 'After they sign in' : 'Not on its team'}</span>}
+                  </div>
                 </div>
               )
             })}
@@ -605,11 +603,11 @@ function NotificationsTab() {
                     <div className="admin-item-name">{m.name}</div>
                     <div className="text-sm text-muted admin-ellipsis">{m.email || 'No email'} · {trackerRoleLabel(m.role)}</div>
                   </div>
+                  <div className="admin-notify-cell"><span className="admin-notify-key">Staff schedule</span><span className="text-sm text-muted">—</span></div>
                   <div className="admin-notify-cell">
-                    <Switch checked={m.notify !== false} onChange={on => setReminders(null, m, on)} label="Notifications" />
-                  </div>
-                  <div className="admin-notify-where text-sm text-muted">
-                    <div>Demo tracker · {phones(m.fcmTokens?.length || 0)}</div>
+                    <span className="admin-notify-key">Demo tracker</span>
+                    <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
+                    <span className="text-sm text-muted">{phones(m.fcmTokens?.length || 0)}</span>
                   </div>
                 </div>
               ))}
