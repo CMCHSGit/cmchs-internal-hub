@@ -1,12 +1,13 @@
-// "Turn on notifications?" — shown on the hub home to someone signed in who has
-// never turned notifications on anywhere (no phone registered on their
-// staff-schedule profile). It's the same opt-in as the schedule's own card:
-// one tap, the browser asks, and this device is added to users/{uid}.fcmTokens.
+// "Turn on notifications?" — shown on the hub home, on a phone only, until that
+// phone has notifications on. Each device registers separately, so a PC that's
+// on doesn't stop a phone being asked. It's the same opt-in as the schedule's
+// own card: one tap, the phone asks, and it's added to users/{uid}.fcmTokens.
 //
-// Left out when it can't help: a browser without push, an iPhone that hasn't
-// added the hub to its Home Screen (iOS only offers push there), notifications
-// already blocked for the site, this device already on, or Admin has switched
-// the person's reminders off. "Not now" hides it on this device for a week.
+// Never on a PC (notifications there only arrive while the browser is open).
+// Also left out when it can't help: an iPhone that hasn't added the hub to its
+// Home Screen (iOS only offers push there), notifications already blocked for
+// the site, this phone already on, or Admin has switched the person's
+// reminders off. "Not now" hides it on this phone for a week.
 //
 // Demo tracker push still only comes from demo.chsnz.co.nz (see
 // apps/demo/embed.js), so this covers the staff schedule's reminders.
@@ -20,14 +21,19 @@ const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000
 // whole Firebase setup with it, which the hub's first load doesn't need.
 const ENABLED_KEY = 'schedule:push_enabled'
 
+// iPads report themselves as Macs; the touch screen gives them away.
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (/macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+const isPhone = () => isIOS() || /android/i.test(navigator.userAgent)
+
 function canUsePush() {
-  if (!('Notification' in window) || !('serviceWorker' in navigator)) return false
+  if (!isPhone() || !('Notification' in window) || !('serviceWorker' in navigator)) return false
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
-  return !(/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone) // iOS: Home Screen only
+  return !(isIOS() && !standalone) // iOS: Home Screen only
 }
 
+// On here already, whether turned on from this prompt or the schedule's card.
 function pushEnabledOnThisDevice() {
-  try { return localStorage.getItem(ENABLED_KEY) === '1' } catch { return false }
+  try { return Notification.permission === 'granted' && localStorage.getItem(ENABLED_KEY) === '1' } catch { return false }
 }
 
 function snoozed() {
@@ -51,8 +57,7 @@ async function shouldAsk(uid) {
   const { fs, db } = await firebaseParts()
   const snap = await fs.getDoc(fs.doc(db, 'users', uid))
   if (!snap.exists()) return false
-  const u = snap.data()
-  return !(u.fcmTokens?.length) && u.notifications?.scheduleReminder !== false
+  return snap.data().notifications?.scheduleReminder !== false
 }
 
 // Same steps as the schedule's enablePush(), against the hub's Firebase app.

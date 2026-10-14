@@ -33,7 +33,7 @@ Replaces the project team's two linked sheets (the job register and the weekly "
 - Staff schedule Thursday reminder: `users/{uid}.notifications.scheduleReminder`; `scripts/remind.mjs` (cmchs-staff-schedule repo) skips anyone with it false.
 - Demo tracker loan reminders: `accountManagers[].notify`; the Apps Script senders (chs-equipment `.gas-proxy`, `sendPushToPerson_`) skip anyone with it false. Test sends still go through.
 
-A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone. The hub home offers that once to anyone signed in with no phone registered for the staff schedule (`apps/hub/src/PushPrompt.jsx`).
+A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone. The hub home offers that on phones, until that phone is on (`apps/hub/src/PushPrompt.jsx`).
 
 **Staff schedule settings are not here.** Locations, the Excel import and the activity log are the schedule's own Settings page, `/schedule/settings` (`apps/schedule/src/pages/Settings.jsx`), behind the same admin role and password. Old `/admin/#locations`, `#excel` and `#activity` links forward there.
 
