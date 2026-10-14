@@ -11,9 +11,19 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
-| `/admin/` | Admin settings: people, teams, roles, Simpro access, the schedule's locations, Excel import and activity log. Admins only | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
+| `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles, notifications for every tool, the schedule's locations, Excel import and activity log. Admins only | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
+
+### Admin: one place for roles and notifications
+
+**People** sets each person's team, role and Simpro access (the shared `users` collection), and their **demo tracker role** (Account manager / Service & Projects), which lives in the tracker's own database (`accountManagers`, chs-equipment project). `apps/admin/src/tracker.js` reaches it the same way the tracker does: a database pass from the Simpro proxy (`rtdbToken`), then the REST API, saving with an ETag check so a save from the tracker is never overwritten.
+
+**Notifications** has a switch per person per tool, plus how many phones each has turned notifications on for. Missing means on.
+- Staff schedule Thursday reminder: `users/{uid}.notifications.scheduleReminder`; `scripts/remind.mjs` (cmchs-staff-schedule repo) skips anyone with it false.
+- Demo tracker loan reminders: `accountManagers[].notify`; the Apps Script senders (chs-equipment `.gas-proxy`, `sendPushToPerson_`) skip anyone with it false. Test sends still go through.
+
+A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone.
 
 ### /demo/ is generated, not copied
 
