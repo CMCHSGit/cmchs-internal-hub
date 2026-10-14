@@ -22,11 +22,16 @@ export function ActivityChip({ activity, who, title }) {
   )
 }
 
+/**
+ * A person's initials in a small rounded square, the same shape as the
+ * Timeline's week chips. As wide as the initials need ("Jess B", "Chalky"),
+ * never narrower than it is tall.
+ */
 export function Avatar({ person, size = 28, ring = false, title }) {
   const label = person?.initials || '?'
   return (
     <span className="pt-av" title={title || person?.name || ''}
-      style={{ ...avatarStyle(person?.name || label), width: size, height: size, fontSize: size < 26 ? 11 : 12, ...(ring ? { boxShadow: '0 0 0 2px var(--surface-card)' } : {}) }}>
+      style={{ ...avatarStyle(person?.name || label), minWidth: size, height: size, fontSize: size < 26 ? 11 : 12, padding: `0 ${size < 26 ? 3 : 5}px`, ...(ring ? { boxShadow: '0 0 0 2px var(--surface-card)' } : {}) }}>
       {label}
     </span>
   )
@@ -38,7 +43,7 @@ export function AvatarStack({ ids, max = 4, size = 28 }) {
   if (!people.length) return <span className="text-muted">—</span>
   return (
     <span className="pt-avstack">
-      {people.slice(0, max).map((p) => <Avatar key={p.id} person={p} size={size} ring />)}
+      {people.slice(0, max).map((p) => <Avatar key={p.id} person={p} size={size} />)}
       {people.length > max && <span className="pt-more">+{people.length - max}</span>}
     </span>
   )
