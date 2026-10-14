@@ -145,3 +145,27 @@ export const SAMPLE_COMMENTS = [
   { id: 'sample-c1', jobId: 'sample-waitakere', text: '@Rachel can you check whether ED wants the D60s on the same go-live day?', byName: 'Mike Tan', atMs: Date.parse('2026-10-14T10:12:00+13:00'), sample: true },
   { id: 'sample-c2', jobId: 'sample-waitakere', text: '@Mike ED would like them a week later, 23-Nov. I have added Support to the timeline.', byName: 'Rachel Pike', atMs: Date.parse('2026-10-14T11:40:00+13:00'), sample: true },
 ]
+
+/* What the demo tracker feed reads in `npm run dev` (backend-local.js), in
+   the tracker's own shape: model names as the asset register writes them,
+   a loan out now, one overdue, one booked ahead, and probes no pool model
+   claims. The asset numbers and hospitals are made up. */
+const asset = (no, Model, loan = {}) => ({ id: 'a' + no, CHSAssetNo: String(no), Model, Returned: loan.OnLoanTo ? 'No' : 'Yes', ...loan })
+const out = (OnLoanTo, Location, LoanStartDate, LoanEndDate, BatchID) => ({ OnLoanTo, Location, LoanStartDate, LoanEndDate, BatchID })
+export const SAMPLE_FEED = {
+  equipment: [
+    asset(100201, 'A9'), asset(100202, 'A9'), asset(100203, 'A7'), asset(100204, 'A7'), asset(100205, 'A7'),
+    asset(100211, 'BeneVision N19', out('Tauranga Hospital', 'ICU', '2026-10-05', '2026-10-30', 'demo-tga')),
+    asset(100212, 'BeneVision N19'), asset(100213, 'BeneVision N19'),
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => asset(100220 + n, 'ePM 12M')),
+    asset(100231, 'VS-900'), asset(100232, 'V200'),
+    asset(100241, 'BeneHeart D60', out('Rotorua Hospital', 'ED', '03/09/2026', '25/09/2026', 'demo-rot')),
+    asset(100242, 'BeneHeart D60'),
+    asset(100251, 'BeneHeart D30'), asset(100252, 'BeneHeart D30'), asset(100253, 'BeneHeart D30'),
+    asset(100261, 'BeneHeart D1 Pro'), asset(100262, 'BeneHeart D1 Pro'),
+    asset(100166, 'TEX20'), asset(100393, 'SC6-1s'), asset(100168, 'SP5-1s'),
+  ],
+  upcoming: [
+    { id: 'demo-hb', loanTo: 'Hawke’s Bay Hospital', location: 'Theatre', startDate: '2026-11-09', endDate: '2026-11-20', items: [{ id: 'a100203', CHSAssetNo: '100203' }, { id: 'a100204', CHSAssetNo: '100204' }] },
+  ],
+}

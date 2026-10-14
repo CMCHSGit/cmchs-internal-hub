@@ -50,6 +50,13 @@ async function dbToken() {
   return pass.idToken
 }
 
+/** Reads one path of the tracker's database (e.g. 'upcomingLoans'). Read-only: the project tracker's demo feed uses it. */
+export async function readTracker(path) {
+  const res = await fetch(DB_URL + '/' + path + '.json?auth=' + encodeURIComponent(await dbToken()))
+  if (!res.ok) throw new Error('Could not read the demo tracker (' + res.status + ')')
+  return res.json()
+}
+
 async function readTeam() {
   const res = await fetch(TEAM + '?auth=' + encodeURIComponent(await dbToken()), { headers: { 'X-Firebase-ETag': 'true' } })
   if (!res.ok) throw new Error('Could not read the demo tracker team (' + res.status + ')')

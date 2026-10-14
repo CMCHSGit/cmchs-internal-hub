@@ -16,6 +16,8 @@ import {
 } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../../schedule/src/firebase.js'
 import { clean } from './backend.js'
+import { trimRaw } from './feed.js'
+import { readTracker } from '../../admin/src/tracker.js'
 
 const C = {
   jobs: 'projectJobs',
@@ -80,4 +82,10 @@ export default {
   },
 
   saveSettings: (patch) => setDoc(doc(db, C.settings, 'main'), clean(patch), { merge: true }),
+
+  /** The demo tracker's assets and booked-ahead loans, read-only, trimmed (feed.js). */
+  async demoFeed() {
+    const [equipment, upcoming] = await Promise.all([readTracker('data/equipment'), readTracker('upcomingLoans')])
+    return trimRaw(equipment, upcoming)
+  },
 }

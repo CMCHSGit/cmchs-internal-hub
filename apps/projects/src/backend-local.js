@@ -2,7 +2,8 @@
    localStorage and shared between tabs with a BroadcastChannel. Never part of
    a real build (backend.js picks Firestore whenever the config is present). */
 
-import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL } from './sample.js'
+import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL, SAMPLE_FEED } from './sample.js'
+import { trimRaw } from './feed.js'
 import { DEFAULT_SETTINGS } from './model.js'
 import { clean } from './backend.js'
 
@@ -101,6 +102,13 @@ export default {
     save()
   },
   async saveSettings(patch) { db.settings = { ...(db.settings || {}), ...clean(patch) }; save() },
+
+  /** The sample demo tracker. Set localStorage projects_dev_feed_fail to 1 to see the feed down. */
+  async demoFeed() {
+    await new Promise((r) => setTimeout(r, 400))
+    if (localStorage.getItem('projects_dev_feed_fail') === '1') throw new Error('Could not read the demo tracker (dev: feed switched off)')
+    return trimRaw(SAMPLE_FEED.equipment, SAMPLE_FEED.upcoming)
+  },
 
   /** Dev only: start again from the sample data. */
   reset() { localStorage.removeItem(KEY); db = load(); save() },

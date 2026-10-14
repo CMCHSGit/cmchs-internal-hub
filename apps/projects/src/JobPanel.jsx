@@ -10,7 +10,9 @@ import { useUi } from './App.jsx'
 import { StatusPill, Avatar, StaffPicker, Field, Empty, ActivityChip, Priority } from './ui.jsx'
 import {
   PRIORITIES, LINE_STATUSES, WAITING, availability, fmt, fmtY, fmtRange, todayISO, rid, duplicateOf, templateFrom, dueBack,
+  linkableLoans, entryWho,
 } from './model.js'
+import { loanPlace } from './feed.js'
 
 const TABS = [['details', 'Details'], ['equipment', 'Equipment'], ['notes', 'Notes & actions'], ['comments', 'Comments'], ['history', 'History']]
 
@@ -230,17 +232,62 @@ function Details({ job, readOnly }) {
   )
 }
 
+/** 14:05 today, else 12-Oct 14:05. */
+export function syncedWhen(ms) {
+  const d = new Date(ms)
+  const t = d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })
+  return todayISO(d) === todayISO() ? t : `${fmt(todayISO(d))} ${t}`
+}
+export function ago(ms) {
+  const m = Math.round((Date.now() - ms) / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m} min ago`
+  if (m < 48 * 60) return `${Math.round(m / 60)} h ago`
+  return `${Math.round(m / 1440)} days ago`
+}
+
+/** One demo tracker loan in words: "2 at Tauranga Hospital, ICU · out 05-Oct – 30-Oct". */
+export const loanText = (x) => `${x.qty} at ${loanPlace(x) || 'an unnamed loan'} · ${x.out ? 'out' : 'booked'} ${fmtRange(x.start, x.due)}`
+
+/**
+ * Where the demo tracker figures stand: live, still connecting, or the last
+ * good read shown out of date because the latest one failed.
+ */
 export function FeedStatus({ compact = false }) {
   const s = useStore()
-  const at = s.settings.feed?.syncedAt
+  const f = s.feed
+  const sum = f.summary
+  const state = f.ok ? 'live' : f.raw ? (f.failedAt ? 'stale' : 'cached') : (f.failedAt ? 'down' : 'connecting')
+  const dot = { live: 'var(--chs-green)', stale: 'var(--chs-orange)', down: 'var(--status-critical)' }[state] || 'var(--border-strong, #a7a9ac)'
+  const units = sum ? Object.values(sum.owned).reduce((t, n) => t + n, 0) : 0
+  const outNow = sum ? sum.loans.filter((x) => x.out).reduce((t, x) => t + x.qty, 0) : 0
+  const title = {
+    live: 'Demo tracker: live',
+    cached: 'Demo tracker: checking…',
+    stale: 'Demo tracker: out of date',
+    connecting: 'Demo tracker: connecting…',
+    down: 'Demo tracker: not connected',
+  }[state]
+  let detail = ''
+  if (state === 'live') {
+    detail = `Last synced ${syncedWhen(f.at)} (${ago(f.at)})` + (compact ? '.' : ` · ${units} units across ${Object.keys(sum.owned).length} models, ${outNow} out now.`)
+  } else if (state === 'cached') {
+    detail = `Showing the figures from ${syncedWhen(f.at)} while it refreshes.`
+  } else if (state === 'stale') {
+    detail = `Couldn't refresh${compact ? '' : ` (${f.error})`}. These figures are from ${syncedWhen(f.at)}, ${ago(f.at)}.`
+  } else if (state === 'down') {
+    detail = `${compact ? 'Could not read it' : f.error}. Pool sizes come from Settings until it connects.`
+  }
   return (
-    <div className={`pt-feed${compact ? ' compact' : ''}`}>
-      <span className="pt-feed-dot" style={{ background: 'var(--chs-orange)' }} />
+    <div className={`pt-feed pt-feed-${state}${compact ? ' compact' : ''}`} role={state === 'stale' || state === 'down' ? 'status' : undefined}>
+      <span className="pt-feed-dot" style={{ background: dot }} />
       <span className="pt-grow">
-        <b>Demo tracker feed: placeholder</b>
-        <span className="text-sm text-muted">{' '}Pool sizes come from Settings until the feed is connected{at ? ` · last checked ${new Date(at).toLocaleString('en-NZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}.</span>
+        <b>{title}</b>
+        {detail && <span className="text-sm text-muted">{' '}{detail}</span>}
       </span>
-      {s.canEdit && <Button size="sm" variant="ghost" iconLeft={<RefreshCw size={14} />} onClick={() => s.saveSettings({ feed: { ...s.settings.feed, syncedAt: Date.now() } })}>Refresh</Button>}
+      <Button size="sm" variant="ghost" iconLeft={<RefreshCw size={14} className={f.loading ? 'pt-spin' : ''} />} disabled={f.loading} onClick={() => f.refresh()}>
+        {f.loading ? 'Refreshing…' : 'Refresh'}
+      </Button>
     </div>
   )
 }
@@ -251,12 +298,12 @@ function EquipmentNeeded({ job, readOnly }) {
   const lines = job.equipment || []
   const families = useMemo(() => {
     const m = new Map()
-    for (const p of s.settings.pool) {
+    for (const p of s.pool) {
       if (!m.has(p.family)) m.set(p.family, [])
       m.get(p.family).push(p)
     }
     return [...m]
-  }, [s.settings.pool])
+  }, [s.pool])
   const edit = (id, patch, what) => s.mutateJob(job.id, (cur) => ({ equipment: (cur.equipment || []).map((l) => (l.id === id ? { ...l, ...patch } : l)) }), what)
   const add = () => s.mutateJob(job.id, (cur) => ({ equipment: [...(cur.equipment || []), { id: rid(), model: s.settings.pool[0]?.model || '', qty: 1, line: 'Requested' }] }), 'added an equipment line')
   const del = (l) => s.mutateJob(job.id, (cur) => ({ equipment: (cur.equipment || []).filter((x) => x.id !== l.id) }), `removed ${l.qty}x ${l.model}`)
@@ -265,18 +312,21 @@ function EquipmentNeeded({ job, readOnly }) {
     <div className="pt-stack">
       <FeedStatus compact />
       <p className="text-sm">
-        Availability is worked out for {job.start || job.end ? <b>{fmtRange(job.start, job.end)}</b> : 'this job’s dates'}, counting units reserved by any other job on overlapping dates and anything overdue back.
+        Availability is worked out for {job.start || job.end ? <b>{fmtRange(job.start, job.end)}</b> : 'this job’s dates'}, counting units reserved by any other job on overlapping dates, units the demo tracker has out or booked then, and anything overdue back.
       </p>
       {lines.length === 0 && <Empty>No equipment requested yet.</Empty>}
       {lines.map((l) => {
-        const a = availability(s.jobs, s.settings.pool, { model: l.model, qty: l.qty, job, today })
-        const out = a.entries.filter((e) => ['Shipped', 'At site'].includes(e.line.line))
+        const a = availability(s.jobs, s.pool, { model: l.model, qty: l.qty, job, today, loans: s.loans })
+        const out = a.entries.filter((e) => (e.loan ? e.loan.out : ['Shipped', 'At site'].includes(e.line.line)))
+        const fromFeed = s.pool.find((p) => p.model === l.model)?.fromFeed
+        const linked = l.loan && s.loans ? s.loans.find((x) => x.key === l.loan && x.model === l.model) || null : null
+        const canLink = !readOnly && !l.loan && l.line !== 'Returned' && s.loans ? linkableLoans(s.jobs, s.loans, { model: l.model, job, today }) : []
         const level = a.noDates ? 'unknown' : a.owned == null ? 'unknown' : a.short > 0 ? 'short' : a.free === Number(l.qty) ? 'tight' : 'ok'
         return (
           <div key={l.id} className={`pt-eqline ${level}`}>
             <div className="pt-eqline-row">
               <select value={l.model} disabled={readOnly} aria-label="Model" onChange={(e) => edit(l.id, { model: e.target.value }, `changed an equipment line to ${e.target.value}`)}>
-                {!s.settings.pool.some((p) => p.model === l.model) && <option>{l.model}</option>}
+                {!s.pool.some((p) => p.model === l.model) && <option>{l.model}</option>}
                 {families.map(([fam, models]) => (
                   <optgroup key={fam} label={fam}>
                     {models.map((p) => <option key={p.model} value={p.model}>{p.model} · {p.kind}</option>)}
@@ -291,22 +341,39 @@ function EquipmentNeeded({ job, readOnly }) {
               {!readOnly && <button type="button" className="icon-btn icon-btn-sm" aria-label={`Remove ${l.model}`} onClick={() => del(l)}><X size={16} /></button>}
             </div>
             <div className="pt-eqline-facts">
-              <span><b>{a.owned ?? '?'}</b> owned</span>
+              <span><b>{a.owned ?? '?'}</b> owned{fromFeed ? ' (demo tracker)' : a.owned != null ? ' (from Settings)' : ''}</span>
               <span className={level === 'short' ? 'pt-bad' : level === 'tight' ? 'pt-warn' : 'pt-ok'}><b>{a.free ?? '?'}</b> free for these dates</span>
-              {['Shipped', 'At site'].includes(l.line) && <span>Due back {fmt(dueBack(job, l)) || 'not set'}</span>}
+              {linked ? linked.out && <span>Due back {fmt(linked.due) || 'not set'} (demo tracker)</span> : ['Shipped', 'At site'].includes(l.line) && <span>Due back {fmt(dueBack(job, l)) || 'not set'}</span>}
               {l.note && <span className="pt-mono">{l.note}</span>}
             </div>
-            {a.owned == null && !a.noDates && <p className="text-sm text-muted">Pool size for {l.model} not set. Add it in Settings to check availability.</p>}
+            {l.loan && (
+              <p className="text-sm pt-linked">
+                {linked ? <>Demo tracker loan: {loanText(linked)}{linked.assets.length > 0 && <span className="pt-mono"> · {linked.assets.join(', ')}</span>}</>
+                  : s.loans ? 'The demo tracker has the units from its linked loan back.' : 'Linked to a demo tracker loan.'}
+                {!readOnly && <>{' '}<button type="button" className="pt-linkbtn" onClick={() => edit(l.id, { loan: '' }, `unlinked ${l.model} from its demo tracker loan`)}>Unlink</button></>}
+              </p>
+            )}
+            {canLink.length > 0 && (
+              <div className="text-sm pt-col">
+                <span className="text-muted">The demo tracker has {l.model} out or booked around these dates. If one of these loans is this job's units, link it so they're counted once:</span>
+                {canLink.map((x) => (
+                  <span key={x.key}>{loanText(x)}{' '}
+                    <button type="button" className="pt-linkbtn" onClick={() => edit(l.id, { loan: x.key }, `linked ${l.model} to the demo tracker loan at ${loanPlace(x) || 'an unnamed loan'}`)}>These are this job's</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {a.owned == null && !a.noDates && <p className="text-sm text-muted">Pool size for {l.model} not known: the demo tracker has no units under that name. Add the name it uses, or a count, under Demo pool in Settings.</p>}
             {a.noDates && <p className="text-sm text-muted">Add planned dates to check availability.</p>}
             {level === 'short' && <p className="pt-bad text-sm"><b>Short by {a.short}.</b> More requested than are free for these dates.</p>}
             {out.length > 0 && (
               <p className="text-sm">Currently out: {out.map((e, i) => (
-                <span key={i}>{i > 0 && '; '}{e.qty} at {e.job.customer || e.job.name}, {e.overdue ? <b className="pt-bad">overdue since {fmt(dueBack(e.job, e.line))}</b> : `due back ${fmt(dueBack(e.job, e.line))}`}</span>
+                <span key={i}>{i > 0 && '; '}{e.qty} at {e.job ? e.job.customer || e.job.name : entryWho(e)}, {(() => { const due = e.loan?.due || (e.job ? dueBack(e.job, e.line) : ''); return e.overdue ? <b className="pt-bad">overdue since {fmt(due)}</b> : due ? `due back ${fmt(due)}` : 'no due date' })()}</span>
               ))}</p>
             )}
             {a.entries.length > 0 && (
               <p className="text-sm">Competing for these dates: {a.entries.map((e, i) => (
-                <span key={i}>{i > 0 && ', '}<a href={`#/${e.job.archived ? 'archive' : 'table'}?job=${e.job.id}`}>{e.job.name}</a> ({e.qty})</span>
+                <span key={i}>{i > 0 && ', '}{e.job ? <a href={`#/${e.job.archived ? 'archive' : 'table'}?job=${e.job.id}`}>{e.job.name}</a> : <>{entryWho(e)} <span className="text-muted">(demo tracker)</span></>} ({e.qty})</span>
               ))}</p>
             )}
           </div>

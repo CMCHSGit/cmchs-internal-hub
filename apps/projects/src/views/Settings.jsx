@@ -1,14 +1,15 @@
 /* Settings: the staff list and leave, categories, statuses and activity types
-   with their colours, archiving, the demo pool, and the demo tracker
-   connection (a placeholder until it is built). One document,
-   projectSettings/main, shared by everyone. */
+   with their colours, archiving, the demo pool (and which demo tracker model
+   names count as each model), and the state of the demo tracker feed. One
+   document, projectSettings/main, shared by everyone. */
 
 import { useEffect, useState } from 'react'
-import { ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
+import { ArrowUp, ArrowDown, Trash2, Plus, RefreshCw } from 'lucide-react'
 import { Alert, Badge, Button, Switch } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { Avatar, Field, Empty } from '../ui.jsx'
+import { syncedWhen, ago } from '../JobPanel.jsx'
 import { initialsOf, pillStyle, rid, fmt } from '../model.js'
 
 /** A text box that saves when you leave it. */
@@ -104,11 +105,11 @@ export default function Settings() {
 
       <section className="card pt-card">
         <div className="pt-card-head">
-          <div className="pt-col"><h2 className="pt-h3">Demo pool</h2><span className="text-sm text-muted">How many of each model we own for demos, trials and conferences. Grouped by family in the model picker. Leave a count blank if you don't know it yet.</span></div>
+          <div className="pt-col"><h2 className="pt-h3">Demo pool</h2><span className="text-sm text-muted">The models jobs can ask for, grouped by family in the model picker. How many we own comes from the demo tracker: every asset whose model name matches. "Demo tracker names" adds names it should also count, separated by commas. Units typed here are only used for a model the demo tracker has none of.</span></div>
           {!ro && <Button size="sm" variant="secondary" iconLeft={<Plus size={15} />} onClick={() => save({ pool: [...st.pool, { model: 'New model', family: 'Accessories', kind: '', total: null }] })}>Add model</Button>}
         </div>
         <div className="pt-pool">
-          <div className="pt-pool-row pt-pool-head overline"><span>Model</span><span>Family</span><span>Kind</span><span>Units</span><span /></div>
+          <div className="pt-pool-row pt-pool-head overline"><span>Model</span><span>Family</span><span>Kind</span><span>Demo tracker names</span><span>In tracker</span><span>Units if not</span><span /></div>
           {st.pool.map((p, i) => {
             const upd = (patch) => save({ pool: st.pool.map((x, n) => (n === i ? { ...x, ...patch, sampleTotal: false } : x)) })
             const inUse = s.jobs.some((j) => (j.equipment || []).some((l) => l.model === p.model))
@@ -117,7 +118,13 @@ export default function Settings() {
                 <Cell value={p.model} disabled={ro || inUse} title={inUse ? 'Jobs use this model' : undefined} aria-label="Model" onSave={(v) => upd({ model: v.trim() })} />
                 <Cell value={p.family} disabled={ro} aria-label="Family" list="pt-fams" onSave={(v) => upd({ family: v.trim() })} />
                 <Cell value={p.kind} disabled={ro} aria-label="Kind" onSave={(v) => upd({ kind: v.trim() })} />
-                <Cell value={p.total ?? ''} disabled={ro} aria-label="Units owned" type="number" min="0" placeholder="?" onSave={(v) => upd({ total: v === '' ? null : Math.max(0, Number(v)) })} />
+                <Cell value={p.match || ''} disabled={ro} aria-label={`Other names for ${p.model} in the demo tracker`} placeholder="e.g. BeneVision N19" onSave={(v) => upd({ match: v.split(',').map((x) => x.trim()).filter(Boolean).join(', ') })} />
+                {(() => {
+                  const names = s.feed.summary?.names[p.model]
+                  const n = s.feed.summary?.owned[p.model] || 0
+                  return <span className="pt-mono" title={names ? 'Matched: ' + Object.entries(names).map(([k, c]) => `${k} (${c})`).join(', ') : s.feed.summary ? 'No assets in the demo tracker match this model' : 'The demo tracker has not been read yet'}>{s.feed.summary ? n : '–'}</span>
+                })()}
+                <Cell value={p.total ?? ''} disabled={ro} aria-label="Units owned, if the demo tracker has none" type="number" min="0" placeholder="?" onSave={(v) => upd({ total: v === '' ? null : Math.max(0, Number(v)) })} />
                 {!ro && <button type="button" className="icon-btn icon-btn-sm" disabled={inUse} aria-label="Remove model" onClick={() => save({ pool: st.pool.filter((_, n) => n !== i) })}><Trash2 size={15} /></button>}
               </div>
             )
@@ -127,14 +134,7 @@ export default function Settings() {
       </section>
 
       <div className="pt-cards pt-cards-2">
-        <section className="card pt-card cap-orange">
-          <div className="pt-card-head"><h2 className="pt-h3">Demo tracker connection</h2><Badge tone="orange">Placeholder</Badge></div>
-          <p className="text-sm">When it's connected, the demo tracker will supply pool sizes, which units are out, where they are and when they're due back, for each model. Until then the Demo pool above is the source, and the Equipment view says so.</p>
-          <Field label="Feed address" hint="Set when the demo tracker integration is built.">
-            <input className="input" placeholder="[demo tracker feed address]" disabled />
-          </Field>
-          <div><Button disabled>Connect</Button></div>
-        </section>
+        <FeedCard />
 
         <section className="card pt-card">
           <h2 className="pt-h3">Import and sample data</h2>
@@ -151,6 +151,49 @@ export default function Settings() {
         </section>
       </div>
     </div>
+  )
+}
+
+/** The demo tracker connection: where the figures come from and how fresh they are. */
+function FeedCard() {
+  const s = useStore()
+  const f = s.feed
+  const sum = f.summary
+  const state = f.ok ? 'live' : f.raw ? (f.failedAt ? 'stale' : 'cached') : (f.failedAt ? 'down' : 'connecting')
+  const badge = {
+    live: ['green', 'Live'], stale: ['orange', 'Out of date'], down: ['critical', 'Not connected'],
+    cached: ['neutral', 'Checking…'], connecting: ['neutral', 'Connecting…'],
+  }[state]
+  const qty = (list) => list.reduce((t, x) => t + x.qty, 0)
+  const units = (list) => { const n = qty(list); const k = new Set(list.map((x) => x.key)).size; return `${n} unit${n === 1 ? '' : 's'} on ${k} loan${k === 1 ? '' : 's'}` }
+  const out = sum ? sum.loans.filter((x) => x.out) : []
+  const ahead = sum ? sum.loans.filter((x) => !x.out) : []
+  const matched = sum ? Object.values(sum.owned).reduce((t, n) => t + n, 0) : 0
+  const [all, setAll] = useState(false)
+  const unmatched = sum ? (all ? sum.unmatched : sum.unmatched.slice(0, 12)) : []
+  return (
+    <section className={`card pt-card ${state === 'live' ? 'cap-green' : state === 'stale' || state === 'down' ? 'cap-orange' : 'cap-purple'}`}>
+      <div className="pt-card-head"><h2 className="pt-h3">Demo tracker connection</h2><Badge tone={badge[0]}>{badge[1]}</Badge></div>
+      <p className="text-sm">Units owned, which are out or booked out, where, and when they're due back, read from the demo tracker (demo.chsnz.co.nz). Read-only: nothing here changes the demo tracker. Read when this opens, every 10 minutes and on Refresh; the last good read stays on this device for when it can't connect.</p>
+      <dl className="pt-facts">
+        <dt>Last synced</dt><dd>{f.at ? `${syncedWhen(f.at)} (${ago(f.at)})` : 'Not yet'}</dd>
+        {f.failedAt && !f.ok && <><dt>Last attempt</dt><dd className="pt-bad">{syncedWhen(f.failedAt)}: {f.error}</dd></>}
+        {sum && <>
+          <dt>Assets</dt><dd>{sum.assets} in the register, {matched} of them counted as pool models</dd>
+          <dt>Out now</dt><dd>{units(out)}{out.some((x) => x.due && x.due < s.today) ? `, ${qty(out.filter((x) => x.due && x.due < s.today))} overdue` : ''}</dd>
+          <dt>Booked ahead</dt><dd>{units(ahead)}</dd>
+        </>}
+      </dl>
+      {sum && sum.unmatched.length > 0 && (
+        <p className="text-sm">
+          <span className="text-muted">Not counted as any pool model (accessories, probes, other models): </span>
+          {unmatched.map((u) => `${u.name} (${u.count})`).join(', ')}
+          {sum.unmatched.length > 12 && <>{' '}<button type="button" className="pt-linkbtn" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `and ${sum.unmatched.length - 12} more`}</button></>}
+          <span className="text-muted">. To count one, add its name under Demo tracker names above.</span>
+        </p>
+      )}
+      <div><Button size="sm" variant="secondary" iconLeft={<RefreshCw size={14} className={f.loading ? 'pt-spin' : ''} />} disabled={f.loading} onClick={() => f.refresh()}>{f.loading ? 'Refreshing…' : 'Refresh now'}</Button></div>
+    </section>
   )
 }
 

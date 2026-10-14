@@ -10,6 +10,7 @@ import { getBackend } from './backend.js'
 import {
   withDefaults, initialsOf, todayISO, addDays, fmt, dueForAutoArchive, COMPLETE, WAITING, mondayOf, rid,
 } from './model.js'
+import { summarise, effectivePool } from './feed.js'
 import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL } from './sample.js'
 import { TEAMS } from '../../schedule/src/utils/teams.js'
 
@@ -18,6 +19,18 @@ export const useStore = () => useContext(Ctx)
 
 const ONLINE_MS = 70 * 1000
 const BEAT_MS = 25 * 1000
+const FEED_EVERY_MS = 10 * 60 * 1000
+// The last good read of the demo tracker, so the figures survive the feed
+// being down (shown marked out of date). Trimmed to what the tracker uses.
+const FEED_CACHE = 'projects_demo_feed'
+
+function cachedFeed() {
+  try {
+    const c = JSON.parse(localStorage.getItem(FEED_CACHE) || 'null')
+    if (c && c.raw && c.at) return c
+  } catch { /* no cache */ }
+  return null
+}
 
 export function StoreProvider({ children }) {
   const [be, setBe] = useState(null)
@@ -28,6 +41,13 @@ export function StoreProvider({ children }) {
   const [error, setError] = useState(null)
   const [tick, setTick] = useState(0)
   const viewing = useRef(null)
+  // The demo tracker feed. ok: the last read worked. at: when the figures in
+  // raw were read. failedAt/error: the last attempt that didn't.
+  const [feed, setFeed] = useState(() => {
+    const c = cachedFeed()
+    return { raw: c?.raw || null, at: c?.at || null, ok: false, loading: false, error: '', failedAt: null }
+  })
+  const feedBusy = useRef(false)
 
   // ── sign-in ──
   useEffect(() => {
@@ -56,9 +76,35 @@ export function StoreProvider({ children }) {
   }, [be, user])
 
   const settings = useMemo(() => withDefaults(settingsRaw), [settingsRaw])
+  const today = todayISO()
+
+  // ── demo tracker feed: read on opening and every 10 minutes, or on Refresh ──
+  const refreshFeed = useCallback(async () => {
+    if (!be?.demoFeed || feedBusy.current) return
+    feedBusy.current = true
+    setFeed((f) => ({ ...f, loading: true }))
+    try {
+      const raw = await be.demoFeed()
+      const at = Date.now()
+      try { localStorage.setItem(FEED_CACHE, JSON.stringify({ raw, at })) } catch { /* full or blocked: still use it */ }
+      setFeed({ raw, at, ok: true, loading: false, error: '', failedAt: null })
+    } catch (e) {
+      setFeed((f) => ({ ...f, ok: false, loading: false, error: e?.message || String(e), failedAt: Date.now() }))
+    } finally {
+      feedBusy.current = false
+    }
+  }, [be])
+  useEffect(() => {
+    if (!be || !user) return
+    refreshFeed()
+    const t = setInterval(refreshFeed, FEED_EVERY_MS)
+    return () => clearInterval(t)
+  }, [be, user, refreshFeed])
+  const feedSummary = useMemo(() => (feed.raw ? summarise(feed.raw, settings.pool, today) : null), [feed.raw, settings.pool, today])
+  const pool = useMemo(() => effectivePool(settings.pool, feedSummary), [settings.pool, feedSummary])
+
   // Same test as canEditProjects() in firestore.rules: an admin, or anyone on a team.
   const canEdit = Boolean(profile && (profile.role === 'admin' || TEAMS.includes(profile.team)))
-  const today = todayISO()
 
   // Built from plain values only, so a fresh copy of the settings (another
   // tab or person saving) doesn't make a "new" me and set off a heartbeat.
@@ -328,6 +374,11 @@ export function StoreProvider({ children }) {
       history: data.history,
       online,
       settings,
+      // The demo pool with the feed's unit counts, and the feed's loans (null
+      // until the demo tracker has been read at least once on this device).
+      pool,
+      loans: feedSummary ? feedSummary.loans : null,
+      feed: { ...feed, summary: feedSummary, refresh: refreshFeed },
       staffById: new Map(settings.staff.map((p) => [p.id, p])),
       catById: new Map(settings.categories.map((c) => [c.id, c])),
       statusByName: new Map(settings.statuses.map((s) => [s.name, s])),
@@ -336,7 +387,7 @@ export function StoreProvider({ children }) {
       setViewing,
       ...actions,
     }
-  }, [be, user, profile, me, canEdit, error, today, data, settingsRaw, online, settings, setViewing, actions])
+  }, [be, user, profile, me, canEdit, error, today, data, settingsRaw, online, settings, setViewing, actions, pool, feed, feedSummary, refreshFeed])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

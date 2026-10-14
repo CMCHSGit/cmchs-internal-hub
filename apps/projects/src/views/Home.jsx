@@ -6,7 +6,7 @@ import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { Avatar, ActivityChip, StatusPill, Empty } from '../ui.jsx'
 import {
-  WAITING, addDays, fmt, mondayOf, weeksFrom, shortfalls, overdueReturns, daysBetween, MONTHS_LONG, toDate,
+  WAITING, addDays, fmt, mondayOf, weeksFrom, shortfalls, overdueReturns, entryWho, daysBetween, MONTHS_LONG, toDate,
 } from '../model.js'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -44,8 +44,8 @@ export default function Home() {
     for (const j of s.active) if (j.status === 'Go-live' && !seen.has(j.id)) seen.set(j.id, { week: j.start || thisWeek, people: new Set() })
     return [...seen].map(([id, v]) => ({ job: s.jobById.get(id), ...v })).filter((x) => x.job).sort((a, b) => a.week.localeCompare(b.week)).slice(0, 5)
   }, [s.assignments, s.active, s.jobById, thisWeek, activeIds])
-  const shorts = useMemo(() => shortfalls(s.jobs, s.settings.pool, weeksFrom(thisWeek, 6), today), [s.jobs, s.settings.pool, thisWeek, today])
-  const returns = useMemo(() => overdueReturns(s.jobs, today), [s.jobs, today])
+  const shorts = useMemo(() => shortfalls(s.jobs, s.pool, weeksFrom(thisWeek, 6), today, s.loans), [s.jobs, s.pool, thisWeek, today, s.loans])
+  const returns = useMemo(() => overdueReturns(s.jobs, today, s.loans), [s.jobs, today, s.loans])
   const d = toDate(today)
 
   const open = (j) => ui.openJob(j.id, j.archived ? 'archive' : 'home')
@@ -156,14 +156,14 @@ export default function Home() {
 
         <section className="card pt-card">
           <div className="pt-card-head"><h2 className="pt-h4">Demo equipment, next 6 weeks</h2><a href="#/equipment" className="link-btn">Equipment view</a></div>
-          {shorts.length === 0 && <Empty>{s.settings.pool.some((p) => p.total != null) ? 'No shortfalls.' : 'Set pool sizes in Settings to check for shortfalls.'}</Empty>}
+          {shorts.length === 0 && <Empty>{s.pool.some((p) => p.total != null) ? 'No shortfalls.' : 'Pool sizes aren’t known yet: they come from the demo tracker, or from Settings.'}</Empty>}
           <ul className="pt-list">
             {shorts.map((x) => (
               <li key={x.model} className="pt-row">
                 <span className={`pt-ratio ${x.level}`}>{x.booked}/{x.owned}</span>
                 <span className="pt-grow pt-col">
                   <span><b className="pt-mono">{x.model}</b> · week of {fmt(x.week)}</span>
-                  <span className="text-sm text-muted">{x.level === 'short' ? `Short by ${x.booked - x.owned}` : 'Fully booked'} · {[...new Set(x.entries.map((e) => e.job.name))].join(', ')}</span>
+                  <span className="text-sm text-muted">{x.level === 'short' ? `Short by ${x.booked - x.owned}` : 'Fully booked'} · {[...new Set(x.entries.map(entryWho))].join(', ')}</span>
                 </span>
               </li>
             ))}
@@ -172,10 +172,10 @@ export default function Home() {
           {returns.length === 0 && <Empty>Nothing overdue.</Empty>}
           <ul className="pt-list">
             {returns.map((r) => (
-              <li key={r.job.id + r.line.id} className="pt-row">
+              <li key={r.feed ? 'feed' + r.loan.key + r.model : r.job.id + r.line.id} className="pt-row">
                 <span className="pt-grow pt-col">
-                  <span><b className="pt-mono">{r.qty}x {r.model}</b>{r.line.note && <span className="pt-mono"> {r.line.note}</span>} at {r.job.customer || r.job.name}</span>
-                  <span className="text-sm text-muted">From <JobLink j={r.job} />{r.job.archived && ' (archived)'} · due back {fmt(r.due)}</span>
+                  <span><b className="pt-mono">{r.qty}x {r.model}</b>{r.line?.note && <span className="pt-mono"> {r.line.note}</span>} at {r.feed ? entryWho({ loan: r.loan }) : r.job.customer || r.job.name}</span>
+                  <span className="text-sm text-muted">{r.job ? <>From <JobLink j={r.job} />{r.job.archived && ' (archived)'}</> : 'Demo tracker loan'}{r.feed && r.loan.assets.length > 0 && ` · ${r.loan.assets.join(', ')}`} · due back {fmt(r.due)}</span>
                 </span>
                 <Badge tone="critical">{r.days} {r.days === 1 ? 'day' : 'days'}</Badge>
               </li>

@@ -205,31 +205,84 @@ export function clashes(assignments, staff, activeJobIds) {
 }
 
 // ── demo equipment ──────────────────────────────────────────────────────
+/*
+ * `loans` below is the demo tracker feed's list (feed.js summarise()): units
+ * the demo tracker has out, or booked out ahead, each tagged with the pool
+ * model it belongs to. null when the feed has never been read; then only the
+ * jobs' own reservations count.
+ *
+ * A job's equipment line can be linked to one of those loans (`line.loan` =
+ * the loan's key) when the units the job asked for are the ones the demo
+ * tracker sent. A linked loan is counted once, on the job: as many units as
+ * the bigger of the two, out from the moment the tracker says so, due back
+ * when the tracker says, and gone once the tracker has them back.
+ */
+
+const loanKey = (key, model) => key + '|' + model
+
+/** Loans some job line (not yet Returned) is linked to, as `${key}|${model}`. */
+function linkedLoans(jobs) {
+  const out = new Map()
+  for (const j of jobs) {
+    for (const l of j.equipment || []) if (l.loan && l.line !== 'Returned') out.set(loanKey(l.loan, l.model), { job: j, line: l })
+  }
+  return out
+}
+
+/** How a feed loan sits in time: overdue, or the dates it holds a unit for. */
+export function loanSpan(x, today) {
+  const overdue = Boolean(x.out && x.due && x.due < today)
+  const from = x.start || today
+  return { overdue, from, to: x.due || '9999-12-31' }
+}
+
 /**
  * Every unit of `model` spoken for over [start, end], by jobs other than
- * `excludeJobId`. A unit that has gone out (Shipped or At site) on a job whose
- * end date has passed is overdue: it counts against every range from today
- * on, archived job or not, until someone marks it Returned.
+ * `excludeJobId` and by the demo tracker's own loans. A unit that has gone out
+ * (Shipped or At site, or out in the demo tracker) and is past its due date
+ * is overdue: it counts against every range from today on, archived job or
+ * not, until it comes back.
  */
-export function equipmentUse(jobs, { model, start, end, excludeJobId = null, today }) {
+export function equipmentUse(jobs, { model, start, end, excludeJobId = null, today, loans = null }) {
   const entries = []
+  const byKey = new Map((loans || []).filter((x) => x.model === model).map((x) => [x.key, x]))
+  const linked = linkedLoans(jobs)
   for (const j of jobs) {
     if (j.id === excludeJobId) continue
     for (const l of j.equipment || []) {
       if (l.model !== model || l.line === 'Returned') continue
-      const qty = Number(l.qty) || 0
+      let qty = Number(l.qty) || 0
+      let away = AWAY.includes(l.line)
+      let due = dueBack(j, l)
+      let loan = null
+      if (l.loan && loans) {
+        loan = byKey.get(l.loan)
+        if (!loan) continue // the demo tracker has these back
+        qty = Math.max(qty, loan.qty)
+        if (loan.out) away = true
+        if (loan.due) due = loan.due
+      }
       if (!qty) continue
-      const away = AWAY.includes(l.line)
-      const due = dueBack(j, l)
       const overdue = away && isISO(due) && due < today
+      const span = loan && loanSpan(loan, today)
       if (overdue) {
-        if (end >= today) entries.push({ job: j, line: l, qty, overdue: true })
+        if (end >= today) entries.push({ job: j, line: l, loan, qty, overdue: true })
       } else if (!j.archived && overlaps(j.start, j.end, start, end)) {
-        entries.push({ job: j, line: l, qty, overdue: false })
+        entries.push({ job: j, line: l, loan, qty, overdue: false })
       } else if (!j.archived && away && !isISO(due) && end >= today) {
         // Out with no return date: assume still out
-        entries.push({ job: j, line: l, qty, overdue: false })
+        entries.push({ job: j, line: l, loan, qty, overdue: false })
+      } else if (loan && overlaps(span.from, span.to, start, end)) {
+        // The tracker has them out (or booked) beyond the job's own dates
+        entries.push({ job: j, line: l, loan, qty, overdue: false })
       }
+    }
+  }
+  for (const x of byKey.values()) {
+    if (linked.has(loanKey(x.key, x.model))) continue
+    const { overdue, from, to } = loanSpan(x, today)
+    if ((overdue && end >= today) || overlaps(from, to, start, end)) {
+      entries.push({ job: null, line: null, loan: x, qty: x.qty, overdue, feed: true })
     }
   }
   return { entries, total: entries.reduce((t, e) => t + e.qty, 0) }
@@ -244,22 +297,22 @@ export const poolEntry = (pool, model) => pool.find((p) => p.model === model) ||
  * Can this job have `qty` of `model` for its dates? `owned` is null when the
  * pool size is not known yet, and then nothing is called short.
  */
-export function availability(jobs, pool, { model, qty, job, today }) {
+export function availability(jobs, pool, { model, qty, job, today, loans = null }) {
   const owned = poolEntry(pool, model)?.total ?? null
   if (!isISO(job.start) && !isISO(job.end)) {
     return { owned, used: 0, free: owned, short: 0, entries: [], noDates: true }
   }
   const start = isISO(job.start) ? job.start : job.end
   const end = isISO(job.end) ? job.end : job.start
-  const { entries, total } = equipmentUse(jobs, { model, start, end, excludeJobId: job.id, today })
+  const { entries, total } = equipmentUse(jobs, { model, start, end, excludeJobId: job.id, today, loans })
   const free = owned == null ? null : Math.max(0, owned - total)
   const short = owned == null ? 0 : Math.max(0, (Number(qty) || 0) - free)
   return { owned, used: total, free, short, entries, noDates: false }
 }
 
 /** Units of `model` booked in the week starting `monday`, and who has them. */
-export function bookedInWeek(jobs, model, monday, today) {
-  return equipmentUse(jobs, { model, start: monday, end: addDays(monday, 6), today })
+export function bookedInWeek(jobs, model, monday, today, loans = null) {
+  return equipmentUse(jobs, { model, start: monday, end: addDays(monday, 6), today, loans })
 }
 
 /** 'free' | 'full' | 'short' | 'none' | 'unknown' — the colour of an Equipment cell. */
@@ -270,29 +323,40 @@ export function loadLevel(booked, owned) {
   return booked ? 'free' : 'none'
 }
 
-/** Demo units that went out and have not come back, past their job's end date. */
-export function overdueReturns(jobs, today) {
+/**
+ * Demo units that went out and have not come back, past their due date: job
+ * lines, and the demo tracker's own overdue loans (with the job linked to
+ * one, if any). With the feed in, a linked line goes by the tracker's dates.
+ */
+export function overdueReturns(jobs, today, loans = null) {
   const out = []
   for (const j of jobs) {
     for (const l of j.equipment || []) {
+      if (loans && l.loan) continue
       const due = dueBack(j, l)
       if (AWAY.includes(l.line) && isISO(due) && due < today) {
         out.push({ job: j, line: l, model: l.model, qty: Number(l.qty) || 0, due, days: daysBetween(due, today) })
       }
     }
   }
+  const linked = linkedLoans(jobs)
+  for (const x of loans || []) {
+    if (!loanSpan(x, today).overdue) continue
+    const by = linked.get(loanKey(x.key, x.model))
+    out.push({ job: by?.job || null, line: by?.line || null, loan: x, feed: true, model: x.model, qty: x.qty, due: x.due, days: daysBetween(x.due, today) })
+  }
   return out.sort((a, b) => b.days - a.days)
 }
 
 /** Models that are fully booked or short in any of these weeks. */
-export function shortfalls(jobs, pool, weeks, today) {
+export function shortfalls(jobs, pool, weeks, today, loans = null) {
   const out = []
   for (const p of pool) {
     if (p.total == null) continue
     // The first week it is short if it ever is, otherwise the first week it is full.
     let pick = null
     for (const w of weeks) {
-      const { total, entries } = bookedInWeek(jobs, p.model, w, today)
+      const { total, entries } = bookedInWeek(jobs, p.model, w, today, loans)
       const level = loadLevel(total, p.total)
       if (level === 'short') { pick = { model: p.model, week: w, booked: total, owned: p.total, level, entries }; break }
       if (level === 'full' && !pick) pick = { model: p.model, week: w, booked: total, owned: p.total, level, entries }
@@ -300,6 +364,24 @@ export function shortfalls(jobs, pool, weeks, today) {
     if (pick) out.push(pick)
   }
   return out.sort((a, b) => (a.level === b.level ? a.week.localeCompare(b.week) : a.level === 'short' ? -1 : 1))
+}
+
+/** Who holds an entry, in words: the job's name, or where the demo tracker has the units. */
+export const entryWho = (e) => (e.job ? e.job.name : [e.loan?.loanTo, e.loan?.location].filter(Boolean).join(', ') || 'Demo tracker loan')
+
+/**
+ * The demo tracker's loans of this model that a job line could be linked to:
+ * on dates that touch the job's, and not linked to another job already.
+ */
+export function linkableLoans(jobs, loans, { model, job, today }) {
+  const linked = linkedLoans(jobs)
+  return (loans || []).filter((x) => {
+    if (x.model !== model) return false
+    const by = linked.get(loanKey(x.key, x.model))
+    if (by && by.job.id !== job.id) return false
+    const { overdue, from, to } = loanSpan(x, today)
+    return overdue || (!isISO(job.start) && !isISO(job.end)) || overlaps(from, to, job.start, job.end)
+  })
 }
 
 // ── archiving ───────────────────────────────────────────────────────────
