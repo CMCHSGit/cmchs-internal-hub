@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
 import Header from './Header.jsx'
 import Home from './Home.jsx'
+import PushPrompt from './PushPrompt.jsx'
 import SignIn from './SignIn.jsx'
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
     <div className="shell">
       <Header user={user} search={false} />
       <Home user={user} />
+      <PushPrompt user={user} />
     </div>
   )
 }

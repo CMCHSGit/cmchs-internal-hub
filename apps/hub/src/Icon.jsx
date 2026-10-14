@@ -2,7 +2,7 @@
 // listed here are bundled; an unknown name falls back to a link icon. Adding a
 // tool with a new icon = add it to this map.
 import {
-  ArrowRight, Building, Calculator, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
+  ArrowRight, Bell, Building, Calculator, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
   ChevronRight, ClipboardList, ExternalLink, FileCheck, FileText, FolderKanban, GraduationCap, Headset, Laptop,
   Link, LogOut, Mail, MapPin, MessageSquare, Package, Phone, RefreshCw, Search, Settings, Stethoscope, Users,
   Wrench,
@@ -10,6 +10,7 @@ import {
 
 const ICONS = {
   'arrow-right': ArrowRight,
+  'bell': Bell,
   'building': Building,
   'calendar-x': CalendarX,
   'chevron-left': ChevronLeft,

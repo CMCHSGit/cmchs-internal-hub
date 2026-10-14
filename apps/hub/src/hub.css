@@ -300,3 +300,12 @@ a.search-hit:hover { text-decoration: none; }
   .news-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mid-cols { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* "Turn on notifications?" (PushPrompt.jsx) — a card pinned to the bottom. */
+.push-prompt { position: fixed; z-index: 50; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
+  max-width: 460px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 16px;
+  background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay); color: var(--chs-purple); }
+.push-prompt-text { flex: 1 1 200px; display: flex; flex-direction: column; gap: 2px; font: var(--type-body-sm); color: var(--text-body); }
+.push-prompt-text strong { color: var(--text-strong); }
+.push-prompt-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.push-prompt-actions .btn { min-height: 36px; padding: 0 16px; }
