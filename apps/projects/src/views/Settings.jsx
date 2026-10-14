@@ -1,0 +1,200 @@
+/* Settings: the staff list and leave, categories, statuses and activity types
+   with their colours, archiving, the demo pool, and the demo tracker
+   connection (a placeholder until it is built). One document,
+   projectSettings/main, shared by everyone. */
+
+import { useEffect, useState } from 'react'
+import { ArrowUp, ArrowDown, Trash2, Plus } from 'lucide-react'
+import { Alert, Badge, Button, Switch } from '../../../schedule/src/components/ui'
+import { useStore } from '../store.jsx'
+import { useUi } from '../App.jsx'
+import { Avatar, Field, Empty } from '../ui.jsx'
+import { initialsOf, pillStyle, rid, fmt } from '../model.js'
+
+/** A text box that saves when you leave it. */
+function Cell({ value, onSave, ...rest }) {
+  const [v, setV] = useState(value ?? '')
+  useEffect(() => setV(value ?? ''), [value])
+  return <input className="input" value={v} onChange={(e) => setV(e.target.value)} onBlur={() => { if (String(v) !== String(value ?? '')) onSave(v) }}
+    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }} {...rest} />
+}
+
+export default function Settings() {
+  const s = useStore()
+  const ui = useUi()
+  const ro = !s.canEdit
+  const st = s.settings
+  const save = (patch, msg) => s.saveSettings(patch).then(() => msg && ui.toast(msg)).catch((e) => ui.toast('Not saved: ' + e.message))
+  const used = (field, value) => s.jobs.some((j) => j[field] === value)
+  const move = (list, i, d) => { const n = [...list]; [n[i], n[i + d]] = [n[i + d], n[i]]; return n }
+  const hasSample = s.jobs.some((j) => j.sample)
+
+  return (
+    <div className="pt-page pt-settings">
+      <div className="pt-pagehead"><h1 className="pt-h1">Settings</h1></div>
+      {ro && <Alert tone="info" title="View only">Changing settings is for staff with a team set in Admin settings.</Alert>}
+
+      <section className="card pt-card">
+        <div className="pt-card-head">
+          <div className="pt-col"><h2 className="pt-h3">Staff</h2><span className="text-sm text-muted">People who can be put on jobs and weeks. Email links someone to "My jobs". Leave shows on the Timeline's By person layout.</span></div>
+          {!ro && <Button size="sm" variant="secondary" iconLeft={<Plus size={15} />} onClick={() => save({ staff: [...st.staff, { id: rid(), name: 'New person', initials: 'NP', role: 'Engineering', email: '', leave: [] }] })}>Add staff member</Button>}
+        </div>
+        {st.staff.length === 0 && <Empty>No staff yet.</Empty>}
+        <div className="pt-staff">
+          {st.staff.map((p, i) => {
+            const upd = (patch) => save({ staff: st.staff.map((x) => (x.id === p.id ? { ...x, ...patch } : x)) })
+            return (
+              <div key={p.id} className="pt-staff-row">
+                <Avatar person={p} size={32} />
+                <Cell value={p.name} disabled={ro} aria-label="Name" onSave={(v) => upd({ name: v, initials: p.initials === initialsOf(p.name) ? initialsOf(v) : p.initials })} />
+                <Cell value={p.initials} disabled={ro} aria-label="Initials" className="input pt-w-init" maxLength={4} onSave={(v) => upd({ initials: v.toUpperCase() })} />
+                <select value={p.role} disabled={ro} aria-label="Role" onChange={(e) => upd({ role: e.target.value })}>
+                  {['Engineering', 'Applications', 'Sales'].map((r) => <option key={r}>{r}</option>)}
+                </select>
+                <Cell value={p.email} disabled={ro} aria-label="Email" placeholder="Email (optional)" onSave={(v) => upd({ email: v.trim() })} />
+                <div className="pt-leave">
+                  {(p.leave || []).map((l, k) => (
+                    <span key={k} className="tag">{fmt(l.from)} – {fmt(l.to)}{!ro && <button type="button" className="pt-x" aria-label="Remove leave" onClick={() => upd({ leave: p.leave.filter((_, n) => n !== k) })}>×</button>}</span>
+                  ))}
+                  {!ro && <LeaveAdd onAdd={(l) => upd({ leave: [...(p.leave || []), l] })} />}
+                </div>
+                {!ro && <button type="button" className="icon-btn icon-btn-sm" aria-label={`Remove ${p.name}`} onClick={() => {
+                  if (s.assignments.some((a) => a.staffId === p.id) && !window.confirm(`${p.name} is booked on the timeline. Remove them from the staff list anyway? Their weeks stay but show as "?".`)) return
+                  save({ staff: st.staff.filter((x) => x.id !== p.id) }, 'Removed')
+                }}><Trash2 size={16} /></button>}
+                {i === -1 && null}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="pt-cards pt-cards-2">
+        <section className="card pt-card">
+          <div className="pt-col"><h2 className="pt-h3">Categories</h2><span className="text-sm text-muted">The groups in Table and Timeline, in this order.</span></div>
+          {st.categories.map((c, i) => (
+            <div key={c.id} className="pt-swrow">
+              <input type="color" value={c.color} disabled={ro} aria-label={`Colour for ${c.name}`} onChange={(e) => save({ categories: st.categories.map((x) => (x.id === c.id ? { ...x, color: e.target.value } : x)) })} />
+              <Cell value={c.name} disabled={ro} aria-label="Category name" onSave={(v) => save({ categories: st.categories.map((x) => (x.id === c.id ? { ...x, name: v } : x)) })} />
+              {!ro && <>
+                <button type="button" className="icon-btn icon-btn-sm" disabled={i === 0} aria-label="Move up" onClick={() => save({ categories: move(st.categories, i, -1) })}><ArrowUp size={15} /></button>
+                <button type="button" className="icon-btn icon-btn-sm" disabled={i === st.categories.length - 1} aria-label="Move down" onClick={() => save({ categories: move(st.categories, i, 1) })}><ArrowDown size={15} /></button>
+                <button type="button" className="icon-btn icon-btn-sm" disabled={used('category', c.id)} title={used('category', c.id) ? 'Jobs use this category' : 'Remove'} aria-label="Remove category" onClick={() => save({ categories: st.categories.filter((x) => x.id !== c.id) })}><Trash2 size={15} /></button>
+              </>}
+            </div>
+          ))}
+          {!ro && <div><Button size="sm" variant="ghost" iconLeft={<Plus size={15} />} onClick={() => save({ categories: [...st.categories, { id: rid(), name: 'New category', color: '#968ac1' }] })}>Add category</Button></div>}
+        </section>
+
+        <section className="card pt-card">
+          <div className="pt-col"><h2 className="pt-h3">Archiving</h2><span className="text-sm text-muted">Archived jobs keep everything and can be restored.</span></div>
+          <Switch checked={st.askOnComplete} onChange={(v) => !ro && save({ askOnComplete: v })} label="Ask to archive when a job is set to Complete" />
+          <Switch checked={st.autoArchive} onChange={(v) => !ro && save({ autoArchive: v })} label="Archive completed jobs automatically" />
+          <Field label="Auto-archive delay" hint="Counted from the day the status changes to Complete. Also the delay offered when you're asked.">
+            <select value={st.autoArchiveDays} disabled={ro} onChange={(e) => save({ autoArchiveDays: Number(e.target.value) })} style={{ maxWidth: 220 }}>
+              {[3, 7, 14, 30, 60].map((d) => <option key={d} value={d}>{d} days</option>)}
+            </select>
+          </Field>
+        </section>
+
+        <ColourList title="Statuses" hint="Waiting asks what the job is waiting on. Complete offers to archive." list={st.statuses} keyName="statuses" field="status" ro={ro} save={save} core={['Waiting', 'Complete']} used={used} />
+        <ColourList title="Activity types" hint="Used in the Timeline's week cells." list={st.activities} keyName="activities" ro={ro} save={save}
+          used={(_, name) => s.assignments.some((a) => a.activity === name)} />
+      </div>
+
+      <section className="card pt-card">
+        <div className="pt-card-head">
+          <div className="pt-col"><h2 className="pt-h3">Demo pool</h2><span className="text-sm text-muted">How many of each model we own for demos, trials and conferences. Grouped by family in the model picker. Leave a count blank if you don't know it yet.</span></div>
+          {!ro && <Button size="sm" variant="secondary" iconLeft={<Plus size={15} />} onClick={() => save({ pool: [...st.pool, { model: 'New model', family: 'Accessories', kind: '', total: null }] })}>Add model</Button>}
+        </div>
+        <div className="pt-pool">
+          <div className="pt-pool-row pt-pool-head overline"><span>Model</span><span>Family</span><span>Kind</span><span>Units</span><span /></div>
+          {st.pool.map((p, i) => {
+            const upd = (patch) => save({ pool: st.pool.map((x, n) => (n === i ? { ...x, ...patch, sampleTotal: false } : x)) })
+            const inUse = s.jobs.some((j) => (j.equipment || []).some((l) => l.model === p.model))
+            return (
+              <div key={i} className="pt-pool-row">
+                <Cell value={p.model} disabled={ro || inUse} title={inUse ? 'Jobs use this model' : undefined} aria-label="Model" onSave={(v) => upd({ model: v.trim() })} />
+                <Cell value={p.family} disabled={ro} aria-label="Family" list="pt-fams" onSave={(v) => upd({ family: v.trim() })} />
+                <Cell value={p.kind} disabled={ro} aria-label="Kind" onSave={(v) => upd({ kind: v.trim() })} />
+                <Cell value={p.total ?? ''} disabled={ro} aria-label="Units owned" type="number" min="0" placeholder="?" onSave={(v) => upd({ total: v === '' ? null : Math.max(0, Number(v)) })} />
+                {!ro && <button type="button" className="icon-btn icon-btn-sm" disabled={inUse} aria-label="Remove model" onClick={() => save({ pool: st.pool.filter((_, n) => n !== i) })}><Trash2 size={15} /></button>}
+              </div>
+            )
+          })}
+          <datalist id="pt-fams">{[...new Set(st.pool.map((p) => p.family))].map((f) => <option key={f} value={f} />)}</datalist>
+        </div>
+      </section>
+
+      <div className="pt-cards pt-cards-2">
+        <section className="card pt-card cap-orange">
+          <div className="pt-card-head"><h2 className="pt-h3">Demo tracker connection</h2><Badge tone="orange">Placeholder</Badge></div>
+          <p className="text-sm">When it's connected, the demo tracker will supply pool sizes, which units are out, where they are and when they're due back, for each model. Until then the Demo pool above is the source, and the Equipment view says so.</p>
+          <Field label="Feed address" hint="Set when the demo tracker integration is built.">
+            <input className="input" placeholder="[demo tracker feed address]" disabled />
+          </Field>
+          <div><Button disabled>Connect</Button></div>
+        </section>
+
+        <section className="card pt-card">
+          <h2 className="pt-h3">Import and sample data</h2>
+          <p className="text-sm">Import a project tracker file (jobs, staff weeks, staff and activity colours together), or a job register from Excel or CSV.</p>
+          {!ro && <div><Button size="sm" onClick={() => ui.openImport()}>Import from a file…</Button></div>}
+          <p className="text-sm">Or load the sample jobs to try the tracker out: the jobs from the project team's sheets, a few archived ones, placeholder staff and pool sizes. They're marked as samples and come out again in one go.</p>
+          {!ro && (
+            <div className="pt-addrow">
+              {!hasSample && <Button size="sm" variant="secondary" onClick={() => s.loadSample().then(() => ui.toast('Sample jobs loaded'))}>Load sample jobs</Button>}
+              {hasSample && <Button size="sm" variant="secondary" onClick={() => window.confirm('Remove every sample job, its weeks and comments, the placeholder staff and sample pool sizes?') && s.removeSample().then(() => ui.toast('Sample data removed'))}>Remove sample data</Button>}
+              {s.resetDev && <Button size="sm" variant="ghost" onClick={() => s.resetDev()}>Reset local dev data</Button>}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function LeaveAdd({ onAdd }) {
+  const [open, setOpen] = useState(false)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  if (!open) return <button type="button" className="link-btn" onClick={() => setOpen(true)}>+ Leave</button>
+  return (
+    <span className="pt-addrow">
+      <input className="input pt-w-date" type="date" value={from} onChange={(e) => { setFrom(e.target.value); if (!to) setTo(e.target.value) }} aria-label="Leave from" />
+      <input className="input pt-w-date" type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} aria-label="Leave to" />
+      <Button size="sm" disabled={!from || !to || to < from} onClick={() => { onAdd({ from, to }); setOpen(false); setFrom(''); setTo('') }}>Add</Button>
+      <button type="button" className="link-btn" onClick={() => setOpen(false)}>Cancel</button>
+    </span>
+  )
+}
+
+function ColourList({ title, hint, list, keyName, field, ro, save, core = [], used }) {
+  const upd = (i, patch) => save({ [keyName]: list.map((x, n) => (n === i ? { ...x, ...patch } : x)) })
+  const [name, setName] = useState('')
+  return (
+    <section className="card pt-card">
+      <div className="pt-col"><h2 className="pt-h3">{title}</h2><span className="text-sm text-muted">{hint}</span></div>
+      <div className="pt-swgrid">
+        {list.map((x, i) => {
+          const inUse = used(field, x.name)
+          return (
+            <div key={x.name} className="pt-swrow">
+              <input type="color" value={x.color} disabled={ro} aria-label={`Colour for ${x.name}`} onChange={(e) => upd(i, { color: e.target.value })} />
+              <span className="pt-pill" style={pillStyle(x)}>{x.name}</span>
+              <label className="pt-check text-sm" title="Draw as an outline instead of a fill"><input type="checkbox" checked={!!x.outline} disabled={ro} onChange={(e) => upd(i, { outline: e.target.checked, dashed: e.target.checked && x.dashed })} />Outline</label>
+              <span className="pt-grow" />
+              {!ro && !core.includes(x.name) && <button type="button" className="icon-btn icon-btn-sm" disabled={inUse} title={inUse ? 'In use' : 'Remove'} aria-label={`Remove ${x.name}`} onClick={() => save({ [keyName]: list.filter((_, n) => n !== i) })}><Trash2 size={15} /></button>}
+            </div>
+          )
+        })}
+      </div>
+      {!ro && (
+        <form className="pt-addrow" onSubmit={(e) => { e.preventDefault(); const n = name.trim(); if (!n || list.some((x) => x.name === n)) return; save({ [keyName]: [...list, { name: n, color: '#968ac1' }] }); setName('') }}>
+          <input className="input" placeholder={`New ${title.toLowerCase().replace(/s$/, '').replace('activity type', 'activity')}`} value={name} onChange={(e) => setName(e.target.value)} aria-label={`New ${title}`} />
+          <Button size="sm" variant="ghost" type="submit" iconLeft={<Plus size={15} />}>Add</Button>
+        </form>
+      )}
+    </section>
+  )
+}

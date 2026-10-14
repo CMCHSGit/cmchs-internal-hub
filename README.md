@@ -14,6 +14,16 @@
 | `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles, notifications for every tool, the schedule's locations, Excel import and activity log. Admins only | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
+| `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects` (Vite + React) |
+
+### Project tracker
+
+Replaces the project team's two linked sheets (the job register and the weekly "who is where" sheet) with views of the same live data: Home, Table, Timeline (by job or by person), Equipment, Archive and Settings, plus a side panel per job and Ctrl+K search over active and archived jobs. Several people can edit at once; changes show for everyone straight away, and each job keeps its own history.
+
+- **Data** is Firestore in the staff schedule's project: `projectJobs`, `projectAssignments` (one record per person, job, week and activity, so it can feed the staff schedule later), `projectComments`, `projectHistory`, `projectPresence` and `projectSettings/main`. The rules are in `chs-equipment/cmchs-staff-schedule/firestore.rules` (`canEditProjects`): everyone signed in reads; admins and anyone on a team edit.
+- **Nothing real lives in this repo.** Jobs come in through Settings → Import from a file: a job register from Excel/CSV, or a project tracker import file (.json: jobs, staff weeks, staff and activity colours together). Keep those files out of git; the sheets carry customer details.
+- **Demo pool sizes** are typed in Settings until the demo tracker feed is connected (the Equipment view and job panels say so).
+- `npm run dev -w apps/projects` without a `.env` runs on a local stand-in with sample jobs (`src/backend-local.js`, never in a real build); two tabs act as two people. `npm test -w apps/projects` checks the dates, availability, clash and search logic (`src/model.js`).
 
 ### Admin: one place for roles and notifications
 

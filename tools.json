@@ -66,6 +66,17 @@
     "visible": true
   },
   {
+    "id": "projects",
+    "name": "Project tracker",
+    "short": "Projects",
+    "description": "Installs, trials, demos and conferences: jobs, who is where each week, and demo gear",
+    "link": "/projects/",
+    "category": "Service",
+    "icon": "folder-kanban",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "outlook",
     "name": "Outlook",
     "short": "Outlook",

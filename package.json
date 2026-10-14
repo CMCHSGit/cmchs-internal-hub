@@ -9,7 +9,8 @@
     "apps/ansurtopdf",
     "apps/maintenance",
     "apps/service-orders",
-    "apps/admin"
+    "apps/admin",
+    "apps/projects"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

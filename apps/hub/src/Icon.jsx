@@ -3,7 +3,7 @@
 // tool with a new icon = add it to this map.
 import {
   ArrowRight, Building, Calculator, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
-  ChevronRight, ClipboardList, ExternalLink, FileCheck, FileText, GraduationCap, Headset, Laptop,
+  ChevronRight, ClipboardList, ExternalLink, FileCheck, FileText, FolderKanban, GraduationCap, Headset, Laptop,
   Link, LogOut, Mail, MapPin, MessageSquare, Package, Phone, RefreshCw, Search, Settings, Stethoscope, Users,
   Wrench,
 } from 'lucide-react'
@@ -38,6 +38,7 @@ const ICONS = {
   'stethoscope': Stethoscope,
   'users': Users,
   'wrench': Wrench,
+  'folder-kanban': FolderKanban,
 }
 
 export default function Icon({ name, size = 20, ...rest }) {
