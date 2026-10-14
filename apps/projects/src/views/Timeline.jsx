@@ -2,17 +2,21 @@
    A bar runs from planned start to end: drag it to move the job (its people
    move with it), drag an end to change a date. Each week cell shows who is
    there and doing what; click one to change it. "By person" turns it round:
-   one row per person, with double bookings and leave clashes picked out. */
+   one row per person, with double bookings and leave clashes picked out.
+   Compact (the default) keeps each row to one line, sizes the weeks to fill
+   the screen and shows people as initials in their activity's colour; jobs
+   with nothing in the weeks on screen can be hidden. */
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, X, AlertTriangle } from 'lucide-react'
 import { Alert, Button } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
-import { ActivityChip, Avatar, StatusPill, Empty } from '../ui.jsx'
+import { ActivityChip, Avatar, StatusPill, Empty, DensityToggle, useDense, usePref, useFitHeight } from '../ui.jsx'
 import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, leaveInWeek, isISO, pillStyle, MONTHS_LONG, toDate } from '../model.js'
 
 const NAME_W = 290
+const NAME_W_DENSE = 230
 
 export default function Timeline({ params }) {
   const s = useStore()
@@ -22,14 +26,34 @@ export default function Timeline({ params }) {
   const [layout, setLayout] = useState('job')
   const [zoom, setZoom] = useState('week')
   const [pop, setPop] = useState(null) // { kind: 'job'|'person', id, week, rect }
-  const count = zoom === 'week' ? 12 : 30
-  const colW = zoom === 'week' ? 124 : 42
+  const [dense] = useDense()
+  const page = useFitHeight(dense)
+  const [hideIdle, setHideIdle] = usePref('projects_tl_hide_idle', true)
+  const wrap = useRef(null)
+  const [wrapW, setWrapW] = useState(0)
+  useEffect(() => {
+    if (!wrap.current || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setWrapW(Math.floor(e.contentRect.width)))
+    ro.observe(wrap.current)
+    return () => ro.disconnect()
+  }, [])
+  const nameW = dense ? NAME_W_DENSE : NAME_W
+  const count = zoom === 'week' ? (dense ? 16 : 12) : 30
+  // Compact: the weeks share the screen's width, never narrower than a chip or two
+  const colW = dense ? Math.max(zoom === 'week' ? 58 : 30, Math.floor((wrapW - nameW - 2) / count)) : zoom === 'week' ? 124 : 42
   const weeks = useMemo(() => weeksFrom(first, count), [first, count])
   const last = addDays(weeks[weeks.length - 1], 6)
   const activeIds = useMemo(() => new Set(s.active.map((j) => j.id)), [s.active])
   const clash = useMemo(() => clashes(s.assignments, s.settings.staff, activeIds), [s.assignments, s.settings.staff, activeIds])
-  const template = `${NAME_W}px repeat(${count}, ${colW}px)`
-  const todayLeft = NAME_W + (daysBetween(first, s.today) / 7) * colW
+  const template = `${nameW}px repeat(${count}, ${colW}px)`
+  const todayLeft = nameW + (daysBetween(first, s.today) / 7) * colW
+  // A job is idle on screen when its bar is outside these weeks and nobody is booked in them
+  const busy = (j) => {
+    const a = isISO(j.start) ? j.start : j.end
+    const b = isISO(j.end) ? j.end : j.start
+    return (a && a <= last && b >= first) || s.assignments.some((x) => x.jobId === j.id && x.week >= first && x.week <= weeks[weeks.length - 1])
+  }
+  const idle = layout === 'job' ? s.active.filter((j) => !busy(j)).length : 0
   const upcomingClashes = [...clash].filter(([k]) => { const w = k.split('|')[1]; return w >= thisWeek && w <= addDays(thisWeek, 56) })
 
   const months = []
@@ -45,10 +69,17 @@ export default function Timeline({ params }) {
   }
 
   return (
-    <div className="pt-page" onScroll={() => setPop(null)}>
+    <div ref={page} className={`pt-page${dense ? ' pt-dense' : ''}`} onScroll={() => setPop(null)}>
       <div className="pt-pagehead">
         <h1 className="pt-h2">Timeline</h1>
+        {layout === 'job' && (
+          <label className="pt-check text-sm">
+            <input type="checkbox" checked={hideIdle} onChange={(e) => setHideIdle(e.target.checked)} />
+            <span>Hide jobs with nothing in these weeks{hideIdle && idle ? ` (${idle} hidden)` : ''}</span>
+          </label>
+        )}
         <span className="pt-spacer" />
+        <DensityToggle />
         <div className="pt-seg" role="group" aria-label="Layout">
           {[['job', 'By job'], ['person', 'By person']].map(([v, l]) => <button key={v} type="button" className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{l}</button>)}
         </div>
@@ -77,36 +108,38 @@ export default function Timeline({ params }) {
         </Alert>
       )}
 
-      <div className="pt-tl-wrap" onScroll={() => setPop(null)}>
-        <div className="pt-tl" style={{ width: NAME_W + count * colW }}>
+      <div ref={wrap} className="pt-tl-wrap" onScroll={() => setPop(null)}>
+        <div className="pt-tl" style={{ width: nameW + count * colW }}>
           <div className="pt-tl-row pt-tl-months" style={{ gridTemplateColumns: template }}>
             <div className="pt-tl-name pt-tl-headcell" />
             {months.map((m) => <div key={m.m} className="overline pt-tl-month" style={{ gridColumn: `${m.from + 2} / span ${m.n}` }}>{m.n * colW > 80 ? `${MONTHS_LONG[Number(m.m.slice(5)) - 1]} ${m.m.slice(0, 4)}` : MONTHS_LONG[Number(m.m.slice(5)) - 1].slice(0, 3)}</div>)}
           </div>
           <div className="pt-tl-row pt-tl-weeks" style={{ gridTemplateColumns: template }}>
             <div className="pt-tl-name pt-tl-headcell overline">{layout === 'job' ? 'Job' : 'Staff'}</div>
-            {weeks.map((w) => <div key={w} className={`pt-tl-week${w === thisWeek ? ' now' : ''}`}>{zoom === 'week' ? fmt(w) : toDate(w).getDate()}</div>)}
+            {weeks.map((w) => <div key={w} className={`pt-tl-week${w === thisWeek ? ' now' : ''}`}>{zoom === 'week' && colW >= 52 ? fmt(w) : toDate(w).getDate()}</div>)}
           </div>
 
           {layout === 'job' && s.settings.categories.map((cat) => {
-            const jobs = s.active.filter((j) => j.category === cat.id).sort((a, b) => String(a.start || '9').localeCompare(String(b.start || '9')))
+            const jobs = s.active.filter((j) => j.category === cat.id && (layout !== 'job' || !hideIdle || busy(j))).sort((a, b) => String(a.start || '9').localeCompare(String(b.start || '9')))
             return (
               <div key={cat.id}>
                 <div className="pt-tl-row pt-tl-group" style={{ gridTemplateColumns: template, borderTopColor: cat.color }}>
                   <div className="pt-tl-groupname"><span className="pt-swatch" style={{ background: cat.color }} /><b>{cat.name}</b><span className="text-sm text-muted">{jobs.length}</span></div>
                 </div>
                 {jobs.map((j) => (
-                  <JobRow key={j.id} job={j} cat={cat} weeks={weeks} first={first} last={last} template={template} colW={colW} zoom={zoom}
+                  <JobRow key={j.id} job={j} cat={cat} weeks={weeks} first={first} last={last} template={template} colW={colW} zoom={zoom} dense={dense}
                     highlight={params.job === j.id} onCell={(e, w) => openPop(e, 'job', j.id, w)} />
                 ))}
-                {!jobs.length && <div className="pt-tl-row" style={{ gridTemplateColumns: template }}><div className="pt-tl-name text-sm text-muted">No jobs.</div></div>}
+                {!jobs.length && <div className="pt-tl-row" style={{ gridTemplateColumns: template }}><div className="pt-tl-name text-sm text-muted">{hideIdle ? 'Nothing in these weeks.' : 'No jobs.'}</div></div>}
               </div>
             )
           })}
 
           {layout === 'person' && s.settings.staff.map((p) => (
             <div key={p.id} className="pt-tl-row" style={{ gridTemplateColumns: template }}>
-              <div className="pt-tl-name pt-row"><Avatar person={p} /><span className="pt-col"><b className="pt-strong">{p.name}</b><span className="text-sm text-muted">{p.role}</span></span></div>
+              <div className="pt-tl-name pt-row">{dense
+                ? <><Avatar person={p} size={20} /><span className="pt-ellipsis" title={`${p.name} · ${p.role}`}><b className="pt-strong">{p.name}</b> <span className="text-muted">{p.role}</span></span></>
+                : <><Avatar person={p} /><span className="pt-col"><b className="pt-strong">{p.name}</b><span className="text-sm text-muted">{p.role}</span></span></>}</div>
               {weeks.map((w, i) => {
                 const items = s.assignments.filter((a) => a.staffId === p.id && a.week === w && activeIds.has(a.jobId))
                 const why = clash.get(`${p.id}|${w}`)
@@ -120,8 +153,8 @@ export default function Timeline({ params }) {
                         ? <span key={a.id} className="pt-act pt-act-job" style={pillStyle(s.activityByName.get(a.activity))} title={`${job?.name}: ${a.activity}${a.tentative ? ' (not confirmed)' : ''}`}>{a.tentative ? '? ' : ''}{job?.customer || job?.name}</span>
                         : <span key={a.id} className="pt-dot" style={pillStyle(s.activityByName.get(a.activity))} title={`${job?.name}: ${a.activity}`} />
                     })}
-                    {zoom === 'week' && why && <span className="pt-flag">{why === 'leave' ? 'On leave, booked' : 'Double-booked'}</span>}
-                    {zoom === 'week' && !why && leave && <span className="text-sm text-muted">On leave</span>}
+                    {zoom === 'week' && why && <span className="pt-flag" title={why === 'leave' ? 'On leave, booked' : 'Double-booked'}>{dense ? (why === 'leave' ? 'Leave!' : 'Double') : why === 'leave' ? 'On leave, booked' : 'Double-booked'}</span>}
+                    {zoom === 'week' && !why && leave && <span className="text-sm text-muted">{dense ? 'Leave' : 'On leave'}</span>}
                   </button>
                 )
               })}
@@ -137,14 +170,14 @@ export default function Timeline({ params }) {
           )}
         </div>
       </div>
-      <p className="text-sm text-muted">Each week is saved as person, job, week and activity, ready to feed the staff schedule later. {s.canEdit && 'Drag a bar to move a job and its people; drag either end to change a date.'}</p>
+      <p className="text-sm text-muted pt-hint">Each week is saved as person, job, week and activity, ready to feed the staff schedule later. {s.canEdit && 'Drag a bar to move a job and its people; drag either end to change a date.'}</p>
 
       {pop && <CellPop pop={pop} onClose={() => setPop(null)} />}
     </div>
   )
 }
 
-function JobRow({ job, cat, weeks, first, last, template, colW, zoom, highlight, onCell }) {
+function JobRow({ job, cat, weeks, first, last, template, colW, zoom, dense, highlight, onCell }) {
   const s = useStore()
   const ui = useUi()
   const [drag, setDrag] = useState(null) // { mode, dx }
@@ -191,10 +224,17 @@ function JobRow({ job, cat, weeks, first, last, template, colW, zoom, highlight,
 
   return (
     <div className={`pt-tl-row pt-tl-jobrow${highlight ? ' hl' : ''}`} style={{ gridTemplateColumns: template }}>
-      <div className="pt-tl-name">
-        <button type="button" className="pt-rowbtn" onClick={() => ui.openJob(job.id, 'timeline')}>{job.name}</button>
-        <span className="pt-row"><StatusPill status={job.status} small /><span className="text-sm text-muted">{fmtRange(job.start, job.end)}</span></span>
-      </div>
+      {dense ? (
+        <div className="pt-tl-name pt-row" title={`${job.name}\n${job.status} · ${fmtRange(job.start, job.end)}`}>
+          <StatusDot status={job.status} />
+          <button type="button" className="pt-rowbtn pt-ellipsis" onClick={() => ui.openJob(job.id, 'timeline')}>{job.name}</button>
+        </div>
+      ) : (
+        <div className="pt-tl-name">
+          <button type="button" className="pt-rowbtn" onClick={() => ui.openJob(job.id, 'timeline')}>{job.name}</button>
+          <span className="pt-row"><StatusPill status={job.status} small /><span className="text-sm text-muted">{fmtRange(job.start, job.end)}</span></span>
+        </div>
+      )}
       {visible && (
         <div className={`pt-bar${drag ? ' dragging' : ''}${s.canEdit ? ' can' : ''}`} onPointerDown={(e) => down(e, 'move')}
           title={s.canEdit ? 'Drag to move the job and its people' : fmtRange(job.start, job.end)}
@@ -219,7 +259,9 @@ function JobRow({ job, cat, weeks, first, last, template, colW, zoom, highlight,
               const p = s.staffById.get(a.staffId)
               const q = a.tentative ? '?' : ''
               const title = `${p?.name || '?'}: ${a.activity}${a.tentative ? ' (not confirmed)' : ''}`
-              return zoom === 'week'
+              return zoom === 'week' && dense
+                ? <span key={a.id} className="pt-act pt-act-mini" style={pillStyle(s.activityByName.get(a.activity))} title={title}>{q + (p?.initials || '?')}</span>
+                : zoom === 'week'
                 ? <ActivityChip key={a.id} activity={a.activity} who={q + (p?.initials || '?')} title={title} />
                 : <span key={a.id} className="pt-mini" style={pillStyle(s.activityByName.get(a.activity))} title={title}>{q || p?.initials?.[0] || '?'}</span>
             })}
@@ -228,6 +270,14 @@ function JobRow({ job, cat, weeks, first, last, template, colW, zoom, highlight,
       })}
     </div>
   )
+}
+
+/** A job's status as a small dot in its colour; the name is in the tooltip. */
+function StatusDot({ status }) {
+  const s = useStore()
+  const e = s.statusByName.get(status)
+  const c = e?.color || 'var(--border-strong)'
+  return <span className="pt-sdot" title={status} style={e?.outline ? { boxShadow: `inset 0 0 0 2px ${c}` } : { background: c }} />
 }
 
 /** The little editor for one week cell, positioned over the page so the scroll box can't clip it. */

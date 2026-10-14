@@ -32,26 +32,81 @@ export function Avatar({ person, size = 28, ring = false, title }) {
   )
 }
 
-export function AvatarStack({ ids, max = 4 }) {
+export function AvatarStack({ ids, max = 4, size = 28 }) {
   const { staffById } = useStore()
   const people = ids.map((id) => staffById.get(id)).filter(Boolean)
   if (!people.length) return <span className="text-muted">—</span>
   return (
     <span className="pt-avstack">
-      {people.slice(0, max).map((p) => <Avatar key={p.id} person={p} ring />)}
+      {people.slice(0, max).map((p) => <Avatar key={p.id} person={p} size={size} ring />)}
       {people.length > max && <span className="pt-more">+{people.length - max}</span>}
     </span>
   )
 }
 
-export function Priority({ value }) {
+/**
+ * A setting kept in this browser only (localStorage), e.g. Compact or Roomy.
+ * Every screen using the same key stays in step.
+ */
+const prefListeners = new Set()
+export function usePref(key, initial) {
+  const read = () => { try { const v = localStorage.getItem(key); return v == null ? initial : JSON.parse(v) } catch { return initial } }
+  const [v, setV] = useState(read)
+  useEffect(() => {
+    const on = (k) => { if (k === key) setV(read()) }
+    prefListeners.add(on)
+    return () => prefListeners.delete(on)
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const set = (next) => {
+    try { localStorage.setItem(key, JSON.stringify(next)) } catch { /* private mode: this visit only */ }
+    setV(next)
+    for (const l of prefListeners) l(key)
+  }
+  return [v, set]
+}
+
+/** Compact fits a whole register or timeline on one screen; Roomy is the original spacing. */
+export const useDense = () => usePref('projects_dense', true)
+
+/**
+ * Compact pages end at the bottom of the window, so their grid scrolls inside
+ * and the headings and filters stay put. Measured, because the hub's header
+ * above the tracker is only there on the live site.
+ */
+export function useFitHeight(on) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (!on) { el.style.height = ''; return }
+    const fit = () => {
+      const top = el.getBoundingClientRect().top + window.scrollY
+      el.style.height = Math.max(460, document.documentElement.clientHeight - top) + 'px'
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => { window.removeEventListener('resize', fit); el.style.height = '' }
+  }, [on])
+  return ref
+}
+
+export function DensityToggle() {
+  const [dense, setDense] = useDense()
+  return (
+    <div className="pt-seg" role="group" aria-label="Spacing">
+      {[[true, 'Compact'], [false, 'Roomy']].map(([v, l]) => <button key={l} type="button" className={dense === v ? 'on' : ''} aria-pressed={dense === v} onClick={() => setDense(v)}>{l}</button>)}
+    </div>
+  )
+}
+
+export function Priority({ value, bare = false }) {
   const n = { Low: 1, Medium: 2, High: 3 }[value] || 0
   return (
-    <span className="pt-prio">
+    <span className="pt-prio" title={bare ? value || 'No priority' : undefined}>
       <span aria-hidden="true" className="pt-bars">
         {[6, 10, 14].map((h, i) => <span key={h} style={{ height: h, background: i < n ? 'var(--accent-fg)' : 'var(--border-hairline)' }} />)}
       </span>
-      {value || '—'}
+      {bare ? (value === 'High' ? <b className="pt-bad">High</b> : null) : value || '—'}
     </span>
   )
 }

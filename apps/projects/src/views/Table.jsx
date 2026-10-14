@@ -1,35 +1,39 @@
 /* Table: the job register as a spreadsheet. Grouped by category, edit any
    cell in place, drag column edges to resize, the Job column stays put when
    scrolling sideways. Filters and saved views across the top; clicking a
-   job's name opens its side panel. */
+   job's name opens its side panel. Compact (the default) keeps each job to
+   one short line and the Job column takes up whatever width is spare, so
+   the whole register fits across one screen. */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronRight, X } from 'lucide-react'
 import { Button, Tag } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
-import { StatusPill, Priority, AvatarStack, StaffPicker, Empty } from '../ui.jsx'
+import { StatusPill, Priority, AvatarStack, StaffPicker, Empty, DensityToggle, useDense, useFitHeight } from '../ui.jsx'
 import { BUILTIN_VIEWS, PRIORITIES, filterJobs, fmt, fmtRange } from '../model.js'
 
 const LS_VIEWS = 'projects_views'
 const LS_WIDTHS = 'projects_colw'
+const LS_WIDTHS_DENSE = 'projects_colw_dense'
 const LS_COLLAPSED = 'projects_collapsed'
 const read = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* private mode */ } }
 
+// w: Roomy widths; d: Compact widths. The Job column grows into any spare width.
 const COLS = [
-  { key: 'name', label: 'Job', w: 300 },
-  { key: 'status', label: 'Status', w: 160 },
-  { key: 'priority', label: 'Priority', w: 112 },
-  { key: 'customer', label: 'Customer / hospital', w: 210 },
-  { key: 'region', label: 'Region', w: 130 },
-  { key: 'start', label: 'Start', w: 122 },
-  { key: 'end', label: 'End', w: 122 },
-  { key: 'eng', label: 'Engineering', w: 132 },
-  { key: 'apps', label: 'Apps / sales', w: 132 },
-  { key: 'freight', label: 'Freight', w: 200 },
-  { key: 'owner', label: 'Project manager', w: 150 },
-  { key: 'updated', label: 'Last edit', w: 150 },
+  { key: 'name', label: 'Job', w: 300, d: 240 },
+  { key: 'status', label: 'Status', w: 160, d: 112 },
+  { key: 'priority', label: 'Priority', w: 112, d: 72, short: 'Prio' },
+  { key: 'customer', label: 'Customer / hospital', w: 210, d: 160, short: 'Customer' },
+  { key: 'region', label: 'Region', w: 130, d: 96 },
+  { key: 'start', label: 'Start', w: 122, d: 64 },
+  { key: 'end', label: 'End', w: 122, d: 64 },
+  { key: 'eng', label: 'Engineering', w: 132, d: 84, short: 'Eng' },
+  { key: 'apps', label: 'Apps / sales', w: 132, d: 104, short: 'Apps / sales' },
+  { key: 'freight', label: 'Freight', w: 200, d: 120 },
+  { key: 'owner', label: 'Project manager', w: 150, d: 104, short: 'PM' },
+  { key: 'updated', label: 'Last edit', w: 150, d: 96 },
 ]
 
 export default function TableView({ params }) {
@@ -42,7 +46,21 @@ export default function TableView({ params }) {
   const [f, setF] = useState(base)
   useEffect(() => { setF(views.find((v) => v.id === viewId)?.f || {}) }, [viewId]) // eslint-disable-line react-hooks/exhaustive-deps
   const [sort, setSort] = useState({ key: 'start', dir: 1 })
-  const [widths, setWidths] = useState(() => ({ ...Object.fromEntries(COLS.map((c) => [c.key, c.w])), ...read(LS_WIDTHS, {}) }))
+  const [dense] = useDense()
+  const page = useFitHeight(dense)
+  const wKey = dense ? LS_WIDTHS_DENSE : LS_WIDTHS
+  const defaults = () => ({ ...Object.fromEntries(COLS.map((c) => [c.key, dense ? c.d : c.w])), ...read(wKey, {}) })
+  const [widths, setWidths] = useState(defaults)
+  useEffect(() => setWidths(defaults()), [dense]) // eslint-disable-line react-hooks/exhaustive-deps
+  // The grid's own width, so the Job column can take whatever is spare
+  const wrap = useRef(null)
+  const [wrapW, setWrapW] = useState(0)
+  useEffect(() => {
+    if (!wrap.current || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setWrapW(Math.floor(e.contentRect.width)))
+    ro.observe(wrap.current)
+    return () => ro.disconnect()
+  }, [])
   const [collapsed, setCollapsed] = useState(() => read(LS_COLLAPSED, {}))
   const [editing, setEditing] = useState(null) // { id, key }
 
@@ -65,7 +83,9 @@ export default function TableView({ params }) {
     })
   }, [s.active, f, sort, s.me, s.today, s.assignments, s.settings.statuses]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const template = COLS.map((c) => `${widths[c.key]}px`).join(' ')
+  const others = COLS.slice(1).reduce((t, c) => t + widths[c.key], 0)
+  const nameW = Math.max(widths.name, wrapW - others - 2)
+  const template = COLS.map((c) => `${c.key === 'name' ? nameW : widths[c.key]}px`).join(' ')
   const viewersOf = (id) => s.online.filter((p) => p.jobId === id && p.id !== s.me.uid)
   const active = Object.values(f).some(Boolean) && viewId === 'all'
 
@@ -78,7 +98,7 @@ export default function TableView({ params }) {
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
-      setWidths((w) => { write(LS_WIDTHS, w); return w })
+      setWidths((w) => { write(wKey, w); return w })
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -98,22 +118,28 @@ export default function TableView({ params }) {
   }
   const toggle = (id) => setCollapsed((c) => { const n = { ...c, [id]: !c[id] }; write(LS_COLLAPSED, n); return n })
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const viewTabs = (
+    <div className="pt-views" role="tablist" aria-label="Saved views">
+      {views.map((v) => (
+        <span key={v.id} className="pt-viewtab-wrap">
+          <a role="tab" aria-selected={viewId === v.id} className={`pt-viewtab${viewId === v.id ? ' on' : ''}`} href={`#/table${v.id === 'all' ? '' : '?view=' + v.id}`}>{v.name}</a>
+          {v.id.startsWith('v') && viewId === v.id && <button type="button" className="icon-btn icon-btn-sm" aria-label={`Delete view ${v.name}`} title="Delete this view" onClick={() => deleteView(v.id)}><X size={14} /></button>}
+        </span>
+      ))}
+    </div>
+  )
 
   return (
-    <div className="pt-page">
+    <div ref={page} className={`pt-page${dense ? ' pt-dense' : ''}`}>
       <div className="pt-pagehead">
         <h1 className="pt-h2">Table</h1>
         <span className="text-sm text-muted">{shown.length} of {s.active.length} active jobs</span>
+        {dense && viewTabs}
+        <span className="pt-spacer" />
+        <DensityToggle />
       </div>
 
-      <div className="pt-views" role="tablist" aria-label="Saved views">
-        {views.map((v) => (
-          <span key={v.id} className="pt-viewtab-wrap">
-            <a role="tab" aria-selected={viewId === v.id} className={`pt-viewtab${viewId === v.id ? ' on' : ''}`} href={`#/table${v.id === 'all' ? '' : '?view=' + v.id}`}>{v.name}</a>
-            {v.id.startsWith('v') && viewId === v.id && <button type="button" className="icon-btn icon-btn-sm" aria-label={`Delete view ${v.name}`} title="Delete this view" onClick={() => deleteView(v.id)}><X size={14} /></button>}
-          </span>
-        ))}
-      </div>
+      {!dense && viewTabs}
 
       <div className="pt-filters">
         <input className="input pt-f-q" type="search" placeholder="Filter by name, customer, tracking…" value={f.q || ''} onChange={set('q')} aria-label="Filter text" />
@@ -127,12 +153,12 @@ export default function TableView({ params }) {
         {active && <Button size="sm" variant="secondary" onClick={saveView}>Save view</Button>}
       </div>
 
-      <div className="pt-grid-wrap" role="grid" aria-label="Active jobs" aria-rowcount={shown.length + 1}>
+      <div ref={wrap} className="pt-grid-wrap" role="grid" aria-label="Active jobs" aria-rowcount={shown.length + 1}>
         <div className="pt-grow-row pt-grid-head" role="row" style={{ gridTemplateColumns: template }}>
           {COLS.map((c, i) => (
             <div key={c.key} role="columnheader" className={`pt-hcell${i === 0 ? ' pt-frz' : ''}`} aria-sort={sort.key === c.key ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}>
               <button type="button" className="pt-hbtn" onClick={() => setSort((x) => ({ key: c.key, dir: x.key === c.key ? -x.dir : 1 }))}>
-                {c.label}{sort.key === c.key && <span aria-hidden="true">{sort.dir > 0 ? ' ↑' : ' ↓'}</span>}
+                {dense && c.short ? <span title={c.label}>{c.short}</span> : c.label}{sort.key === c.key && <span aria-hidden="true">{sort.dir > 0 ? ' ↑' : ' ↓'}</span>}
               </button>
               <span className="pt-grip" onPointerDown={(e) => startResize(e, c.key)} title="Drag to resize" aria-hidden="true" />
             </div>
@@ -156,7 +182,7 @@ export default function TableView({ params }) {
                 </div>
               </div>
               {open && jobs.map((j) => (
-                <Row key={j.id} job={j} template={template} editing={editing?.id === j.id ? editing.key : null}
+                <Row key={j.id} job={j} template={template} dense={dense} editing={editing?.id === j.id ? editing.key : null}
                   setEditing={(key) => setEditing(key ? { id: j.id, key } : null)} viewers={viewersOf(j.id)} selected={params.job === j.id} />
               ))}
               {open && !jobs.length && <div className="pt-grow-row" role="row" style={{ gridTemplateColumns: template }}><div className="pt-cell pt-frz text-muted text-sm" role="cell">No jobs.</div></div>}
@@ -165,12 +191,12 @@ export default function TableView({ params }) {
         })}
         {s.active.length === 0 && <Empty>No active jobs. Press N or use New job to add one.</Empty>}
       </div>
-      <p className="text-sm text-muted">Click a cell to edit it. Drag the edge of a column heading to resize it. Click a job's name for everything else.</p>
+      <p className="text-sm text-muted pt-hint">Click a cell to edit it. Drag the edge of a column heading to resize it. Click a job's name for everything else.</p>
     </div>
   )
 }
 
-function Row({ job, template, editing, setEditing, viewers, selected }) {
+function Row({ job, template, editing, setEditing, viewers, selected, dense }) {
   const s = useStore()
   const ui = useUi()
   const can = s.canEdit
@@ -179,7 +205,7 @@ function Row({ job, template, editing, setEditing, viewers, selected }) {
       onClick={can && key && editing !== key ? () => setEditing(key) : undefined}
       onKeyDown={can && key ? (e) => { if (e.key === 'Enter' && editing !== key) setEditing(key) } : undefined}
       tabIndex={can && key ? 0 : undefined}>
-      {editing === key ? <CellEditor job={job} field={key} done={() => setEditing(null)} /> : content}
+      {key && editing === key ? <CellEditor job={job} field={key} done={() => setEditing(null)} /> : content}
     </div>
   )
   const f = job.freight || {}
@@ -190,23 +216,28 @@ function Row({ job, template, editing, setEditing, viewers, selected }) {
         <button type="button" className="pt-rowbtn" onClick={() => ui.openJob(job.id, 'table')}>{job.name}</button>
         {viewers.length > 0 && <span className="pt-viewer" title={`${viewers.map((v) => v.name).join(', ')} ${viewers.length === 1 ? 'has' : 'have'} this job open`}>{viewers.map((v) => v.initials).join(' ')}</span>}
       </div>
-      {cell('status', (
+      {cell('status', dense ? (
+        <span className="pt-ellipsis" title={[job.status, job.status === 'Waiting' && job.waitingOn ? 'on ' + job.waitingOn : '', job.statusNote].filter(Boolean).join(' · ')}>
+          <StatusPill status={job.status} small />
+        </span>
+      ) : (
         <span className="pt-col">
           <StatusPill status={job.status} small />
           {job.status === 'Waiting' && job.waitingOn && <span className="text-sm pt-warn pt-ellipsis">on {job.waitingOn}</span>}
           {job.statusNote && <span className="text-sm text-muted pt-ellipsis" title={job.statusNote}>{job.statusNote}</span>}
         </span>
       ))}
-      {cell('priority', <Priority value={job.priority} />)}
+      {cell('priority', <Priority value={job.priority} bare={dense} />)}
       {cell('customer', <span className="pt-strong pt-ellipsis">{job.customer || '—'}</span>)}
-      {cell('region', job.region || '—')}
+      {cell('region', <span className="pt-ellipsis" title={job.region}>{job.region || '—'}</span>)}
       {cell('start', <span className="pt-num">{fmt(job.start) || '—'}</span>)}
       {cell('end', <span className="pt-num">{fmt(job.end) || '—'}</span>)}
-      {cell('eng', <AvatarStack ids={job.eng || []} />)}
-      {cell('apps', <AvatarStack ids={job.apps || []} />)}
-      {cell('freight', f.tracking ? <span className="pt-col"><span className="pt-mono pt-strong">{f.tracking}</span><span className="text-sm text-muted">{f.state || 'Not shipped'}{f.eta ? ` · ETA ${fmt(f.eta)}` : ''}</span></span> : <span className="text-muted">—</span>)}
-      {cell('owner', job.owner || '—')}
-      {cell(null, <span className="text-sm text-muted">{job.updatedBy ? `${job.updatedBy.split(' ')[0]} · ${ago(job.updatedAtMs)}` : '—'}</span>)}
+      {cell('eng', <AvatarStack ids={job.eng || []} size={dense ? 18 : 28} max={dense ? 3 : 4} />)}
+      {cell('apps', <AvatarStack ids={job.apps || []} size={dense ? 18 : 28} max={4} />)}
+      {cell('freight', f.tracking && dense ? <span className="pt-ellipsis pt-mono" title={`${f.tracking} · ${f.state || 'Not shipped'}${f.eta ? ` · ETA ${fmt(f.eta)}` : ''}`}>{f.tracking}</span>
+        : f.tracking ? <span className="pt-col"><span className="pt-mono pt-strong">{f.tracking}</span><span className="text-sm text-muted">{f.state || 'Not shipped'}{f.eta ? ` · ETA ${fmt(f.eta)}` : ''}</span></span> : <span className="text-muted">—</span>)}
+      {cell('owner', <span className="pt-ellipsis" title={job.owner}>{job.owner || '—'}</span>)}
+      {cell(null, <span className="text-sm text-muted pt-ellipsis">{job.updatedBy ? `${job.updatedBy.split(' ')[0]} · ${ago(job.updatedAtMs)}` : '—'}</span>)}
     </div>
   )
 }
