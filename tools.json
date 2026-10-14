@@ -66,17 +66,6 @@
     "visible": true
   },
   {
-    "id": "admin",
-    "name": "Admin settings",
-    "short": "Admin",
-    "description": "People, teams, roles and Simpro access. Admins only",
-    "link": "/admin/",
-    "category": "Admin",
-    "icon": "settings",
-    "opens": "here",
-    "visible": true
-  },
-  {
     "id": "outlook",
     "name": "Outlook",
     "short": "Outlook",

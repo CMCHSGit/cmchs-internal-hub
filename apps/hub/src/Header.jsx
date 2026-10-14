@@ -102,6 +102,12 @@ export default function Header({ user, search = true }) {
         </a>
         <div className="spacer" />
         {search && <div className="wide-only"><Search /></div>}
+        {/* Admin settings. Shown to everyone on purpose: the page asks for the
+            admin password (and the admin role), so the gear is just the way
+            in for the people who have it, not a tool everyone should see. */}
+        <a className="icon-btn header-admin" href="/admin/" aria-label="Admin settings" title="Admin settings">
+          <Icon name="settings" size={20} />
+        </a>
         <Account user={user} />
       </div>
       <div className="stripe-rule" aria-hidden="true"><span /><span /><span /></div>
