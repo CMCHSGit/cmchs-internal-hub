@@ -1,78 +1,24 @@
 import { useState, useEffect } from 'react'
-import {
-  collection, getDocs, addDoc, deleteDoc, doc, setDoc, updateDoc,
-  query, orderBy, limit, serverTimestamp
-} from 'firebase/firestore'
+import { collection, getDocs, deleteDoc, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../schedule/src/firebase'
 import { useAuth } from '../../schedule/src/contexts/AuthContext'
-import { Bell, Lock, ScrollText } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import Toast from '../../schedule/src/components/Toast'
+import AdminLock, { isUnlocked } from '../../schedule/src/components/AdminLock'
 import { TEAMS, teamLabel } from '../../schedule/src/utils/teams'
 import { logActivity } from '../../schedule/src/utils/activityLog'
-import { Alert, Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
-import ExcelImport from './ExcelImport'
+import { Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
 import { TRACKER_ROLES, findMember, loadTeam, trackerRoleLabel, updateTeam } from './tracker'
 
-/**
- * Admin also asks for a password — a second step on top of the admin role,
- * useful on an admin's unlocked phone or computer. Only its SHA-256 is kept
- * here (this repo is public), but this is a lock on the door, not a safe:
- * it runs in the browser. What actually protects admin actions is the role
- * check plus firestore.rules. Stays unlocked until the tab/app is closed.
+/*
+ * People and notifications, for every tool. The staff schedule's own settings
+ * (locations, the Excel import, the activity log) are on its Settings page,
+ * /schedule/settings — they moved there from here.
  */
-const ADMIN_PASSWORD_SHA256 = '8c1d16397760afa8d5301e4461e28f5f48f7e8ba20de33e32a259e9bedd7fecb'
-const UNLOCK_KEY = 'css_admin_unlocked'
+const TABS = [['users', 'People'], ['notifications', 'Notifications']]
+const MOVED_TO_SCHEDULE = ['locations', 'excel', 'activity']
 
-async function sha256(text) {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-  return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('')
-}
-
-function isUnlocked() {
-  try { return sessionStorage.getItem(UNLOCK_KEY) === ADMIN_PASSWORD_SHA256 } catch { return false }
-}
-
-function AdminLock({ onUnlock }) {
-  const [password, setPassword] = useState('')
-  const [wrong, setWrong] = useState(false)
-  const [checking, setChecking] = useState(false)
-
-  async function submit(e) {
-    e.preventDefault()
-    setChecking(true)
-    const hash = await sha256(password)
-    setChecking(false)
-    if (hash !== ADMIN_PASSWORD_SHA256) { setWrong(true); setPassword(''); return }
-    try { sessionStorage.setItem(UNLOCK_KEY, hash) } catch { /* private mode — unlocked for this visit only */ }
-    onUnlock()
-  }
-
-  return (
-    <div className="page page-narrow">
-      <form className="card admin-lock" onSubmit={submit}>
-        <Lock size={28} aria-hidden="true" className="admin-lock-icon" />
-        <h2 className="page-title">Unlock admin settings</h2>
-        <p className="text-sm text-muted">Enter the admin password to continue.</p>
-        <input
-          className="input"
-          type="password"
-          autoFocus
-          autoComplete="current-password"
-          placeholder="Password"
-          aria-label="Admin password"
-          value={password}
-          onChange={e => { setPassword(e.target.value); setWrong(false) }}
-        />
-        {wrong && <p className="login-error">That password isn’t right — try again.</p>}
-        <Button type="submit" block disabled={!password || checking}>Unlock</Button>
-      </form>
-    </div>
-  )
-}
-
-const TABS = [['users', 'People'], ['notifications', 'Notifications'], ['locations', 'Locations'], ['excel', 'Excel'], ['activity', 'Activity log']]
-
-/** The open tab lives in the address (/admin/#locations), so a link or a reload lands on it. */
+/** The open tab lives in the address (/admin/#notifications), so a link or a reload lands on it. */
 function tabFromHash() {
   const t = location.hash.slice(1)
   return TABS.some(([id]) => id === t) ? t : 'users'
@@ -83,6 +29,13 @@ export default function Admin() {
   const [tab, setTabState] = useState(tabFromHash)
   const [unlocked, setUnlocked] = useState(isUnlocked)
 
+  // An old link or bookmark to a tab that moved: send it on to the schedule.
+  const moved = location.hash.slice(1)
+  useEffect(() => {
+    if (MOVED_TO_SCHEDULE.includes(moved)) location.replace(`/schedule/settings#${moved}`)
+  }, [moved])
+  if (MOVED_TO_SCHEDULE.includes(moved)) return <div className="page"><Loading /></div>
+
   function setTab(t) {
     setTabState(t)
     history.replaceState(null, '', t === 'users' ? location.pathname : `#${t}`)
@@ -92,118 +45,19 @@ export default function Admin() {
 
   return (
     <div className="page admin-page">
-      <div className="tabs" role="tablist">
-        {TABS.map(([t, label]) => (
-          <button key={t} type="button" role="tab" aria-selected={tab === t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'locations' && <LocationsTab />}
-      {tab === 'users'     && <UsersTab />}
-      {tab === 'notifications' && <NotificationsTab />}
-      {tab === 'excel'     && <ExcelImport />}
-      {tab === 'activity'  && <ActivityTab />}
-    </div>
-  )
-}
-
-/* ── Locations tab ── */
-function LocationsTab() {
-  const { user } = useAuth()
-  const [locations, setLocations] = useState([])
-  const [newName,   setNewName]   = useState('')
-  const [loading,   setLoading]   = useState(true)
-  const [toast,     setToast]     = useState(null)
-
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    const q = query(collection(db, 'locations'), orderBy('order'))
-    const snap = await getDocs(q)
-    setLocations(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    setLoading(false)
-  }
-
-  async function addLocation() {
-    const name = newName.trim()
-    if (!name) return
-    await addDoc(collection(db, 'locations'), {
-      name,
-      order: locations.length,
-      active: true,
-      createdAt: serverTimestamp(),
-    })
-    setNewName('')
-    showToast(`Added "${name}"`)
-    logActivity(user, `Added location "${name}" in Admin.`)
-    load()
-  }
-
-  async function toggleActive(loc) {
-    await updateDoc(doc(db, 'locations', loc.id), { active: !loc.active })
-    showToast(loc.active ? `Hidden "${loc.name}"` : `Restored "${loc.name}"`)
-    logActivity(user, `${loc.active ? 'Hid' : 'Restored'} location "${loc.name}" in Admin.`)
-    load()
-  }
-
-  async function removeLocation(loc) {
-    if (!confirm(`Delete "${loc.name}"? This won't affect existing schedules.`)) return
-    await deleteDoc(doc(db, 'locations', loc.id))
-    showToast(`Deleted "${loc.name}"`)
-    logActivity(user, `Deleted location "${loc.name}" in Admin.`)
-    load()
-  }
-
-  function showToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  return (
-    <div className="admin-layout">
-      <div className="admin-side">
-      <h2 className="admin-side-title">Add a location</h2>
-      <p className="text-sm text-muted">
-        The suggestions people see when filling in their schedule. Anything typed that isn’t
-        here gets added automatically. Hiding a location won’t change schedules already saved.
-      </p>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          className="input"
-          placeholder="New location name…"
-          value={newName}
-          onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && addLocation()}
-          style={{ flex: 1 }}
-        />
-        <Button onClick={addLocation}>Add</Button>
-      </div>
-      </div>
-
-      <div className="admin-main">
-      {loading ? <Loading /> : (
-        <div className="card admin-list admin-list-grid">
-          {locations.length === 0 && <p className="text-sm text-muted" style={{ padding: 16 }}>No locations yet.</p>}
-          {locations.map(loc => (
-            <div key={loc.id} className="admin-item" style={{ opacity: loc.active ? 1 : 0.5 }}>
-              <span className="admin-item-name">
-                {loc.name}
-                {!loc.active && <Badge tone="neutral">Hidden</Badge>}
-              </span>
-              <div className="admin-controls">
-                <Button variant="secondary" size="sm" onClick={() => toggleActive(loc)}>{loc.active ? 'Hide' : 'Show'}</Button>
-                <Button variant="ghost" size="sm" style={{ color: 'var(--status-critical)' }} onClick={() => removeLocation(loc)}>Delete</Button>
-              </div>
-            </div>
+      <div className="settings-head">
+        <div className="tabs" role="tablist">
+          {TABS.map(([t, label]) => (
+            <button key={t} type="button" role="tab" aria-selected={tab === t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
+              {label}
+            </button>
           ))}
         </div>
-      )}
+        <a className="settings-elsewhere text-sm" href="/schedule/settings">Locations, Excel and the activity log are in the staff schedule’s Settings</a>
       </div>
 
-      <Toast message={toast} />
+      {tab === 'users'     && <UsersTab />}
+      {tab === 'notifications' && <NotificationsTab />}
     </div>
   )
 }
@@ -619,74 +473,4 @@ function NotificationsTab() {
       <Toast message={toast} />
     </div>
   )
-}
-
-/* ── Activity log tab ── */
-const LOG_LIMIT = 300
-
-function ActivityTab() {
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [blocked, setBlocked] = useState(false)
-
-  useEffect(() => { load() }, [])
-
-  async function load() {
-    setLoading(true)
-    setBlocked(false)
-    try {
-      const q = query(collection(db, 'activity'), orderBy('at', 'desc'), limit(LOG_LIMIT))
-      const snap = await getDocs(q)
-      setEntries(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-    } catch (e) {
-      console.error('Failed to load activity log:', e)
-      if (e.code === 'permission-denied') setBlocked(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="admin-layout">
-      <div className="admin-side">
-        <h2 className="admin-side-title">Activity log</h2>
-        <p className="text-sm text-muted">
-          Who changed what, most recent first — schedule edits, leave booked or removed, the
-          on-call roster, and changes made here in Admin. The last {LOG_LIMIT} actions. It's a
-          record, not an undo button: nothing here can be edited or deleted.
-        </p>
-        <Button variant="secondary" size="sm" onClick={load} disabled={loading}>Refresh</Button>
-      </div>
-
-      <div className="admin-main">
-        {blocked && (
-          <Alert tone="warning" icon={<ScrollText size={20} />} title="Log not switched on yet">
-            The database rules need updating before the activity log can be read — publish the
-            latest <code>firestore.rules</code> in the Firebase Console (Firestore → Rules).
-          </Alert>
-        )}
-        {loading ? <Loading /> : (
-          <div className="card admin-list activity-list">
-            {!entries.length && !blocked && (
-              <p className="text-sm text-muted" style={{ padding: 16 }}>Nothing logged yet.</p>
-            )}
-            {entries.map(e => (
-              <div key={e.id} className="activity-row">
-                <span className="activity-when">{formatWhen(e.at)}</span>
-                <span className="activity-who">{e.name}</span>
-                <span className="activity-what">{e.summary}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-/** "28 Sep, 3:45 pm" — in-progress writes (no server timestamp back yet) just say "Just now". */
-function formatWhen(at) {
-  const date = at?.toDate?.()
-  if (!date) return 'Just now'
-  return date.toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
 }

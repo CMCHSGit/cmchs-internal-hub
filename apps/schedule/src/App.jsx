@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings, Moon, Sun, Plane } from 'lucide-react'
+import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings as SettingsIcon, Moon, Sun, Plane } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login         from './pages/Login'
 import MySchedule    from './pages/MySchedule'
@@ -8,15 +8,17 @@ import TeamWeek      from './pages/TeamWeek'
 import DayView       from './pages/DayView'
 import LeaveCalendar from './pages/LeaveCalendar'
 import OnCall        from './pages/OnCall'
-import AdminMoved    from './pages/AdminMoved'
 import OutOfTown     from './pages/OutOfTown'
 import TeamOnboarding from './components/TeamOnboarding'
 import PullToRefresh  from './components/PullToRefresh'
 import AccountMenu    from './components/AccountMenu'
 import UpdateBanner   from './components/UpdateBanner'
-import { Logo, StripeRule, Spinner, IconButton } from './components/ui'
+import { Logo, StripeRule, Spinner, IconButton, Loading } from './components/ui'
 import { useTheme } from './utils/theme'
 import { APP_VERSION } from './version'
+
+// Admins only, and it brings the Excel import with it: loaded when opened.
+const Settings = lazy(() => import('./pages/Settings'))
 
 // Short labels for the phone's bottom bar, fuller ones for desktop tabs.
 // Team week is the landing page — it's what everyone else is doing, which
@@ -82,7 +84,9 @@ function AppRoutes() {
           <Route path="/day"    element={<DayView />} />
           <Route path="/leave"  element={<LeaveCalendar />} />
           <Route path="/oncall" element={<OnCall />} />
-          <Route path="/admin"  element={<AdminMoved />} />
+          <Route path="/settings" element={<Suspense fallback={<Loading />}><Settings /></Suspense>} />
+          {/* /admin was the schedule's admin page; its schedule parts are Settings now. */}
+          <Route path="/admin"  element={<Navigate to="/settings" replace />} />
           <Route path="/out-of-town" element={<OutOfTown />} />
           {/* /team was Team week's path before it became the default — kept
               working for anyone's old bookmark or home-screen shortcut. */}
@@ -138,13 +142,13 @@ function AppHeader() {
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
         </IconButton>
         <AccountMenu />
-        {/* Admin moved to the hub (/admin/, apps/admin). A plain <a>, not a
-            NavLink: like the hub pill, it's outside this router's basename. */}
+        {/* The schedule's own settings (locations, Excel, activity log).
+            People and notifications are in the hub's Admin, linked from there. */}
         {profile?.role === 'admin' && (
-          <a href="/admin/" className="header-admin" aria-label="Admin settings, in the Internal Hub" title="Admin settings moved to the Internal Hub">
-            <Settings size={20} aria-hidden="true" />
-            <span className="header-admin-label">Admin</span>
-          </a>
+          <NavLink to="/settings" className={({ isActive }) => `header-admin${isActive ? ' active' : ''}`} aria-label="Schedule settings" title="Schedule settings">
+            <SettingsIcon size={20} aria-hidden="true" />
+            <span className="header-admin-label">Settings</span>
+          </NavLink>
         )}
         </div>
       </div>

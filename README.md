@@ -11,7 +11,7 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
-| `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles, notifications for every tool, the schedule's locations, Excel import and activity log. Admins only | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
+| `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles and notifications for every tool. Admins only. (The schedule's locations, Excel import and activity log are at `/schedule/settings`.) | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 | `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects` (Vite + React) |
@@ -33,7 +33,9 @@ Replaces the project team's two linked sheets (the job register and the weekly "
 - Staff schedule Thursday reminder: `users/{uid}.notifications.scheduleReminder`; `scripts/remind.mjs` (cmchs-staff-schedule repo) skips anyone with it false.
 - Demo tracker loan reminders: `accountManagers[].notify`; the Apps Script senders (chs-equipment `.gas-proxy`, `sendPushToPerson_`) skip anyone with it false. Test sends still go through.
 
-A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone.
+A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone. The hub home offers that once to anyone signed in with no phone registered for the staff schedule (`apps/hub/src/PushPrompt.jsx`).
+
+**Staff schedule settings are not here.** Locations, the Excel import and the activity log are the schedule's own Settings page, `/schedule/settings` (`apps/schedule/src/pages/Settings.jsx`), behind the same admin role and password. Old `/admin/#locations`, `#excel` and `#activity` links forward there.
 
 ### /demo/ is generated, not copied
 

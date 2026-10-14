@@ -796,8 +796,6 @@ button.wkw-main { cursor: pointer; }
 .excel-details { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px; }
 .excel-details summary { cursor: pointer; font: var(--weight-semibold) 14px/1.4 var(--font-body); color: var(--text-strong); }
 .excel-details ul { margin: 8px 0 0 18px; display: flex; flex-direction: column; gap: 4px; font: var(--type-body-sm); color: var(--text-body); }
-/* /schedule/admin, for old bookmarks: a pointer to where Admin went. */
-.admin-moved { margin-top: 24px; padding: 24px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
 code { font-family: var(--font-mono); font-size: .92em; }
 
 .login-page { min-height: 100dvh; display: flex; flex-direction: column; }

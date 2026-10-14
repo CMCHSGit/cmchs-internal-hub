@@ -7,14 +7,15 @@ import '@fontsource/source-sans-3/latin-400.css'
 import '@fontsource/source-sans-3/latin-600.css'
 import '@fontsource/titillium-web/latin-600.css'
 import '../../schedule/src/index.css'
+import '../../schedule/src/settings.css'
 import '../../../shared/tool-chrome.css'
 import './admin.css'
 import { registerServiceWorker } from '../../../shared/register-sw.js'
 import { mountToolChrome } from '../../../shared/tool-chrome.js'
 import App from './App.jsx'
 
-// No reload when a new deploy takes over: that would throw away an Excel
-// import part-way through.
+// No reload when a new deploy takes over: that would throw away an edit
+// part-way through.
 registerServiceWorker()
 
 // The header, back button and light/dark switch are shared with the other
