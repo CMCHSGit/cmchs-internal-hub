@@ -45,7 +45,7 @@ async function dbToken() {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token: j.customToken, returnSecureToken: true }),
   }).then(res => res.json())
-  if (!ex.idToken) throw new Error('Demo tracker pass exchange failed')
+  if (!ex.idToken) throw new Error('Demo tracker pass exchange failed: ' + (ex.error?.message || 'unknown'))
   pass = { idToken: ex.idToken, exp: Date.now() + Number(ex.expiresIn) * 1000 }
   return pass.idToken
 }
