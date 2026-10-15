@@ -87,15 +87,18 @@ const { count, size, warnings } = await injectManifest({
     'shared/**/*.js',
     'brand/**/*.png',
     'icons/**/*.png',
-    // Entry pages are small and make a tool open instantly. The schedule's is
-    // not optional: the worker's NavigationRoute hands deep links to it by URL,
-    // which only resolves if it is precached.
+    // The schedule's entry page has to be here: the worker's NavigationRoute
+    // hands deep links to it by URL, which only resolves if it is precached.
+    //
+    // The other tools' entry pages are deliberately NOT. Their scripts and
+    // styles are only cached the first time a tool is opened, so a precached
+    // page could point at a build's stylesheet that was never cached and that
+    // the next deploy deleted from the server — the tool then opened with no
+    // styles at all (giant icons, no layout) until a second refresh. Left out,
+    // they go through the worker's network-first page route: always this
+    // deploy's page when online, and offline the last copy, whose files were
+    // cached when it was loaded.
     'schedule/index.html',
-    'maintenance/index.html',
-    'simprosync/index.html',
-    'service-orders/index.html',
-    'admin/index.html',
-    'projects/index.html',
   ],
   globIgnores: [
     'sw-src.js',
