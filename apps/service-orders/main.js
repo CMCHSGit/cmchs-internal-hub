@@ -116,8 +116,10 @@ function visible() {
   const q = $('q').value.trim().toLowerCase()
   const site = $('fSite').value
   const ret = $('fReturn').value
+  const now = $('fStage').value
   return orders.filter((o) => {
     if (view === 'late' ? !isLate(o) : view !== 'all' && !inTab(o, view)) return false
+    if (now && o.stage !== now) return false
     if (site && o.site !== site) return false
     if (ret && o.needReturn !== ret) return false
     if (q) {
@@ -180,6 +182,13 @@ function render() {
   renderTiles()
   const sites = [...new Set(orders.map((o) => o.site).filter(Boolean))].sort()
   fillSelect($('fSite'), sites, 'All sites')
+  // Where the orders in this tab are now. Only worth showing when a tab mixes
+  // stages (Received, All): there, "Received" means the parts are in but the
+  // faulty part isn't ready to ship back yet.
+  const here = STAGES.filter((s) => orders.some((o) => o.stage === s && (view === 'all' || (view === 'late' ? isLate(o) : inTab(o, view)))))
+  fillSelect($('fStage'), here, 'Any')
+  $('fStageWrap').hidden = here.length < 2
+  if (here.length < 2) $('fStage').value = ''
   $('siteList').innerHTML = sites.map((s) => `<option value="${esc(s)}">`).join('')
 
   $('head').innerHTML = COLUMNS.map(([k, label]) =>
@@ -204,7 +213,7 @@ function render() {
   }
 }
 
-for (const id of ['q', 'fSite', 'fReturn']) $(id).addEventListener(id === 'q' ? 'input' : 'change', render)
+for (const id of ['q', 'fSite', 'fReturn', 'fStage']) $(id).addEventListener(id === 'q' ? 'input' : 'change', render)
 
 // ── edit ──────────────────────────────────────────────────────────────────
 let editing = null
