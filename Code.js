@@ -384,7 +384,13 @@ function checkProjectsBackup() {
     const c = readProjectTracker_().collections;
     Logger.log('READY — the project tracker backup can read: ' + PROJECTS_COLLECTIONS.map(function(n) { return Object.keys(c[n]).length + ' ' + n; }).join(', ') + '.');
   } catch (err) {
-    Logger.log('NOT READY — ' + err.message + '. If it is a refusal (403), grant the service account "Cloud Datastore Viewer" in the staff schedule project\'s Google Cloud IAM.');
+    const why = String(err.message).replace(/\.+$/, '');
+    const fix = /\(40[13]\)/.test(why)
+      ? 'Grant the service account "Cloud Datastore Viewer" in the staff schedule project\'s Google Cloud IAM.'
+      : /service account token/.test(why)
+        ? 'Add Script Property FIREBASE_SERVICE_ACCOUNT_KEY: the same JSON the Simpro proxy project holds as FCM_SERVICE_ACCOUNT_KEY.'
+        : 'See the error above.';
+    Logger.log('NOT READY — ' + why + '. ' + fix);
   }
 }
 
