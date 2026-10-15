@@ -34,6 +34,28 @@
  *   Current Loans (one row per equipment item currently on loan, joined
  *   with its /loanDocs.json detail) and Upcoming Loans (one row per item
  *   within each unconfirmed booking).
+ *
+ * THE PROJECT TRACKER TOO (2026-10-15):
+ *   The same nightly run also backs up the project tracker
+ *   (internal.chsnz.co.nz/projects/), whose data is in the STAFF SCHEDULE's
+ *   Firestore (projectJobs, projectAssignments, projectComments,
+ *   projectHistory, projectSettings). Two files a night in Drive folder
+ *   "CMCHS Project Tracker Backups", kept a year:
+ *     - Project-Tracker-YYYY-MM-DD.json — everything, exactly as stored. The
+ *       tracker restores from it: Settings → Backups → Restore from a backup.
+ *     - Project-Tracker-YYYY-MM-DD.xlsx — the jobs and who is where each week,
+ *       to read without the tracker.
+ *   It reads with the same service account as the database reads below
+ *   (FIREBASE_SERVICE_ACCOUNT_KEY), which needs "Cloud Datastore Viewer" in
+ *   the staff schedule's Google Cloud project — the same grant the Simpro
+ *   proxy's hub push uses. checkProjectsBackup() says whether it is in place.
+ *   The two backups are independent: one failing never stops the other.
+ *
+ * LIVE vs REPO (found 2026-10-15): the "CHS Daily Backup" project in Apps
+ *   Script was still running an older copy of this file — no Current/Upcoming
+ *   Loans sheets and no signed reads. Pushing this file (clasp, see
+ *   .clasp.json) changes its permissions, so someone must open the editor and
+ *   run setupBackups() once to approve them, or the nightly run stops.
  */
 
 const FIREBASE_BASE      = 'https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app';
@@ -76,7 +98,16 @@ const UPCOMING_LOAN_HEADERS = [
   'Account Manager','Borrower Email','CHS Asset No.','Model','Serial Number'
 ];
 
+// The trigger's handler (installed by installDailyBackupTrigger): the demo
+// tracker's backup, then the project tracker's, each failing on its own.
 function dailyBackup() {
+  // Each half reports its own failure; these catch what escapes that (a
+  // failure email that itself can't be sent), so one never stops the other.
+  try { equipmentBackup_(); } catch (err) { console.error('Demo tracker backup stopped:', err.toString()); }
+  try { projectsBackup_(); } catch (err) { console.error('Project tracker backup stopped:', err.toString()); }
+}
+
+function equipmentBackup_() {
   try {
     // 1. Fetch from Firebase — /data.json (equipment + history + loanMeta,
     // one document) plus the two separate top-level nodes it doesn't cover.
@@ -211,6 +242,166 @@ function writeSheetRows_(sheet, rows, numCols) {
   sheet.setFrozenRows(1);
 }
 
+// ── Project tracker backup ───────────────────────────────────────────────────
+// See "THE PROJECT TRACKER TOO" at the top. Only counts go to the log, never
+// names (the repo is public and so are its logs' habits).
+
+const PROJECTS_FOLDER_NAME = 'CMCHS Project Tracker Backups';
+const PROJECTS_COLLECTIONS = ['projectJobs', 'projectAssignments', 'projectComments', 'projectHistory', 'projectSettings'];
+// The staff schedule's Firebase project. Not a secret: it is in every page on
+// internal.chsnz.co.nz. A Script Property of the same name overrides it.
+const SCHEDULE_PROJECT_ID_DEFAULT = 'cmchsstaffschedule';
+
+function scheduleProjectId_() {
+  return PropertiesService.getScriptProperties().getProperty('FIREBASE_SCHEDULE_PROJECT_ID') || SCHEDULE_PROJECT_ID_DEFAULT;
+}
+
+// Firestore's REST values, as plain JSON (what the tracker reads and writes).
+function fsValue_(v) {
+  if (!v) return null;
+  if ('nullValue' in v) return null;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('stringValue' in v) return v.stringValue;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fsValue_);
+  if ('mapValue' in v) return fsFields_(v.mapValue.fields || {});
+  if ('referenceValue' in v) return v.referenceValue;
+  if ('geoPointValue' in v) return v.geoPointValue;
+  if ('bytesValue' in v) return v.bytesValue;
+  return null;
+}
+function fsFields_(fields) {
+  const out = {};
+  Object.keys(fields || {}).forEach(function(k) { out[k] = fsValue_(fields[k]); });
+  return out;
+}
+
+// Every document in one collection: { id: data }. Throws if Firestore refuses.
+function readCollection_(token, name) {
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleProjectId_() + '/databases/(default)/documents/' + name + '?pageSize=300';
+  const docs = {};
+  let pageToken = '';
+  do {
+    const resp = UrlFetchApp.fetch(base + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), {
+      headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
+    });
+    const code = resp.getResponseCode();
+    if (code !== 200) throw new Error('Firestore refused to read ' + name + ' (' + code + ')');
+    const json = JSON.parse(resp.getContentText());
+    (json.documents || []).forEach(function(d) { docs[d.name.split('/').pop()] = fsFields_(d.fields); });
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  return docs;
+}
+
+// The tracker's whole store, in the format its Restore reads
+// (cmchs-internal-hub apps/projects/src/backup.js).
+function readProjectTracker_() {
+  const token = serviceAccountToken_('https://www.googleapis.com/auth/datastore', 'firestoreAccessToken');
+  if (!token) throw new Error('No service account token: set FIREBASE_SERVICE_ACCOUNT_KEY.');
+  const collections = {};
+  PROJECTS_COLLECTIONS.forEach(function(name) { collections[name] = readCollection_(token, name); });
+  return {
+    kind: 'project-tracker-backup',
+    version: 1,
+    takenAt: new Date().toISOString(),
+    source: 'nightly',
+    collections: collections
+  };
+}
+
+function projectsBackup_() {
+  try {
+    const backup = readProjectTracker_();
+    const c = backup.collections;
+    const folders = DriveApp.getFoldersByName(PROJECTS_FOLDER_NAME);
+    const folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder(PROJECTS_FOLDER_NAME);
+    const stamp   = Utilities.formatDate(new Date(), 'Pacific/Auckland', 'yyyy-MM-dd');
+    const name    = 'Project-Tracker-' + stamp;
+
+    // 1. The restore file: everything, exactly as stored
+    folder.createFile(Utilities.newBlob(JSON.stringify(backup), 'application/json', name + '.json'));
+
+    // 2. A spreadsheet to read without the tracker
+    const settings = (c.projectSettings && c.projectSettings.main) || {};
+    const staff = {};
+    (settings.staff || []).forEach(function(p) { if (p && p.id) staff[p.id] = p.initials || p.name || ''; });
+    const cats = {};
+    (settings.categories || []).forEach(function(x) { if (x && x.id) cats[x.id] = x.name || ''; });
+    const initials = function(ids) { return (ids || []).map(function(id) { return staff[id] || '?'; }).join(', '); };
+    const jobs = Object.keys(c.projectJobs).map(function(id) { return c.projectJobs[id]; })
+      .sort(function(a, b) { return String(a.start || '9').localeCompare(String(b.start || '9')); });
+    const jobRows = [['Job', 'Category', 'Status', 'Customer', 'Region', 'Start', 'End', 'Priority', 'Engineering', 'Apps / sales', 'Archived']]
+      .concat(jobs.map(function(j) {
+        return [j.name || '', cats[j.category] || '', j.status || '', j.customer || '', j.region || '', j.start || '', j.end || '',
+          j.priority || '', initials(j.eng), initials(j.apps), j.archived ? 'Yes' : ''];
+      }));
+    const weeks = Object.keys(c.projectAssignments).map(function(id) { return c.projectAssignments[id]; })
+      .sort(function(a, b) { return String(a.week).localeCompare(String(b.week)); });
+    const weekRows = [['Week (Monday)', 'Person', 'Job', 'Activity', 'Not confirmed']]
+      .concat(weeks.map(function(a) {
+        const j = c.projectJobs[a.jobId] || {};
+        return [a.week || '', staff[a.staffId] || '?', j.name || '(deleted job)', a.activity || '', a.tentative ? 'Yes' : ''];
+      }));
+    const ss = SpreadsheetApp.create('_temp_project_tracker_backup');
+    const jobSheet = ss.getActiveSheet();
+    jobSheet.setName('Jobs');
+    writeSheetRows_(jobSheet, jobRows, jobRows[0].length);
+    writeSheetRows_(ss.insertSheet('Staff weeks'), weekRows, weekRows[0].length);
+    SpreadsheetApp.flush();
+    const blob = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
+    }).getBlob().setName(name + '.xlsx');
+    folder.createFile(blob);
+    DriveApp.getFileById(ss.getId()).setTrashed(true);
+
+    // 3. Keep a year
+    const files  = folder.getFiles();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 365);
+    while (files.hasNext()) {
+      const f = files.next();
+      if (f.getDateCreated() < cutoff) f.setTrashed(true);
+    }
+
+    console.log('Project tracker backup complete: ' + name + ' (' + jobs.length + ' jobs, ' + weeks.length + ' staff weeks, ' +
+      Object.keys(c.projectComments).length + ' comments, ' + Object.keys(c.projectHistory).length + ' history entries)');
+  } catch (err) {
+    console.error('Project tracker backup failed:', err.toString());
+    try {
+      MailApp.sendEmail(NOTIFY_EMAIL, 'Project Tracker Backup Failed - ' + new Date().toDateString(),
+        'The nightly project tracker backup failed.\n\nError: ' + err.toString() + '\n\nRun checkProjectsBackup() in the Apps Script editor to see why.');
+    } catch (mailErr) { console.error('Could not send the failure email:', mailErr.toString()); }
+  }
+}
+
+// Run from the editor: reads the tracker and logs counts, writes nothing.
+function checkProjectsBackup() {
+  CacheService.getScriptCache().remove('firestoreAccessToken');
+  try {
+    const c = readProjectTracker_().collections;
+    Logger.log('READY — the project tracker backup can read: ' + PROJECTS_COLLECTIONS.map(function(n) { return Object.keys(c[n]).length + ' ' + n; }).join(', ') + '.');
+  } catch (err) {
+    Logger.log('NOT READY — ' + err.message + '. If it is a refusal (403), grant the service account "Cloud Datastore Viewer" in the staff schedule project\'s Google Cloud IAM.');
+  }
+}
+
+// Run from the editor to take a project tracker backup now (both files).
+function projectsBackupNow() {
+  projectsBackup_();
+}
+
+// Run ONCE from the editor after pushing this file: approves the permissions
+// the newer code needs, reinstalls the 3am trigger, and checks both backups
+// can read. Safe to run again.
+function setupBackups() {
+  installDailyBackupTrigger();
+  checkBackupDatabaseAuth();
+  checkProjectsBackup();
+}
+
 // Run once from the Apps Script editor to install the daily trigger.
 // Deletes any prior trigger with the same handler first, same pattern
 // .gas-proxy/Code.js's installers use, so re-running this is always safe.
@@ -244,8 +435,14 @@ function installDailyBackupTrigger() {
 // lock — a backup that silently stops is the worst kind of failure.
 
 function backupDbToken_() {
+  return serviceAccountToken_('https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email', 'rtdbAccessToken');
+}
+
+// An access token for the service account in FIREBASE_SERVICE_ACCOUNT_KEY,
+// for these scopes, cached under cacheKey for 50 minutes.
+function serviceAccountToken_(scope, cacheKey) {
   const cache = CacheService.getScriptCache();
-  const hit = cache.get('rtdbAccessToken');
+  const hit = cache.get(cacheKey);
   if (hit) return hit;
   const raw = PropertiesService.getScriptProperties().getProperty('FIREBASE_SERVICE_ACCOUNT_KEY');
   if (!raw) { Logger.log('FIREBASE_SERVICE_ACCOUNT_KEY not set — backup reads are unsigned.'); return null; }
@@ -255,7 +452,7 @@ function backupDbToken_() {
   const now = Math.floor(Date.now() / 1000);
   const unsigned = b64url({ alg: 'RS256', typ: 'JWT' }) + '.' + b64url({
     iss: key.client_email,
-    scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email',
+    scope: scope,
     aud: 'https://oauth2.googleapis.com/token',
     iat: now,
     exp: now + 3600
@@ -269,7 +466,7 @@ function backupDbToken_() {
   });
   const json = JSON.parse(resp.getContentText());
   if (!json.access_token) { Logger.log('Service account token exchange failed: ' + resp.getContentText()); return null; }
-  cache.put('rtdbAccessToken', json.access_token, 50 * 60);
+  cache.put(cacheKey, json.access_token, 50 * 60);
   return json.access_token;
 }
 
