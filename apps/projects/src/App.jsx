@@ -5,7 +5,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { LayoutDashboard, Table, CalendarRange, Monitor, Archive as ArchiveIcon, Settings as SettingsIcon, Search, Plus, ChevronDown, Lock } from 'lucide-react'
+import { LayoutDashboard, Table, CalendarRange, Presentation, Monitor, Archive as ArchiveIcon, Settings as SettingsIcon, Search, Plus, ChevronDown, Lock } from 'lucide-react'
 import { Alert, Button, Loading } from '../../schedule/src/components/ui'
 import Toast, { useToast } from '../../schedule/src/components/Toast'
 import { useStore } from './store.jsx'
@@ -13,6 +13,7 @@ import { Avatar, Popover } from './ui.jsx'
 import Home from './views/Home.jsx'
 import TableView from './views/Table.jsx'
 import Timeline from './views/Timeline.jsx'
+import Conferences from './views/Conferences.jsx'
 import Equipment from './views/Equipment.jsx'
 import Archive from './views/Archive.jsx'
 import Settings from './views/Settings.jsx'
@@ -25,6 +26,7 @@ const NAV = [
   ['home', 'Home', LayoutDashboard],
   ['table', 'Table', Table],
   ['timeline', 'Timeline', CalendarRange],
+  ['conferences', 'Conferences', Presentation],
   ['equipment', 'Equipment', Monitor],
   ['archive', 'Archive', ArchiveIcon],
   ['settings', 'Settings', SettingsIcon],
@@ -115,7 +117,7 @@ function Shell() {
 
   const ui = { route, go, openJob, closeJob, toast, askArchive: setPrompt, newJob: (prefill = {}) => setAdding(prefill), openSearch: () => setSearchOpen(true), openImport: () => setImporting(true) }
 
-  const View = { home: Home, table: TableView, timeline: Timeline, equipment: Equipment, archive: Archive, settings: Settings }[route.view]
+  const View = { home: Home, table: TableView, timeline: Timeline, conferences: Conferences, equipment: Equipment, archive: Archive, settings: Settings }[route.view]
 
   return (
     <Ui.Provider value={ui}>

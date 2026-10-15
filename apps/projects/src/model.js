@@ -384,6 +384,76 @@ export function linkableLoans(jobs, loans, { model, job, today }) {
   })
 }
 
+// ── conferences ─────────────────────────────────────────────────────────
+/*
+ * Conferences are jobs in the conferences category, with the columns of the
+ * team's old "Conferences" sheet kept on the job as `conf`. The ones imported
+ * from that sheet carry those details as "Label: value" lines in their first
+ * note instead; confOf() reads both, so nothing had to be migrated, and the
+ * first edit in the Conferences view saves the lot into `conf`.
+ *
+ * A conference also shows in the main Table and Timeline only when someone
+ * has ticked it in Conferences (`showInMain`). Until anyone has chosen, it
+ * shows if anyone is on it, so the conferences the team was already staffing
+ * stay where they were.
+ */
+
+/** The conferences category: id 'events' (the default list), or any category named like "Conferences". */
+export const isConferenceCategory = (cat) => Boolean(cat) && (cat.id === 'events' || /conference/i.test(cat.name || ''))
+
+/** The sheet's columns that aren't already job fields (name, status, dates, venue = customer, city = region, people). */
+export const CONF_FIELDS = [
+  { key: 'type', label: 'Type' },
+  { key: 'modality', label: 'Modality' },
+  { key: 'registration', label: 'Registration #' },
+  { key: 'regBy', label: 'Register by' },
+  { key: 'packIn', label: 'Pack in' },
+  { key: 'packOut', label: 'Pack out' },
+  { key: 'reps', label: 'Other reps' },
+  { key: 'stand', label: 'Stand' },
+  { key: 'booth', label: 'Booth #' },
+  { key: 'gear', label: 'Equipment' },
+  { key: 'delivery', label: 'Delivery' },
+  { key: 'sponsorship', label: 'Sponsorship' },
+  { key: 'website', label: 'Website' },
+  { key: 'comments', label: 'Comments' },
+  { key: 'remarks', label: 'Notes' },
+]
+
+// The labels the sheet import wrote into the first note, and the field each one is
+const SHEET_LABELS = {
+  'Status on the sheet': 'sheetStatus', 'Registration #': 'registration', Reps: 'reps', Stand: 'stand', Booth: 'booth',
+  'Pack in': 'packIn', 'Pack out': 'packOut', Equipment: 'gear', Delivery: 'delivery', Comments: 'comments',
+  Website: 'website', Notes: 'remarks', Sponsorship: 'sponsorship', 'Register by': 'regBy',
+}
+
+/** A conference's sheet columns: from the imported note, overridden by anything saved since. */
+export function confOf(job) {
+  const out = {}
+  const note = (job.notes || []).find((n) => /^Status on the sheet:/m.test(n.text || ''))
+  if (note) {
+    for (const line of String(note.text).split('\n')) {
+      const m = /^([^:]+):\s*(.*)$/.exec(line)
+      if (!m) continue
+      if (m[1] === 'Type') {
+        const [type, ...rest] = m[2].split(', ')
+        out.type = type
+        out.modality = rest.join(', ')
+      } else if (SHEET_LABELS[m[1]]) {
+        out[SHEET_LABELS[m[1]]] = m[2]
+      }
+    }
+  }
+  return { ...out, ...(job.conf || {}) }
+}
+
+/** Does this job show in the main Table and Timeline? Every job does except conferences nobody ticked (see above). */
+export function inMainViews(job, catById, assignments = []) {
+  if (!isConferenceCategory(catById.get(job.category))) return true
+  if (typeof job.showInMain === 'boolean') return job.showInMain
+  return (job.eng?.length || 0) + (job.apps?.length || 0) > 0 || assignments.some((a) => a.jobId === job.id)
+}
+
 // ── archiving ───────────────────────────────────────────────────────────
 export function dueForAutoArchive(job, today) {
   return job.status === COMPLETE && !job.archived && isISO(job.autoArchiveOn) && job.autoArchiveOn <= today

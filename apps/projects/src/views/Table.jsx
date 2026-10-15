@@ -11,7 +11,7 @@ import { Button, Tag } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { StatusPill, Priority, AvatarStack, StaffPicker, Empty, DensityToggle, useDense, useFitHeight } from '../ui.jsx'
-import { BUILTIN_VIEWS, PRIORITIES, filterJobs, fmt, fmtRange } from '../model.js'
+import { BUILTIN_VIEWS, PRIORITIES, filterJobs, fmt, fmtRange, inMainViews, isConferenceCategory } from '../model.js'
 
 const LS_VIEWS = 'projects_views'
 const LS_WIDTHS = 'projects_colw'
@@ -67,7 +67,8 @@ export default function TableView({ params }) {
   const regions = useMemo(() => [...new Set(s.active.map((j) => j.region).filter(Boolean))].sort(), [s.active])
   const ctx = { me: s.me, today: s.today, assignments: s.assignments }
   const shown = useMemo(() => {
-    const list = filterJobs(s.active, f, ctx)
+    // Conferences only when ticked in Conferences (model.js inMainViews)
+    const list = filterJobs(s.active.filter((j) => inMainViews(j, s.catById, s.assignments)), f, ctx)
     const val = (j) => {
       if (sort.key === 'updated') return j.updatedAtMs || 0
       if (sort.key === 'priority') return { High: 0, Medium: 1, Low: 2 }[j.priority] ?? 3
@@ -81,7 +82,7 @@ export default function TableView({ params }) {
       if (x === '' || y === '') return x === y ? 0 : x === '' ? 1 : -1 // blanks last either way
       return (x < y ? -1 : x > y ? 1 : 0) * sort.dir
     })
-  }, [s.active, f, sort, s.me, s.today, s.assignments, s.settings.statuses]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.active, f, sort, s.me, s.today, s.assignments, s.settings.statuses, s.catById]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const others = COLS.slice(1).reduce((t, c) => t + widths[c.key], 0)
   const nameW = Math.max(widths.name, wrapW - others - 2)
@@ -178,6 +179,10 @@ export default function TableView({ params }) {
                     <b>{cat.name}</b>
                     <span className="pt-count">{jobs.length}</span>
                   </button>
+                  {isConferenceCategory(cat) && (() => {
+                    const hidden = s.active.filter((j) => j.category === cat.id && !inMainViews(j, s.catById, s.assignments)).length
+                    return hidden > 0 && <a className="text-sm" href="#/conferences">{hidden} more in Conferences</a>
+                  })()}
                   {s.canEdit && <button type="button" className="link-btn" onClick={() => ui.newJob({ category: cat.id })}>+ Add job</button>}
                 </div>
               </div>

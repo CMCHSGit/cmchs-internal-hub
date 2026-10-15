@@ -13,7 +13,7 @@ import { Alert, Button } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { ActivityChip, Avatar, StatusPill, Empty, DensityToggle, useDense, usePref, useFitHeight } from '../ui.jsx'
-import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, leaveInWeek, isISO, pillStyle, MONTHS_LONG, toDate } from '../model.js'
+import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, leaveInWeek, isISO, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
 
 const NAME_W = 290
 const NAME_W_DENSE = 230
@@ -53,7 +53,9 @@ export default function Timeline({ params }) {
     const b = isISO(j.end) ? j.end : j.start
     return (a && a <= last && b >= first) || s.assignments.some((x) => x.jobId === j.id && x.week >= first && x.week <= weeks[weeks.length - 1])
   }
-  const idle = layout === 'job' ? s.active.filter((j) => !busy(j)).length : 0
+  // Conferences only when ticked in Conferences (model.js inMainViews)
+  const mainJobs = s.active.filter((j) => inMainViews(j, s.catById, s.assignments))
+  const idle = layout === 'job' ? mainJobs.filter((j) => !busy(j)).length : 0
   const upcomingClashes = [...clash].filter(([k]) => { const w = k.split('|')[1]; return w >= thisWeek && w <= addDays(thisWeek, 56) })
 
   const months = []
@@ -120,7 +122,7 @@ export default function Timeline({ params }) {
           </div>
 
           {layout === 'job' && s.settings.categories.map((cat) => {
-            const jobs = s.active.filter((j) => j.category === cat.id && (layout !== 'job' || !hideIdle || busy(j))).sort((a, b) => String(a.start || '9').localeCompare(String(b.start || '9')))
+            const jobs = mainJobs.filter((j) => j.category === cat.id && (layout !== 'job' || !hideIdle || busy(j))).sort((a, b) => String(a.start || '9').localeCompare(String(b.start || '9')))
             return (
               <div key={cat.id}>
                 <div className="pt-tl-row pt-tl-group" style={{ gridTemplateColumns: template, borderTopColor: cat.color }}>
