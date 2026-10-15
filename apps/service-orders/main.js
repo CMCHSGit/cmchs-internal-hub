@@ -86,6 +86,15 @@ function start() {
 }
 
 const msg = (text, kind = '') => { $('msg').textContent = text; $('msg').className = 'msg' + (kind ? ' ' + kind : '') }
+// Getting the replacement parts in and sending the faulty part back are two
+// separate events, so Received is a record, not just a stage: an order stays
+// listed there after it moves on to Ready for shipping or Completed, with a
+// pill saying where it is now. Every other tab is just the order's stage.
+function inTab(o, tab) {
+  if (o.stage === tab) return true
+  return tab === 'Received' && !!o.receivedDate && o.stage !== 'In progress' && o.stage !== 'CHS spare parts order'
+}
+
 const isLate = (o) => (daysWaiting(o) ?? 0) >= LATE_DAYS
 
 // ── filtering and sorting ─────────────────────────────────────────────────
@@ -99,7 +108,7 @@ function visible() {
   const site = $('fSite').value
   const ret = $('fReturn').value
   return orders.filter((o) => {
-    if (view === 'late' ? !isLate(o) : view !== 'all' && o.stage !== view) return false
+    if (view === 'late' ? !isLate(o) : view !== 'all' && !inTab(o, view)) return false
     if (site && o.site !== site) return false
     if (ret && o.needReturn !== ret) return false
     if (q) {
@@ -124,7 +133,7 @@ function fillSelect(el, values, label) {
 }
 
 function renderTiles() {
-  const tiles = STAGES.map((s) => [s, '', orders.filter((o) => o.stage === s).length, s])
+  const tiles = STAGES.map((s) => [s, '', orders.filter((o) => inTab(o, s)).length, s])
   tiles.push(['late', 'bad', orders.filter(isLate).length, `Waiting ${LATE_DAYS}+ days`])
   tiles.push(['all', '', orders.length, 'All'])
   $('tiles').innerHTML = tiles.map(([key, cls, n, label]) =>
@@ -137,7 +146,7 @@ function renderTiles() {
 function row(o) {
   const wait = daysWaiting(o)
   const waitPill = wait != null && wait >= LATE_DAYS ? ` <span class="pill p-late">${wait} days</span>` : ''
-  const stagePill = view === 'all' || view === 'late' ? `<span class="small"><span class="pill p-stage">${esc(o.stage)}</span></span>` : ''
+  const stagePill = o.stage !== view ? `<span class="small"><span class="pill p-stage">${esc(o.stage)}</span></span>` : ''
   const ret = o.needReturn ? `<span class="pill ${o.needReturn === 'YES' ? 'p-yes' : 'p-no'}">${o.needReturn}</span>` : ''
   const more = [o.oldSo && `Old SO ${o.oldSo}`, o.extraNotes].filter(Boolean).join('\n')
   return `
