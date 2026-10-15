@@ -279,10 +279,9 @@ function CellEditor({ job, field, done }) {
   }
   if (field === 'eng' || field === 'apps') {
     return (
-      <span onClick={(e) => e.stopPropagation()}>
-        <StaffPicker value={job[field] || []} roles={field === 'eng' ? ['Engineering'] : ['Applications', 'Sales']}
+      <span className="pt-grow" onClick={(e) => e.stopPropagation()}>
+        <StaffPicker compact startOpen onClose={done} value={job[field] || []} roles={field === 'eng' ? ['Engineering'] : ['Applications', 'Sales']}
           onChange={(ids) => s.updateJob(job.id, { [field]: ids }, `changed the ${field === 'eng' ? 'Engineering' : 'Applications / sales'} team`)} />
-        <button type="button" className="link-btn" onClick={done}>Done</button>
       </span>
     )
   }

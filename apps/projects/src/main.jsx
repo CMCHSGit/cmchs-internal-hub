@@ -16,6 +16,30 @@ import App from './App.jsx'
 
 registerServiceWorker()
 
+// The tracker's page comes from the offline cache, so after a deploy the
+// first refresh still shows the old version. When the new version takes over,
+// reload into it: straight away if nobody is typing or has a dialog open,
+// otherwise as soon as they leave the field or switch away from the tab.
+// Every change is saved as it's made, so nothing else is lost by a reload.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller
+  let waiting = false
+  let reloaded = false
+  const busy = () => document.activeElement?.matches?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('[role="dialog"]')
+  const reloadIfIdle = () => {
+    if (!waiting || reloaded || (busy() && document.visibilityState === 'visible')) return
+    reloaded = true
+    window.location.reload()
+  }
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return // a first install, not an update
+    waiting = true
+    reloadIfIdle()
+  })
+  document.addEventListener('visibilitychange', reloadIfIdle)
+  document.addEventListener('focusout', () => setTimeout(reloadIfIdle, 500))
+}
+
 // The header, back button and light/dark switch, shared with the other tools.
 mountToolChrome()
 

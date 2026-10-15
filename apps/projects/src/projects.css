@@ -300,6 +300,9 @@ button.pt-ratio { cursor: pointer; width: 100%; }
 .pt-picker-btn:focus-visible { box-shadow: var(--focus-ring); }
 .pt-picker-edit { margin-left: auto; font: var(--weight-semibold) 13px/1 var(--font-body); color: var(--text-link); }
 .pt-picker-pop { width: 280px; max-height: 320px; overflow-y: auto; }
+.pt-pop-float { position: fixed; z-index: 90; }
+.pt-picker-foot { position: sticky; bottom: -12px; margin: 0 -12px -12px; padding: 8px 12px; display: flex; justify-content: flex-end; background: var(--surface-card); border-top: 1px solid var(--border-subtle); }
+.pt-picker.compact .pt-picker-btn { min-height: 0; padding: 0; border: none; border-radius: 3px; }
 .pt-check { display: flex; align-items: center; gap: 10px; min-height: 32px; cursor: pointer; }
 .pt-check input { width: 18px; height: 18px; accent-color: var(--chs-purple); flex: 0 0 auto; margin: 0; }
 .pt-action { display: flex; flex-direction: column; gap: 2px; }

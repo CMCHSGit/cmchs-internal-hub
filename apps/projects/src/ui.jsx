@@ -2,7 +2,8 @@
    staff picker. Buttons, tags, badges, alerts and switches are the staff
    schedule's design-system components (../../schedule/src/components/ui.jsx). */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { pillStyle, avatarStyle } from './model.js'
 import { useStore } from './store.jsx'
@@ -149,35 +150,75 @@ export function Modal({ title, description, onClose, children, width = 560, clas
 }
 
 /** A small floating box anchored under its trigger; closes on outside click or Escape. */
-export function Popover({ open, onClose, children, className = '', style }) {
+/**
+ * A small dialog under something. With `anchor` (a ref to the thing it opens
+ * from) it floats over the whole page instead, so a table cell or a scrolling
+ * grid can't clip it; it opens upwards when there's no room below, and
+ * closes if the page scrolls out from under it.
+ */
+export function Popover({ open, onClose, children, className = '', style, anchor }) {
   const ref = useRef(null)
+  const [pos, setPos] = useState(null)
   useEffect(() => {
     if (!open) return
-    const down = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    const down = (e) => {
+      if (ref.current?.contains(e.target) || anchor?.current?.contains(e.target)) return
+      onClose()
+    }
     const key = (e) => { if (e.key === 'Escape') onClose() }
+    const scroll = (e) => { if (anchor && !ref.current?.contains(e.target)) onClose() }
     setTimeout(() => document.addEventListener('mousedown', down), 0)
     document.addEventListener('keydown', key)
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key) }
-  }, [open, onClose])
+    window.addEventListener('scroll', scroll, true)
+    return () => {
+      document.removeEventListener('mousedown', down)
+      document.removeEventListener('keydown', key)
+      window.removeEventListener('scroll', scroll, true)
+    }
+  }, [open, onClose, anchor])
+  useLayoutEffect(() => {
+    if (!open || !anchor?.current || !ref.current) return
+    const a = anchor.current.getBoundingClientRect()
+    const h = ref.current.offsetHeight
+    const w = ref.current.offsetWidth
+    const below = a.bottom + 6
+    const top = below + h > window.innerHeight - 8 && a.top - 6 - h > 8 ? a.top - 6 - h : Math.min(below, window.innerHeight - h - 8)
+    setPos({ top: Math.max(8, top), left: Math.max(8, Math.min(a.left, window.innerWidth - w - 8)) })
+  }, [open, anchor])
   if (!open) return null
-  return <div ref={ref} className={`pt-pop ${className}`} style={style} role="dialog">{children}</div>
+  if (!anchor) return <div ref={ref} className={`pt-pop ${className}`} style={style} role="dialog">{children}</div>
+  return createPortal(
+    <div ref={ref} className={`pt-pop pt-pop-float ${className}`} role="dialog"
+      style={{ ...style, ...(pos || { visibility: 'hidden', top: 0, left: 0 }) }}>{children}</div>,
+    document.body,
+  )
 }
 
-/** Choose people from the staff list, by role. */
-export function StaffPicker({ value = [], onChange, roles, disabled }) {
+/**
+ * Choose people from the staff list, by role. `compact` is the bare badges
+ * for a table cell; `startOpen` opens the list straight away and `onClose`
+ * says when it has been closed (the Table's cell editor uses both).
+ */
+export function StaffPicker({ value = [], onChange, roles, disabled, compact = false, startOpen = false, onClose }) {
   const { settings } = useStore()
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(startOpen)
+  const btn = useRef(null)
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (wasOpen.current && !open) onClose?.()
+    wasOpen.current = open
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   const people = settings.staff.filter((p) => !roles || roles.includes(p.role))
   const toggle = (id) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id])
   const names = value.map((id) => settings.staff.find((p) => p.id === id)?.name).filter(Boolean).join(', ') || 'nobody yet'
   return (
-    <span className="pt-picker">
-      <button type="button" className="pt-picker-btn" disabled={disabled} onClick={() => setOpen((o) => !o)} aria-expanded={open}
+    <span className={`pt-picker${compact ? ' compact' : ''}`}>
+      <button ref={btn} type="button" className="pt-picker-btn" disabled={disabled} onClick={() => setOpen((o) => !o)} aria-expanded={open}
         aria-label={`${roles ? roles.join(' / ') : 'Staff'}: ${names}${disabled ? '' : '. Change'}`}>
-        <AvatarStack ids={value} />
-        {!disabled && <span className="pt-picker-edit">Edit</span>}
+        <AvatarStack ids={value} size={compact ? 18 : 28} />
+        {!disabled && !compact && <span className="pt-picker-edit">Edit</span>}
       </button>
-      <Popover open={open} onClose={() => setOpen(false)} className="pt-picker-pop">
+      <Popover open={open} onClose={() => setOpen(false)} className="pt-picker-pop" anchor={btn}>
         {people.length === 0 && <p className="text-sm text-muted">No staff yet. Add them in Settings.</p>}
         {people.map((p) => (
           <label key={p.id} className="pt-check">
@@ -187,6 +228,7 @@ export function StaffPicker({ value = [], onChange, roles, disabled }) {
             <span className="text-muted text-sm">{p.role}</span>
           </label>
         ))}
+        <div className="pt-picker-foot"><button type="button" className="link-btn" onClick={() => setOpen(false)}>Done</button></div>
       </Popover>
     </span>
   )
