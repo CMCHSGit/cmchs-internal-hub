@@ -174,6 +174,9 @@ function handlePayload(payload) {
 
   if (payload.action === 'testPush') return sendTestPush_(payload);
 
+  // The hub's Manage → Tool requests / Feedback: tell the engineering team.
+  if (payload.action === 'notifyHubRequest') return notifyHubRequest_(payload);
+
   // SimproSync (schedule.chsnz.co.nz/simprosync/) relaying Simpro calls
   // through this proxy instead of holding the Simpro key itself — see
   // simproSyncProxy_() below.
@@ -907,6 +910,64 @@ function sendHubPush_(tokens, title, body, url) {
       return { token: token.slice(0, 12) + '...', ok: false, detail: String(err), via: 'hub' };
     }
   });
+}
+
+// ── Hub tool requests and feedback ───────────────────────────────────────
+// internal.chsnz.co.nz → Manage: someone asks for a tool or rates one, and the
+// engineering team (the Engineers team, plus admins) gets a push. The browser
+// sends only the new request's id. This reads the request back from the
+// staff schedule's Firestore and checks the caller made it, in the last ten
+// minutes, and that it hasn't been announced already, so nobody can use the
+// proxy to push their own text to the team. Logs counts only.
+function notifyHubRequest_(payload) {
+  const caller = tryVerifyStaff_(payload.idToken);
+  if (!caller) return respond({ success: false, error: 'Sign in to use this.' });
+  const id = String(payload.id || '');
+  if (!/^[A-Za-z0-9]{10,40}$/.test(id)) return respond({ success: false, error: 'Bad request id' });
+  const cache = CacheService.getScriptCache();
+  if (cache.get('hubreq:' + id)) return respond({ success: true, already: true });
+  const token = hubAccessToken_();
+  if (!token) return respond({ success: false, error: 'Hub push is not set up' });
+
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/';
+  const resp = UrlFetchApp.fetch(base + 'hubRequests/' + id, { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return respond({ success: false, error: 'Request not found' });
+  const f = JSON.parse(resp.getContentText()).fields || {};
+  const str = function(k) { return (f[k] && f[k].stringValue) || ''; };
+  const created = f.createdAt && f.createdAt.timestampValue ? Date.parse(f.createdAt.timestampValue) : 0;
+  if (str('uid') !== caller.uid || !created || Date.now() - created > 10 * 60 * 1000) {
+    Logger.log('notifyHubRequest_: refused (not the caller’s, or not new).');
+    return respond({ success: false, error: 'Not a new request of yours' });
+  }
+  cache.put('hubreq:' + id, '1', 21600);
+
+  // The engineering team's phones, minus the requester's own
+  const list = UrlFetchApp.fetch(base + 'users?pageSize=300&mask.fieldPaths=team&mask.fieldPaths=role&mask.fieldPaths=fcmTokens&mask.fieldPaths=pending',
+    { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (list.getResponseCode() !== 200) return respond({ success: false, error: 'Could not read the team' });
+  let tokens = [];
+  (JSON.parse(list.getContentText()).documents || []).forEach(function(d) {
+    const u = d.fields || {};
+    const uid = d.name.split('/').pop();
+    if (uid === caller.uid || (u.pending && u.pending.booleanValue)) return;
+    const team = u.team && u.team.stringValue;
+    const role = u.role && u.role.stringValue;
+    if (team !== 'Engineers' && role !== 'admin') return;
+    ((u.fcmTokens && u.fcmTokens.arrayValue && u.fcmTokens.arrayValue.values) || []).forEach(function(v) { if (v.stringValue) tokens.push(v.stringValue); });
+  });
+  tokens = tokens.filter(function(t, i) { return tokens.indexOf(t) === i; });
+
+  const name = String(str('name') || 'Someone').split(/\s+/)[0];
+  const kind = str('kind');
+  const title = kind === 'tool' ? 'New tool request' : 'New feedback';
+  const body = kind === 'tool'
+    ? name + ': ' + str('title').slice(0, 120)
+    : name + ' rated a tool ' + ((f.rating && (f.rating.integerValue || f.rating.doubleValue)) || '?') + '/5';
+  const url = 'https://internal.chsnz.co.nz/#/manage/' + (kind === 'tool' ? 'requests' : 'feedback');
+  const results = sendHubPush_(tokens, title, body, url);
+  const sent = results.filter(function(r) { return r.ok; }).length;
+  Logger.log('notifyHubRequest_: ' + kind + ', push ' + sent + ' sent/' + (results.length - sent) + ' failed.');
+  return respond({ success: true, sent: sent });
 }
 
 // Run from the editor after the IAM roles are granted. Sends nothing to
