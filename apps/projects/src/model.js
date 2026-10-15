@@ -288,6 +288,13 @@ export function equipmentUse(jobs, { model, start, end, excludeJobId = null, tod
   return { entries, total: entries.reduce((t, e) => t + e.qty, 0) }
 }
 
+/**
+ * A job's equipment lines that still need a demo tracker loan form: not back
+ * yet, not linked to a demo tracker loan, and not marked as not needing one
+ * (`noLoan`, e.g. kit borrowed from Mindray). Archived jobs never nag.
+ */
+export const linesNeedingLoan = (job) => (job.archived ? [] : (job.equipment || []).filter((l) => l.line !== 'Returned' && !l.loan && !l.noLoan && Number(l.qty) > 0))
+
 /** When a unit on this line is due back: its own date if it has one, else the job's end. */
 export const dueBack = (job, line) => (isISO(line.due) ? line.due : job.end)
 

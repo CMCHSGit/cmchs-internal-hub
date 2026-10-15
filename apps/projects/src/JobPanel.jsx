@@ -3,16 +3,16 @@
    Archived jobs open here too, read-only, with Restore and Use as template. */
 
 import { useEffect, useMemo, useState } from 'react'
-import { X, Copy, Printer, Trash2, RotateCcw, Lock, RefreshCw, Plus } from 'lucide-react'
+import { X, Copy, Printer, Trash2, RotateCcw, Lock, RefreshCw, Plus, ClipboardList, AlertTriangle } from 'lucide-react'
 import { Alert, Badge, Button } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
 import { useUi } from './App.jsx'
-import { StatusPill, Avatar, StaffPicker, Field, Empty, ActivityChip, Priority } from './ui.jsx'
+import { StatusPill, Avatar, StaffPicker, Field, Empty, ActivityChip, Priority, Modal } from './ui.jsx'
 import {
   PRIORITIES, LINE_STATUSES, WAITING, availability, fmt, fmtY, fmtRange, todayISO, rid, duplicateOf, templateFrom, dueBack,
-  linkableLoans, entryWho,
+  linkableLoans, entryWho, linesNeedingLoan, isISO,
 } from './model.js'
-import { loanPlace } from './feed.js'
+import { loanPlace, matchModel } from './feed.js'
 
 const TABS = [['details', 'Details'], ['equipment', 'Equipment'], ['notes', 'Notes & actions'], ['comments', 'Comments'], ['history', 'History']]
 
@@ -93,6 +93,7 @@ export default function JobPanel({ job, onClose }) {
           return (
             <button key={id} type="button" role="tab" aria-selected={tab === id} className={`pt-tab${tab === id ? ' on' : ''}`} onClick={() => setTab(id)}>
               {label}{n > 0 && <span className="pt-tab-n">{n}</span>}
+              {id === 'equipment' && linesNeedingLoan(job).length > 0 && <span className="pt-tab-dot" title="Equipment without a demo loan form yet" />}
             </button>
           )
         })}
@@ -307,6 +308,10 @@ function EquipmentNeeded({ job, readOnly }) {
   const edit = (id, patch, what) => s.mutateJob(job.id, (cur) => ({ equipment: (cur.equipment || []).map((l) => (l.id === id ? { ...l, ...patch } : l)) }), what)
   const add = () => s.mutateJob(job.id, (cur) => ({ equipment: [...(cur.equipment || []), { id: rid(), model: s.settings.pool[0]?.model || '', qty: 1, line: 'Requested' }] }), 'added an equipment line')
   const del = (l) => s.mutateJob(job.id, (cur) => ({ equipment: (cur.equipment || []).filter((x) => x.id !== l.id) }), `removed ${l.qty}x ${l.model}`)
+  const need = linesNeedingLoan(job)
+  const [loanOpen, setLoanOpen] = useState(false)
+  // How many of each model are free for this job's dates, for the picker
+  const freeFor = useMemo(() => new Map(s.pool.map((p) => [p.model, availability(s.jobs, s.pool, { model: p.model, qty: 0, job, today, loans: s.loans })])), [s.pool, s.jobs, s.loans, job, today])
 
   return (
     <div className="pt-stack">
@@ -314,6 +319,14 @@ function EquipmentNeeded({ job, readOnly }) {
       <p className="text-sm">
         Availability is worked out for {job.start || job.end ? <b>{fmtRange(job.start, job.end)}</b> : 'this job’s dates'}, counting units reserved by any other job on overlapping dates, units the demo tracker has out or booked then, and anything overdue back.
       </p>
+      {need.length > 0 && !readOnly && (
+        <div className="pt-loanbar">
+          <ClipboardList size={16} aria-hidden="true" />
+          <span className="pt-grow text-sm"><b>No demo loan form yet</b> for {need.map((l) => `${l.qty}x ${l.model}`).join(', ')}. Make it in the demo tracker once the job is confirmed, so the units are held for it.</span>
+          <Button size="sm" variant="secondary" onClick={() => setLoanOpen(true)}>Create loan form</Button>
+        </div>
+      )}
+      {loanOpen && <LoanFormDialog job={job} onClose={() => setLoanOpen(false)} />}
       {lines.length === 0 && <Empty>No equipment requested yet.</Empty>}
       {lines.map((l) => {
         const a = availability(s.jobs, s.pool, { model: l.model, qty: l.qty, job, today, loans: s.loans })
@@ -329,7 +342,11 @@ function EquipmentNeeded({ job, readOnly }) {
                 {!s.pool.some((p) => p.model === l.model) && <option>{l.model}</option>}
                 {families.map(([fam, models]) => (
                   <optgroup key={fam} label={fam}>
-                    {models.map((p) => <option key={p.model} value={p.model}>{p.model}{p.kind ? ` · ${p.kind}` : ''}{p.total != null ? ` (${p.total})` : ''}</option>)}
+                    {models.map((p) => {
+                      const f = freeFor.get(p.model)
+                      const count = f && !f.noDates && f.owned != null ? ` (${f.free} of ${f.owned} free)` : p.total != null ? ` (${p.total})` : ''
+                      return <option key={p.model} value={p.model}>{p.model}{p.kind ? ` · ${p.kind}` : ''}{count}</option>
+                    })}
                   </optgroup>
                 ))}
               </select>
@@ -372,15 +389,73 @@ function EquipmentNeeded({ job, readOnly }) {
               ))}</p>
             )}
             {a.entries.length > 0 && (
-              <p className="text-sm">Competing for these dates: {a.entries.map((e, i) => (
-                <span key={i}>{i > 0 && ', '}{e.job ? <a href={`#/${e.job.archived ? 'archive' : 'table'}?job=${e.job.id}`}>{e.job.name}</a> : <>{entryWho(e)} <span className="text-muted">(demo tracker)</span></>} ({e.qty})</span>
-              ))}</p>
+              <p className={`pt-eqwarn text-sm${level === 'short' ? ' bad' : ''}`}>
+                <AlertTriangle size={14} aria-hidden="true" />
+                <span><b>Also wanted on these dates:</b> {a.entries.map((e, i) => (
+                  <span key={i}>{i > 0 && ', '}{e.job ? <a href={`#/${e.job.archived ? 'archive' : 'table'}?job=${e.job.id}`}>{e.job.name}</a> : <>{entryWho(e)} <span className="text-muted">(demo tracker)</span></>} ({e.qty})</span>
+                ))}{a.owned != null && !a.noDates ? `. ${a.free} of ${a.owned} left for this job.` : '.'}</span>
+              </p>
+            )}
+            {!readOnly && !l.loan && l.line !== 'Returned' && (
+              <button type="button" className="pt-linkbtn text-sm pt-noloan" onClick={() => edit(l.id, { noLoan: !l.noLoan }, l.noLoan ? `marked ${l.model} as needing a demo loan form` : `marked ${l.model} as not needing a demo loan form`)}>
+                {l.noLoan ? 'Not using a demo loan form · undo' : 'Doesn’t need a demo loan form'}
+              </button>
             )}
           </div>
         )
       })}
       {!readOnly && <div><Button size="sm" variant="secondary" iconLeft={<Plus size={15} />} onClick={add}>Add a model</Button></div>}
     </div>
+  )
+}
+
+/**
+ * The demo tracker, in a pop-up, making the loan for this job: the hub's copy
+ * of it (/demo/, same site) opened at its loan form, filled in with the job's
+ * customer, site and dates (chs-equipment index.html
+ * openLoanFromProjectTracker). When the loan is confirmed there, it posts the
+ * new loan back; this links the job's matching equipment lines to it.
+ */
+function LoanFormDialog({ job, onClose }) {
+  const s = useStore()
+  const ui = useUi()
+  const need = linesNeedingLoan(job)
+  const base = import.meta.env.DEV ? 'https://internal.chsnz.co.nz/demo/' : '/demo/'
+  const src = base + '?' + new URLSearchParams({
+    newLoan: '1', ref: job.id,
+    loanTo: job.customer || job.name, location: job.region || '',
+    start: isISO(job.start) ? job.start : '', end: isISO(job.end) ? job.end : '',
+    notes: `Project tracker: ${job.name}. Asked for: ${need.map((l) => `${l.qty}x ${l.model}`).join(', ')}.`,
+  })
+  useEffect(() => {
+    async function linkLoan(d) {
+      const modelOf = (name) => matchModel(name, s.settings.pool) || String(name || '').trim()
+      const got = new Set((d.items || []).map((it) => modelOf(it.Model)))
+      const linked = new Set()
+      await s.mutateJob(job.id, (cur) => ({
+        equipment: (cur.equipment || []).map((l) => {
+          if (l.loan || l.line === 'Returned' || !got.has(l.model)) return l
+          linked.add(l.model)
+          return { ...l, loan: d.batchId, noLoan: false, line: l.line === 'Requested' ? 'Reserved' : l.line }
+        }),
+      }), `made the demo loan form (${(d.items || []).length} units, ${d.loanTo || 'no customer'}) and linked it`)
+      s.feed.refresh()
+      ui.toast(linked.size ? `Loan created and linked to this job: ${[...linked].join(', ')}` : 'Loan created in the demo tracker. None of its units match this job’s models; link it from the equipment line')
+      onClose()
+    }
+    const on = (e) => {
+      if (e.origin !== window.location.origin || e.data?.type !== 'chs-demo-loan-created' || e.data.ref !== job.id) return
+      linkLoan(e.data).catch((err) => ui.toast('The loan was made, but linking it failed: ' + (err.message || err)))
+    }
+    window.addEventListener('message', on)
+    return () => window.removeEventListener('message', on)
+  }, [job.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Modal title="Create the demo loan form" width={1240} className="pt-loanmodal" onClose={onClose}
+      description={`Filled in for ${job.customer || job.name}${isISO(job.start) ? ', ' + fmtRange(job.start, job.end) : ''}. Pick the units with Browse Database, check the details, then Confirm Loan. The loan is linked to this job when it's confirmed.`}>
+      <iframe className="pt-loanframe" src={src} title="Demo tracker loan form" />
+      <div className="pt-addrow"><span className="text-sm text-muted pt-grow">Not confirmed yet? Close this; the job keeps a small reminder until the loan form is made.</span><Button variant="ghost" onClick={onClose}>I’ll do it later</Button></div>
+    </Modal>
   )
 }
 

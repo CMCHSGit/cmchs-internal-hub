@@ -354,6 +354,18 @@ button.pt-ratio { cursor: pointer; width: 100%; }
 .pt-facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; font: var(--type-body-sm); }
 .pt-facts dt { color: var(--text-muted); }
 .pt-facts dd { margin: 0; }
+.pt-loanbar { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-md); background: color-mix(in srgb, var(--chs-orange) 10%, var(--surface-card)); border: 1px solid color-mix(in srgb, var(--chs-orange) 35%, transparent); color: var(--text-body); }
+.pt-loanbar > svg { color: var(--chs-orange); flex: 0 0 auto; }
+.pt-eqwarn { display: flex; gap: 6px; align-items: flex-start; margin: 0; padding: 6px 8px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--chs-orange) 10%, transparent); }
+.pt-eqwarn > svg { color: var(--chs-orange); flex: 0 0 auto; margin-top: 2px; }
+.pt-eqwarn.bad { background: var(--status-critical-tint); }
+.pt-eqwarn.bad > svg { color: var(--status-critical); }
+.pt-noloan { align-self: flex-start; color: var(--text-muted); }
+.pt-tab-dot { display: inline-block; width: 7px; height: 7px; margin-left: 5px; border-radius: 50%; background: var(--chs-orange); vertical-align: middle; }
+.pt-loanflag { all: unset; cursor: pointer; display: inline-flex; color: var(--chs-orange); flex: 0 0 auto; margin-left: 4px; }
+.pt-loanflag:focus-visible { box-shadow: var(--focus-ring); border-radius: 3px; }
+.pt-loanmodal .pt-modal-body { display: flex; flex-direction: column; gap: 10px; }
+.pt-loanframe { width: 100%; height: min(72vh, 820px); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: #fff; }
 .pt-conf-show { justify-content: center; }
 .pt-conf-show input { width: 16px; height: 16px; accent-color: var(--chs-purple); margin: 0; cursor: pointer; }
 .pt-conf-show input:disabled { cursor: default; }

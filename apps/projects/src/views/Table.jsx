@@ -6,12 +6,12 @@
    the whole register fits across one screen. */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { ChevronRight, X, ClipboardList } from 'lucide-react'
 import { Button, Tag } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { StatusPill, Priority, AvatarStack, StaffPicker, Empty, DensityToggle, useDense, useFitHeight } from '../ui.jsx'
-import { BUILTIN_VIEWS, PRIORITIES, filterJobs, fmt, fmtRange, inMainViews, isConferenceCategory } from '../model.js'
+import { BUILTIN_VIEWS, PRIORITIES, filterJobs, fmt, fmtRange, inMainViews, isConferenceCategory, linesNeedingLoan } from '../model.js'
 
 const LS_VIEWS = 'projects_views'
 const LS_WIDTHS = 'projects_colw'
@@ -219,6 +219,9 @@ function Row({ job, template, editing, setEditing, viewers, selected, dense }) {
     <div className="pt-grow-row" role="row" style={{ gridTemplateColumns: template }}>
       <div role="rowheader" className={`pt-cell pt-frz${first}`}>
         <button type="button" className="pt-rowbtn" onClick={() => ui.openJob(job.id, 'table')}>{job.name}</button>
+        {linesNeedingLoan(job).length > 0 && (
+          <button type="button" className="pt-loanflag" title="Equipment without a demo loan form yet" aria-label={`${job.name}: equipment without a demo loan form yet`} onClick={() => ui.openJob(job.id, 'table')}><ClipboardList size={14} /></button>
+        )}
         {viewers.length > 0 && <span className="pt-viewer" title={`${viewers.map((v) => v.name).join(', ')} ${viewers.length === 1 ? 'has' : 'have'} this job open`}>{viewers.map((v) => v.initials).join(' ')}</span>}
       </div>
       {cell('status', dense ? (

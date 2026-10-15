@@ -123,3 +123,19 @@ test('archiving helpers', () => {
   assert.deepEqual(t.equipment.map((l) => [l.model, l.qty, l.line]), [['A9', 2, 'Requested']])
   assert.equal(initialsOf('Kiri Moana'), 'KM')
 })
+
+test('equipment still needing a demo loan form', async () => {
+  const { linesNeedingLoan } = await import('../src/model.js')
+  const job = {
+    id: 'j', equipment: [
+      { id: 'a', model: 'A7', qty: 1, line: 'Requested' },
+      { id: 'b', model: 'N22', qty: 2, line: 'Reserved', loan: 'batch-1' }, // linked to a demo tracker loan
+      { id: 'c', model: 'Surgical bed', qty: 1, line: 'Requested', noLoan: true }, // marked as not needing one
+      { id: 'd', model: 'D30', qty: 3, line: 'Returned' },
+      { id: 'e', model: 'V700', qty: 0, line: 'Requested' },
+    ],
+  }
+  assert.deepEqual(linesNeedingLoan(job).map((l) => l.id), ['a'])
+  assert.deepEqual(linesNeedingLoan({ ...job, archived: true }), [])
+  assert.deepEqual(linesNeedingLoan({ id: 'x' }), [])
+})
