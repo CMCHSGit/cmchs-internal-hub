@@ -1,0 +1,182 @@
+/**
+ * apps/schedule/scripts/remind.mjs — run by .github/workflows/remind.yml every
+ * Thursday morning NZ time (the day next week's schedule is due). Moved here
+ * from the cmchs-staff-schedule repo, which ran it until the schedule moved to
+ * internal.chsnz.co.nz/schedule.
+ *
+ *  1. Fetch all users from Firestore
+ *  2. Find the upcoming Monday (next week's start)
+ *  3. Check who has NOT yet confirmed a schedule for that week
+ *  4. Send a reminder to each via push (FCM) AND email (Resend) — push is the
+ *     immediate phone alert, email is the fallback if push isn't set up on
+ *     their device or a token has gone stale
+ *
+ * Env (GitHub Actions secrets): FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL,
+ * FIREBASE_PRIVATE_KEY, APP_URL, and optionally RESEND_API_KEY + RESEND_FROM —
+ * without those, email is skipped and reminders go out as push only.
+ * DRY_RUN=true reads everything and prints the counts it would send, but sends
+ * nothing: for checking the secrets work without reminding anyone twice.
+ * The repo is public and so are its Action logs — only ever log counts.
+ */
+
+import { initializeApp, cert, getApps } from 'firebase-admin/app'
+import { getFirestore, FieldValue }      from 'firebase-admin/firestore'
+import { getMessaging }                  from 'firebase-admin/messaging'
+
+function initFirebase() {
+  if (!getApps().length) {
+    initializeApp({
+      credential: cert({
+        projectId:   process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey:  process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      }),
+    })
+  }
+}
+
+function getDB() {
+  initFirebase()
+  return getFirestore()
+}
+
+function nextMonday() {
+  const d = new Date()
+  const day = d.getDay()
+  const daysUntilMonday = day === 0 ? 1 : 8 - day
+  d.setDate(d.getDate() + daysUntilMonday)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+function formatWeekLabel(weekStart) {
+  const weekDate = new Date(weekStart + 'T00:00:00')
+  const end = new Date(weekDate)
+  end.setDate(end.getDate() + 4)
+  const fmt = (d) => d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long' })
+  return `${fmt(weekDate)} – ${fmt(end)}`
+}
+
+async function sendReminderEmail(to, name, weekStart) {
+  const weekLabel = formatWeekLabel(weekStart)
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+    },
+    body: JSON.stringify({
+      from:    process.env.RESEND_FROM,
+      to:      [to],
+      subject: `Where are you next week? (${weekLabel})`,
+      html: `
+        <div style="font-family: 'Source Sans 3', 'Segoe UI', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #575756;">
+          <div style="height: 4px; background: linear-gradient(90deg, #554596 33.3%, #80bd01 33.3% 66.6%, #ef7d00 66.6%); margin-bottom: 24px;"></div>
+          <h2 style="font-size: 20px; margin: 0 0 8px; color: #1d1d1d;">Hi ${name || 'there'},</h2>
+          <p style="line-height: 1.6; margin-bottom: 24px;">
+            You haven't filled out your location schedule for <strong>${weekLabel}</strong> yet.
+            It only takes a minute — let the team know where you'll be each day.
+          </p>
+          <a href="${process.env.APP_URL}/my"
+             style="display: inline-block; background: #554596; color: #fff; text-decoration: none;
+                    padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 600;">
+            Fill in my schedule
+          </a>
+          <p style="color: #747577; font-size: 13px; margin-top: 32px;">
+            You're receiving this because you're part of the CMCHS Staff Schedule team tracker.
+          </p>
+        </div>
+      `,
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Resend error: ${err}`)
+  }
+}
+
+const DEAD_TOKEN_CODES = new Set([
+  'messaging/registration-token-not-registered',
+  'messaging/invalid-registration-token',
+])
+
+/** Pushes to every token on file for a user, pruning any that have gone stale. */
+async function sendPushToUser(db, user, weekStart) {
+  const tokens = user.fcmTokens || []
+  if (tokens.length === 0) return { sent: 0, failed: 0 }
+
+  const weekLabel = formatWeekLabel(weekStart)
+  const response = await getMessaging().sendEachForMulticast({
+    tokens,
+    notification: {
+      title: 'Where are you next week?',
+      body:  `You haven't filled out your schedule for ${weekLabel} yet.`,
+    },
+    data: { url: `${process.env.APP_URL}/my` },
+  })
+
+  const deadTokens = response.responses
+    .map((r, i) => (!r.success && DEAD_TOKEN_CODES.has(r.error?.code) ? tokens[i] : null))
+    .filter(Boolean)
+
+  if (deadTokens.length > 0) {
+    await db.collection('users').doc(user.uid).update({
+      fcmTokens: FieldValue.arrayRemove(...deadTokens),
+    })
+  }
+
+  return { sent: response.successCount, failed: response.failureCount }
+}
+
+async function main() {
+  const db        = getDB()
+  const weekStart = nextMonday()
+
+  const usersSnap = await db.collection('users').get()
+  const users = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() }))
+
+  const schedulesSnap = await db.collection('schedules')
+    .where('weekStart', '==', weekStart)
+    .get()
+  // A week an admin pre-filled (Copy last week, or a Team week edit) still
+  // needs the person to check it, so it doesn't count as submitted yet.
+  const submittedUids = new Set(schedulesSnap.docs.map(d => d.data()).filter(s => !s.needsConfirm).map(s => s.uid))
+
+  // Placeholder (not-signed-in) people have no email, so drop out here. So
+  // does anyone an admin has switched off this reminder for, on the hub's
+  // Admin settings → Notifications (users/{uid}.notifications.scheduleReminder;
+  // missing means on).
+  const switchedOff = users.filter(u => u.notifications?.scheduleReminder === false).length
+  const pending = users.filter(u => u.email && !submittedUids.has(u.uid) && u.notifications?.scheduleReminder !== false)
+
+  if (process.env.DRY_RUN === 'true') {
+    const withPhone = pending.filter(u => (u.fcmTokens || []).length > 0).length
+    console.log(`Dry run for week ${weekStart}: ${users.length} people read, ${pending.length} would be reminded (${withPhone} with a phone set up), ${switchedOff} switched off in Admin. Nothing sent.`)
+    return
+  }
+
+  const emailOn = !!(process.env.RESEND_API_KEY && process.env.RESEND_FROM)
+  const emailResults = emailOn
+    ? await Promise.allSettled(pending.map(u => sendReminderEmail(u.email, u.displayName?.split(' ')[0], weekStart)))
+    : []
+  const pushResults = await Promise.allSettled(
+    pending.map(u => sendPushToUser(db, u, weekStart))
+  )
+
+  const sent   = emailResults.filter(r => r.status === 'fulfilled').length
+  const failed = emailResults.filter(r => r.status === 'rejected').length
+  const pushSent   = pushResults.reduce((n, r) => n + (r.status === 'fulfilled' ? r.value.sent : 0), 0)
+  const pushFailed = pushResults.reduce((n, r) => n + (r.status === 'fulfilled' ? r.value.failed : 1), 0)
+
+  console.log(`Reminders for week ${weekStart}: ${pending.length} due; email ${emailOn ? `${sent} sent/${failed} failed` : 'off (Resend not set up)'}, push ${pushSent} sent/${pushFailed} failed; ${switchedOff} switched off in Admin`)
+  if (failed) process.exitCode = 1 // shows as a failed run in GitHub, without naming anyone
+}
+
+main().catch(err => {
+  console.error('Reminder job failed:', err.message)
+  process.exit(1)
+})

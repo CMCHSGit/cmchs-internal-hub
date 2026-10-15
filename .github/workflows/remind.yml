@@ -1,0 +1,64 @@
+# Thursday 8am NZST reminder (push, plus email if Resend is ever set up) for
+# anyone who hasn't filled in next week's staff schedule. Moved here from the
+# cmchs-staff-schedule repo along with the schedule (TODO #35 there).
+#
+# The Thursday timer only runs once the repository variable HUB_REMINDERS is
+# "true" (Settings -> Secrets and variables -> Actions -> Variables). Set it in
+# the same sitting as switching the old repo's "Thursday reminder" workflow
+# off, so nobody is reminded twice and no Thursday is missed.
+#
+# Run it by hand (Actions -> Thursday reminder -> Run workflow) to test: it is
+# a dry run unless you untick it, so it reads everything and prints the counts
+# it would send, but sends nothing.
+#
+# GitHub's timer can run a little late at busy times. This repo is public, so
+# its run logs are too: remind.mjs only ever prints counts, never names or
+# emails. Its exit code only reflects email failures, so read the printed
+# "push N sent/M failed" line rather than trusting a green tick.
+name: Thursday reminder
+
+on:
+  schedule:
+    - cron: '0 20 * * 3' # Wed 20:00 UTC = Thu 08:00 NZST (09:00 during daylight saving)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: count who would be reminded, send nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: remind
+  cancel-in-progress: false
+
+jobs:
+  remind:
+    if: github.event_name == 'workflow_dispatch' || vars.HUB_REMINDERS == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # Full install: firebase-admin is a dev dependency of apps/schedule.
+      - run: npm ci
+      - run: node apps/schedule/scripts/remind.mjs
+        env:
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM:           ${{ secrets.RESEND_FROM }}
+          # No trailing slash: remind.mjs appends /my
+          APP_URL:               https://internal.chsnz.co.nz/schedule
+          DRY_RUN:               ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      # GitHub pauses timed workflows after 60 days without repo activity —
+      # re-enabling this one on every run keeps it alive.
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/remind.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

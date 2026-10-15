@@ -55,7 +55,9 @@ To build from a local checkout instead of GitHub: `DEMO_SRC=../chs-equipment nod
 
 **The schedule runs in two places on purpose.** It's live here, and still live at `schedule.chsnz.co.nz` from the cmchs-staff-schedule repo. Same Firestore, so nothing is split — it's one app at two addresses, and the old one is the rollback. `tools.json` now points here.
 
-Still to do: move the scheduled jobs (`remind.yml`, `excel-sync.yml`) across with `APP_URL` set to `https://internal.chsnz.co.nz/schedule` (**no trailing slash** — `remind.mjs` builds `${APP_URL}/my`), run both in parallel for 2–3 weeks spanning two Thursdays, then replace the old site with a tombstone.
+**The Thursday reminder is here** (`.github/workflows/remind.yml`, `apps/schedule/scripts/remind.mjs`, `APP_URL` without a trailing slash). Its timer only runs once the repo variable `HUB_REMINDERS` is `true`, set in the same sitting as switching the old repo's workflow off, so nobody is reminded twice. A manual run is a dry run by default: it counts who would be reminded and sends nothing. It needs the `FIREBASE_PROJECT_ID` / `FIREBASE_CLIENT_EMAIL` / `FIREBASE_PRIVATE_KEY` secrets (the schedule's service account).
+
+Still to do (cmchs-staff-schedule `TODO.md` #36–#40): watch two Thursdays from here, tell staff to re-add the app from the new address, retire the old site with a tombstone, and move the Excel job.
 
 `remind.mjs`'s exit code only reflects email failures, so a run where every push failed still shows a green tick. After cutover read the printed `push N sent/M failed` line, not the check mark.
 
