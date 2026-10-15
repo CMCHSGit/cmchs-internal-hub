@@ -410,8 +410,9 @@ function NotificationsTab() {
         </p>
         <h2 className="admin-side-title">Phones</h2>
         <p className="text-sm text-muted">
-          A switch can only stop notifications. To get them at all, the person taps “Enable notifications” once on
-          their own phone, in each tool — phones have to be asked. The count shows who has.
+          A switch can only stop notifications. To get them at all, the person opens the Internal Hub on their phone
+          and taps “Turn on” when it asks — once covers both tools. The count shows who has. “Old demo app” means
+          they’re still on a phone set up at demo.chsnz.co.nz.
         </p>
       </div>
 

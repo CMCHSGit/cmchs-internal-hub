@@ -4,7 +4,7 @@
    (apps/admin), which uses the shared parts. */
 
 .settings-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; border-bottom: 1px solid var(--border-subtle); }
-.settings-head .tabs { border-bottom: none; }
+.settings-head .tabs { border-bottom: none; overflow: visible; } /* a few short tabs; the underline sits on the border below */
 .settings-elsewhere { padding-bottom: 12px; }
 .admin-gate { padding: 24px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; margin-top: 24px; }
 
