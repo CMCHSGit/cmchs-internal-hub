@@ -385,6 +385,13 @@ function NotificationsTab() {
   }
 
   const phones = n => (n ? `${n} phone${n === 1 ? '' : 's'}` : 'No phone yet')
+  // Demo reminders go to the phones turned on here at the hub; only someone
+  // with none here still gets them on phones set up at demo.chsnz.co.nz.
+  const demoPhones = (u, m) => {
+    const hub = u.fcmTokens?.length || 0
+    const old = m.fcmTokens?.length || 0
+    return hub || !old ? phones(hub) : `${phones(old)} (old demo app)`
+  }
   const trackerOnly = (tracker.team || []).filter(m => !(users || []).some(u => !u.pending && findMember([m], u)))
 
   return (
@@ -440,7 +447,7 @@ function NotificationsTab() {
                       : tracker.error ? <span className="text-sm text-muted">—</span>
                       : m ? <>
                           <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
-                          <span className="text-sm text-muted">{phones(m.fcmTokens?.length || 0)}</span>
+                          <span className="text-sm text-muted">{demoPhones(u, m)}</span>
                         </>
                       : <span className="text-sm text-muted">{u.pending ? 'After they sign in' : 'Not on its team'}</span>}
                   </div>

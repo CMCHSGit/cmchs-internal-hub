@@ -6,11 +6,13 @@
 // Never on a PC (notifications there only arrive while the browser is open).
 // Also left out when it can't help: an iPhone that hasn't added the hub to its
 // Home Screen (iOS only offers push there), notifications already blocked for
-// the site, this phone already on, or Admin has switched the person's
-// reminders off. "Not now" hides it on this phone for a week.
+// the site, or this phone already on. "Not now" hides it on this phone for a
+// week.
 //
-// Demo tracker push still only comes from demo.chsnz.co.nz (see
-// apps/demo/embed.js), so this covers the staff schedule's reminders.
+// One phone registration covers every tool: the staff schedule's reminders,
+// and the demo tracker's, which the Simpro proxy sends to these same phones
+// (chs-equipment .gas-proxy, "HUB PUSH"). Admin's switches decide which of
+// them a person actually gets.
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
 
@@ -56,8 +58,7 @@ async function shouldAsk(uid) {
   if (!canUsePush() || Notification.permission === 'denied' || pushEnabledOnThisDevice() || snoozed()) return false
   const { fs, db } = await firebaseParts()
   const snap = await fs.getDoc(fs.doc(db, 'users', uid))
-  if (!snap.exists()) return false
-  return snap.data().notifications?.scheduleReminder !== false
+  return snap.exists()
 }
 
 // Same steps as the schedule's enablePush(), against the hub's Firebase app.

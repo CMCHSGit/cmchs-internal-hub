@@ -12,7 +12,9 @@
 //    separate admin password for delete / retire / edit still applies.)
 //  - Its service worker and push notifications are switched off here. The
 //    site has one worker, the hub's, and one push setup, the schedule's.
-//    Push for the demo tracker stays on demo.chsnz.co.nz.
+//    Demo reminders reach the phones turned on through that setup (the hub
+//    home's prompt); the Simpro proxy sends them ("HUB PUSH" in
+//    chs-equipment .gas-proxy) with links back to /demo/.
 //  - The phone layout is used on phone-sized screens only. The tracker
 //    treats "installed" as "phone", which is true on demo.chsnz.co.nz but
 //    not here: the hub is installed on desktops too, and an installed

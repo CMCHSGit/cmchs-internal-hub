@@ -35,6 +35,8 @@ Replaces the project team's two linked sheets (the job register and the weekly "
 
 A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone. The hub home offers that on phones, until that phone is on (`apps/hub/src/PushPrompt.jsx`).
 
+One phone registration covers both tools. Demo reminders go to the phones turned on here (`users/{uid}.fcmTokens`), sent by the Simpro proxy through the staff schedule's Firebase project with links into `/demo/` ("HUB PUSH" in chs-equipment `.gas-proxy/Code.js`). Someone with no phone here still gets them on phones set up at demo.chsnz.co.nz, shown in Admin as "(old demo app)". This needs the proxy's service account granted *Firebase Cloud Messaging API Admin* and *Cloud Datastore Viewer* in the staff schedule's Google Cloud project; `checkHubPush()` in the Apps Script editor says whether it is.
+
 **Staff schedule settings are not here.** Locations, the Excel import and the activity log are the schedule's own Settings page, `/schedule/settings` (`apps/schedule/src/pages/Settings.jsx`), behind the same admin role and password. Old `/admin/#locations`, `#excel` and `#activity` links forward there.
 
 ### /demo/ is generated, not copied

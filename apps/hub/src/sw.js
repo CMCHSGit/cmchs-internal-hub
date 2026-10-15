@@ -80,13 +80,17 @@ try {
     appId:             import.meta.env.VITE_FIREBASE_APP_ID,
   })
 
+  // Two senders use this: the staff schedule's reminders, and the demo
+  // tracker's (sent by the Simpro proxy, with a link into /demo/).
   firebase.messaging().onBackgroundMessage((payload) => {
     const { title, body } = payload.notification || {}
-    self.registration.showNotification(title || 'CMCHS Staff Schedule', {
+    const url = payload.data?.url || '/schedule/'
+    const demo = new URL(url, self.location.origin).pathname.startsWith('/demo/')
+    self.registration.showNotification(title || (demo ? 'Demo tracker' : 'CMCHS Staff Schedule'), {
       body,
-      icon: '/schedule/icons/icon-192.png',
-      badge: '/schedule/icons/icon-192.png',
-      data: { url: payload.data?.url || '/schedule/' },
+      icon: demo ? '/icons/icon-192.png' : '/schedule/icons/icon-192.png',
+      badge: demo ? '/icons/icon-192.png' : '/schedule/icons/icon-192.png',
+      data: { url },
     })
   })
 } catch (err) {
@@ -98,11 +102,13 @@ self.addEventListener('notificationclick', (event) => {
   const target = new URL(event.notification.data?.url || '/schedule/', self.location.origin)
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    // Only a window already inside the app the notification is about. Matching
-    // any window on the origin — which is what this did when the schedule had
-    // the origin to itself — would now focus the hub home page, or whatever
-    // other tool happened to be open, and navigate it away.
-    const existing = windows.find(w => new URL(w.url).pathname.startsWith('/schedule/'))
+    // Only a window already inside the tool the notification is about
+    // (/schedule/ or /demo/). Matching any window on the origin — which is
+    // what this did when the schedule had the origin to itself — would focus
+    // the hub home page, or whatever other tool happened to be open, and
+    // navigate it away.
+    const tool = '/' + target.pathname.split('/')[1] + '/'
+    const existing = windows.find(w => new URL(w.url).pathname.startsWith(tool))
     if (existing) {
       await existing.focus()
       if ('navigate' in existing) await existing.navigate(target.href).catch(() => {})
