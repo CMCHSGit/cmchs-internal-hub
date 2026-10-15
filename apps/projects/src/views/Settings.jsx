@@ -8,7 +8,9 @@ import { ArrowUp, ArrowDown, Trash2, Plus, RefreshCw } from 'lucide-react'
 import { Alert, Badge, Button, Switch } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
-import { Avatar, Field, Empty } from '../ui.jsx'
+import { Avatar, Field, Empty, Modal } from '../ui.jsx'
+import { downloadBackup } from '../io.js'
+import { readBackup, restorePlan } from '../backup.js'
 import { syncedWhen, ago } from '../JobPanel.jsx'
 import { initialsOf, pillStyle, rid, fmt } from '../model.js'
 
@@ -136,6 +138,8 @@ export default function Settings() {
       <div className="pt-cards pt-cards-2">
         <FeedCard />
 
+        <BackupCard />
+
         <section className="card pt-card">
           <h2 className="pt-h3">Import and sample data</h2>
           <p className="text-sm">Import a project tracker file (jobs, staff weeks, staff and activity colours together), or a job register from Excel or CSV.</p>
@@ -151,6 +155,97 @@ export default function Settings() {
         </section>
       </div>
     </div>
+  )
+}
+
+/** Nightly backups, and putting one back. */
+function BackupCard() {
+  const s = useStore()
+  const ui = useUi()
+  const [restoring, setRestoring] = useState(false)
+  return (
+    <section className="card pt-card">
+      <div className="pt-col">
+        <h2 className="pt-h3">Backups</h2>
+        <span className="text-sm text-muted">Every night at 3am NZ time everything here (jobs, staff weeks, comments, history and these settings) is saved to Google Drive, in the folder <b>CMCHS Project Tracker Backups</b>, and kept for a year: a <b>.json</b> file to restore from, and an <b>.xlsx</b> to read.</span>
+      </div>
+      <div className="pt-addrow">
+        <Button size="sm" variant="secondary" onClick={() => { downloadBackup(s); ui.toast('Backup downloaded') }}>Download a backup now</Button>
+        {s.isAdmin && <Button size="sm" variant="secondary" onClick={() => setRestoring(true)}>Restore from a backup…</Button>}
+      </div>
+      {!s.isAdmin && <p className="text-sm text-muted">Restoring from a backup is for admins.</p>}
+      {restoring && <RestoreDialog onClose={() => setRestoring(false)} />}
+    </section>
+  )
+}
+
+const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
+
+function RestoreDialog({ onClose }) {
+  const s = useStore()
+  const ui = useUi()
+  const [backup, setBackup] = useState(null)
+  const [msg, setMsg] = useState('')
+  const [mode, setMode] = useState('merge')
+  const [busy, setBusy] = useState(false)
+  async function pick(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setBackup(null)
+    try {
+      const b = JSON.parse(await file.text())
+      readBackup(b)
+      setBackup(b)
+      setMsg('')
+    } catch (err) { setMsg(err instanceof SyntaxError ? 'That file is not a backup (it is not valid JSON).' : err.message) }
+  }
+  const plan = backup && restorePlan(readBackup(backup), { jobs: s.jobs, assignments: s.assignments, comments: s.comments, history: s.history, settings: s.settingsStored }, mode).summary
+  const taken = backup?.takenAt ? new Date(backup.takenAt).toLocaleString('en-NZ', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'an unknown time'
+  async function go() {
+    if (!window.confirm(mode === 'exact'
+      ? 'Make the tracker exactly as it was in this backup? Jobs and staff weeks added since will be removed. A copy of the tracker as it is now downloads first, so this can be undone.'
+      : 'Put back everything from this backup? A copy of the tracker as it is now downloads first, so this can be undone.')) return
+    setBusy(true)
+    try {
+      downloadBackup(s, 'before-restore')
+      const r = await s.restoreBackup(backup, mode)
+      ui.toast(r.notAppended
+        ? `Restored. ${plural(r.notAppended, 'comment or history entry', 'comments or history entries')} could not be put back: the Firestore rules need updating`
+        : 'Restored from the backup')
+      onClose()
+    } catch (err) { setMsg('Restore failed: ' + (err.message || err) + '. Nothing after the failure was changed; the copy that downloaded first has the tracker as it was.'); setBusy(false) }
+  }
+  const line = (label, x) => x && (
+    <li><b>{label}:</b> {plural(x.inBackup, 'in the backup', 'in the backup')}{x.missing ? `, ${x.missing} missing now (put back)` : ''}{x.changed ? `, ${x.changed} changed since (put back as they were)` : ''}{x.added ? `, ${x.added} added since (${mode === 'exact' && x.removed ? 'removed' : 'kept'})` : ''}</li>
+  )
+  return (
+    <Modal title="Restore from a backup" description="Choose a Project-Tracker-….json file: one from the CMCHS Project Tracker Backups folder in Google Drive, or one downloaded here." onClose={onClose} width={640}>
+      <div className="pt-stack">
+        <label className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>Choose a backup…<input type="file" accept=".json,application/json" onChange={pick} hidden /></label>
+        {msg && <p className="text-sm pt-bad">{msg}</p>}
+        {plan && (
+          <>
+            <p className="text-sm">Backup taken <b>{taken}</b>{backup.source === 'nightly' ? ' (nightly)' : backup.source === 'before-restore' ? ' (just before a restore)' : ' (downloaded)'}.</p>
+            <div className="pt-col">
+              <label className="pt-check"><input type="radio" name="mode" checked={mode === 'merge'} onChange={() => setMode('merge')} /><span><b>Put back what's missing or changed.</b> Jobs, staff weeks and settings go back to how they were in the backup. Anything added since stays.</span></label>
+              <label className="pt-check"><input type="radio" name="mode" checked={mode === 'exact'} onChange={() => setMode('exact')} /><span><b>Make it exactly as it was.</b> The same, and jobs and staff weeks added since the backup are removed.</span></label>
+            </div>
+            <ul className="text-sm pt-restore-list">
+              {line('Jobs', plan.jobs)}
+              {line('Staff weeks', plan.assignments)}
+              {line('Comments', plan.comments)}
+              {line('History', plan.history)}
+              <li><b>Settings:</b> {plan.settingsChanged ? 'changed since (put back as they were)' : 'the same'}</li>
+            </ul>
+            <p className="text-sm text-muted">Comments and history are never removed or changed, only put back if missing. A copy of the tracker as it is now downloads before anything changes, so a restore can itself be undone by restoring that copy.</p>
+            <div className="pt-addrow"><span className="pt-grow" />
+              <Button variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button disabled={busy || plan.changes === 0} onClick={go}>{plan.changes === 0 ? 'Nothing to restore' : busy ? 'Restoring…' : 'Restore'}</Button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
   )
 }
 

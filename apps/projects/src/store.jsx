@@ -11,6 +11,7 @@ import {
   withDefaults, initialsOf, todayISO, addDays, fmt, dueForAutoArchive, COMPLETE, WAITING, mondayOf, rid,
 } from './model.js'
 import { summarise, effectivePool } from './feed.js'
+import { readBackup, restorePlan } from './backup.js'
 import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL } from './sample.js'
 import { TEAMS } from '../../schedule/src/utils/teams.js'
 
@@ -340,12 +341,31 @@ export function StoreProvider({ children }) {
         latest.current = { ...latest.current, jobs: [...(current || []), ...ops.filter((o) => o.col === 'jobs').map((o) => ({ id: o.id, ...o.data }))] }
         return { jobs: Object.keys(jobIds).length, skipped, weeks, staffAdded }
       },
+      /**
+       * Puts a backup back (backup.js restorePlan for what 'merge' and 'exact'
+       * do). Jobs, weeks and settings go first; then comments and history, a
+       * batch at a time, because the rules only let an admin re-add other
+       * people's. Resolves to the plan's summary plus how many of those could
+       * not be put back.
+       */
+      async restoreBackup(file, mode) {
+        const { main, append, summary } = restorePlan(readBackup(file), {
+          jobs: data.jobs || [], assignments: data.assignments, comments: data.comments, history: data.history, settings: settingsRaw || null,
+        }, mode)
+        await be.batch(main)
+        let notAppended = 0
+        for (let i = 0; i < append.length; i += 400) {
+          const part = append.slice(i, i + 400)
+          try { await be.batch(part) } catch { notAppended += part.length }
+        }
+        return { ...summary, notAppended }
+      },
       resetDev: be.reset ? () => be.reset() : null,
     }
     if (import.meta.env.DEV) window.__ptImport = a.importBundle // for trying import files in `npm run dev`
     return a
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [be, me, settings, data.assignments, data.comments, data.jobs, data.history, hist, today])
+  }, [be, me, settings, settingsRaw, data.assignments, data.comments, data.jobs, data.history, hist, today])
 
   // ── auto-archive: whoever has the tracker open does it, once the day comes ──
   const archiving = useRef(new Set())
@@ -364,6 +384,7 @@ export function StoreProvider({ children }) {
     return {
       backendKind: be?.kind,
       user, profile, me, canEdit, error, setError, today,
+      isAdmin: profile?.role === 'admin',
       ready: Boolean(user && data.jobs && settingsRaw !== undefined),
       jobs,
       active: jobs.filter((j) => !j.archived),
@@ -374,6 +395,8 @@ export function StoreProvider({ children }) {
       history: data.history,
       online,
       settings,
+      // The settings document as stored (no defaults filled in): what a backup holds
+      settingsStored: settingsRaw || null,
       // The demo pool with the feed's unit counts, and the feed's loans (null
       // until the demo tracker has been read at least once on this device).
       pool,

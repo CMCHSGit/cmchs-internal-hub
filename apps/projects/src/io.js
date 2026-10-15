@@ -4,6 +4,7 @@
    by hand: the job register and the weekly timeline. */
 
 import { fmt, fmtY, isISO, mondayOf, weeksFrom, addDays, jobStaff, todayISO, PRIORITIES } from './model.js'
+import { makeBackup, backupFileName } from './backup.js'
 
 function download(blob, name) {
   const a = document.createElement('a')
@@ -11,6 +12,13 @@ function download(blob, name) {
   a.download = name
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+}
+
+/** Everything the tracker holds now, downloaded as a backup file (backup.js). */
+export function downloadBackup(s, source = 'download') {
+  const b = makeBackup({ jobs: s.jobs, assignments: s.assignments, comments: s.comments, history: s.history, settings: s.settingsStored }, { source })
+  download(new Blob([JSON.stringify(b, null, 1)], { type: 'application/json' }), backupFileName(b))
+  return b
 }
 
 function registerRows(s) {

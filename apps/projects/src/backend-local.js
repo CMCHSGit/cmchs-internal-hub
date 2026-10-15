@@ -95,6 +95,7 @@ export default {
   },
   async batch(ops) {
     for (const o of ops) {
+      if (o.col === 'settings') { db.settings = clean(o.data); continue }
       if (o.op === 'delete') delete db[o.col][o.id]
       else if (o.op === 'update') db[o.col][o.id] = { ...db[o.col][o.id], ...clean(o.data) }
       else db[o.col][o.id] = clean(o.data)
