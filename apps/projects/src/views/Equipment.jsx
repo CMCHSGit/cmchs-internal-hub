@@ -2,14 +2,18 @@
    weeks, each cell is units booked out of units owned, green while some are
    free, amber when all are taken, red when more are wanted than we own.
    Units owned and the loans out come from the demo tracker feed; jobs'
-   reservations come from here. Click a cell for who holds them. */
+   reservations come from here. Click a cell for who holds them.
+
+   Every model in the demo tracker is a row (feed.js effectivePool), but only
+   the ones in use show: requested by an active job, or booked or out in the
+   weeks on screen. "Show every model" brings back the rest. */
 
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { FeedStatus } from '../JobPanel.jsx'
-import { Empty } from '../ui.jsx'
+import { Empty, usePref } from '../ui.jsx'
 import { addDays, bookedInWeek, fmt, fmtRange, loadLevel, mondayOf, weeksFrom, dueBack, entryWho } from '../model.js'
 
 export default function Equipment() {
@@ -19,21 +23,24 @@ export default function Equipment() {
   const [first, setFirst] = useState(thisWeek)
   const weeks = useMemo(() => weeksFrom(first, 12), [first])
   const [sel, setSel] = useState(null) // { model, week }
+  const [showAll, setShowAll] = usePref('projects_eq_all_models', false)
+  // Models an active job asks for (any line not yet Returned)
+  const requested = useMemo(() => new Set(s.active.flatMap((j) => (j.equipment || []).filter((l) => l.line !== 'Returned').map((l) => l.model))), [s.active])
 
-  const grid = useMemo(() => {
+  const { grid, hidden } = useMemo(() => {
     const fams = new Map()
+    let hidden = 0
     for (const p of s.pool) {
-      if (!fams.has(p.family)) fams.set(p.family, [])
-      fams.get(p.family).push({
-        ...p,
-        cells: weeks.map((w) => {
-          const b = bookedInWeek(s.jobs, p.model, w, s.today, s.loans)
-          return { week: w, booked: b.total, entries: b.entries, level: loadLevel(b.total, p.total) }
-        }),
+      const cells = weeks.map((w) => {
+        const b = bookedInWeek(s.jobs, p.model, w, s.today, s.loans)
+        return { week: w, booked: b.total, entries: b.entries, level: loadLevel(b.total, p.total) }
       })
+      if (!showAll && !requested.has(p.model) && !cells.some((c) => c.booked > 0)) { hidden++; continue }
+      if (!fams.has(p.family)) fams.set(p.family, [])
+      fams.get(p.family).push({ ...p, cells })
     }
-    return [...fams]
-  }, [s.pool, s.jobs, weeks, s.today, s.loans])
+    return { grid: [...fams], hidden }
+  }, [s.pool, s.jobs, weeks, s.today, s.loans, showAll, requested])
 
   const pick = sel && grid.flatMap(([, ms]) => ms).find((m) => m.model === sel.model)
   const cell = pick?.cells.find((c) => c.week === sel.week)
@@ -61,6 +68,11 @@ export default function Equipment() {
         <span className="pt-key"><span className="pt-ratio short">5/4</span> Short</span>
         <span className="pt-key"><span className="pt-ratio unknown">2/?</span> Pool size not known</span>
         <span className="text-sm text-muted">booked / in pool</span>
+        <span className="pt-spacer" />
+        <label className="pt-check text-sm">
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} />
+          <span>Show every model{!showAll && hidden ? ` (${hidden} not in use hidden)` : ''}</span>
+        </label>
       </div>
 
       <div className="pt-eq-layout">
@@ -93,7 +105,7 @@ export default function Equipment() {
               ))}
             </div>
           ))}
-          {!grid.length && <Empty>No device models yet. Add them under Demo pool in Settings.</Empty>}
+          {!grid.length && <Empty>{hidden ? 'Nothing is requested, booked or out in these weeks. Tick Show every model to see them all.' : 'No device models yet. They come from the demo tracker, or add them under Demo pool in Settings.'}</Empty>}
           {grid.some(([, ms]) => ms.some((m) => m.total != null && !m.fromFeed)) && <p className="text-sm text-muted pt-eq-foot">* Typed in Settings: the demo tracker has no units under this name.</p>}
         </div>
 

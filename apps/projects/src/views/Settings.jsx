@@ -107,7 +107,7 @@ export default function Settings() {
 
       <section className="card pt-card">
         <div className="pt-card-head">
-          <div className="pt-col"><h2 className="pt-h3">Demo pool</h2><span className="text-sm text-muted">The models jobs can ask for, grouped by family in the model picker. How many we own comes from the demo tracker: every asset whose model name matches. "Demo tracker names" adds names it should also count, separated by commas. Units typed here are only used for a model the demo tracker has none of.</span></div>
+          <div className="pt-col"><h2 className="pt-h3">Demo pool</h2><span className="text-sm text-muted">Every model in the demo tracker is available to jobs and the Equipment view automatically, under its own name, with how many we own. This list is only for extras: a model's family and kind, other names it goes by in the demo tracker ("Demo tracker names", separated by commas, to count them as one), or a count for equipment the demo tracker doesn't hold. A model listed here that the demo tracker has none of, and no job asks for, stays out of the Equipment view.</span></div>
           {!ro && <Button size="sm" variant="secondary" iconLeft={<Plus size={15} />} onClick={() => save({ pool: [...st.pool, { model: 'New model', family: 'Accessories', kind: '', total: null }] })}>Add model</Button>}
         </div>
         <div className="pt-pool">
@@ -281,10 +281,10 @@ function FeedCard() {
       </dl>
       {sum && sum.unmatched.length > 0 && (
         <p className="text-sm">
-          <span className="text-muted">Not counted as any pool model (accessories, probes, other models): </span>
+          <span className="text-muted">In the demo tracker under their own name (no entry in the Demo pool list): </span>
           {unmatched.map((u) => `${u.name} (${u.count})`).join(', ')}
           {sum.unmatched.length > 12 && <>{' '}<button type="button" className="pt-linkbtn" onClick={() => setAll(!all)}>{all ? 'Show fewer' : `and ${sum.unmatched.length - 12} more`}</button></>}
-          <span className="text-muted">. To count one, add its name under Demo tracker names above.</span>
+          <span className="text-muted">. To count one as a listed model instead (say two spellings of the same thing), add its name under Demo tracker names above.</span>
         </p>
       )}
       <div><Button size="sm" variant="secondary" iconLeft={<RefreshCw size={14} className={f.loading ? 'pt-spin' : ''} />} disabled={f.loading} onClick={() => f.refresh()}>{f.loading ? 'Refreshing…' : 'Refresh now'}</Button></div>

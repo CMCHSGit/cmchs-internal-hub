@@ -84,7 +84,8 @@ const onLoan = (e) => Boolean(String(e.OnLoanTo || '').trim()) && e.Returned !==
  * What the feed says, per pool model.
  *   owned:     { model: units in the register }
  *   names:     { model: { tracker model name: units } } — what matched, for Settings
- *   unmatched: [{ name, count }] — tracker models no pool model claims
+ *   unmatched: [{ name, count }] — tracker models no pool model claims;
+ *              they are counted (owned, names, loans) under their own name
  *   loans:     one per loan and model: { key, model, qty, loanTo, location,
  *              start, due, out, assets } — `out` is false for a loan booked
  *              ahead that hasn't started yet
@@ -97,11 +98,12 @@ export function summarise(raw, pool, today) {
   const assets = list(raw?.equipment)
   for (const e of assets) {
     const name = String(e.Model || '').trim()
-    const m = name ? matchModel(name, pool) : null
+    if (!name) { other.set('(no model)', (other.get('(no model)') || 0) + 1); continue }
+    // A model no pool entry claims still counts, under the tracker's own name
+    let m = matchModel(name, pool)
     if (!m) {
-      const k = name || '(no model)'
-      other.set(k, (other.get(k) || 0) + 1)
-      continue
+      other.set(name, (other.get(name) || 0) + 1)
+      m = name
     }
     owned[m] = (owned[m] || 0) + 1
     names[m] = names[m] || {}
@@ -158,16 +160,45 @@ export function summarise(raw, pool, today) {
 }
 
 /**
- * The pool as the screens should see it: the feed's count of units wherever
- * the feed found any, else the number typed in Settings. `typed` keeps the
+ * The pool as the screens should see it: every model in Settings, with the
+ * feed's count of units wherever the feed found any (else the number typed in
+ * Settings), followed by every other model the demo tracker has, under its
+ * own name with a family guessed from it (`auto: true`). `typed` keeps the
  * Settings number and `fromFeed` says which one `total` is.
  */
 export function effectivePool(pool, summary) {
   if (!summary) return pool
-  return pool.map((p) => {
-    const n = summary.owned[p.model]
-    return n ? { ...p, total: n, typed: p.total, fromFeed: true } : { ...p, fromFeed: false }
-  })
+  const listed = new Set(pool.map((p) => p.model))
+  const auto = Object.keys(summary.owned)
+    .filter((m) => !listed.has(m))
+    .map((m) => ({ model: m, family: guessFamily(m), kind: '', total: summary.owned[m], fromFeed: true, auto: true }))
+    .sort((a, b) => a.family.localeCompare(b.family) || a.model.localeCompare(b.model, undefined, { numeric: true }))
+  return [
+    ...pool.map((p) => {
+      const n = summary.owned[p.model]
+      return n ? { ...p, total: n, typed: p.total, fromFeed: true } : { ...p, fromFeed: false }
+    }),
+    ...auto,
+  ]
+}
+
+/**
+ * Which family a demo tracker model probably belongs to, from Mindray's
+ * naming: A-series anaesthesia, N/T/ePM/iMEC/uMEC/VS monitors, D and C
+ * defibs and AEDs, TE/TEX/MX/M/DC ultrasound and their probes (SC6-1s,
+ * L14-6Ns), SV ventilators. Only for grouping; a Settings entry overrides it.
+ */
+export function guessFamily(name) {
+  const w = String(name || '').toUpperCase().split(/[^A-Z0-9-]+/).filter(Boolean)
+  const any = (re) => w.some((x) => re.test(x))
+  if (any(/^(BED|BEDS|HYBASE|TABLE)$/) || /\b(BED|TABLE)\b/i.test(name)) return 'Beds'
+  if (any(/^A[1-9]\d?$/) || any(/^WATO$/)) return 'Anaesthesia'
+  if (any(/^SV\d{3}$/) || /VENTILATOR/i.test(name)) return 'Ventilators'
+  if (any(/^(D[1-9]\d?|C[1-9]\d?A?)$/) || /\b(AED|DEFIB)/i.test(name)) return 'Defibs'
+  if (any(/^(TEX?\d+|TE-?AIR|MX\d+|M\d+|DC-?\d+|RESONA|CONSONA)$/) || any(/^[A-Z]{1,3}\d+-\d+[A-Z]*$/) || /\b(PROBE|ULTRASOUND|ROLLSTAND)\b|\bTE[\s-]?AIR\b/i.test(name)) return 'Ultrasound'
+  if (any(/^(BENEFUSION|VP\d+|SP\d+)$/) || /\b(PUMP|INFUSION)\b/i.test(name)) return 'Infusion'
+  if (any(/^(N\d+|T\d+|EPM\d*|IMEC\d*|UMEC\d*|VS-?\d+|V\d{3})$/) || /\b(MONITOR|TELEMETRY|TM80)\b/i.test(name)) return 'Monitors'
+  return 'Other demo equipment'
 }
 
 /** "2 at Waikato Hospital (ICU), due back 06-Nov" style facts for one loan. */

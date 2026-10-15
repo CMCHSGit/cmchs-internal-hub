@@ -44,7 +44,11 @@ export default function Home() {
     for (const j of s.active) if (j.status === 'Go-live' && !seen.has(j.id)) seen.set(j.id, { week: j.start || thisWeek, people: new Set() })
     return [...seen].map(([id, v]) => ({ job: s.jobById.get(id), ...v })).filter((x) => x.job).sort((a, b) => a.week.localeCompare(b.week)).slice(0, 5)
   }, [s.assignments, s.active, s.jobById, thisWeek, activeIds])
-  const shorts = useMemo(() => shortfalls(s.jobs, s.pool, weeksFrom(thisWeek, 6), today, s.loans), [s.jobs, s.pool, thisWeek, today, s.loans])
+  // Only models a job asks for: every demo tracker item out on loan would otherwise count as "fully booked"
+  const shorts = useMemo(() => {
+    const asked = new Set(s.active.flatMap((j) => (j.equipment || []).filter((l) => l.line !== 'Returned').map((l) => l.model)))
+    return shortfalls(s.jobs, s.pool.filter((p) => asked.has(p.model)), weeksFrom(thisWeek, 6), today, s.loans)
+  }, [s.jobs, s.active, s.pool, thisWeek, today, s.loans])
   const returns = useMemo(() => overdueReturns(s.jobs, today, s.loans), [s.jobs, today, s.loans])
   const d = toDate(today)
 

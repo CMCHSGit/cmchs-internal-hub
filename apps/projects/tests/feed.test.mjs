@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { feedDate, nameMatches, matchModel, summarise, effectivePool, trimRaw, aliasesOf } from '../src/feed.js'
+import { feedDate, nameMatches, matchModel, summarise, effectivePool, trimRaw, aliasesOf, guessFamily } from '../src/feed.js'
 import {
   withDefaults, availability, bookedInWeek, overdueReturns, shortfalls, linkableLoans, entryWho, weeksFrom,
 } from '../src/model.js'
@@ -166,4 +166,41 @@ test('shortfalls see the feed: D60 is fully held by the overdue loan plus a job'
   const d60 = s.find((x) => x.model === 'D60')
   assert.equal(d60.level, 'full')
   assert.equal(d60.week, '2026-10-19')
+})
+
+test('a model no pool entry claims is counted under its own name, loans and all', () => {
+  // VS-900 and the ultrasound kit aren't in the default pool
+  assert.equal(sum.owned['VS-900'], 1)
+  assert.equal(sum.owned.TEX20, 1)
+  assert.deepEqual(sum.names['SC6-1s'], { 'SC6-1s': 1 })
+  const lent = summarise({ ...raw, equipment: raw.equipment.map((e) => (e.CHSAssetNo === '100393' ? { ...e, OnLoanTo: 'Dunedin Hospital', Returned: 'No', LoanStartDate: '2026-10-12', LoanEndDate: '2026-10-23', BatchID: 'b-probe' } : e)) }, pool, TODAY)
+  const probe = lent.loans.find((l) => l.model === 'SC6-1s')
+  assert.equal(probe.qty, 1)
+  assert.equal(probe.loanTo, 'Dunedin Hospital')
+  assert.equal(bookedInWeek([], 'SC6-1s', '2026-10-12', TODAY, lent.loans).total, 1)
+  // Still listed for Settings, so someone can fold a spelling into a listed model
+  assert.ok(sum.unmatched.some((u) => u.name === 'SC6-1s'))
+})
+
+test('the effective pool adds every other demo tracker model, grouped by a guessed family', () => {
+  const eff = effectivePool(pool, sum)
+  assert.deepEqual(eff.slice(0, pool.length).map((p) => p.model), pool.map((p) => p.model))
+  const extra = eff.slice(pool.length)
+  assert.deepEqual(extra.map((p) => p.model).sort(), ['SC6-1s', 'SP5-1s', 'TEX20', 'VS-900'])
+  const tex = extra.find((p) => p.model === 'TEX20')
+  assert.equal(tex.family, 'Ultrasound')
+  assert.equal(tex.total, 1)
+  assert.ok(tex.auto && tex.fromFeed)
+  assert.equal(extra.find((p) => p.model === 'VS-900').family, 'Monitors')
+})
+
+test('families guessed from Mindray model names', () => {
+  const cases = {
+    'BeneVision N22': 'Monitors', 'ePM 12M': 'Monitors', 'VS-900': 'Monitors', TM80: 'Monitors',
+    A9: 'Anaesthesia', 'WATO EX-65': 'Anaesthesia',
+    'BeneHeart D60': 'Defibs', 'BeneHeart C2A': 'Defibs', 'D1 Pro': 'Defibs',
+    TEX20: 'Ultrasound', 'TE Air': 'Ultrasound', 'SC6-1s': 'Ultrasound', 'L14-6Ns': 'Ultrasound', MX5: 'Ultrasound',
+    SV300: 'Ventilators', 'HyBase 8300': 'Beds', 'BeneFusion VP5': 'Infusion', 'ECG Module': 'Other demo equipment',
+  }
+  for (const [name, fam] of Object.entries(cases)) assert.equal(guessFamily(name), fam, name)
 })

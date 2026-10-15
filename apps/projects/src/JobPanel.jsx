@@ -329,7 +329,7 @@ function EquipmentNeeded({ job, readOnly }) {
                 {!s.pool.some((p) => p.model === l.model) && <option>{l.model}</option>}
                 {families.map(([fam, models]) => (
                   <optgroup key={fam} label={fam}>
-                    {models.map((p) => <option key={p.model} value={p.model}>{p.model} · {p.kind}</option>)}
+                    {models.map((p) => <option key={p.model} value={p.model}>{p.model}{p.kind ? ` · ${p.kind}` : ''}{p.total != null ? ` (${p.total})` : ''}</option>)}
                   </optgroup>
                 ))}
               </select>
