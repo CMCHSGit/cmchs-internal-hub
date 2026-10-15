@@ -8,6 +8,7 @@
 // write is enforced by firestore.rules; see people.js for the data.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import { Dialog, Toast, failMsg, useToast } from './ui.jsx'
 import { loadToday, ONCALL_BG } from './today.js'
 import {
   EMPLOYMENT_TYPES, RELATIONSHIPS, TEAM_OPTIONS, addEmployee, completeness, isHR, loadDirectory, loadProfile,
@@ -23,20 +24,6 @@ function Avatar({ person, size = 40 }) {
   if (person.photo) return <img className="pp-avatar" src={person.photo} alt="" style={style} />
   return <span className="pp-avatar" style={person.onCall ? { ...style, background: ONCALL_BG, color: '#1d1d1d' } : style}>{person.initials}</span>
 }
-
-function Toast({ text }) {
-  return text ? <div className="pp-toast" role="status">{text}</div> : null
-}
-
-function useToast() {
-  const [text, setText] = useState('')
-  const timer = useRef(null)
-  return [text, msg => { setText(msg); clearTimeout(timer.current); timer.current = setTimeout(() => setText(''), 3200) }]
-}
-
-const failMsg = e => e?.code === 'permission-denied'
-  ? 'You don’t have permission to change that. If you should, the Firestore rules may not be published yet.'
-  : (e?.message || 'Couldn’t save that. Try again.')
 
 // ── Page ──────────────────────────────────────────────────────────────────
 
@@ -507,22 +494,6 @@ function EmergencyTab({ ctx, person, details, setDetails }) {
 }
 
 // ── HR dialogs ────────────────────────────────────────────────────────────
-
-function Dialog({ title, children, onClose }) {
-  useEffect(() => {
-    const esc = e => e.key === 'Escape' && onClose()
-    document.addEventListener('keydown', esc)
-    return () => document.removeEventListener('keydown', esc)
-  }, [])
-  return (
-    <div className="pp-overlay" onPointerDown={e => e.target === e.currentTarget && onClose()}>
-      <div className="pp-dialog card" role="dialog" aria-modal="true" aria-label={title}>
-        <h3>{title}</h3>
-        {children}
-      </div>
-    </div>
-  )
-}
 
 function AddEmployee({ ctx, onClose }) {
   const [f, setF] = useState({ name: '', email: '', team: '', workMobile: '' })

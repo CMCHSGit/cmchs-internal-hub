@@ -93,7 +93,7 @@ function Account({ user }) {
 }
 
 // `search={false}` on Home, where the hero has the search box instead.
-const NAV = [['home', 'Home', '/'], ['people', 'People', '/#/people']]
+const NAV = [['home', 'Home', '/'], ['people', 'People', '/#/people'], ['manage', 'Manage', '/#/manage']]
 
 export default function Header({ user, search = true, page = 'home' }) {
   return (
@@ -117,6 +117,9 @@ export default function Header({ user, search = true, page = 'home' }) {
             in for the people who have it, not a tool everyone should see. */}
         <a className={`icon-btn narrow-only header-people ${page === 'people' ? 'on' : ''}`} href="/#/people" aria-label="People" title="People">
           <Icon name="users" size={20} />
+        </a>
+        <a className={`icon-btn narrow-only header-people ${page === 'manage' ? 'on' : ''}`} href="/#/manage" aria-label="Manage" title="Manage">
+          <Icon name="clipboard-list" size={20} />
         </a>
         <a className="icon-btn header-admin" href="/admin/" aria-label="Admin settings" title="Admin settings">
           <Icon name="settings" size={20} />

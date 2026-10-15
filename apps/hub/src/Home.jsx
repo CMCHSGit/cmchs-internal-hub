@@ -7,8 +7,10 @@ import { firstNameOf } from '../../../shared/session.js'
 import Calendar from './Calendar.jsx'
 import Icon from './Icon.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
+import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, mergeNews, teamNews } from './news.js'
+import { Linked } from './ui.jsx'
 import {
-  NEWS_CATEGORIES, NEWS_TONE, announcements, hostOf, markUsed, newsCategory, newsImage,
+  hostOf, markUsed, newsImage,
   openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
 } from './tools.js'
 
@@ -162,11 +164,14 @@ function Glance({ today }) {
 }
 
 // ── News ──────────────────────────────────────────────────────────────────
+// Posted from Manage (news.js); the old announcements.json shows until it's moved across.
 
 function NewsCard({ a }) {
   const [more, setMore] = useState(false)
-  const cat = newsCategory(a)
-  const img = newsImage(a)
+  const [photo, setPhoto] = useState('')
+  useEffect(() => { if (a.hasPhoto) loadPhoto(a.id).then(setPhoto) }, [a.id, a.hasPhoto])
+  const cat = categoryOf(a)
+  const img = photo || newsImage(a)
   const long = (a.body || '').length > 220
   return (
     <article className="card news-card">
@@ -176,29 +181,32 @@ function NewsCard({ a }) {
       </div>
       <div className="news-body">
         <div className="news-meta">
-          <span className={`badge badge-${NEWS_TONE[cat]}`}>{cat}</span>
+          <span className={`badge badge-${TONE[cat]}`}>{cat}</span>
           <span className="caption">{[newsDate(a.date), a.author].filter(Boolean).join(' · ')}</span>
         </div>
         <span className="news-title">{a.title}</span>
-        <p className={`news-text ${long && !more ? 'clamped' : ''}`}>{a.body}</p>
+        <p className={`news-text ${long && !more ? 'clamped' : ''}`}><Linked text={a.body} /></p>
         {long && <button className="link-btn" onClick={() => setMore(m => !m)}>{more ? 'Show less' : 'Read more'}</button>}
       </div>
     </article>
   )
 }
 
-function News() {
+const FEATURE_CATEGORIES = CATEGORIES.filter(c => c !== 'Team news')
+
+function News({ news }) {
   const [tab, setTab] = useState('All')
   const [all, setAll] = useState(false)
-  const list = announcements.filter(a => tab === 'All' || newsCategory(a) === tab)
+  const list = news.filter(a => categoryOf(a) !== 'Team news' && (tab === 'All' || categoryOf(a) === tab))
   const shown = all ? list : list.slice(0, 3)
   return (
     <section className="stack-18" aria-label="News and announcements">
       <SectionHead c1="#554596" c2="#ef7d00" overline="Company news" title="News and announcements">
         <div className="tag-row">
-          {['All', ...NEWS_CATEGORIES].map(n => (
+          {['All', ...FEATURE_CATEGORIES].map(n => (
             <button key={n} className={`tag ${tab === n ? 'tag-on' : ''}`} aria-pressed={tab === n} onClick={() => { setTab(n); setAll(false) }}>{n}</button>
           ))}
+          <a className="btn-ghost-sm" href="#/manage">Post <Icon name="arrow-right" size={16} /></a>
         </div>
       </SectionHead>
       {shown.length > 0
@@ -209,6 +217,44 @@ function News() {
           {all ? 'Show fewer' : `Show all ${list.length}`}
         </button>
       )}
+    </section>
+  )
+}
+
+// The project team's weekly update, one line per item, by section and region.
+function TeamNews({ news }) {
+  const [region, setRegion] = useState('')
+  const t = teamNews(news)
+  if (!t) return null
+  const pick = xs => xs.filter(a => !region || (a.regions || []).includes(region))
+  const col = (label, xs, tone) => (
+    <div className="card team-col">
+      <span className={`team-col-head team-${tone}`}>{label}</span>
+      {pick(xs).length
+        ? <ul className="team-list">{pick(xs).map(a => (
+            <li key={a.id}>
+              <span><Linked text={a.title} />{a.body ? <span className="muted"> – <Linked text={a.body} /></span> : null}</span>
+              {(a.regions || []).length > 0 && <span className="team-regions">{a.regions.map(r => <span key={r} className="mg-region">{r}</span>)}</span>}
+            </li>
+          ))}</ul>
+        : <span className="body-sm muted">{region ? `Nothing in ${region}.` : 'Nothing yet.'}</span>}
+    </div>
+  )
+  return (
+    <section className="stack-18" aria-label="Team news">
+      <SectionHead c1="#80bd01" c2="#ef7d00" overline={`Team news · week of ${newsDate(t.weekOf)}`} title="Where the team has been, and where it’s going">
+        {t.regions.length > 1 && (
+          <select className="pp-input mg-select" value={region} onChange={e => setRegion(e.target.value)} aria-label="Region">
+            <option value="">All regions</option>
+            {t.regions.map(r => <option key={r}>{r}</option>)}
+          </select>
+        )}
+      </SectionHead>
+      <div className="team-cols">
+        {col(SECTIONS.been, t.been, 'green')}
+        {col(SECTIONS.next, t.next, 'orange')}
+      </div>
+      {t.other.length > 0 && col('Also', t.other, 'purple')}
     </section>
   )
 }
@@ -337,13 +383,18 @@ export default function Home({ user }) {
     return () => { live = false }
   }, [])
 
+  // The JSON straight away, then whatever's been posted in Manage
+  const [news, setNews] = useState(() => mergeNews([]))
+  useEffect(() => { loadNews().then(setNews) }, [])
+
   return (
     <main className="home">
       <Hero user={user} today={today} />
       <div className="stripe-rule stripe-6" aria-hidden="true"><span /><span /><span /></div>
       <div className="home-page">
         {today !== null && <Glance today={today} />}
-        <News />
+        <News news={news} />
+        <TeamNews news={news} />
         <div className={today ? 'mid-cols' : 'mid-cols mid-cols-single'}>
           {today && <Directory today={today} />}
           <div className="stack-16">
