@@ -2,14 +2,28 @@ import { useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
 import Header from './Header.jsx'
 import Home from './Home.jsx'
+import People from './People.jsx'
 import PushPrompt from './PushPrompt.jsx'
 import SignIn from './SignIn.jsx'
+
+function routeOf() {
+  const m = location.hash.match(/^#\/people(?:\/([^/?#]+))?/)
+  return m ? { page: 'people', uid: m[1] ? decodeURIComponent(m[1]) : null } : { page: 'home' }
+}
 
 export default function App() {
   // undefined = still checking the saved session, null = signed out
   const [user, setUser] = useState(undefined)
 
   useEffect(() => watchUser(setUser), [])
+
+  // Hash routes, so they need nothing from GitHub Pages: #/people, #/people/<uid>
+  const [route, setRoute] = useState(routeOf)
+  useEffect(() => {
+    const onHash = () => { setRoute(routeOf()); window.scrollTo(0, 0) }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
 
   // Sent here by a tool's sign-in check (/?next=/maintenance/): go back once signed in
   const next = nextPath()
@@ -25,8 +39,8 @@ export default function App() {
 
   return (
     <div className="shell">
-      <Header user={user} search={false} />
-      <Home user={user} />
+      <Header user={user} search={route.page !== 'home'} page={route.page} />
+      {route.page === 'people' ? <People user={user} route={route} /> : <Home user={user} />}
       <PushPrompt user={user} />
     </div>
   )

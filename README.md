@@ -102,10 +102,25 @@ Built from `design/CMCHS Internal Hub v2.dc.html` (notes in `design/UPGRADE-v2.m
 
 - **News and announcements**: `announcements.json`, `{ "id", "title", "body", "date": "2026-10-14", "author", "pinned", "category", "image" }`. `category` is Announcements, Events or Tool updates (the filter tags; anything else counts as Announcements). `image` is optional: a photo in `apps/hub/public/news/` written as `"news/photo.jpg"`, or a full URL; without one the card shows a grey block. Pinned first, then newest; three show, the rest behind "Show all".
 - **Calendar**: `events.json`, `{ "date": "2026-10-21", "title", "time": "Cass Office · 9:00 am", "tag": "Training" }`. NZ public holidays are added automatically from the staff schedule's own list, so don't type them in; `"kind": "holiday"` adds a one-off closure.
-- **At a glance, Who's where today, the hero's "out today / on call" line, people in search**: read live from the staff schedule's Firestore (`users`, this week's `schedules`, `oncall`) by `apps/hub/src/today.js`, using the schedule's own code (`apps/schedule/src/utils`) to read each entry, so the two never disagree. At the weekend they show Monday. If the schedule can't be read, those blocks are hidden. "See all people" links to the schedule's Day view (`/schedule/day`) until the hub has a People page.
+- **At a glance, Who's where today, the hero's "out today / on call" line, people in search**: read live from the staff schedule's Firestore (`users`, this week's `schedules`, `oncall`) by `apps/hub/src/today.js`, using the schedule's own code (`apps/schedule/src/utils`) to read each entry, so the two never disagree. At the weekend they show Monday. If the schedule can't be read, those blocks are hidden. "See all people" and each person open the People page.
 - **Tools**: `tools.json`, as above. Recent tools come from this browser's history.
 
 `npm run dev` without a `.env` uses sample people (`apps/hub/src/dev-fixture.js`, never in real builds). `npm test -w apps/hub` checks how entries are read.
+
+## People (`/#/people`)
+
+The staff directory and HR profiles, in the hub itself (`apps/hub/src/People.jsx`, data in `people.js`), laid out like BambooHR or Employment Hero. Hash routes: `#/people`, `#/people/me`, `#/people/<uid>`.
+
+| Who | Sees | Edits |
+|---|---|---|
+| Everyone signed in | everyone's name, team, today's location, work email, work mobile, picture | their own name, work mobile, picture, personal details, emergency contacts and job title |
+| HR (admins, or `hr: true` on their `users` record) | everyone's whole profile | everyone's profile (team, manager, start date, employment type too); adds and removes people |
+
+Only an admin can give someone HR access (Job tab → HR access). HR can't remove an admin.
+
+Where it's kept, all in the staff schedule's Firestore: public fields on `users/{uid}` (`displayName`, `email`, `team`, `workMobile`); `staffPhotos/{email}` (a 192px JPEG data URL, made in the browser, ~15 KB); `staffPrivate/{email}` (birthday, personal email and phone, address, emergency contacts); `staffEmployment/{email}` (job title, start date, type, manager). The private ones are keyed by lower-case work email because someone HR adds before they first sign in has only a placeholder id (`pending-jo-bloggs`), which is replaced on that sign-in; the schedule's AuthContext claims a placeholder by its exact email first. **Firestore's rules are what keep private details private** (`isHR`, `isMyEmail` in `firestore.rules`), not the page.
+
+Removing someone deletes their `users` record and the three email-keyed records; their past schedule weeks stay. If they can still sign in, they come back with an empty profile, and the Excel import re-adds anyone still in the spreadsheet.
 
 **A whole new app** (its own build, like the schedule): add a folder under `apps/`, build it with its own base path (e.g. Vite `base: '/schedule/'`), and add it to `APPS` in `scripts/build.mjs`. Prefix any localStorage keys with the app name, because every app shares this origin. Don't give it its own manifest or service worker — see below.
 

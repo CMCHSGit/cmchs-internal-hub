@@ -12,9 +12,8 @@ import {
   openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
 } from './tools.js'
 
-// The hub has no People screen of its own yet; the schedule's Day view is who's
-// where today, grouped by status.
-const PEOPLE_URL = '/schedule/day'
+// The staff directory and profiles (People.jsx)
+const PEOPLE_URL = '#/people'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -97,7 +96,7 @@ function HeroSearch({ people }) {
             </ToolLink>
           ))}
           {peopleHits.map(p => (
-            <a key={p.uid} className="search-hit" href={PEOPLE_URL}>
+            <a key={p.uid} className="search-hit" href={`${PEOPLE_URL}/${encodeURIComponent(p.uid)}`}>
               <span className="avatar-sm" style={p.onCall ? { background: ONCALL_BG, color: '#1d1d1d' } : undefined}>{p.initials}</span>
               <span className="search-hit-text">
                 <span className="search-hit-name">{p.name}{p.onCall ? ' - OnCall' : ''}</span>
@@ -243,14 +242,14 @@ function Directory({ today }) {
       {people.length > 0
         ? <div className="dir-grid">
             {people.slice(0, 8).map(p => (
-              <div key={p.uid} className="card person">
+              <a key={p.uid} className="card card-interactive person person-link" href={`${PEOPLE_URL}/${encodeURIComponent(p.uid)}`}>
                 <span className="avatar-md" style={p.onCall ? { background: ONCALL_BG, color: '#1d1d1d' } : undefined}>{p.initials}</span>
                 <div className="person-text">
                   <span className="person-name">{p.name}{p.onCall ? ' - OnCall' : ''}</span>
                   <span className="person-where"><span className="swatch" style={{ background: p.swatch }} /><span className="ellipsis">{p.where}</span></span>
                 </div>
                 <span className="caption">{p.deptName}</span>
-              </div>
+              </a>
             ))}
           </div>
         : <span className="body-sm muted">No one matches that search.</span>}

@@ -48,7 +48,12 @@ async function claimPendingProfile(firebaseUser) {
   const pendingDocs = snap.docs
 
   let claimed = null
+  // People added on the hub's People page carry the exact work email
   if (email) {
+    const exact = pendingDocs.filter(d => (d.data().email || '').toLowerCase() === email)
+    if (exact.length === 1) claimed = exact[0]
+  }
+  if (!claimed && email) {
     const emailMatches = pendingDocs.filter(d => guessedEmails(d.data().displayName || '').includes(email))
     if (emailMatches.length === 1) claimed = emailMatches[0]
   }
@@ -110,6 +115,7 @@ export function AuthProvider({ children }) {
           team:        claimed?.team || null,
           role:        'user',
           ...(claimed?.excelName ? { excelName: claimed.excelName } : {}),
+          ...(claimed?.workMobile ? { workMobile: claimed.workMobile } : {}),
           createdAt:   serverTimestamp(),
         }
         await setDoc(ref, newProfile)

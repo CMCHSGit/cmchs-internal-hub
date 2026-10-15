@@ -2,15 +2,20 @@
 // listed here are bundled; an unknown name falls back to a link icon. Adding a
 // tool with a new icon = add it to this map.
 import {
-  ArrowRight, Bell, Building, Calculator, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
+  ArrowRight, Bell, Building, Calculator, Camera, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
   ChevronRight, ClipboardList, ExternalLink, FileCheck, FileText, FolderKanban, GraduationCap, Headset, Laptop,
-  Link, LogOut, Mail, MapPin, MessageSquare, Package, Phone, RefreshCw, Search, Settings, Stethoscope, Users,
+  Link, Lock, LogOut, Mail, MapPin, MessageSquare, Package, Pencil, Phone, RefreshCw, Search, Settings, Stethoscope, User, UserPlus, Users,
   Wrench,
 } from 'lucide-react'
 
 const ICONS = {
   'arrow-right': ArrowRight,
   'bell': Bell,
+  'camera': Camera,
+  'lock': Lock,
+  'pencil': Pencil,
+  'user': User,
+  'user-plus': UserPlus,
   'building': Building,
   'calendar-x': CalendarX,
   'chevron-left': ChevronLeft,

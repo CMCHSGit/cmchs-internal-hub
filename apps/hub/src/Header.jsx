@@ -80,6 +80,9 @@ function Account({ user }) {
             <span className="account-name">{user.displayName || user.email}</span>
             <span className="caption">{user.email}</span>
           </div>
+          <a className="menu-item" role="menuitem" href="/#/people/me" onClick={() => setOpen(false)}>
+            <Icon name="user" size={16} /> My profile
+          </a>
           <button className="menu-item" role="menuitem" onClick={() => signOutUser()}>
             <Icon name="log-out" size={16} /> Sign out
           </button>
@@ -90,7 +93,9 @@ function Account({ user }) {
 }
 
 // `search={false}` on Home, where the hero has the search box instead.
-export default function Header({ user, search = true }) {
+const NAV = [['home', 'Home', '/'], ['people', 'People', '/#/people']]
+
+export default function Header({ user, search = true, page = 'home' }) {
   return (
     <header className="header">
       <div className="header-row">
@@ -100,11 +105,19 @@ export default function Header({ user, search = true }) {
           <img className="narrow-only" src="/brand/logo-mark.png" alt="" width="32" height="32" />
           <span className="brand-name">Internal Hub</span>
         </a>
+        <nav className="nav-tabs wide-only" aria-label="Hub">
+          {NAV.map(([id, label, href]) => (
+            <a key={id} href={href} className={`nav-tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined}>{label}</a>
+          ))}
+        </nav>
         <div className="spacer" />
         {search && <div className="wide-only"><Search /></div>}
         {/* Admin settings. Shown to everyone on purpose: the page asks for the
             admin password (and the admin role), so the gear is just the way
             in for the people who have it, not a tool everyone should see. */}
+        <a className={`icon-btn narrow-only header-people ${page === 'people' ? 'on' : ''}`} href="/#/people" aria-label="People" title="People">
+          <Icon name="users" size={20} />
+        </a>
         <a className="icon-btn header-admin" href="/admin/" aria-label="Admin settings" title="Admin settings">
           <Icon name="settings" size={20} />
         </a>
