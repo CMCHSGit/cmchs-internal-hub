@@ -747,10 +747,24 @@ function checkDatabaseAuth() {
 // them. Missing means on. `force` is for the test sends only, which an admin
 // uses to check someone's phone works whatever their reminders are set to.
 function sendPushToPerson_(am, title, body, url, force) {
-  if (!am || !Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return [];
+  if (!am) return [];
   if (am.notify === false && !force) { Logger.log('Push skipped for ' + am.name + ': reminders switched off in Admin'); return []; }
   const auth = getFcmAccessToken_();
   if (!auth) return [];
+
+  // Phones turned on at internal.chsnz.co.nz come first: that is where demo
+  // reminders now live (see HUB PUSH below). Only if the person has none
+  // there, or every one failed, do the phones registered on
+  // demo.chsnz.co.nz get it — so nobody misses one during the switch-over,
+  // and nobody gets the same reminder twice.
+  const hubTokens = hubTokensFor_(am);
+  if (hubTokens.length) {
+    const hubResults = sendHubPush_(hubTokens, title, body, hubDemoUrl_(url));
+    if (hubResults.some(function(r) { return r.ok; })) return hubResults;
+    Logger.log('Hub push failed on all ' + hubTokens.length + ' device(s) — falling back to demo.chsnz.co.nz devices.');
+  }
+
+  if (!Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return [];
   const deadTokens = [];
   const results = am.fcmTokens.map(function(token) {
     try {
@@ -782,6 +796,147 @@ function sendPushToPerson_(am, title, body, url, force) {
   });
   if (deadTokens.length) pruneDeadTokens_(am.name, deadTokens);
   return results;
+}
+
+// ── HUB PUSH ──────────────────────────────────────────────────────────────
+// Demo reminders go to the phones people turned notifications on for at
+// internal.chsnz.co.nz (the hub's "Turn on notifications?" prompt, or the
+// staff schedule's own card). Those phones are registered with the staff
+// schedule's Firebase project, not this one: users/{uid}.fcmTokens in its
+// Firestore. So this reads that list and sends through that project.
+//
+// It uses the same chs-equipment service account as everything else here. That
+// works once the account is granted, in the STAFF SCHEDULE's Google Cloud
+// project → IAM:
+//   - Firebase Cloud Messaging API Admin  (to send)
+//   - Cloud Datastore Viewer              (to read users/{uid}.fcmTokens)
+// Until then the read fails, hubTokensFor_ returns nothing, and every reminder
+// goes to the demo.chsnz.co.nz phones exactly as before. checkHubPush() below
+// says whether both roles are in place.
+//
+// A person is matched to their hub profile the way the hub's Admin matches
+// them (apps/admin/src/tracker.js findMember): by email, then by name.
+
+const HUB_DEMO_URL = 'https://internal.chsnz.co.nz/demo/';
+let hubUsers_ = null; // once per execution: a reminder run sends many pushes
+
+// The same link, on the hub's copy of the tracker.
+function hubDemoUrl_(url) {
+  url = String(url || '');
+  return url.indexOf(TRACKER_URL) === 0 ? HUB_DEMO_URL + url.slice(TRACKER_URL.length) : HUB_DEMO_URL;
+}
+
+function hubAccessToken_() {
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('hubAccessToken');
+  if (hit) return hit;
+  const key = serviceAccountKey_();
+  if (!key) return null;
+  const token = serviceAccountAccessToken_(key,
+    'https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging');
+  if (token) cache.put('hubAccessToken', token, 50 * 60);
+  return token;
+}
+
+// Everyone on the hub with at least one phone: [{ email, name, tokens }].
+// Throws if the staff schedule's Firestore can't be read.
+function loadHubUsers_() {
+  const token = hubAccessToken_();
+  if (!token) throw new Error('no service account token');
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/users' +
+    '?pageSize=300&mask.fieldPaths=email&mask.fieldPaths=displayName&mask.fieldPaths=fcmTokens&mask.fieldPaths=pending';
+  const users = [];
+  let pageToken = '';
+  do {
+    const resp = UrlFetchApp.fetch(base + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), {
+      headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() !== 200) throw new Error('Firestore read refused (' + resp.getResponseCode() + ')');
+    const json = JSON.parse(resp.getContentText());
+    (json.documents || []).forEach(function(d) {
+      const f = d.fields || {};
+      if (f.pending && f.pending.booleanValue === true) return;
+      const tokens = ((f.fcmTokens && f.fcmTokens.arrayValue && f.fcmTokens.arrayValue.values) || [])
+        .map(function(v) { return v.stringValue; }).filter(Boolean);
+      if (!tokens.length) return;
+      users.push({
+        email: ((f.email && f.email.stringValue) || '').trim().toLowerCase(),
+        name: ((f.displayName && f.displayName.stringValue) || '').trim().toLowerCase(),
+        tokens: tokens
+      });
+    });
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  return users;
+}
+
+// This person's hub phones, or [] (none, no match, or hub push not set up yet).
+function hubTokensFor_(am) {
+  if (hubUsers_ === null) {
+    try { hubUsers_ = loadHubUsers_(); }
+    catch (err) { Logger.log('Hub push unavailable, using demo.chsnz.co.nz devices: ' + err.message); hubUsers_ = []; }
+  }
+  const email = String(am.email || '').trim().toLowerCase();
+  const name = String(am.name || '').trim().toLowerCase();
+  const u = (email && hubUsers_.find(function(x) { return x.email === email; }))
+    || (name && hubUsers_.find(function(x) { return x.name === name; }));
+  return u ? u.tokens : [];
+}
+
+// Dead hub tokens are left for the staff schedule's own sender to prune: this
+// account can only read that project's Firestore, not write it.
+function sendHubPush_(tokens, title, body, url) {
+  const accessToken = hubAccessToken_();
+  if (!accessToken) return [];
+  const endpoint = 'https://fcm.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/messages:send';
+  return tokens.map(function(token) {
+    try {
+      const resp = UrlFetchApp.fetch(endpoint, {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Bearer ' + accessToken },
+        payload: JSON.stringify({ message: { token: token, notification: { title: title, body: body }, data: { url: url } } }),
+        muteHttpExceptions: true
+      });
+      const ok = resp.getResponseCode() < 300;
+      const detail = ok ? null : resp.getContentText();
+      if (!ok) Logger.log('Hub FCM send failed for token ' + token.slice(0, 12) + '...: ' + detail);
+      return { token: token.slice(0, 12) + '...', ok: ok, detail: detail, via: 'hub' };
+    } catch (err) {
+      Logger.log('Hub FCM send error: ' + err);
+      return { token: token.slice(0, 12) + '...', ok: false, detail: String(err), via: 'hub' };
+    }
+  });
+}
+
+// Run from the editor after the IAM roles are granted. Sends nothing to
+// anyone: it reads the hub's phone list and asks FCM to validate (not send) a
+// message, then says whether demo reminders will go to hub phones.
+function checkHubPush() {
+  CacheService.getScriptCache().remove('hubAccessToken');
+  let users;
+  try { users = loadHubUsers_(); }
+  catch (err) {
+    Logger.log('NOT READY — cannot read the staff schedule\'s users (' + err.message + '). Grant the service account "Cloud Datastore Viewer" in that project\'s IAM.');
+    return;
+  }
+  hubUsers_ = users;
+  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
+  const ams = (Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw)).filter(Boolean);
+  const matched = ams.filter(function(a) { return hubTokensFor_(a).length; }).length;
+  const resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/messages:send', {
+    method: 'post', contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + hubAccessToken_() },
+    payload: JSON.stringify({ validate_only: true, message: { token: 'check-hub-push', notification: { title: 'check' } } }),
+    muteHttpExceptions: true
+  });
+  const code = resp.getResponseCode();
+  if (code === 401 || code === 403) {
+    Logger.log('NOT READY — reading works, but sending is refused (' + code + '). Grant the service account "Firebase Cloud Messaging API Admin" in the staff schedule project\'s IAM.');
+    return;
+  }
+  Logger.log('READY — ' + users.length + ' hub user(s) with phones; ' + matched + ' of ' + ams.length +
+    ' demo tracker people will get reminders on their hub phones (the rest stay on demo.chsnz.co.nz devices).');
 }
 
 // fcmTokens only ever grows client-side (mpEnablePush() appends, never
@@ -827,12 +982,13 @@ function sendTestPush_(payload) {
   }
   const am = ams.find(function(a) { return a && a.name === payload.amName; });
   if (!am) return respond({ success: false, error: 'Account manager not found: ' + payload.amName });
-  if (!Array.isArray(am.fcmTokens) || !am.fcmTokens.length) {
-    return respond({ success: false, error: am.name + ' has no registered device — they need to tap "Enable push notifications" first.' });
+  const deviceCount = hubTokensFor_(am).length || (Array.isArray(am.fcmTokens) ? am.fcmTokens.length : 0);
+  if (!deviceCount) {
+    return respond({ success: false, error: am.name + ' has no registered device — they need to turn notifications on at internal.chsnz.co.nz on their phone first.' });
   }
   const results = sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1', true);
-  Logger.log('Test push sent to ' + am.name + ' (' + am.fcmTokens.length + ' device(s)), requested by ' + requester.name);
-  return respond({ success: true, sentTo: am.name, deviceCount: am.fcmTokens.length, results: results });
+  Logger.log('Test push sent to ' + am.name + ' (' + deviceCount + ' device(s)), requested by ' + requester.name);
+  return respond({ success: true, sentTo: am.name, deviceCount: deviceCount, results: results });
 }
 
 // TEMPORARY TEST HELPER — run manually from the Apps Script editor (select
