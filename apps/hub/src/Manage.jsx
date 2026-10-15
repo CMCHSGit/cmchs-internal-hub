@@ -17,7 +17,7 @@ import { splitEmail } from './emailSplit.js'
 import { loadProjectSuggestions } from './suggest.js'
 import {
   CATEGORIES, REGIONS, SECTIONS, TONE, buildEmail, canEdit, canPost, categoryOf, deleteAnnouncement, findSimilar, isoToday,
-  loadNews, loadPhoto, mondayOf, moveLegacy, newsPhotoFromFile, postDrafts, saveAnnouncement, shortDate, addDays,
+  MAX_NEWS_PHOTOS, loadNews, loadPhoto, loadPhotos, mondayOf, moveLegacy, newsPhotoFromFile, photoCountOf, postDrafts, saveAnnouncement, shortDate, addDays,
 } from './news.js'
 import {
   STATUSES, URGENCY, deleteRequest, feedbackSummary, isEngineering, loadRequests, respond, sendRequest, statusOf, toggleVote,
@@ -160,27 +160,34 @@ function RegionPicker({ value, onChange }) {
 
 function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
   const [a, setA] = useState({ title: '', body: '', section: '', pinned: false, ...initial, regions: initial.regions || [] })
-  const [photo, setPhoto] = useState(undefined) // undefined = unchanged
-  const [current, setCurrent] = useState('')
+  const [photos, setPhotos] = useState(initial.id && photoCountOf(initial) ? null : []) // null = still loading
+  const [changed, setChanged] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [suggesting, setSuggesting] = useState(false)
   const file = useRef(null)
   const set = k => v => setA(x => ({ ...x, [k]: v }))
-  useEffect(() => { if (initial.id && initial.hasPhoto) loadPhoto(initial.id).then(setCurrent) }, [])
-  const shownPhoto = photo === undefined ? current : photo
+  useEffect(() => { if (photos === null) loadPhotos(initial).then(setPhotos) }, [])
+  const setList = fn => { setPhotos(p => fn(p || [])); setChanged(true) }
 
   async function pick(e) {
-    const f = e.target.files?.[0]
+    const files = [...(e.target.files || [])]
     e.target.value = ''
-    if (!f) return
-    try { setPhoto(await newsPhotoFromFile(f)) } catch (err) { setError(err.message) }
+    const room = MAX_NEWS_PHOTOS - (photos || []).length
+    if (files.length > room) setError(`Up to ${MAX_NEWS_PHOTOS} photos, so only the first ${room} were added.`)
+    else setError('')
+    try {
+      const added = []
+      for (const f of files.slice(0, room)) added.push(await newsPhotoFromFile(f))
+      if (added.length) setList(p => [...p, ...added])
+    } catch (err) { setError(err.message) }
   }
   async function save(e) {
     e.preventDefault()
+    if (photos === null) return
     setBusy(true); setError('')
     try {
-      await saveAnnouncement(ctx.me, a, photo)
+      await saveAnnouncement(ctx.me, a, changed ? photos : undefined)
       ctx.showToast(initial.id ? 'Saved.' : 'Posted. It’s on the home page now.')
       onSaved()
     } catch (err) { console.error(err); setError(failMsg(err)); setBusy(false) }
@@ -212,12 +219,30 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
         </div>
         <div className="pp-label">Regions<RegionPicker value={a.regions} onChange={set('regions')} /></div>
         <div className="mg-photo">
-          {shownPhoto ? <img src={shownPhoto} alt="" /> : <span className="caption">No photo. A photo shows on the home page card and in the email.</span>}
-          <input ref={file} type="file" accept="image/*" hidden onChange={pick} />
-          <div className="tag-row">
-            <button type="button" className="btn-ghost-sm" onClick={() => file.current.click()}><Icon name="camera" size={16} /> {shownPhoto ? 'Change photo' : 'Add photo'}</button>
-            {shownPhoto && <button type="button" className="btn-ghost-sm" onClick={() => setPhoto('')}>Remove photo</button>}
-          </div>
+          {photos === null
+            ? <span className="caption">Loading photos…</span>
+            : photos.length
+              ? <div className="mg-photos">
+                  {photos.map((p, i) => (
+                    <figure key={i} className="mg-photo-item">
+                      <img src={p} alt="" />
+                      {i === 0 && photos.length > 1 && <span className="badge badge-purple mg-photo-cover">Cover</span>}
+                      <div className="mg-photo-tools">
+                        {i > 0 && <button type="button" className="icon-btn" title="Make this the cover" aria-label="Make this the cover"
+                          onClick={() => setList(l => [l[i], ...l.filter((_, j) => j !== i)])}><Icon name="chevron-left" size={14} /></button>}
+                        <button type="button" className="icon-btn" title="Remove" aria-label="Remove this photo"
+                          onClick={() => setList(l => l.filter((_, j) => j !== i))}><Icon name="trash" size={14} /></button>
+                      </div>
+                    </figure>
+                  ))}
+                </div>
+              : <span className="caption">No photos. The first one shows on the home page card; all of them go in the email.</span>}
+          <input ref={file} type="file" accept="image/*" multiple hidden onChange={pick} />
+          {photos !== null && photos.length < MAX_NEWS_PHOTOS && (
+            <button type="button" className="btn-ghost-sm self-start" onClick={() => file.current.click()}>
+              <Icon name="camera" size={16} /> {photos.length ? 'Add more photos' : 'Add photos'}
+            </button>
+          )}
         </div>
         <label className="mg-check"><input type="checkbox" checked={!!a.pinned} onChange={e => set('pinned')(e.target.checked)} /> Pin to the top of the home page</label>
         {!initial.id && (
@@ -230,7 +255,7 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
         <div className="pp-section-foot">
           {initial.id && <button type="button" className="btn btn-danger-ghost mg-left" onClick={remove} disabled={busy}>Delete</button>}
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>{busy ? 'Saving…' : initial.id ? 'Save' : 'Post'}</button>
+          <button type="submit" className="btn btn-primary" disabled={busy || photos === null}>{busy ? 'Saving…' : initial.id ? 'Save' : 'Post'}</button>
         </div>
       </form>
     </Dialog>
@@ -394,7 +419,7 @@ function PasteEmail({ ctx, list, onDone }) {
                 <div className="mg-match">
                   <span className="caption">
                     {d.updating
-                      ? <>Will update “{d.match.title}” ({shortDate(d.match.date)}) with this text. Its pin and photo stay.</>
+                      ? <>Will update “{d.match.title}” ({shortDate(d.match.date)}) with this text. Its pin and photos stay.</>
                       : <>Looks like “{d.match.title}”, posted {shortDate(d.match.date)}.</>}
                   </span>
                   {d.updating
@@ -447,7 +472,7 @@ function ExportEmail({ ctx, list, onDone }) {
   const chosen = inRange.filter(a => !off.includes(a.id))
 
   useEffect(() => {
-    for (const a of chosen) if (a.hasPhoto && !(a.id in photos)) loadPhoto(a.id).then(p => setPhotos(x => ({ ...x, [a.id]: p })))
+    for (const a of chosen) if (photoCountOf(a) && !(a.id in photos)) loadPhotos(a).then(p => setPhotos(x => ({ ...x, [a.id]: p })))
   }, [chosen.map(a => a.id).join()])
 
   const email = buildEmail(chosen, { groupBy, greeting, signoff, photos: withPhotos ? photos : {} })

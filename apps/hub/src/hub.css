@@ -198,6 +198,10 @@ a.search-hit:hover { text-decoration: none; }
 .news-card { overflow: hidden; display: flex; flex-direction: column; }
 .news-photo { position: relative; height: 190px; background: var(--chs-black-05); flex: 0 0 auto; }
 .news-photo img { width: 100%; height: 100%; object-fit: cover; }
+.news-photo-btn { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.news-photo-more { position: absolute; right: 12px; bottom: 12px; display: inline-flex; align-items: center; gap: 4px; background: rgba(0, 0, 0, .65); color: var(--chs-white); }
+.news-gallery { display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow-y: auto; }
+.news-gallery img { width: 100%; border-radius: var(--radius-md); }
 .news-pin { position: absolute; top: 12px; left: 12px; }
 .news-body { display: flex; flex-direction: column; gap: 8px; padding: 16px 18px 18px; flex: 1; }
 .news-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -444,7 +448,12 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 .mg-check { display: flex; align-items: flex-start; gap: 10px; font: var(--type-body-sm); color: var(--text-body); cursor: pointer; }
 .mg-check input { margin-top: 3px; width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--chs-purple); }
 .mg-photo { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--border-hairline); border-radius: var(--radius-md); }
-.mg-photo img { max-height: 220px; max-width: 100%; align-self: flex-start; border-radius: var(--radius-md); object-fit: cover; }
+.mg-photos { display: flex; flex-wrap: wrap; gap: 10px; }
+.mg-photo-item { position: relative; margin: 0; }
+.mg-photo-item img { display: block; height: 140px; width: auto; max-width: 220px; border-radius: var(--radius-md); object-fit: cover; }
+.mg-photo-cover { position: absolute; top: 6px; left: 6px; }
+.mg-photo-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; }
+.mg-photo-tools .icon-btn { width: 28px; height: 28px; background: var(--chs-white); box-shadow: var(--shadow-card); }
 .mg-left { margin-right: auto; }
 .mg-suggest-box { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius-md); background: var(--surface-subtle, var(--chs-black-05)); }
 .mg-suggestions { display: flex; flex-direction: column; gap: 14px; }

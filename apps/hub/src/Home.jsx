@@ -7,8 +7,8 @@ import { firstNameOf } from '../../../shared/session.js'
 import Calendar from './Calendar.jsx'
 import Icon from './Icon.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
-import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, mergeNews, teamNews } from './news.js'
-import { Linked } from './ui.jsx'
+import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, loadPhotos, mergeNews, photoCountOf, teamNews } from './news.js'
+import { Dialog, Linked } from './ui.jsx'
 import {
   hostOf, markUsed, newsImage,
   openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
@@ -169,16 +169,32 @@ function Glance({ today }) {
 function NewsCard({ a }) {
   const [more, setMore] = useState(false)
   const [photo, setPhoto] = useState('')
-  useEffect(() => { if (a.hasPhoto) loadPhoto(a.id).then(setPhoto) }, [a.id, a.hasPhoto])
+  const [gallery, setGallery] = useState(null)
+  const count = photoCountOf(a)
+  useEffect(() => { if (count) loadPhoto(a.id).then(setPhoto) }, [a.id, count])
   const cat = categoryOf(a)
   const img = photo || newsImage(a)
   const long = (a.body || '').length > 220
+  const openGallery = () => { setGallery([]); loadPhotos(a).then(setGallery) }
   return (
     <article className="card news-card">
       <div className={img ? "news-photo" : "news-photo news-photo-empty"}>
-        {img && <img src={img} alt="" loading="lazy" />}
+        {img && (count > 1
+          ? <button type="button" className="news-photo-btn" onClick={openGallery} aria-label={`See all ${count} photos`}>
+              <img src={img} alt="" loading="lazy" />
+              <span className="badge news-photo-more"><Icon name="camera" size={14} /> +{count - 1}</span>
+            </button>
+          : <img src={img} alt="" loading="lazy" />)}
         {a.pinned && <span className="badge badge-orange-solid news-pin">Pinned</span>}
       </div>
+      {gallery && (
+        <Dialog title={a.title} onClose={() => setGallery(null)} wide>
+          <div className="news-gallery">
+            {gallery.length ? gallery.map((p, i) => <img key={i} src={p} alt="" />) : <span className="caption">Loading photos…</span>}
+          </div>
+          <div className="pp-section-foot"><button className="btn btn-secondary" onClick={() => setGallery(null)}>Close</button></div>
+        </Dialog>
+      )}
       <div className="news-body">
         <div className="news-meta">
           <span className={`badge badge-${TONE[cat]}`}>{cat}</span>

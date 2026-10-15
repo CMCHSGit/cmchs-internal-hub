@@ -2,9 +2,11 @@
 // exported as a team-wide email.
 //
 //   announcements/{id}       title, body, category, section, regions, people,
-//                            pinned, date, author, authorUid, batchId, hasPhoto
-//   announcementPhotos/{id}  the photo (a JPEG data URL), kept apart so the home
-//                            page only downloads the ones it shows
+//                            pinned, date, author, authorUid, batchId, hasPhoto,
+//                            photoCount
+//   announcementPhotos/{id}  the first photo (a JPEG data URL), kept apart so the
+//                            home page only downloads the ones it shows; any more
+//                            are {id}-2, {id}-3 … up to MAX_NEWS_PHOTOS
 //
 // Everyone signed in reads them; anyone on a team (the same people who edit
 // the project tracker) or an admin posts; the author, an admin or HR edits
@@ -118,7 +120,7 @@ const H = color => `font-family:Calibri,Arial,sans-serif;font-size:14pt;font-wei
 /**
  * Selected announcements -> the body of the team-wide email, as HTML (pastes
  * into Outlook with its formatting) and plain text.
- * opts: { groupBy: 'section'|'region', greeting, signoff, photos: { [id]: dataUrl } }
+ * opts: { groupBy: 'section'|'region', greeting, signoff, photos: { [id]: dataUrl | dataUrl[] } }
  */
 export function buildEmail(items, { groupBy = 'section', greeting = 'Hi All,', signoff = '', photos = {} } = {}) {
   const sorted = [...items].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || (b.date || '').localeCompare(a.date || ''))
@@ -131,7 +133,7 @@ export function buildEmail(items, { groupBy = 'section', greeting = 'Hi All,', s
   for (const a of features) {
     html.push(`<p style="${H('#554596')}">${esc(a.title)}</p>`)
     if (a.body) html.push(`<p style="${FONT};margin:0 0 8px">${htmlText(a.body)}</p>`)
-    if (photos[a.id]) html.push(`<p style="margin:0 0 8px"><img src="${photos[a.id]}" alt="" width="480" style="max-width:480px;border-radius:6px"></p>`)
+    for (const p of [photos[a.id] || []].flat()) html.push(`<p style="margin:0 0 8px"><img src="${p}" alt="" width="480" style="max-width:480px;border-radius:6px"></p>`)
     text.push(a.title.toUpperCase(), ...(a.body ? [a.body] : []), '')
   }
 
@@ -229,6 +231,12 @@ export async function loadNews() {
   }
 }
 
+/** How many photos an announcement has (older ones only say hasPhoto). */
+export const photoCountOf = a => (Number.isFinite(a.photoCount) ? a.photoCount : a.hasPhoto ? 1 : 0)
+// The first photo is announcementPhotos/{id}, the rest {id}-2, {id}-3 …
+const photoDoc = (id, i) => (i ? `${id}-${i + 1}` : id)
+
+/** The first (cover) photo, by document id. */
 export async function loadPhoto(id) {
   if (photoCache.has(id)) return photoCache.get(id)
   let photo = ''
@@ -242,6 +250,12 @@ export async function loadPhoto(id) {
   }
   photoCache.set(id, photo)
   return photo
+}
+
+/** All of an announcement's photos, in order. */
+export async function loadPhotos(a) {
+  const all = await Promise.all(Array.from({ length: photoCountOf(a) }, (_, i) => loadPhoto(photoDoc(a.id, i))))
+  return all.filter(Boolean)
 }
 
 const clean = (v, max) => String(v ?? '').trim().slice(0, max)
@@ -260,35 +274,56 @@ function record(a, me) {
     batchId: a.batchId || '',
     author: a.author || me.displayName || me.email || '',
     authorUid: a.authorUid || me.uid,
-    hasPhoto: !!a.hasPhoto,
+    hasPhoto: photoCountOf(a) > 0,
+    photoCount: photoCountOf(a),
     // A photo by address instead (announcements.json's "news/x.jpg", or a URL)
     image: clean(a.image, 500),
   }
 }
 
+export const MAX_NEWS_PHOTOS = 6
+
 /**
- * Saves one announcement (new when it has no id). `photo`: a data URL to
- * set, '' to remove, undefined to leave alone. Returns the saved record.
+ * Saves one announcement (new when it has no id). `photos`: the full list of
+ * data URLs, in order ([] for none), or undefined to leave them alone. Only
+ * the photos that changed are uploaded. Returns the saved record.
  */
-export async function saveAnnouncement(me, a, photo) {
+export async function saveAnnouncement(me, a, photos) {
   if (!clean(a.title, 200)) throw new Error('Give it a title.')
-  const hasPhoto = photo === undefined ? !!a.hasPhoto : !!photo
+  const before = photoCountOf(a)
+  const list = photos === undefined ? null : photos.slice(0, MAX_NEWS_PHOTOS)
+  const photoCount = list ? list.length : before
+  const old = list && a.id ? await loadPhotos(a) : []
   if (devMode) {
     const id = a.id || Math.random().toString(36).slice(2)
-    const rec = record({ ...a, hasPhoto }, me)
+    const rec = record({ ...a, photoCount }, me)
     local.news.set(id, rec)
-    if (photo !== undefined) { photo ? local.photos.set(id, photo) : local.photos.delete(id); photoCache.delete(id) }
+    if (list) {
+      for (let i = 0; i < Math.max(before, list.length); i++) {
+        const key = photoDoc(id, i)
+        i < list.length ? local.photos.set(key, list[i]) : local.photos.delete(key)
+        photoCache.delete(key)
+      }
+    }
     return { id, ...rec }
   }
   const { f, db } = await fs()
   const ref = a.id ? f.doc(db, 'announcements', a.id) : f.doc(f.collection(db, 'announcements'))
-  const rec = record({ ...a, hasPhoto }, me)
+  const rec = record({ ...a, photoCount }, me)
   const batch = f.writeBatch(db)
   batch.set(ref, { ...rec, updatedAt: f.serverTimestamp(), ...(a.id && !a.legacy ? {} : { createdAt: f.serverTimestamp() }) }, { merge: true })
-  if (photo) batch.set(f.doc(db, 'announcementPhotos', ref.id), { photo })
-  else if (photo === '') batch.delete(f.doc(db, 'announcementPhotos', ref.id))
+  const touched = []
+  if (list) {
+    for (let i = 0; i < Math.max(before, list.length); i++) {
+      const key = photoDoc(ref.id, i)
+      if (i >= list.length) batch.delete(f.doc(db, 'announcementPhotos', key))
+      else if (list[i] !== old[i]) batch.set(f.doc(db, 'announcementPhotos', key), { photo: list[i] })
+      else continue
+      touched.push(key)
+    }
+  }
   await batch.commit()
-  photoCache.delete(ref.id)
+  touched.forEach(k => photoCache.delete(k))
   return { id: ref.id, ...rec }
 }
 
@@ -309,13 +344,14 @@ export async function postDrafts(me, drafts, { date, weekOf }) {
 export async function deleteAnnouncement(a) {
   // One moved from announcements.json is kept as a marker, or the JSON copy would show again.
   const inJson = legacy.some(x => x.id === a.id)
-  if (devMode) { inJson ? local.news.set(a.id, { ...local.news.get(a.id), deleted: true }) : local.news.delete(a.id); local.photos.delete(a.id); return }
+  const photoKeys = Array.from({ length: photoCountOf(a) }, (_, i) => photoDoc(a.id, i))
+  if (devMode) { inJson ? local.news.set(a.id, { ...local.news.get(a.id), deleted: true }) : local.news.delete(a.id); photoKeys.forEach(k => local.photos.delete(k)); return }
   const { f, db } = await fs()
   const batch = f.writeBatch(db)
   const ref = f.doc(db, 'announcements', a.id)
-  if (inJson) batch.set(ref, { deleted: true, pinned: false, updatedAt: f.serverTimestamp() }, { merge: true })
+  if (inJson) batch.set(ref, { deleted: true, pinned: false, photoCount: 0, hasPhoto: false, updatedAt: f.serverTimestamp() }, { merge: true })
   else batch.delete(ref)
-  if (a.hasPhoto) batch.delete(f.doc(db, 'announcementPhotos', a.id))
+  for (const k of photoKeys) batch.delete(f.doc(db, 'announcementPhotos', k))
   await batch.commit()
 }
 

@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildEmail, findSimilar, linkParts, mergeNews, mondayOf, sortNews, teamNews } from '../src/news.js'
+import { buildEmail, findSimilar, linkParts, mergeNews, mondayOf, photoCountOf, sortNews, teamNews } from '../src/news.js'
 import { andList, suggestFromProjects } from '../src/suggest.js'
 import { feedbackSummary, sortRequests } from '../src/requests.js'
 
@@ -75,6 +75,14 @@ test('the email: features first, then the two lists; everything escaped', () => 
   assert.match(html, /Dev was in &lt;Invercargill&gt;/)
   assert.match(html, /<a href="https:\/\/x.org\/j"/)
   assert.equal(text, 'Hi All,\n\nSTEPUP4ICU\nJoin: https://x.org/j\n\nThe week that’s been:\n• Dev was in <Invercargill>\n\nNext week:\n• Kai is in Gisborne\n\nCheers\n')
+})
+
+test('the email takes one photo or several per post; older posts count their one photo', () => {
+  const { html } = buildEmail([item('f', { category: 'Events' }), item('g', { category: 'Events' })], { photos: { f: ['data:1', 'data:2'], g: 'data:3' } })
+  assert.equal(html.match(/<img /g).length, 3)
+  assert.equal(photoCountOf({ hasPhoto: true }), 1)
+  assert.equal(photoCountOf({ hasPhoto: true, photoCount: 4 }), 4)
+  assert.equal(photoCountOf({}), 0)
 })
 
 test('the email grouped by region: one region each, "On the road" for several, next week marked', () => {
