@@ -99,6 +99,11 @@ function inTab(o, tab) {
   return tab === 'Received' && !!o.receivedDate && o.stage !== 'In progress' && o.stage !== 'CHS spare parts order'
 }
 
+const STAGE_CLASS = {
+  'In progress': 's-progress', Received: 's-received', 'Ready for shipping': 's-shipping',
+  'Completed or sent back': 's-done', 'CHS spare parts order': 's-spare',
+}
+
 const isLate = (o) => (daysWaiting(o) ?? 0) >= LATE_DAYS
 
 // ── filtering and sorting ─────────────────────────────────────────────────
@@ -153,7 +158,7 @@ function renderTiles() {
 function row(o) {
   const wait = daysWaiting(o)
   const waitPill = wait != null && wait >= LATE_DAYS ? ` <span class="pill p-late">${wait} days</span>` : ''
-  const stagePill = o.stage !== view ? `<span class="small"><span class="pill p-stage">${esc(o.stage)}</span></span>` : ''
+  const stagePill = o.stage !== view ? `<span class="small"><span class="pill p-stage ${STAGE_CLASS[o.stage] || ''}">${esc(o.stage)}</span></span>` : ''
   const ret = o.needReturn ? `<span class="pill ${o.needReturn === 'YES' ? 'p-yes' : 'p-no'}">${o.needReturn}</span>` : ''
   const more = [o.oldSo && `Old SO ${o.oldSo}`, o.extraNotes].filter(Boolean).join('\n')
   return `
