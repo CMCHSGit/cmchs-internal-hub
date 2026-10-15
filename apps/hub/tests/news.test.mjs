@@ -26,6 +26,11 @@ test('Firestore replaces a legacy JSON entry with the same id', () => {
   assert.equal(merged.find(a => a.id === 'y').legacy, true)
 })
 
+test('a deleted legacy entry stays gone', () => {
+  const merged = mergeNews([item('x', { deleted: true })], [{ id: 'x', title: 'From JSON' }])
+  assert.deepEqual(merged, [])
+})
+
 test('teamNews shows only the newest week, split by section, with the regions in it', () => {
   const t = teamNews([
     item('old', { weekOf: '2026-10-05', section: 'been' }),

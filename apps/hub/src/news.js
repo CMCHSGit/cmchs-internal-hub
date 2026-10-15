@@ -41,10 +41,13 @@ export function sortNews(list) {
     (b.pinned === true) - (a.pinned === true) || (b.date || '').localeCompare(a.date || '') || (a.order ?? 0) - (b.order ?? 0))
 }
 
-/** Firestore's announcements plus the legacy JSON ones it doesn't replace. */
+/**
+ * Firestore's announcements plus the legacy JSON ones it doesn't replace. A
+ * deleted JSON one stays in Firestore marked `deleted`, so it doesn't come back.
+ */
 export function mergeNews(stored, old = legacy) {
   const ids = new Set(stored.map(a => a.id))
-  return sortNews([...stored, ...old.filter(a => !ids.has(a.id)).map(a => ({ ...a, legacy: true, regions: [], people: [] }))])
+  return sortNews([...stored.filter(a => !a.deleted), ...old.filter(a => !ids.has(a.id)).map(a => ({ ...a, legacy: true, regions: [], people: [] }))])
 }
 
 /** What the home page's Team news panel shows: the newest week of Team news, split by section. */
@@ -279,10 +282,14 @@ export async function postDrafts(me, drafts, { date, weekOf }) {
 }
 
 export async function deleteAnnouncement(a) {
-  if (devMode) { local.news.delete(a.id); local.photos.delete(a.id); return }
+  // One moved from announcements.json is kept as a marker, or the JSON copy would show again.
+  const inJson = legacy.some(x => x.id === a.id)
+  if (devMode) { inJson ? local.news.set(a.id, { ...local.news.get(a.id), deleted: true }) : local.news.delete(a.id); local.photos.delete(a.id); return }
   const { f, db } = await fs()
   const batch = f.writeBatch(db)
-  batch.delete(f.doc(db, 'announcements', a.id))
+  const ref = f.doc(db, 'announcements', a.id)
+  if (inJson) batch.set(ref, { deleted: true, pinned: false, updatedAt: f.serverTimestamp() }, { merge: true })
+  else batch.delete(ref)
   if (a.hasPhoto) batch.delete(f.doc(db, 'announcementPhotos', a.id))
   await batch.commit()
 }
