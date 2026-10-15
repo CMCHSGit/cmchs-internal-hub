@@ -459,7 +459,8 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 .mg-date { width: 170px; }
 .mg-drafts { display: flex; flex-direction: column; gap: 8px; }
 .mg-draft { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; }
-.mg-draft.off { opacity: .55; }
+/* Unticked: faded, except "Looks like an existing post", which is still something to act on. */
+.mg-draft.off .mg-draft-check, .mg-draft.off .mg-draft-tools, .mg-draft.off .mg-draft-main > :not(.mg-match) { opacity: .55; }
 .mg-draft-check { margin-top: 11px; width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--chs-purple); }
 .mg-draft-main { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
 .mg-draft-title { font-weight: 600; }
