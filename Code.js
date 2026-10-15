@@ -1154,7 +1154,8 @@ function notifyAsk_(payload) {
   });
   Logger.log('notifyAsk_: ' + ev.type + ', ' + to.length + ' to tell; push ' + pushed + ' sent/' + failed + ' failed; email ' +
     (emailOn ? emailed + ' sent' : 'off (Resend not set up)') + '; ' + unreached + ' not reached.');
-  return respond({ success: true, pushed: pushed, emailed: emailed });
+  // Counts only, for the "Notified 2 people on 3 phones" line in Asks.
+  return respond({ success: true, people: to.length, pushed: pushed, failed: failed, emailed: emailed, unreached: unreached });
 }
 
 // Run from the editor after the IAM roles are granted. Sends nothing to
