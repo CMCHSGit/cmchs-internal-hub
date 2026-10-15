@@ -22,6 +22,17 @@
     "visible": true
   },
   {
+    "id": "asks",
+    "name": "Asks",
+    "short": "Asks",
+    "description": "Ask a colleague for something. Whoever can do it picks it up, and everyone sees who has it",
+    "link": "/asks/",
+    "category": "Everyday",
+    "icon": "inbox",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "service-orders",
     "name": "Service Orders",
     "short": "Service orders",

@@ -1,0 +1,61 @@
+# 8:30am NZ, Monday to Friday: a push to everyone with open asks ("You have
+# 3 open asks"), or an email if they have no phone set up and Resend is set
+# up. Nobody with nothing to do hears anything. apps/asks/scripts/summary.mjs
+# does the work; an admin can switch a person off on the hub's Admin
+# settings → Notifications.
+#
+# GitHub's timers are UTC and New Zealand has daylight saving, so this fires at
+# 19:30 and 20:30 UTC (Sunday to Thursday UTC = Monday to Friday in NZ) and the
+# script only carries on for whichever is 8:30 in Auckland that day.
+#
+# Run it by hand (Actions -> Asks morning summary -> Run workflow) to test: it
+# is a dry run unless you untick it, printing the counts it would send.
+#
+# This repo is public and so are its run logs: summary.mjs only ever prints
+# counts, never names or emails.
+name: Asks morning summary
+
+on:
+  schedule:
+    - cron: '30 19 * * 0-4' # 08:30 NZDT (daylight saving, late Sep to early Apr)
+    - cron: '30 20 * * 0-4' # 08:30 NZST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: count who would get a summary, send nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: asks-summary
+  cancel-in-progress: false
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # Full install: firebase-admin is a dev dependency of apps/schedule.
+      - run: npm ci
+      - run: node apps/asks/scripts/summary.mjs
+        env:
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          RESEND_API_KEY:        ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM:           ${{ secrets.RESEND_FROM }}
+          SCHEDULE:              ${{ github.event.schedule }}
+          DRY_RUN:               ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      # GitHub pauses timed workflows after 60 days without repo activity —
+      # re-enabling this one on every run keeps it alive.
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/asks-summary.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

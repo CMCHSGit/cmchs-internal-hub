@@ -3,7 +3,7 @@
 // tool with a new icon = add it to this map.
 import {
   ArrowRight, Bell, Building, Calculator, Camera, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
-  ChevronRight, ClipboardList, ClipboardPaste, Merge, Plus, Split, ThumbsUp, Trash2, ExternalLink, FileCheck, FileText, FolderKanban, GraduationCap, Headset, Laptop,
+  ChevronRight, ClipboardList, ClipboardPaste, Merge, Plus, Split, ThumbsUp, Trash2, ExternalLink, FileCheck, FileText, FolderKanban, GraduationCap, Headset, Inbox, Laptop,
   Link, Lock, LogOut, Mail, MapPin, MessageSquare, Package, Pencil, Phone, RefreshCw, Search, Settings, Stethoscope, User, UserPlus, Users,
   Wrench,
 } from 'lucide-react'
@@ -28,6 +28,7 @@ const ICONS = {
   'chevron-right': ChevronRight,
   'laptop': Laptop,
   'map-pin': MapPin,
+  'inbox': Inbox,
   'calculator': Calculator,
   'calendar-days': CalendarDays,
   'chart-line': ChartLine,

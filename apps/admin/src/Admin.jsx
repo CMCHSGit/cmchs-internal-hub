@@ -331,6 +331,9 @@ function TrackerRole({ person, tracker, onChange }) {
  *  - Demo tracker: loan reminders (starting soon, due back, overdue, action
  *    needed). accountManagers[].notify in the tracker's database; the Apps
  *    Script senders (chs-equipment .gas-proxy) skip anyone with it false.
+ *  - Asks: the 8:30am weekday "you have N open asks" summary.
+ *    users/{uid}.notifications.asksSummary; apps/asks/scripts/summary.mjs
+ *    skips anyone with it false. (Pushes about a single ask always go.)
  * Missing means on, so nobody's reminders changed when this arrived.
  *
  * A switch can only stop notifications. Getting them at all still needs the
@@ -355,18 +358,20 @@ function NotificationsTab() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  async function setScheduleReminder(person, on) {
+  async function setUserNotification(person, key, label, on) {
     const name = person.displayName || person.email
     try {
-      await updateDoc(doc(db, 'users', person.uid), { 'notifications.scheduleReminder': on })
+      await updateDoc(doc(db, 'users', person.uid), { ['notifications.' + key]: on })
     } catch (e) {
       console.error(e)
       return showToast('Could not save that — try again.')
     }
-    setUsers(prev => prev.map(u => u.uid === person.uid ? { ...u, notifications: { ...u.notifications, scheduleReminder: on } } : u))
+    setUsers(prev => prev.map(u => u.uid === person.uid ? { ...u, notifications: { ...u.notifications, [key]: on } } : u))
     showToast('Saved.')
-    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${name}'s staff schedule reminder in Admin.`)
+    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${name}'s ${label} in Admin.`)
   }
+  const setScheduleReminder = (person, on) => setUserNotification(person, 'scheduleReminder', 'staff schedule reminder', on)
+  const setAsksSummary = (person, on) => setUserNotification(person, 'asksSummary', 'Asks morning summary', on)
 
   async function setDemoReminders(member, on) {
     try {
@@ -408,6 +413,8 @@ function NotificationsTab() {
           Loan reminders: starting soon, due back, overdue and action needed. Account managers get their own loans’;
           Service &amp; Projects get the ones they handle. Set the role on the People tab.
         </p>
+        <h2 className="admin-side-title">Asks</h2>
+        <p className="text-sm text-muted">The 8:30am weekday summary of open asks, for anyone who has some. Pushes about a single ask always go to the people involved.</p>
         <h2 className="admin-side-title">Phones</h2>
         <p className="text-sm text-muted">
           A switch can only stop notifications. To get them at all, the person opens the Internal Hub on their phone
@@ -420,7 +427,7 @@ function NotificationsTab() {
         {users === null ? <Loading /> : (
           <div className="card admin-list admin-notify">
             <div className="admin-item admin-notify-head" aria-hidden="true">
-              <span>Name</span><span>Staff schedule reminder</span><span>Demo tracker reminders</span>
+              <span>Name</span><span>Staff schedule reminder</span><span>Demo tracker reminders</span><span>Asks summary</span>
             </div>
             {tracker.error && (
               <div className="admin-item"><span className="text-sm text-muted">Couldn’t load the demo tracker’s team ({tracker.error}), so its reminders aren’t shown.</span></div>
@@ -451,6 +458,12 @@ function NotificationsTab() {
                           <span className="text-sm text-muted">{demoPhones(u, m)}</span>
                         </>
                       : <span className="text-sm text-muted">{u.pending ? 'After they sign in' : 'Not on its team'}</span>}
+                  </div>
+                  <div className="admin-notify-cell">
+                    <span className="admin-notify-key">Asks summary</span>
+                    {u.pending
+                      ? <span className="text-sm text-muted">After they sign in</span>
+                      : <Switch checked={u.notifications?.asksSummary !== false} onChange={on => setAsksSummary(u, on)} label="Asks morning summary" />}
                   </div>
                 </div>
               )

@@ -15,6 +15,7 @@
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 | `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects` (Vite + React) |
+| `/asks/` | Asks: quick requests between staff. Send to people or whole teams; the first to pick it up has it, and everyone involved sees who | `apps/asks` (Vite + React) |
 
 ### Project tracker
 
@@ -25,12 +26,23 @@ Replaces the project team's two linked sheets (the job register and the weekly "
 - **Demo pool sizes** are typed in Settings until the demo tracker feed is connected (the Equipment view and job panels say so).
 - `npm run dev -w apps/projects` without a `.env` runs on a local stand-in with sample jobs (`src/backend-local.js`, never in a real build); two tabs act as two people. `npm test -w apps/projects` checks the dates, availability, clash and search logic (`src/model.js`).
 
+### Asks
+
+Instead of a text or another email: anyone raises an ask ("test the new mode on the A7 at Middlemore", "raise this with Mindray"), sends it to people and/or whole teams, and whoever can do it taps **I'll take it**. Everyone involved then sees who has it, and it leaves the others' lists. States: open (nobody has it), picked up, waiting (on a supplier, the customer…), done. Each ask has a comment thread with @mentions and photos from the phone (shrunk in the browser, stored in Firestore, so no Firebase Storage). Pages: My asks (to pick up, on it, asked, recently done), All, and Company (everyone's load).
+
+- **Who sees what** (`firestore.rules`, `canSeeAsk`): only the people involved — the asker, the people and teams it was sent to, whoever picked it up or was @mentioned (`people`) — plus admins. `askStats` mirrors the counts with no text, for the Company page, which everyone sees; its rule checks it matches the ask exactly.
+- **Data**: `asks/{id}` with `comments` and `photos` subcollections, and `askStats/{id}`. Fields are described in `apps/asks/src/model.js`.
+- **Push for each change**: the browser sends the ask's id to the Apps Script in `chs-equipment/.gas-proxy` (action `notifyAsk`; the same script that sends the hub's other pushes — Asks doesn't use Simpro). It reads the ask back, checks the change is the caller's and new, and pushes to the people concerned; anyone with no phone set up gets an email once `RESEND_API_KEY` and `RESEND_FROM` are in its Script Properties.
+- **8:30am weekday summary**: `.github/workflows/asks-summary.yml` runs `apps/asks/scripts/summary.mjs` (push, or email with the `RESEND_*` Actions secrets). Switch people off in Admin → Notifications.
+- `npm run dev -w apps/asks` without a `.env` runs on a local stand-in with made-up people; add `?as=mike` (or jess, sam, lee) to be someone else. `npm test -w apps/asks` checks who sees and owns what, the counts and the summary.
+
 ### Admin: one place for roles and notifications
 
 **People** sets each person's team, role and Simpro access (the shared `users` collection), and their **demo tracker role** (Account manager / Service & Projects), which lives in the tracker's own database (`accountManagers`, chs-equipment project). `apps/admin/src/tracker.js` reaches it the same way the tracker does: a database pass from the Simpro proxy (`rtdbToken`), then the REST API, saving with an ETag check so a save from the tracker is never overwritten.
 
 **Notifications** has a switch per person per tool, plus how many phones each has turned notifications on for. Missing means on.
 - Staff schedule Thursday reminder: `users/{uid}.notifications.scheduleReminder`; `scripts/remind.mjs` (cmchs-staff-schedule repo) skips anyone with it false.
+- Asks 8:30am summary: `users/{uid}.notifications.asksSummary`; `apps/asks/scripts/summary.mjs` skips anyone with it false.
 - Demo tracker loan reminders: `accountManagers[].notify`; the Apps Script senders (chs-equipment `.gas-proxy`, `sendPushToPerson_`) skip anyone with it false. Test sends still go through.
 
 A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone. The hub home offers that on phones, until that phone is on (`apps/hub/src/PushPrompt.jsx`).

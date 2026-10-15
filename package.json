@@ -10,7 +10,8 @@
     "apps/maintenance",
     "apps/service-orders",
     "apps/admin",
-    "apps/projects"
+    "apps/projects",
+    "apps/asks"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

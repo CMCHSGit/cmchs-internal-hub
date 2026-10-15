@@ -39,7 +39,7 @@ header.tool-header h1 { font-family: var(--font-display); font-weight: var(--wei
   .admin-people .admin-controls select, .admin-people .admin-controls .input { width: 100% !important; }
   .admin-people .admin-tracker { display: block; }
   .admin-people-head { display: grid; padding-top: 10px; padding-bottom: 10px; background: var(--surface-subtle); }
-  .admin-notify .admin-item { display: grid; grid-template-columns: minmax(0, 1fr) 230px 230px; gap: 12px; }
+  .admin-notify .admin-item { display: grid; grid-template-columns: minmax(0, 1fr) 210px 210px 130px; gap: 12px; }
   .admin-notify .admin-notify-sub { display: block; }
   .admin-notify-key { display: none; }
   .admin-notify-head { display: grid; padding-top: 10px; padding-bottom: 10px; }
