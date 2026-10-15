@@ -218,10 +218,12 @@ function nextFor(o) {
 function editMsg(text, kind = '') { $('editMsg').textContent = text; $('editMsg').className = 'msg' + (kind ? ' ' + kind : '') }
 
 /** `auto` lists the fields the parser filled, so they get highlighted for checking. */
+/** With both `order` and `prefill`, it's a re-pasted service order: the pasted fields go over the saved ones. */
 function openEdit(order, prefill = null, auto = []) {
   editing = order || null
-  const o = order || { stage: STAGES[0], ...prefill }
-  $('editTitle').textContent = order ? `S.O ${order.so || '(no number)'}` : prefill ? 'New from service order' : 'New service order'
+  const o = order ? { ...order, ...prefill } : { stage: STAGES[0], ...prefill }
+  $('editTitle').textContent = order && prefill ? `Update S.O ${order.so} from service order`
+    : order ? `S.O ${order.so || '(no number)'}` : prefill ? 'New from service order' : 'New service order'
   $('e-stage').innerHTML = STAGES.map((s) => `<option>${esc(s)}</option>`).join('')
   for (const f of EDIT_FIELDS) {
     const el = $('e-' + f)
@@ -235,15 +237,17 @@ function openEdit(order, prefill = null, auto = []) {
 
   editMsg('')
   if (!canEdit) editMsg('You have read-only access — ask an admin, or the Engineers or Management team, to make changes.')
-  else if (prefill) {
-    const dup = o.so && orders.find((x) => x.so === o.so)
-    editMsg(dup
-      ? `S.O ${o.so} is already in ${dup.stage}. Saving will add a second copy.`
-      : `${auto.length} of ${AUTO_FIELDS.length} fields found — green ones came from the service order.`, dup ? 'warn' : '')
+  else if (prefill && order) {
+    editMsg(auto.length
+      ? `S.O ${order.so} is already on the list (${order.stage}) — saving updates it. ${auto.length} ${auto.length === 1 ? 'field' : 'fields'} changed by the service order, in green.`
+      : `S.O ${order.so} is already on the list (${order.stage}) and the service order matches it — nothing new.`)
+    lookUpJob(o.sn, true)
+  } else if (prefill) {
+    editMsg(`${auto.length} of ${AUTO_FIELDS.length} fields found — green ones came from the service order.`)
     // The serial is usually enough to identify the Simpro job, so look it up
     // rather than asking someone to go and find the number. Fire and forget:
     // the dialog is already usable, and this must not hold up saving.
-    lookUpJob(o.sn, dup)
+    lookUpJob(o.sn, false)
   }
   $('edit').showModal()
 }
@@ -354,7 +358,16 @@ $('pasteGo').addEventListener('click', () => {
     return
   }
   $('paste').close()
-  openEdit(null, order, auto)
+
+  // Pasting an S.O that's already here updates it rather than adding a second
+  // copy. Only what the service order actually says goes over the saved
+  // record: a blank parsed field never wipes a value, and the fields only we
+  // keep (stage, job, received date, notes added here) are left alone.
+  const existing = order.so && orders.filter((x) => x.so === order.so)
+    .sort((a, b) => (b.updatedAt?.seconds ?? 0) - (a.updatedAt?.seconds ?? 0))[0]
+  if (!existing) return openEdit(null, order, auto)
+  const changed = Object.fromEntries(auto.filter((k) => order[k] !== (existing[k] || '')).map((k) => [k, order[k]]))
+  openEdit(existing, changed, Object.keys(changed))
 })
 
 // ── CSV out ───────────────────────────────────────────────────────────────
