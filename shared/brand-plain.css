@@ -1,0 +1,51 @@
+/* The company's colours and fonts for the plain (non-React) tools: Service
+   Orders, Maintenance, SimproSync and Ansur. They were built with their own
+   palettes (SimproSync blue, Ansur teal) and Segoe UI; this maps the tokens
+   they all use onto the CHS design system, so every tool matches the hub.
+   The React tools (schedule, projects, asks, admin) use the design system
+   directly and don't need this.
+
+   Each tool defines its tokens in its own index.html, and this file can load
+   before or after that, so the selectors carry extra weight (:root:root) to
+   win either way. Pass / fail / warning colours are left alone: they carry
+   meaning, and each tool already has readable light and dark versions. */
+@import './tokens/fonts.css';
+
+:root:root:not([data-theme="dark"]) {
+  --bg: #f4f4f5;
+  --card: #ffffff;
+  --surface: #ffffff;
+  --ink: #1d1d1d;
+  --muted: #747577;
+  --line: #d1d3d4;
+  --line-soft: #e8e9ea;
+  --accent: #554596;
+  --accent-ink: #ffffff;
+  --accent-soft: #dbd7ed;
+  --info: #554596;
+  --info-soft: #dbd7ed;
+  --drop: #f1effa;
+}
+
+:root:root[data-theme="dark"] {
+  --bg: #161618;
+  --card: #1f1f22;
+  --surface: #1f1f22;
+  --ink: #f4f4f5;
+  --muted: #a7a9ac;
+  --line: #3a3a3f;
+  --line-soft: #2c2c30;
+  --accent: #968ac1;
+  --accent-ink: #13101f;
+  --accent-soft: #332c55;
+  --info: #b9b0e0;
+  --info-soft: #2c2649;
+  --drop: #24203a;
+}
+
+html body {
+  font-family: "Source Sans 3", "Myriad Pro", system-ui, -apple-system, sans-serif;
+}
+html body h2, html body h3 {
+  font-family: "Titillium Web", "Source Sans 3", system-ui, sans-serif;
+}

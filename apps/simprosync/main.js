@@ -10,6 +10,7 @@ import { auth, db, microsoftProvider } from '../schedule/src/firebase.js'
 import { registerServiceWorker } from '../../shared/register-sw.js'
 import { startApp } from './app.js'
 import '../../shared/tool-chrome.css'
+import '../../shared/brand-plain.css'
 import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 // Same Apps Script web app the equipment tracker uses (chs-equipment/index.html, SIMPRO_PROXY_URL).

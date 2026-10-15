@@ -16,6 +16,7 @@ import {
 } from './store.js'
 import { readWorkbook } from './import.js'
 import '../../shared/tool-chrome.css'
+import '../../shared/brand-plain.css'
 import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 registerServiceWorker()

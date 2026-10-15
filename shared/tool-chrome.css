@@ -2,41 +2,53 @@
    Imported by every tool so the header, back button and theme switch look and
    behave the same in all of them.
 
-   It deliberately styles layout only and reads colour from each tool's own
-   tokens. The tools were built separately and their palettes differ in the
-   details; forcing one palette on all of them would be a redesign, not a
-   consistency pass. Every tool defines --bg, --ink, --muted, --line, --accent
-   and --accent-ink, so those are all this relies on. --card is the odd one out
-   (Ansur calls it --surface), hence the fallback chain. */
+   Colours come from each tool's tokens (--bg, --ink, --muted, --line,
+   --accent, --accent-ink; --card, which Ansur calls --surface). The plain
+   tools map those onto the company palette with shared/brand-plain.css; the
+   React tools use the design system's tokens directly. */
 
 /* The back-to-hub pill (shared with the staff schedule). */
 @import './hub-back.css';
 
+/* The same bar as the hub's: 64px, white, the brand tricolour underneath. */
 header.tool-header {
   display: flex;
-  align-items: baseline;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 16px 24px 14px;
-  background: var(--card, var(--surface, var(--bg)));
-  border-bottom: 1px solid var(--line);
+  align-items: center;
+  gap: 16px;
+  /* One line: a long subtitle trims with "…" rather than pushing things down */
+  flex-wrap: nowrap;
+  min-height: 68px;
+  padding: 8px 24px 12px;
+  background:
+    linear-gradient(90deg, #554596 0 33.34%, #80bd01 33.34% 66.67%, #ef7d00 66.67%) bottom / 100% 4px no-repeat,
+    var(--card, var(--surface, var(--bg)));
+  border-bottom: 0;
 }
+/* The tool's name: the hub header's "Internal Hub" style */
 header.tool-header h1 {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.25;
+  font: 600 18px/1.25 "Source Sans 3", "Myriad Pro", system-ui, sans-serif;
+  color: var(--ink, var(--text-strong));
+  white-space: nowrap;
 }
-/* Level with the top of the title, even when the subtitle wraps. */
-header.tool-header .hub-back { align-self: flex-start; }
 header.tool-header .sub {
-  color: var(--muted);
-  font-size: 13px;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  max-width: none;
+  color: var(--muted, var(--text-muted));
+  font: 400 13px/1.3 "Source Sans 3", "Myriad Pro", system-ui, sans-serif;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* Pushes everything after it to the right. A separate element rather than
    margin-left:auto on the actions, because tools put different things here. */
 header.tool-header .tool-spacer { flex: 1 1 auto; }
 header.tool-header .tool-actions {
   margin-left: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -67,9 +79,8 @@ header.tool-header .tool-actions {
 :root[data-theme="dark"] .theme-toggle .sun { display: block; }
 :root[data-theme="dark"] .theme-toggle .moon { display: none; }
 
-@media (max-width: 760px) {
-  header.tool-header { padding: 12px 14px 10px; gap: 10px; }
-  header.tool-header h1 { font-size: 18px; }
+@media (max-width: 759px) {
+  header.tool-header { min-height: 60px; padding: 8px 14px 12px; gap: 10px; }
   /* The subtitle is the first thing worth losing on a phone. */
-  header.tool-header .sub { flex: 1 1 100%; }
+  header.tool-header .sub { display: none; }
 }

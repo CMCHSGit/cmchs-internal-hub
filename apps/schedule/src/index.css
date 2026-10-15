@@ -313,8 +313,6 @@ textarea.input { resize: vertical; min-height: 76px; }
 .app-header { position: sticky; top: 0; z-index: 30; background: var(--surface-page); padding-top: env(safe-area-inset-top); }
 .app-header-row { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 56px; }
 .app-brand { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; color: inherit; }
-/* Phones: the hub pill stands in for the logo, so no logo and no divider. */
-.app-brand .brand-home, .app-brand .brand-divider { display: none; }
 /* The logo is its own link (up to the hub), the app name is another (this
    app's home) — two targets in what still reads as one brand block. */
 .brand-home { display: flex; align-items: center; color: inherit; border-radius: var(--radius-md); }
@@ -352,9 +350,9 @@ textarea.input { resize: vertical; min-height: 76px; }
 .page-sub { font: var(--type-body-sm); color: var(--text-muted); }
 
 @media (min-width: 760px) {
-  .app-header-row { gap: 24px; padding: 4px 24px 0; min-height: 68px; }
-  .app-brand .brand-home { display: flex; }
-  .app-brand .brand-divider { display: block; }
+  /* 64px + the 4px stripe: the same height as the hub's and every tool's header */
+  .app-header-row { gap: 24px; padding: 0 24px; min-height: 64px; }
+  .app-brand { gap: 16px; }
   .header-tabs { display: flex; gap: 24px; align-self: flex-end; }
   .header-tab {
     padding: 10px 0 12px; margin-bottom: 0; border-bottom: 3px solid transparent;

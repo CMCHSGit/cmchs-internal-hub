@@ -12,6 +12,7 @@
    Simpro key never reaches the page. */
 
 import '../../shared/tool-chrome.css'
+import '../../shared/brand-plain.css'
 import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'

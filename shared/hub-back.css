@@ -1,21 +1,28 @@
-/* The "‹ Internal Hub" pill: the way back to the hub from every tool.
+/* The left end of every tool's header, the same everywhere, left to right:
 
-   One look everywhere, taken from the demo tracker's (whose own copy lives in
-   the chs-equipment repo, because it is also served from demo.chsnz.co.nz).
-   Imported by shared/tool-chrome.css for the service tools, and directly by
-   the staff schedule.
+     ‹ Internal Hub  |  CHS logo  |  divider  |  Tool title  (tabs…)
 
-   Markup, the same in every tool:
+   The "‹ Internal Hub" pill goes back to the hub. The logo is the company's
+   full logo at the hub header's size (48px tall), its white-text version in
+   dark mode, and just the mark on a phone. Imported by shared/tool-chrome.css
+   for the tools, and directly by the staff schedule. The demo tracker carries
+   a copy (chs-equipment repo, as it is also served from demo.chsnz.co.nz).
+
+   Markup, the same in every tool (the logo paths are each app's public/brand):
      <a class="hub-back" href="/" aria-label="Back to the Internal Hub">
        <svg class="hub-back-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
-       <img src="/brand/logo-mark.png" alt="">
        <span class="hub-back-long">Internal Hub</span><span class="hub-back-short">Hub</span>
      </a>
+     <span class="tool-brand" aria-hidden="true">
+       <img class="tool-logo tool-logo-light" src="/brand/logo-full-colour.png" alt="">
+       <img class="tool-logo tool-logo-dark" src="/brand/logo-full-dark.png" alt="">
+       <img class="tool-logo-mark" src="/brand/logo-mark.png" alt="">
+     </span>
+     <span class="tool-divider" aria-hidden="true"></span>
+     <h1>Tool name</h1>
 
-   Brand purple on white rather than the old neutral grey, so it is the first
-   thing you see when you want out. It sizes to its content and never shrinks,
-   so it can't squeeze or cover the logo or title beside it. On a narrow phone
-   the label shortens to "Hub" instead of crowding the header. */
+   The pill is brand purple on white, sizes to its content and never shrinks.
+   On a narrow phone its label shortens to "Hub". */
 .hub-back {
   display: inline-flex;
   align-items: center;
@@ -39,7 +46,7 @@
 .hub-back:hover { background: #dbd7ed; border-color: #968ac1; color: #3f3374; text-decoration: none; }
 .hub-back:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(85, 69, 150, .35); }
 .hub-back-chev { width: 16px; height: 16px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.hub-back img { width: 20px; height: 20px; display: block; flex: 0 0 auto; }
+.hub-back img { display: none; } /* older markup had the logo inside the pill */
 .hub-back-short { display: none; }
 
 :root[data-theme="dark"] .hub-back { background: #2c2649; border-color: #5b4f93; color: #ece9f8; box-shadow: none; }
@@ -49,4 +56,19 @@
   .hub-back { padding-right: 11px; }
   .hub-back-long { display: none; }
   .hub-back-short { display: inline; }
+}
+
+/* The logo and divider after the pill */
+.tool-brand { display: flex; align-items: center; flex: 0 0 auto; }
+.tool-logo { display: block; height: 48px; width: auto; }
+.tool-logo-dark, .tool-logo-mark { display: none; }
+:root[data-theme="dark"] .tool-logo-light { display: none; }
+:root[data-theme="dark"] .tool-logo-dark { display: block; }
+.tool-divider { flex: 0 0 auto; width: 1px; height: 28px; background: #d1d3d4; }
+:root[data-theme="dark"] .tool-divider { background: #3a3a3f; }
+
+@media (max-width: 759px) {
+  .tool-logo, :root[data-theme="dark"] .tool-logo-dark { display: none; }
+  .tool-logo-mark { display: block; width: 28px; height: 28px; }
+  .tool-divider { display: none; }
 }

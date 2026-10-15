@@ -13,7 +13,7 @@ import TeamOnboarding from './components/TeamOnboarding'
 import PullToRefresh  from './components/PullToRefresh'
 import AccountMenu    from './components/AccountMenu'
 import UpdateBanner   from './components/UpdateBanner'
-import { Logo, StripeRule, Spinner, IconButton, Loading } from './components/ui'
+import { StripeRule, Spinner, IconButton, Loading } from './components/ui'
 import { useTheme } from './utils/theme'
 import { APP_VERSION } from './version'
 
@@ -108,24 +108,23 @@ function AppHeader() {
   return (
     <header className="app-header">
       <div className="app-header-row">
-        {/* The "‹ Internal Hub" pill (shared/hub-back.css) goes up to the hub,
-            as in every tool; the logo goes there too. The app's own name goes
-            to its home page. Plain <a>s rather than NavLinks on purpose — the
-            hub is outside this router's basename, so "/" here would only ever
-            mean /schedule/. Same origin, so inside the installed app this
-            stays in the app window. On a phone the pill stands in for the
-            logo (it carries the logo mark already), so the header isn't
-            crowded. */}
+        {/* Left to right, as in every tool (shared/hub-back.css): the
+            "‹ Internal Hub" pill back to the hub, the company logo, a divider,
+            then this app's name, which goes to its own home page. Plain <a>
+            for the pill rather than a NavLink on purpose: the hub is outside
+            this router's basename, so "/" here would only ever mean
+            /schedule/. Same origin, so an installed app stays in its window. */}
         <div className="app-brand">
-          <a href="/" className="brand-home" aria-hidden="true" tabIndex={-1} title="Internal Hub">
-            <span className="logo-full"><Logo width={124} /></span>
-          </a>
           <a className="hub-back" href="/" aria-label="Back to the Internal Hub">
             <svg className="hub-back-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-            <img src="/brand/logo-mark.png" alt="" />
             <span className="hub-back-long">Internal Hub</span><span className="hub-back-short">Hub</span>
           </a>
-          <span className="brand-divider" />
+          <span className="tool-brand" aria-hidden="true">
+            <img className="tool-logo tool-logo-light" src={`${import.meta.env.BASE_URL}brand/logo-full-colour.png`} alt="" />
+            <img className="tool-logo tool-logo-dark" src={`${import.meta.env.BASE_URL}brand/logo-full-dark.png`} alt="" />
+            <img className="tool-logo-mark" src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="" />
+          </span>
+          <span className="tool-divider" aria-hidden="true" />
           <NavLink to="/" end className="app-title-link" aria-label="Staff schedule — team week">
             <span className="app-title">Staff schedule</span>
           </NavLink>
