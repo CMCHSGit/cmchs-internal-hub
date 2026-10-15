@@ -469,7 +469,7 @@ function NotificationsTab() {
                   <div className="admin-notify-cell">
                     <span className="admin-notify-key">Demo tracker</span>
                     <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
-                    <span className="text-sm text-muted">{phones(m.fcmTokens?.length || 0)}</span>
+                    <span className="text-sm text-muted">{demoPhones({}, m)}</span>
                   </div>
                 </div>
               ))}
