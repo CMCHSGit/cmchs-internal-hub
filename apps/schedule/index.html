@@ -8,7 +8,7 @@
          app for the schedule: hence the hub's root manifest (scope "/"), and
          the hub's name and icon in the Apple metas, which iOS reads from the
          page being added rather than from the manifest. The browser-tab icon
-         below stays the schedule's own — that one is per-page. -->
+         below is the transparent logo mark, as in every tool. -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -21,8 +21,9 @@
          on which page it was added from. Keep in step with
          apps/hub/public/icons/icon-192.png if that ever changes. -->
     <link rel="apple-touch-icon" href="/icons/hub-192.png" />
-    <!-- The tab icon is the hub's too, the same in every tool. -->
-    <link rel="icon" type="image/png" href="/icons/hub-192.png" />
+    <!-- The tab icon: the transparent logo mark, the same in every tool (the
+         home-screen icon above keeps its white background). -->
+    <link rel="icon" type="image/png" href="/brand/logo-mark.png" />
     <title>CMCHS Staff Schedule</title>
     <!-- Deep links. GitHub Pages serves the site's single 404.html for a path
          with no file behind it, e.g. /schedule/my on a cold load. That page

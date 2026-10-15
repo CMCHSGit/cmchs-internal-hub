@@ -50,7 +50,7 @@ html = html.replace(/<link[^>]+rel=["']manifest["'][^>]*>\s*/gi, '')
 // (It's a static copy, so a root path reaches the hub's icons as written.)
 html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>\s*/gi, '')
 html = html.replace(/<link[^>]+rel=["']apple-touch-icon["'][^>]*>\s*/gi, '')
-html = html.replace(/<\/head>/i, '<link rel="icon" type="image/png" href="/icons/icon-192.png">\n<link rel="apple-touch-icon" href="/icons/icon-192.png">\n</head>')
+html = html.replace(/<\/head>/i, '<link rel="icon" type="image/png" href="/brand/logo-mark.png">\n<link rel="apple-touch-icon" href="/icons/icon-192.png">\n</head>')
 html = html.replace(/<title>[^<]*<\/title>/i,
   `<title>Demo tracker${READ_ONLY ? ' (read-only)' : ''} · CMCHS Internal Hub</title>`)
 
