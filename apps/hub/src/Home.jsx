@@ -372,20 +372,24 @@ function Footer() {
   )
 }
 
+// What Home last showed, so coming back from People or Manage shows it straight
+// away (then refreshes) instead of the blocks popping in again.
+const seen = { today: undefined, news: null }
+
 export default function Home({ user }) {
   // undefined = loading, null = the schedule couldn't be read (blocks hidden)
-  const [today, setToday] = useState(undefined)
+  const [today, setToday] = useState(seen.today)
   useEffect(() => {
     let live = true
     loadToday()
-      .then(t => { if (live) setToday(t) })
-      .catch(e => { console.warn('[hub] staff schedule unavailable', e); if (live) setToday(null) })
+      .then(t => { seen.today = t; if (live) setToday(t) })
+      .catch(e => { console.warn('[hub] staff schedule unavailable', e); if (live && seen.today === undefined) setToday(null) })
     return () => { live = false }
   }, [])
 
   // The JSON straight away, then whatever's been posted in Manage
-  const [news, setNews] = useState(() => mergeNews([]))
-  useEffect(() => { loadNews().then(setNews) }, [])
+  const [news, setNews] = useState(() => seen.news || mergeNews([]))
+  useEffect(() => { loadNews().then(n => { seen.news = n; setNews(n) }) }, [])
 
   return (
     <main className="home">

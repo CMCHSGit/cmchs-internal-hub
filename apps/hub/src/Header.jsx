@@ -93,13 +93,15 @@ function Account({ user }) {
 }
 
 // `search={false}` on Home, where the hero has the search box instead.
-const NAV = [['home', 'Home', '/'], ['people', 'People', '/#/people'], ['manage', 'Manage', '/#/manage']]
+// All '/#/…', so switching between them stays on the page. A plain '/' from
+// '/#/people' is a new page load: a white screen and signing-in check again.
+const NAV = [['home', 'Home', '/#/'], ['people', 'People', '/#/people'], ['manage', 'Manage', '/#/manage']]
 
 export default function Header({ user, search = true, page = 'home' }) {
   return (
     <header className="header">
       <div className="header-row">
-        <a className="brand" href="/" aria-label="Internal Hub home">
+        <a className="brand" href="/#/" aria-label="Internal Hub home">
           <img className="wide-only brand-logo" src="/brand/logo-full-colour.png" alt="" />
           <span className="brand-divider wide-only" />
           <img className="narrow-only" src="/brand/logo-mark.png" alt="" width="32" height="32" />
