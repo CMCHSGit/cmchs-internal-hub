@@ -177,6 +177,9 @@ function handlePayload(payload) {
   // The hub's Manage → Tool requests / Feedback: tell the engineering team.
   if (payload.action === 'notifyHubRequest') return notifyHubRequest_(payload);
 
+  // The hub's Asks: tell the people an ask's latest change concerns.
+  if (payload.action === 'notifyAsk') return notifyAsk_(payload);
+
   // SimproSync (schedule.chsnz.co.nz/simprosync/) relaying Simpro calls
   // through this proxy instead of holding the Simpro key itself — see
   // simproSyncProxy_() below.
@@ -968,6 +971,190 @@ function notifyHubRequest_(payload) {
   const sent = results.filter(function(r) { return r.ok; }).length;
   Logger.log('notifyHubRequest_: ' + kind + ', push ' + sent + ' sent/' + (results.length - sent) + ' failed.');
   return respond({ success: true, sent: sent });
+}
+
+// ── Hub Asks ─────────────────────────────────────────────────────────────
+// internal.chsnz.co.nz/asks/: quick requests between staff. After a change
+// that should tell someone (a new ask, picked up, handed back, given to
+// someone, waiting, done, reopened, people added, a comment) the browser
+// sends only the ask's id. This reads the ask back from the staff schedule's
+// Firestore and acts on its `event` only if the caller made it, in the last
+// ten minutes, and it hasn't been sent already — so nobody can use the proxy
+// to push their own text to anyone. Each person gets a push on their hub
+// phones; anyone with no phone set up gets an email instead, once
+// RESEND_API_KEY and RESEND_FROM are in Script Properties (the same Resend
+// account as the staff schedule's reminders). Logs counts only.
+const ASKS_URL = 'https://internal.chsnz.co.nz/asks/';
+
+// A Firestore REST value as a plain value.
+function fsPlain_(v) {
+  if (!v) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('timestampValue' in v) return Date.parse(v.timestampValue);
+  if ('arrayValue' in v) return (v.arrayValue.values || []).map(fsPlain_);
+  if ('mapValue' in v) return fsFields_(v.mapValue.fields);
+  return null;
+}
+function fsFields_(fields) {
+  const o = {};
+  Object.keys(fields || {}).forEach(function(k) { o[k] = fsPlain_(fields[k]); });
+  return o;
+}
+
+// Who an ask's event is for — never the person who made the change. Pure, so
+// it can be checked outside Apps Script. users: [{ uid, team, pending }].
+function askRecipients_(ask, ev, users, comment) {
+  const assignees = ask.assignees || [];
+  const teams = ask.teams || [];
+  const people = ask.people || [];
+  const out = {};
+  const add = function(uids) { (uids || []).forEach(function(u) { if (u) out[u] = true; }); };
+  const membersOf = function(ts) {
+    return users.filter(function(u) { return !u.pending && u.team && ts.indexOf(u.team) >= 0; }).map(function(u) { return u.uid; });
+  };
+  switch (ev.type) {
+    case 'created':  add(assignees); add(membersOf(teams)); break;
+    case 'added':    add((ev.to || []).filter(function(u) { return assignees.indexOf(u) >= 0; }));
+                     add(membersOf((ev.teams || []).filter(function(t) { return teams.indexOf(t) >= 0; }))); break;
+    case 'claimed':  add([ask.createdBy]); add(assignees); break;
+    case 'handed':   add([ask.createdBy]); add(assignees); add(membersOf(teams)); break;
+    case 'given':    add([ask.owner, ask.createdBy]); break;
+    case 'waiting':  add([ask.createdBy]); break;
+    case 'done':     add([ask.createdBy]); add(assignees); break;
+    case 'reopened': if (ask.owner) add([ask.owner]); else { add(assignees); add(membersOf(teams)); } break;
+    case 'comment':
+      add([ask.createdBy]);
+      if (ask.owner) add([ask.owner]); else add(assignees);
+      add(((comment && comment.mentions) || []).filter(function(u) { return people.indexOf(u) >= 0; }));
+      break;
+  }
+  delete out[ev.by];
+  return Object.keys(out);
+}
+
+// What each person is told. Pure, like askRecipients_.
+function askMessage_(ask, ev, actor, recipientUid, comment) {
+  const who = String(actor || 'Someone').split(/\s+/)[0];
+  const what = String(ask.title || '').slice(0, 120);
+  const ownerFirst = String(ask.ownerName || 'someone').split(/\s+/)[0];
+  switch (ev.type) {
+    case 'created':
+    case 'added':    return { title: 'New ask from ' + who, body: what };
+    case 'claimed':  return { title: who + ' has picked this up', body: what };
+    case 'handed':   return { title: 'Back in the pool: nobody has it', body: what };
+    case 'given':    return { title: who + ' gave ' + (recipientUid === ask.owner ? 'you' : ownerFirst) + ' an ask', body: what };
+    case 'waiting':  return { title: 'Waiting on ' + (ask.waitingOn || 'someone else'), body: what };
+    case 'done':     return { title: 'Done: ' + what, body: who + ' finished it' };
+    case 'reopened': return { title: who + ' reopened an ask', body: what };
+    case 'comment':  return { title: who + ' on “' + what.slice(0, 60) + '”', body: (comment && comment.text ? comment.text : 'Added a photo').slice(0, 160) };
+  }
+  return { title: 'Asks', body: what };
+}
+
+// Everyone in the hub's users list: [{ uid, name, email, team, pending, tokens }].
+function loadAskUsers_(token) {
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/users' +
+    '?pageSize=300&mask.fieldPaths=email&mask.fieldPaths=displayName&mask.fieldPaths=team&mask.fieldPaths=fcmTokens&mask.fieldPaths=pending';
+  const users = [];
+  let pageToken = '';
+  do {
+    const resp = UrlFetchApp.fetch(base + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''),
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) throw new Error('Firestore read refused (' + resp.getResponseCode() + ')');
+    const json = JSON.parse(resp.getContentText());
+    (json.documents || []).forEach(function(d) {
+      const f = fsFields_(d.fields);
+      users.push({ uid: d.name.split('/').pop(), name: f.displayName || '', email: String(f.email || '').trim(),
+        team: f.team || '', pending: f.pending === true, tokens: (f.fcmTokens || []).filter(Boolean) });
+    });
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  return users;
+}
+
+function askEmailOn_() {
+  const p = PropertiesService.getScriptProperties();
+  return !!(p.getProperty('RESEND_API_KEY') && p.getProperty('RESEND_FROM'));
+}
+
+function sendAskEmail_(to, msg, url) {
+  const p = PropertiesService.getScriptProperties();
+  const esc = function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  const html =
+    '<div style="font-family:\'Source Sans 3\',\'Segoe UI\',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#575756;">' +
+    '<div style="height:4px;background:linear-gradient(90deg,#554596 33.3%,#80bd01 33.3% 66.6%,#ef7d00 66.6%);margin-bottom:24px;"></div>' +
+    '<h2 style="font-size:20px;margin:0 0 8px;color:#1d1d1d;">' + esc(msg.title) + '</h2>' +
+    '<p style="line-height:1.6;margin:0 0 24px;white-space:pre-wrap;">' + esc(msg.body) + '</p>' +
+    '<a href="' + esc(url) + '" style="display:inline-block;background:#554596;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-size:16px;font-weight:600;">Open in Asks</a>' +
+    '<p style="color:#747577;font-size:13px;margin-top:32px;">You got this by email because notifications aren\'t turned on for Asks on your phone. Open Asks on your phone and tap "Turn on" to get them there instead.</p>' +
+    '</div>';
+  const resp = UrlFetchApp.fetch('https://api.resend.com/emails', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: 'Bearer ' + p.getProperty('RESEND_API_KEY') },
+    payload: JSON.stringify({ from: p.getProperty('RESEND_FROM'), to: [to], subject: msg.title, html: html })
+  });
+  return resp.getResponseCode() < 300;
+}
+
+function notifyAsk_(payload) {
+  const caller = tryVerifyStaff_(payload.idToken);
+  if (!caller) return respond({ success: false, error: 'Sign in to use this.' });
+  const id = String(payload.id || '');
+  if (!/^[A-Za-z0-9]{8,40}$/.test(id)) return respond({ success: false, error: 'Bad ask id' });
+  const token = hubAccessToken_();
+  if (!token) return respond({ success: false, error: 'Hub push is not set up' });
+
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/';
+  const resp = UrlFetchApp.fetch(base + 'asks/' + id, { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return respond({ success: false, error: 'Ask not found' });
+  const ask = fsFields_(JSON.parse(resp.getContentText()).fields);
+  const ev = ask.event || {};
+  if (ev.by !== caller.uid || !ev.atMs || Math.abs(Date.now() - ev.atMs) > 10 * 60 * 1000 || !/^[a-z0-9]{6,24}$/.test(String(ev.id || ''))) {
+    Logger.log('notifyAsk_: refused (not the caller’s change, or not new).');
+    return respond({ success: false, error: 'Not a new change of yours' });
+  }
+  const cache = CacheService.getScriptCache();
+  const key = 'ask:' + id + ':' + ev.id;
+  if (cache.get(key)) return respond({ success: true, already: true });
+  cache.put(key, '1', 21600);
+
+  let comment = null;
+  if (ev.type === 'comment') {
+    const c = UrlFetchApp.fetch(base + 'asks/' + id + '/comments/' + encodeURIComponent(String(ev.ref || '')),
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    if (c.getResponseCode() !== 200) return respond({ success: false, error: 'Comment not found' });
+    comment = fsFields_(JSON.parse(c.getContentText()).fields);
+    if (comment.uid !== caller.uid) return respond({ success: false, error: 'Not your comment' });
+  }
+
+  let users;
+  try { users = loadAskUsers_(token); }
+  catch (err) { Logger.log('notifyAsk_: could not read users: ' + err.message); return respond({ success: false, error: 'Could not read the people list' }); }
+  const byUid = {};
+  users.forEach(function(u) { byUid[u.uid] = u; });
+  const actor = (byUid[ev.by] && byUid[ev.by].name) || caller.name;
+  const url = ASKS_URL + '#/mine?ask=' + id;
+  const emailOn = askEmailOn_();
+  let pushed = 0, failed = 0, emailed = 0, unreached = 0;
+  const to = askRecipients_(ask, ev, users, comment);
+  to.forEach(function(uid) {
+    const u = byUid[uid];
+    if (!u || u.pending) return;
+    const msg = askMessage_(ask, ev, actor, uid, comment);
+    if (u.tokens.length) {
+      sendHubPush_(u.tokens, msg.title, msg.body, url).forEach(function(r) { if (r.ok) pushed++; else failed++; });
+    } else if (emailOn && u.email) {
+      try { if (sendAskEmail_(u.email, msg, url)) emailed++; else unreached++; } catch (err) { unreached++; }
+    } else {
+      unreached++;
+    }
+  });
+  Logger.log('notifyAsk_: ' + ev.type + ', ' + to.length + ' to tell; push ' + pushed + ' sent/' + failed + ' failed; email ' +
+    (emailOn ? emailed + ' sent' : 'off (Resend not set up)') + '; ' + unreached + ' not reached.');
+  return respond({ success: true, pushed: pushed, emailed: emailed });
 }
 
 // Run from the editor after the IAM roles are granted. Sends nothing to
