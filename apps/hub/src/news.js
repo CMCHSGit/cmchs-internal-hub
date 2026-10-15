@@ -50,6 +50,31 @@ export function mergeNews(stored, old = legacy) {
   return sortNews([...stored.filter(a => !a.deleted), ...old.filter(a => !ids.has(a.id)).map(a => ({ ...a, legacy: true, regions: [], people: [] }))])
 }
 
+const STOP = new Set('the and for with from this that are was were has have its our new next week all off out into onto about'.split(' '))
+const words = s => new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2 && !STOP.has(w)))
+
+/**
+ * The existing post a pasted draft looks like a repeat of (StepUp4ICU in
+ * this week's email when it already has its own post), or null. Compares
+ * titles, over the last 60 days; one shared word is enough only when it is
+ * a title on its own and a distinctive one ("StepUp4ICU").
+ */
+export function findSimilar(draft, list, today = isoToday()) {
+  const mine = words(draft.title)
+  if (!mine.size) return null
+  const since = addDays(today, -60)
+  let best = null, bestScore = 0
+  for (const a of list) {
+    if (a.deleted || (a.date || '') < since) continue
+    const theirs = words(a.title)
+    const shared = [...mine].filter(w => theirs.has(w))
+    const score = shared.length / Math.min(mine.size, theirs.size || 1)
+    const enough = shared.length >= 2 || (shared.length === 1 && Math.min(mine.size, theirs.size) === 1 && shared[0].length >= 6)
+    if (enough && score >= 0.6 && score > bestScore) { best = a; bestScore = score }
+  }
+  return best
+}
+
 /** What the home page's Team news panel shows: the newest week of Team news, split by section. */
 export function teamNews(list) {
   const team = list.filter(a => categoryOf(a) === 'Team news')

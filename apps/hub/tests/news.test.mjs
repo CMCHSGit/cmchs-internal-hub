@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildEmail, linkParts, mergeNews, mondayOf, sortNews, teamNews } from '../src/news.js'
+import { buildEmail, findSimilar, linkParts, mergeNews, mondayOf, sortNews, teamNews } from '../src/news.js'
 import { andList, suggestFromProjects } from '../src/suggest.js'
 import { feedbackSummary, sortRequests } from '../src/requests.js'
 
@@ -29,6 +29,20 @@ test('Firestore replaces a legacy JSON entry with the same id', () => {
 test('a deleted legacy entry stays gone', () => {
   const merged = mergeNews([item('x', { deleted: true })], [{ id: 'x', title: 'From JSON' }])
   assert.deepEqual(merged, [])
+})
+
+test('findSimilar spots a repeat of a recent post, not a near-miss or an old one', () => {
+  const list = [
+    item('step', { title: 'Intensive Care Foundation StepUp4ICU Challenge', category: 'Events', date: '2026-10-09' }),
+    item('a9', { title: 'Mindray A9 training, Wednesday 14 October', date: '2026-10-02' }),
+    item('old', { title: 'Hamilton Zoo install', date: '2026-06-01' }),
+  ]
+  const today = '2026-10-16'
+  assert.equal(findSimilar({ title: 'StepUp4ICU Challenge – week two' }, list, today)?.id, 'step')
+  assert.equal(findSimilar({ title: 'StepUp4ICU' }, list, today)?.id, 'step')
+  assert.equal(findSimilar({ title: 'A9 upgrades in Hawkes Bay' }, list, today), null)
+  assert.equal(findSimilar({ title: 'Install at Hamilton Zoo' }, list, today), null)
+  assert.equal(findSimilar({ title: 'StepUp4ICU' }, [{ ...list[0], deleted: true }], today), null)
 })
 
 test('teamNews shows only the newest week, split by section, with the regions in it', () => {

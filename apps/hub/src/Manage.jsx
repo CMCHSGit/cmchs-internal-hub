@@ -16,7 +16,7 @@ import { tools } from './tools.js'
 import { splitEmail } from './emailSplit.js'
 import { loadProjectSuggestions } from './suggest.js'
 import {
-  CATEGORIES, REGIONS, SECTIONS, TONE, buildEmail, canEdit, canPost, categoryOf, deleteAnnouncement, isoToday,
+  CATEGORIES, REGIONS, SECTIONS, TONE, buildEmail, canEdit, canPost, categoryOf, deleteAnnouncement, findSimilar, isoToday,
   loadNews, loadPhoto, mondayOf, moveLegacy, newsPhotoFromFile, postDrafts, saveAnnouncement, shortDate, addDays,
 } from './news.js'
 import {
@@ -72,7 +72,7 @@ function NewsTab({ ctx }) {
   useEffect(() => { reload() }, [])
 
   if (!list) return <span className="caption">Loading…</span>
-  if (mode === 'paste') return <PasteEmail ctx={ctx} onDone={() => { setMode('list'); reload() }} />
+  if (mode === 'paste') return <PasteEmail ctx={ctx} list={list} onDone={() => { setMode('list'); reload() }} />
   if (mode === 'export') return <ExportEmail ctx={ctx} list={list} onDone={() => setMode('list')} />
 
   const legacy = list.filter(a => a.legacy)
@@ -267,7 +267,15 @@ function Suggestions({ ctx, onPick, exclude = [] }) {
 
 // ── Paste an email ────────────────────────────────────────────────────────
 
-function PasteEmail({ ctx, onDone }) {
+/** "Post 3 announcements", "Update 1", "Post 3 announcements · update 1". */
+function postLabel(posts, updates, [post, update]) {
+  const p = posts || !updates ? `${post} ${posts} announcement${posts === 1 ? '' : 's'}` : ''
+  const u = updates ? `${update} ${updates}` : ''
+  const s = [p, u].filter(Boolean).join(' · ')
+  return s[0].toUpperCase() + s.slice(1)
+}
+
+function PasteEmail({ ctx, list, onDone }) {
   const [paste, setPaste] = useState({ html: '', text: '' })
   const [drafts, setDrafts] = useState(null)
   const [date, setDate] = useState(isoToday())
@@ -282,7 +290,11 @@ function PasteEmail({ ctx, onDone }) {
     if (html) { e.preventDefault(); setPaste({ html, text }) }
     else setPaste({ html: '', text })
   }
-  const split = () => setDrafts(splitEmail(paste, { people: ctx.people }))
+  // A repeat of an existing post (a running event) starts unticked, with the option to update that post instead.
+  const split = () => setDrafts(splitEmail(paste, { people: ctx.people }).map(d => {
+    const match = findSimilar(d, list)
+    return match ? { ...d, include: false, match } : d
+  }))
   const update = (i, patch) => setDrafts(d => d.map((x, j) => (j === i ? { ...x, ...patch } : x)))
   const remove = i => setDrafts(d => d.filter((_, j) => j !== i))
   const merge = i => setDrafts(d => {
@@ -296,12 +308,21 @@ function PasteEmail({ ctx, onDone }) {
     return [...d.slice(0, i), ...parts.map((t, k) => ({ ...a, key: a.key + k, title: t, body: '' })), ...d.slice(i + 1)]
   })
   const chosen = (drafts || []).filter(d => d.include && d.title.trim())
+  const fresh = chosen.filter(d => !d.updating)
+  const updates = chosen.filter(d => d.updating)
 
   async function post() {
     setBusy(true)
     try {
-      const n = await postDrafts(ctx.me, chosen, { date, weekOf: mondayOf(date) })
-      ctx.showToast(`Posted ${n} announcement${n === 1 ? '' : 's'}.`)
+      const n = fresh.length ? await postDrafts(ctx.me, fresh, { date, weekOf: mondayOf(date) }) : 0
+      for (const d of updates) {
+        const m = d.match
+        await saveAnnouncement(ctx.me, {
+          ...m, title: d.title, body: d.body || m.body, date, weekOf: mondayOf(date),
+          regions: [...new Set([...(m.regions || []), ...d.regions])], people: [...new Set([...(m.people || []), ...d.people])],
+        })
+      }
+      ctx.showToast(postLabel(n, updates.length, ['Posted', 'updated']) + '.')
       onDone()
     } catch (e) { console.error(e); ctx.showToast(failMsg(e)); setBusy(false) }
   }
@@ -369,6 +390,18 @@ function PasteEmail({ ctx, onDone }) {
               {(d.people.length > 0 || d.note) && (
                 <span className="caption">{d.note}{d.note && d.people.length ? ' · ' : ''}{d.people.length ? `People: ${d.people.map(u => names.get(u)).filter(Boolean).join(', ')}` : ''}</span>
               )}
+              {d.match && (
+                <div className="mg-match">
+                  <span className="caption">
+                    {d.updating
+                      ? <>Will update “{d.match.title}” ({shortDate(d.match.date)}) with this text. Its pin and photo stay.</>
+                      : <>Looks like “{d.match.title}”, posted {shortDate(d.match.date)}.</>}
+                  </span>
+                  {d.updating
+                    ? <button type="button" className="btn-ghost-sm" onClick={() => update(i, { updating: false, include: false })}>Don’t update it</button>
+                    : canEdit(ctx.me, d.match) && <button type="button" className="btn-ghost-sm" onClick={() => update(i, { updating: true, include: true })}>Update that one instead</button>}
+                </div>
+              )}
             </div>
             <div className="mg-draft-tools">
               {!d.body && !d.showBody && <button className="icon-btn" title="Add a message" aria-label="Add a message" onClick={() => update(i, { showBody: true })}><Icon name="file-text" size={16} /></button>}
@@ -381,7 +414,7 @@ function PasteEmail({ ctx, onDone }) {
       </div>
       <div className="pp-section-foot mg-sticky">
         <button className="btn btn-secondary" onClick={onDone}>Cancel</button>
-        <button className="btn btn-primary" disabled={busy || !chosen.length} onClick={post}>{busy ? 'Posting…' : `Post ${chosen.length} announcement${chosen.length === 1 ? '' : 's'}`}</button>
+        <button className="btn btn-primary" disabled={busy || !chosen.length} onClick={post}>{busy ? 'Posting…' : postLabel(fresh.length, updates.length, ['Post', 'update'])}</button>
       </div>
     </div>
   )

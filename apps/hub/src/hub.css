@@ -465,6 +465,8 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 .mg-draft-title { font-weight: 600; }
 .mg-draft-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .mg-draft-tools { display: flex; gap: 2px; flex: 0 0 auto; }
+/* "Looks like an existing post" on a pasted draft. */
+.mg-match { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 12px; border-radius: var(--radius-md); background: var(--surface-subtle, var(--chs-black-05)); }
 .mg-draft-tools .icon-btn { width: 32px; height: 32px; border: 0; background: transparent; cursor: pointer; color: var(--text-muted); }
 .mg-sticky { position: sticky; bottom: 0; padding: 12px 0; background: linear-gradient(transparent, var(--surface-page) 30%); }
 
