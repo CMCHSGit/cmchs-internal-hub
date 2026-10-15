@@ -46,6 +46,11 @@ html = html.slice(0, headEnd) + INJECT + html.slice(headEnd)
 
 // The hub's manifest is the site's only one; a second would be a second app.
 html = html.replace(/<link[^>]+rel=["']manifest["'][^>]*>\s*/gi, '')
+// The same tab icon as every other tool in the hub, not the tracker's own.
+// (It's a static copy, so a root path reaches the hub's icons as written.)
+html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>\s*/gi, '')
+html = html.replace(/<link[^>]+rel=["']apple-touch-icon["'][^>]*>\s*/gi, '')
+html = html.replace(/<\/head>/i, '<link rel="icon" type="image/png" href="/icons/icon-192.png">\n<link rel="apple-touch-icon" href="/icons/icon-192.png">\n</head>')
 html = html.replace(/<title>[^<]*<\/title>/i,
   `<title>Demo tracker${READ_ONLY ? ' (read-only)' : ''} · CMCHS Internal Hub</title>`)
 
