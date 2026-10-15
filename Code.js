@@ -51,6 +51,19 @@
  *   proxy's hub push uses. checkProjectsBackup() says whether it is in place.
  *   The two backups are independent: one failing never stops the other.
  *
+ * ASKS TOO (2026-10-16):
+ *   And the hub's Asks (internal.chsnz.co.nz/asks/), also in the staff
+ *   schedule's Firestore: asks (with their comments and photos
+ *   subcollections) and askStats. Drive folder "CMCHS Asks Backups":
+ *     - Asks-YYYY-MM-DD.json — asks, askStats and comments exactly as stored,
+ *       and every photo's details (not its picture). Kept a year.
+ *     - Asks-YYYY-MM-DD.xlsx — one row per ask, to read without the tool.
+ *     - Photos/<askId>-<photoId>.jpg — each photo saved once, the first night
+ *       it exists, rather than in every nightly file (they're up to ~480 KB
+ *       each). Removed only when its ask is gone and it's over a year old.
+ *   Same service account and IAM grant as the project tracker's backup;
+ *   checkAsksBackup() says whether it can read. Independent of the others.
+ *
  * LIVE vs REPO (found 2026-10-15): the "CHS Daily Backup" project in Apps
  *   Script was still running an older copy of this file — no Current/Upcoming
  *   Loans sheets and no signed reads. Pushing this file (clasp, see
@@ -99,12 +112,13 @@ const UPCOMING_LOAN_HEADERS = [
 ];
 
 // The trigger's handler (installed by installDailyBackupTrigger): the demo
-// tracker's backup, then the project tracker's, each failing on its own.
+// tracker's backup, then the project tracker's, then Asks, each failing on its own.
 function dailyBackup() {
   // Each half reports its own failure; these catch what escapes that (a
   // failure email that itself can't be sent), so one never stops the other.
   try { equipmentBackup_(); } catch (err) { console.error('Demo tracker backup stopped:', err.toString()); }
   try { projectsBackup_(); } catch (err) { console.error('Project tracker backup stopped:', err.toString()); }
+  try { asksBackup_(); } catch (err) { console.error('Asks backup stopped:', err.toString()); }
 }
 
 function equipmentBackup_() {
@@ -406,6 +420,152 @@ function setupBackups() {
   installDailyBackupTrigger();
   checkBackupDatabaseAuth();
   checkProjectsBackup();
+  checkAsksBackup();
+}
+
+// ── Asks backup ──────────────────────────────────────────────────────────────
+// See "ASKS TOO" at the top. Only counts go to the log, never names.
+
+const ASKS_FOLDER_NAME = 'CMCHS Asks Backups';
+const ASKS_PHOTOS_FOLDER_NAME = 'Photos';
+
+// Every ask with its comments, and the counts copy. Photos come back as a
+// list ({ askId, id, ...fields }, data included) for asksBackup_ to file
+// separately. Comments and photos are only read for asks whose counts say
+// they have some, so a quiet ask costs one read, not three.
+function readAsks_() {
+  const token = serviceAccountToken_('https://www.googleapis.com/auth/datastore', 'firestoreAccessToken');
+  if (!token) throw new Error('No service account token: set FIREBASE_SERVICE_ACCOUNT_KEY.');
+  const asks = readCollection_(token, 'asks');
+  const askStats = readCollection_(token, 'askStats');
+  const comments = {};
+  const photos = [];
+  Object.keys(asks).forEach(function(id) {
+    const a = asks[id];
+    if (a.commentCount > 0) {
+      const c = readCollection_(token, 'asks/' + id + '/comments');
+      if (Object.keys(c).length) comments[id] = c;
+    }
+    if (a.photoCount > 0) {
+      const p = readCollection_(token, 'asks/' + id + '/photos');
+      Object.keys(p).forEach(function(pid) { photos.push(Object.assign({ askId: id, id: pid }, p[pid])); });
+    }
+  });
+  return { asks: asks, askStats: askStats, comments: comments, photos: photos };
+}
+
+function asksBackup_() {
+  try {
+    const r = readAsks_();
+    const folders = DriveApp.getFoldersByName(ASKS_FOLDER_NAME);
+    const folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder(ASKS_FOLDER_NAME);
+    const sub     = folder.getFoldersByName(ASKS_PHOTOS_FOLDER_NAME);
+    const photoFolder = sub.hasNext() ? sub.next() : folder.createFolder(ASKS_PHOTOS_FOLDER_NAME);
+    const stamp   = Utilities.formatDate(new Date(), 'Pacific/Auckland', 'yyyy-MM-dd');
+    const name    = 'Asks-' + stamp;
+
+    // 1. Each photo once, as a JPEG named <askId>-<photoId>.jpg. A photo never
+    //    changes once taken, so one already in the folder is left alone.
+    const have = {};
+    const existing = photoFolder.getFiles();
+    while (existing.hasNext()) have[existing.next().getName()] = true;
+    let newPhotos = 0;
+    r.photos.forEach(function(p) {
+      const file = p.askId + '-' + p.id + '.jpg';
+      if (have[file]) return;
+      const m = /^data:image\/jpeg;base64,(.+)$/.exec(String(p.data || ''));
+      if (!m) return;
+      photoFolder.createFile(Utilities.newBlob(Utilities.base64Decode(m[1]), 'image/jpeg', file));
+      have[file] = true;
+      newPhotos++;
+    });
+
+    // 2. Everything else exactly as stored. Photos are listed without their
+    //    data, with the file in Photos that holds each one.
+    const backup = {
+      kind: 'asks-backup',
+      version: 1,
+      takenAt: new Date().toISOString(),
+      source: 'nightly',
+      collections: { asks: r.asks, askStats: r.askStats },
+      comments: r.comments,
+      photos: r.photos.map(function(p) {
+        const out = {};
+        Object.keys(p).forEach(function(k) { if (k !== 'data') out[k] = p[k]; });
+        out.file = ASKS_PHOTOS_FOLDER_NAME + '/' + p.askId + '-' + p.id + '.jpg';
+        return out;
+      })
+    };
+    folder.createFile(Utilities.newBlob(JSON.stringify(backup), 'application/json', name + '.json'));
+
+    // 3. A spreadsheet to read without the tool
+    const token = serviceAccountToken_('https://www.googleapis.com/auth/datastore', 'firestoreAccessToken');
+    const users = readCollection_(token, 'users');
+    const nameOf = function(uid) { return (users[uid] && users[uid].displayName) || '?'; };
+    const day = function(ms) { return ms ? Utilities.formatDate(new Date(ms), 'Pacific/Auckland', 'yyyy-MM-dd') : ''; };
+    const STATUS = { open: 'Open', picked: 'Picked up', waiting: 'Waiting', done: 'Done' };
+    const list = Object.keys(r.asks).map(function(id) { return r.asks[id]; })
+      .sort(function(a, b) { return (b.createdAtMs || 0) - (a.createdAtMs || 0); });
+    const rows = [['Asked', 'What', 'Asked by', 'Sent to', 'Status', 'Who has it', 'Waiting on', 'Due', 'Urgent', 'Done', 'Comments', 'Photos', 'Details']]
+      .concat(list.map(function(a) {
+        const sentTo = (a.assignees || []).map(nameOf).concat((a.teams || []).map(function(t) { return t + ' team'; })).join(', ');
+        return [day(a.createdAtMs), a.title || '', a.createdByName || '', sentTo, STATUS[a.status] || a.status || '', a.ownerName || '',
+          a.waitingOn || '', a.due || '', a.urgent ? 'Yes' : '', day(a.doneAtMs), a.commentCount || 0, a.photoCount || 0, a.details || ''];
+      }));
+    const ss = SpreadsheetApp.create('_temp_asks_backup');
+    const sheet = ss.getActiveSheet();
+    sheet.setName('Asks');
+    writeSheetRows_(sheet, rows, rows[0].length);
+    SpreadsheetApp.flush();
+    const blob = UrlFetchApp.fetch('https://docs.google.com/spreadsheets/d/' + ss.getId() + '/export?format=xlsx', {
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
+    }).getBlob().setName(name + '.xlsx');
+    folder.createFile(blob);
+    DriveApp.getFileById(ss.getId()).setTrashed(true);
+
+    // 4. Keep a year of nightly files. A photo goes only once its ask has been
+    //    deleted and the photo is over a year old, so a live ask's photos stay.
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 365);
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const f = files.next();
+      if (f.getDateCreated() < cutoff) f.setTrashed(true);
+    }
+    const pics = photoFolder.getFiles();
+    while (pics.hasNext()) {
+      const f = pics.next();
+      if (f.getDateCreated() < cutoff && !r.asks[f.getName().split('-')[0]]) f.setTrashed(true);
+    }
+
+    const commentCount = Object.keys(r.comments).reduce(function(n, id) { return n + Object.keys(r.comments[id]).length; }, 0);
+    console.log('Asks backup complete: ' + name + ' (' + list.length + ' asks, ' + commentCount + ' comments, ' +
+      r.photos.length + ' photos, ' + newPhotos + ' new)');
+  } catch (err) {
+    console.error('Asks backup failed:', err.toString());
+    try {
+      MailApp.sendEmail(NOTIFY_EMAIL, 'Asks Backup Failed - ' + new Date().toDateString(),
+        'The nightly Asks backup failed.\n\nError: ' + err.toString() + '\n\nRun checkAsksBackup() in the Apps Script editor to see why.');
+    } catch (mailErr) { console.error('Could not send the failure email:', mailErr.toString()); }
+  }
+}
+
+// Run from the editor: reads Asks and logs counts, writes nothing.
+function checkAsksBackup() {
+  CacheService.getScriptCache().remove('firestoreAccessToken');
+  try {
+    const r = readAsks_();
+    const comments = Object.keys(r.comments).reduce(function(n, id) { return n + Object.keys(r.comments[id]).length; }, 0);
+    Logger.log('READY — the Asks backup can read: ' + Object.keys(r.asks).length + ' asks, ' + Object.keys(r.askStats).length +
+      ' askStats, ' + comments + ' comments, ' + r.photos.length + ' photos.');
+  } catch (err) {
+    Logger.log('NOT READY — ' + String(err.message).replace(/\.+$/, '') + '. Same fix as checkProjectsBackup(): it uses the same service account.');
+  }
+}
+
+// Run from the editor to take an Asks backup now.
+function asksBackupNow() {
+  asksBackup_();
 }
 
 // Run once from the Apps Script editor to install the daily trigger.
