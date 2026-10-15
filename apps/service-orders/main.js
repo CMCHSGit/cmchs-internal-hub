@@ -32,7 +32,11 @@ let canEdit = false
 let orders = []
 let unwatch = null
 let view = 'In progress'   // a stage, 'late' or 'all'
-let sort = { key: 'dateRaised', dir: 1 }
+// Newest first. On Received that means the latest parts to arrive; everywhere
+// else, the latest order raised. Picking a tab goes back to this; clicking a
+// column header overrides it until then.
+const defaultSort = () => ({ key: view === 'Received' ? 'receivedDate' : 'dateRaised', dir: -1 })
+let sort = defaultSort()
 
 // ── sign in ───────────────────────────────────────────────────────────────
 function gate(text, showButton = false) {
@@ -120,8 +124,11 @@ function visible() {
     const k = sort.key
     const av = String(a[k] ?? ''), bv = String(b[k] ?? '')
     // Blanks last whichever way the column points — no date isn't "earliest".
-    if (!av || !bv) return !av && !bv ? 0 : (!av ? 1 : -1)
-    return av.localeCompare(bv, undefined, { numeric: true }) * sort.dir
+    if (!av || !bv) { if (av || bv) return !av ? 1 : -1 }
+    else { const c = av.localeCompare(bv, undefined, { numeric: true }); if (c) return c * sort.dir }
+    // Same day (or both blank): newest raised, then highest S.O, on top.
+    return String(b.dateRaised ?? '').localeCompare(String(a.dateRaised ?? '')) ||
+      String(b.so ?? '').localeCompare(String(a.so ?? ''), undefined, { numeric: true })
   })
 }
 
@@ -139,7 +146,7 @@ function renderTiles() {
   $('tiles').innerHTML = tiles.map(([key, cls, n, label]) =>
     `<button class="tile ${cls}${view === key ? ' on' : ''}" data-view="${esc(key)}"><b>${n}</b><span>${esc(label)}</span></button>`).join('')
   for (const b of $('tiles').querySelectorAll('.tile')) {
-    b.addEventListener('click', () => { view = b.dataset.view; render() })
+    b.addEventListener('click', () => { view = b.dataset.view; sort = defaultSort(); render() })
   }
 }
 
@@ -175,7 +182,9 @@ function render() {
   for (const th of $('head').querySelectorAll('th')) {
     th.addEventListener('click', () => {
       const k = th.dataset.key
-      sort = { key: k, dir: sort.key === k ? -sort.dir : 1 }
+      // Dates start newest-first, like the default; text starts A–Z.
+      const first = /date|raised/i.test(k) ? -1 : 1
+      sort = { key: k, dir: sort.key === k ? -sort.dir : first }
       render()
     })
   }
