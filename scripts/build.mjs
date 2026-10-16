@@ -7,7 +7,7 @@
 //   apps/service-orders (Vite) -> /service-orders/
 //   apps/simprosync  (Vite)    -> /simprosync/
 //   apps/ansurtopdf  (Vite)    -> /ansurtopdf/
-//   apps/admin       (Vite)    -> /admin/     admin settings (people, Simpro access…)
+//   apps/admin                 -> /admin/     admin settings: no build of its own, a section of the hub's one app
 //   apps/projects             -> /projects/  no build of its own: a section of the hub's one app
 //   apps/asks                  -> /asks/      no build of its own: a section of the hub's
 //                                         one app (apps/hub/src/router.js, INTEGRATION-PLAN.md)
@@ -33,7 +33,6 @@ const APPS = [
   { dir: 'apps/service-orders', path: 'service-orders', build: 'npm run build -w apps/service-orders', output: 'dist' },
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
-  { dir: 'apps/admin',      path: 'admin',      build: 'npm run build -w apps/admin',    output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]
 

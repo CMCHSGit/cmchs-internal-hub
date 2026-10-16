@@ -47,7 +47,7 @@ registerRoute(
 // the job /404.html does when the network answers instead of this worker.
 // Before the route below, which would otherwise take these navigations first.
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-  allowlist: [/^\/(asks|projects)(\/|$)/],
+  allowlist: [/^\/(asks|projects|admin)(\/|$)/],
 }))
 
 // A tool's page itself: fresh when there is a network, the last copy when

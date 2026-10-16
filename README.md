@@ -11,7 +11,7 @@
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
-| `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles and notifications for every tool. Admins only. (The schedule's locations, Excel import and activity log are at `/schedule/settings`.) | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
+| `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles and notifications for every tool. Admins only. (The schedule's locations, Excel import and activity log are at `/schedule/settings`.) | `apps/admin` (React, reusing `apps/schedule/src`), a section of the hub's one app (no build of its own) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 | `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects`, a section of the hub's one app (no build of its own) |

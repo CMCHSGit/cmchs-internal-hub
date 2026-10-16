@@ -2,10 +2,6 @@
   "name": "admin",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build"
-  },
   "dependencies": {
     "@fontsource/source-sans-3": "^5.3.0",
     "@fontsource/titillium-web": "^5.3.0",

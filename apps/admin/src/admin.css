@@ -1,23 +1,7 @@
 /* Admin settings: what only People and Notifications use. Cards, buttons,
-   inputs, toasts and light/dark come from the staff schedule's index.css; tabs,
-   the side-panel layout and the password card from its settings.css (both
-   imported in main.jsx). */
-
-/* shared/tool-chrome.css reads the tool's own colour names (--ink, --line …).
-   The schedule's stylesheet names them differently, and uses --ink for text on
-   an Excel fill, which stays dark in dark mode, so they are mapped for the
-   header only rather than for the page. */
-header.tool-header {
-  --bg: var(--surface-page);
-  --card: var(--surface-card);
-  --ink: var(--text-strong);
-  --muted: var(--text-muted);
-  --line: var(--border-hairline);
-  --accent: var(--chs-purple);
-  --accent-ink: #fff;
-  color: var(--ink);
-}
-header.tool-header h1 { font-family: var(--font-display); font-weight: var(--weight-semibold); }
+   inputs, toasts and light/dark come from the kit (shared/ui) and the staff
+   schedule's index.css; tabs, the side-panel layout and the password card from
+   its settings.css (both imported in section.jsx). */
 
 .admin-simpro { margin-left: 6px; }
 

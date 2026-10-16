@@ -91,7 +91,10 @@ Status is kept here. Tick items as they land, with the commit.
   - [x] Project tracker (`/projects/`), 16 Oct. Phones now get a bottom tab
         bar instead of header tabs; on laptops the header drops the name by
         the avatar, then its search, so the five tabs fit.
-  - [ ] Admin settings  - [ ] Staff schedule (own router: last)
+  - [x] Admin settings (`/admin/`), 16 Oct. Its screens are the schedule's, so
+        the schedule's stylesheets come too, scoped to the Admin section
+        (`apps/hub/vite.config.js`) until they are folded into the kit.
+  - [ ] Staff schedule (own router: last)
 - [ ] One Settings area (merges Admin settings, the schedule's Settings, the
       project tracker's Settings, maintenance's settings, hub Manage, People's HR)
 - [ ] Ctrl+K searches every section

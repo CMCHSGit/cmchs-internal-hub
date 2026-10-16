@@ -8,7 +8,6 @@
    checks below only stop them seeing screens that would fail. */
 
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { ShieldAlert } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Button, Loading, Spinner } from '../../schedule/src/components/ui'
@@ -28,18 +27,8 @@ function Page() {
   if (user === undefined || (user && !profileReady)) return <div className="page"><Loading /></div>
   if (!user) return <SignIn />
 
-  return (
-    <>
-      <Who name={profile?.displayName || user.displayName || user.email} />
-      {profile?.role === 'admin' ? <Admin /> : <NotAdmin email={user.email} />}
-    </>
-  )
-}
-
-/** The signed-in name, top right beside the light/dark switch (index.html's #who). */
-function Who({ name }) {
-  const slot = document.getElementById('who')
-  return slot ? createPortal(name, slot) : null
+  // Who is signed in shows in the hub's header, as everywhere else.
+  return profile?.role === 'admin' ? <Admin /> : <NotAdmin email={user.email} />
 }
 
 function SignIn() {

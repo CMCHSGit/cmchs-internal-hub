@@ -14,6 +14,7 @@ import { useSyncExternalStore } from 'react'
 export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
   { id: 'projects', prefix: '/projects/' },
+  { id: 'admin', prefix: '/admin/' },
 ]
 
 /** Which section an address belongs to, or null for a page outside the app (/schedule/, /demo/…). */

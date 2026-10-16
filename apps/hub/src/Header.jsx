@@ -137,7 +137,8 @@ export default function Header({ user, search = true, page = 'home' }) {
             admin password (and the admin role), so the gear is just the way
             in for the people who have it, not a tool everyone should see. */}
         <ThemeButton />
-        <a className="icon-btn header-admin" href="/admin/" aria-label="Admin settings" title="Admin settings">
+        <a className={`icon-btn header-admin ${page === 'admin' ? 'on' : ''}`} href="/admin/" aria-label="Admin settings" title="Admin settings"
+          aria-current={page === 'admin' ? 'page' : undefined}>
           <Icon name="settings" size={20} />
         </a>
         <Account user={user} />

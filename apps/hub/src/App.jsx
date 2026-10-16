@@ -1,8 +1,8 @@
 // The one app's shell (INTEGRATION-PLAN.md step 2): sign-in once, one header,
 // and the section the address points at. The hub's own pages (home, People,
-// Manage) and the tools that have moved in (Asks so far) are all sections;
+// Manage) and the tools that have moved in (Asks, Projects, Admin) are all sections;
 // moving between them never reloads the page (router.js).
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { Component, lazy, Suspense, useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
 import { sectionOf, useAddress } from './router.js'
 import Header from './Header.jsx'
@@ -15,6 +15,25 @@ import SignIn from './SignIn.jsx'
 // Each moved tool loads the first time someone opens it, not with the home page.
 const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
 const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
+const AdminSection = lazy(() => import('../../admin/src/section.jsx'))
+
+// A section that fails to load or crashes (most often: a deploy has replaced
+// the files an open tab was about to fetch) says so, rather than blanking the
+// header and every other section with it.
+class SectionBoundary extends Component {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(err) { console.error('[shell] section failed', err) }
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <div className="hub-page"><div className="section-failed">
+        <p>This part of the hub didn’t load. It may have just been updated.</p>
+        <button className="btn btn-primary" onClick={() => location.reload()}>Reload</button>
+      </div></div>
+    )
+  }
+}
 
 // The hub's own pages still route on #/: #/people, #/people/<uid>, #/manage, #/manage/<tab>
 function hubRouteOf() {
@@ -73,10 +92,13 @@ export default function App() {
         </div>
       ) : (
         <main className="section" data-section={section}>
-          <Suspense fallback={<div className="section-loading" aria-busy="true" />}>
-            {section === 'asks' && <AsksSection />}
-            {section === 'projects' && <ProjectsSection />}
-          </Suspense>
+          <SectionBoundary key={section}>
+            <Suspense fallback={<div className="section-loading" aria-busy="true" />}>
+              {section === 'asks' && <AsksSection />}
+              {section === 'projects' && <ProjectsSection />}
+              {section === 'admin' && <AdminSection />}
+            </Suspense>
+          </SectionBoundary>
         </main>
       )}
       <div className="hub-page hub-chrome"><PushPrompt user={user} /></div>
