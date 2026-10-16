@@ -3,6 +3,7 @@
 // At a glance, News and announcements, Who's where today + Calendar, Tools,
 // footer. The staff-schedule blocks hide themselves if it can't be read.
 import { navigate } from './router.js'
+import { openSearch } from './Palette.jsx'
 import { useEffect, useRef, useState } from 'react'
 import { firstNameOf } from '../../../shared/session.js'
 import Calendar from './Calendar.jsx'
@@ -112,6 +113,14 @@ function HeroSearch({ people }) {
           {!toolHits.length && !peopleHits.length && (
             <span className="search-empty">No tools or people match that search.</span>
           )}
+          {/* The rest of the hub too: jobs, asks, every page (Ctrl+K anywhere). */}
+          <button type="button" className="search-hit search-all" onClick={() => { setOpen(false); openSearch(q) }}>
+            <span className="tile tile-32"><Icon name="search" size={16} /></span>
+            <span className="search-hit-text">
+              <span className="search-hit-name">Search everything for “{q.trim()}”</span>
+              <span className="caption">Jobs, asks and every page as well · Ctrl K</span>
+            </span>
+          </button>
         </div>
       )}
     </div>

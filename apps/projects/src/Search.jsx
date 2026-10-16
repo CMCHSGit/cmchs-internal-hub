@@ -1,4 +1,5 @@
-/* Ctrl+K: one search over active and archived jobs together. Results come
+/* The tracker's job search (its search button; Ctrl+K is the one app's
+   search, which finds jobs too): active and archived jobs together. Results come
    up as you type, grouped and labelled Active or Archived, with the matching
    words highlighted and a line showing where they matched. */
 
@@ -73,7 +74,7 @@ export default function SearchPalette({ onClose, scope: initialScope = 'all' }) 
   }
 
   return (
-    <Modal title="Search" description="Active and archived jobs. Ctrl K from any page." onClose={onClose} width={760} className="pt-search">
+    <Modal title="Search" description="Active and archived jobs, with filters." onClose={onClose} width={760} className="pt-search">
       <input ref={input} className="input pt-search-input" type="search" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={key}
         placeholder="Job, hospital, staff name or initials, device model, tracking number, notes" aria-label="Search all jobs"
         role="combobox" aria-expanded={flat.length > 0} aria-controls="pt-results" aria-activedescendant={flat.length ? `pt-res-${cursor}` : undefined} />

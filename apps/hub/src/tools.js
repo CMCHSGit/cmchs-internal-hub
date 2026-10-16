@@ -1,4 +1,5 @@
 import allTools from '../../../tools.json'
+import { navigate } from './router.js'
 
 // Category order and the two stripe colours each section header shows.
 // Unknown categories are appended after these; empty ones are hidden.
@@ -94,3 +95,11 @@ export function markUsed(tool) {
 
 /** An announcement's `image`: a full URL, or a path in apps/hub/public ("news/x.jpg"). */
 export const newsImage = a => (!a.image ? '' : /^(https?:)?\/\//.test(a.image) || a.image.startsWith('/') ? a.image : '/' + a.image)
+
+/** Open a tool from a card, a search or a link: its phone app, a new tab, or in place. */
+export function openTool(tool) {
+  markUsed(tool)
+  if (openPhoneApp(tool)) return
+  if (opensInTab(tool)) window.open(tool.link, '_blank', 'noopener')
+  else navigate(tool.link) // in the app when it has moved in, a page load when not
+}

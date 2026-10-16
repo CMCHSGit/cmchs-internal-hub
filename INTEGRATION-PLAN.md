@@ -101,7 +101,10 @@ Status is kept here. Tick items as they land, with the commit.
         is now just what the start page loads (`scripts/build.mjs`).
 - [ ] One Settings area (merges Admin settings, the schedule's Settings, the
       project tracker's Settings, maintenance's settings, hub Manage, People's HR)
-- [ ] Ctrl+K searches every section
+- [x] Ctrl+K searches every section, 17 Oct (`apps/hub/src/Palette.jsx`): pages and
+      views, tools, people, jobs and asks, opening in place. Each section adds its
+      results through a `search-source.js`. The tracker's own job search, with
+      its filters, stays on its search button.
 
 ### 3. Rebuild the plain tools on the kit
 - [ ] Service Orders  - [ ] Maintenance  - [ ] SimproSync  - [ ] Ansur
@@ -124,7 +127,8 @@ notifications at the new address.
 
 ### 6. Clean-up
 - [ ] Remove the duplicates (two Firebase start-ups, `chs-tokens.css` copy,
-      the hub's own `.btn/.badge/.card`, per-tool update handling)
+      the hub's own `.btn/.badge/.card`, per-tool update handling, the hub's,
+      Asks' and the tracker's own dialogs: the kit has `Dialog` now)
 - [ ] Documentation: README, CLAUDE.md, PROJECT-CONTEXT.md
 
 ## Moving a tool into the shell (step 2 recipe)

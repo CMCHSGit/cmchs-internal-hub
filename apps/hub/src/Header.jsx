@@ -3,60 +3,19 @@ import { CalendarDays, ClipboardList, FolderKanban, Home as HomeIcon, Inbox, Moo
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
-import { markUsed, openPhoneApp, opensInTab, searchTools } from './tools.js'
-import { navigate } from './router.js'
+import { openSearch } from './Palette.jsx'
 
-function openTool(tool) {
-  markUsed(tool)
-  if (openPhoneApp(tool)) return
-  if (opensInTab(tool)) window.open(tool.link, '_blank', 'noopener')
-  else navigate(tool.link) // in the app when it has moved in, a page load when not
-}
-
-function Search() {
-  const [q, setQ] = useState('')
-  const [open, setOpen] = useState(false)
-  const box = useRef(null)
-  const hits = searchTools(q)
-
-  useEffect(() => {
-    const close = e => { if (!box.current?.contains(e.target)) setOpen(false) }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
-  }, [])
-
+/** The search box: opens the one search (Palette.jsx), the same as Ctrl+K. */
+function SearchButton() {
   return (
-    <div className="search" ref={box}>
+    <button type="button" className="search search-trigger" onClick={() => openSearch()} aria-label="Search (Ctrl K)" aria-haspopup="dialog">
       <Icon name="search" size={16} className="search-icon" />
-      <input
-        type="search"
-        value={q}
-        placeholder="Search tools"
-        aria-label="Search tools"
-        onChange={e => { setQ(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={e => {
-          if (e.key === 'Escape') { setOpen(false); e.currentTarget.blur() }
-          if (e.key === 'Enter' && hits[0]) openTool(hits[0])
-        }}
-      />
-      {open && q.trim() && (
-        <div className="search-results" role="listbox">
-          {hits.map(t => (
-            <button key={t.id} className="search-hit" role="option" onClick={() => openTool(t)}>
-              <span className="tile tile-32"><Icon name={t.icon} size={16} /></span>
-              <span className="search-hit-text">
-                <span className="search-hit-name">{t.name}</span>
-                <span className="caption">{t.description}</span>
-              </span>
-            </button>
-          ))}
-          {!hits.length && <span className="search-empty">No tools match that search.</span>}
-        </div>
-      )}
-    </div>
+      <span className="search-trigger-text">Search</span>
+      <kbd className="search-kbd">{isMac ? '⌘' : 'Ctrl'} K</kbd>
+    </button>
   )
 }
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)
 
 function Account({ user }) {
   const [open, setOpen] = useState(false)
@@ -109,7 +68,8 @@ function ThemeButton() {
   )
 }
 
-// `search={false}` on Home, where the hero has the search box instead.
+// `search={false}` on Home, where the hero has the search box instead (and
+// Ctrl+K still opens the one search).
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
 const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['manage', 'Manage', '/#/manage', ClipboardList]]
@@ -132,7 +92,12 @@ export default function Header({ user, search = true, page = 'home' }) {
           ))}
         </nav>
         <div className="spacer" />
-        {search && <div className="wide-only header-search"><Search /></div>}
+        {search && <div className="wide-only header-search"><SearchButton /></div>}
+        {search && (
+          <button type="button" className="icon-btn narrow-only header-search-icon" onClick={() => openSearch()} aria-label="Search" title="Search">
+            <Icon name="search" size={20} />
+          </button>
+        )}
         {/* Admin settings. Shown to everyone on purpose: the page asks for the
             admin password (and the admin role), so the gear is just the way
             in for the people who have it, not a tool everyone should see. */}

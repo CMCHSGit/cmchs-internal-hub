@@ -9,6 +9,7 @@ import { sectionOf, useAddress } from './router.js'
 import Header from './Header.jsx'
 import Home from './Home.jsx'
 import Manage from './Manage.jsx'
+import Palette from './Palette.jsx'
 import People from './People.jsx'
 import PushPrompt from './PushPrompt.jsx'
 import SignIn from './SignIn.jsx'
@@ -105,6 +106,8 @@ export default function App() {
         </main>
       )}
       <div className="hub-page hub-chrome"><PushPrompt user={user} /></div>
+      {/* Outside .hub-page: the one search opens over every section, in the kit's look. */}
+      <Palette user={user} />
     </div>
   )
 }

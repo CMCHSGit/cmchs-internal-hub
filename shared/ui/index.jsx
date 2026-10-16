@@ -3,9 +3,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 /**
  * The CHS design system components for every tool on internal.chsnz.co.nz:
  * Button, IconButton, Tag, Badge, Alert, Switch, StripeRule, Logo, Spinner,
- * Loading, Toast and useToast. Plain CSS-class components (styles in ui.css):
- * hover and press come from CSS, only on devices that can hover, so a tapped
- * button on a phone doesn't stay stuck in its hover colour.
+ * Loading, Toast, useToast and Dialog. Plain CSS-class components (styles in
+ * ui.css): hover and press come from CSS, only on devices that can hover,
+ * so a tapped button on a phone doesn't stay stuck in its hover colour.
  *
  * Moved here from the staff schedule (apps/schedule/src/components/ui.jsx and
  * Toast.jsx, which re-export this file, so their importers didn't change).
@@ -132,4 +132,43 @@ export function useToast() {
   }, [])
   useEffect(() => () => clearTimeout(timer.current), [])
   return [message, show]
+}
+
+/* ── Dialog ── */
+/**
+ * A dialog over the page: the stripe, a title, an optional line under it, a
+ * close button, and the content. Escape or a click outside closes it; focus
+ * goes to its first field or button, and back where it was afterwards.
+ * role="dialog", so the one app's update reload waits while it is open.
+ */
+export function Dialog({ title, description, onClose, children, width = 560, className = '', initialFocus }) {
+  const box = useRef(null)
+  const close = useRef(onClose)
+  close.current = onClose
+  useEffect(() => {
+    const prev = document.activeElement
+    const first = initialFocus?.current || box.current?.querySelector('input, select, textarea, button:not(.dialog-x)')
+    first?.focus()
+    const key = e => { if (e.key === 'Escape') { e.stopPropagation(); close.current() } }
+    window.addEventListener('keydown', key, true)
+    return () => { window.removeEventListener('keydown', key, true); prev?.focus?.() }
+  }, [initialFocus])
+  return (
+    <div className="dialog-scrim" onMouseDown={e => { if (e.target === e.currentTarget) close.current() }}>
+      <div className={`dialog ${className}`} role="dialog" aria-modal="true" aria-label={title} ref={box}
+        style={{ width: `min(${width}px, calc(100vw - 24px))` }}>
+        <StripeRule thickness={4} />
+        <div className="dialog-head">
+          <div className="dialog-head-text">
+            <h2 className="dialog-title">{title}</h2>
+            {description && <p className="dialog-desc">{description}</p>}
+          </div>
+          <button type="button" className="icon-btn icon-btn-md dialog-x" aria-label="Close" onClick={() => close.current()}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="dialog-body">{children}</div>
+      </div>
+    </div>
+  )
 }

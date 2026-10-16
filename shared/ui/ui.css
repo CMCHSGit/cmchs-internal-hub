@@ -227,3 +227,19 @@ textarea.input { resize: vertical; min-height: 76px; }
 }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
 @media (min-width: 760px) { .toast { bottom: 32px; } }
+
+/* ── Dialog (index.jsx) ── */
+.dialog-scrim { position: fixed; inset: 0; z-index: 80; background: rgba(0, 0, 0, .5); backdrop-filter: blur(2px);
+  display: flex; align-items: flex-start; justify-content: center; padding: 8vh 12px 12px; overflow-y: auto; }
+.dialog { background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay);
+  overflow: hidden; max-height: 84vh; display: flex; flex-direction: column; color: var(--text-body); }
+.dialog-head { display: flex; align-items: flex-start; gap: 12px; padding: 18px 20px 6px; }
+.dialog-head-text { flex: 1; min-width: 0; }
+.dialog-title { margin: 0; font: var(--type-h3); color: var(--text-strong); }
+.dialog-desc { margin: 2px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.dialog-x { flex: 0 0 auto; margin: -6px -8px 0 0; color: var(--text-muted); }
+.dialog-body { padding: 10px 20px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.dialog kbd { font: 500 11px/1 var(--font-mono); padding: 4px 6px; border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--text-body); }
+.dialog mark { background: #fddab4; color: #1d1d1d; border-radius: 2px; padding: 0 1px; }
+@media (max-width: 759px) { .dialog-scrim { padding: 12px 8px; } .dialog { max-height: calc(100dvh - 24px); } }

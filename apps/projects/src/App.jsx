@@ -102,10 +102,10 @@ function Shell() {
   const job = jobId ? s.jobById.get(jobId) : null
   useEffect(() => { s.setViewing(job?.id || null) }, [job?.id, s])
 
-  // Ctrl+K anywhere; N for a new job when not typing.
+  // N for a new job when not typing. (Ctrl+K is the one app's search, which
+  // finds jobs too: apps/hub/src/Palette.jsx.)
   useEffect(() => {
     const key = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen(true); return }
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return
       if (e.key.toLowerCase() === 'n' && s.canEdit && !searchOpen && !adding) { e.preventDefault(); setAdding({}) }
@@ -134,10 +134,9 @@ function Shell() {
         </nav>
         <div className="pt-main">
           <div className="pt-topbar">
-            <button type="button" className="pt-searchbtn" onClick={() => setSearchOpen(true)} aria-label="Search all jobs (Ctrl K)">
+            <button type="button" className="pt-searchbtn" onClick={() => setSearchOpen(true)} aria-label="Search all jobs">
               <Search size={18} aria-hidden="true" />
               <span className="pt-searchbtn-text">Search jobs, hospitals, staff, devices, tracking numbers</span>
-              <kbd>Ctrl K</kbd>
             </button>
             <span className="pt-spacer" />
             <Online />

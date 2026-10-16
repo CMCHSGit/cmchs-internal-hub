@@ -54,6 +54,7 @@ export function navigate(href, { replace = false } = {}) {
   const sec = SECTIONS.find(s => url.pathname === s.prefix.slice(0, -1))
   if (sec) url.pathname = sec.prefix
   const samePath = url.pathname === location.pathname
+  const oldURL = location.href
   history[replace ? 'replaceState' : 'pushState'](null, '', url.pathname + url.search + url.hash)
   if (url.hash === '' || !samePath) window.scrollTo(0, 0)
   // Announced the way the browser announces Back: this shell hears it (the
@@ -61,6 +62,11 @@ export function navigate(href, { replace = false } = {}) {
   // schedule's react-router), which otherwise wouldn't see /schedule/my
   // become /schedule/ when the header's Schedule tab is clicked.
   window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
+  // And a change of only the #… part (a search result inside the section
+  // that's open) as a hash change, which is what Asks and the tracker follow.
+  if (samePath && location.href !== oldURL && new URL(oldURL).hash !== url.hash) {
+    window.dispatchEvent(new HashChangeEvent('hashchange', { oldURL, newURL: location.href }))
+  }
 }
 
 /**
