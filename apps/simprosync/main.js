@@ -14,7 +14,7 @@ import '../../shared/brand-plain.css'
 import { mountToolChrome } from '../../shared/tool-chrome.js'
 
 // Same Apps Script web app the equipment tracker uses (chs-equipment/index.html, SIMPRO_PROXY_URL).
-const SIMPRO_PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+import { PROXY_URL as SIMPRO_PROXY_URL } from '../../shared/proxy.js'
 
 const $ = id => document.getElementById(id)
 let started = false

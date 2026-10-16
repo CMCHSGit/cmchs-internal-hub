@@ -18,7 +18,7 @@
    the tracker's saveBin()). */
 import { auth } from '../../schedule/src/firebase'
 
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+import { PROXY_URL } from '../../../shared/proxy.js'
 const DB_URL = 'https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app'
 // chs-equipment's public web API key (not a secret; it's in the tracker's page too).
 const CHS_KEY = 'AIzaSyB-A5wIEoqD9SBQPJnc6bs_qjHytZFDaBA'

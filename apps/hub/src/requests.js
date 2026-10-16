@@ -23,7 +23,7 @@ export const statusOf = id => STATUSES.find(s => s.id === id) || STATUSES[0]
 
 export const isEngineering = me => !!me && (me.role === 'admin' || me.team === 'Engineers')
 
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+import { PROXY_URL } from '../../../shared/proxy.js'
 
 /** Average rating and count per tool, best-rated last so problems come first. */
 export function feedbackSummary(items) {

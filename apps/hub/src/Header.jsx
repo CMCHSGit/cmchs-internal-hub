@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { Moon, Sun } from 'lucide-react'
 import { initialsOf, signOutUser } from '../../../shared/session.js'
+import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
 import { markUsed, openPhoneApp, opensInTab, searchTools } from './tools.js'
 
@@ -92,6 +94,20 @@ function Account({ user }) {
   )
 }
 
+/** Light/dark, the same choice as in every tool (shared/tool-chrome.js). Both
+    icons render and CSS shows one, so it's right on the first paint. */
+function ThemeButton() {
+  const [, redraw] = useState(0)
+  const next = currentTheme() === 'dark' ? 'light' : 'dark'
+  return (
+    <button type="button" className="icon-btn theme-btn" aria-label={`Switch to ${next} mode`} title={`Switch to ${next} mode`}
+      onClick={() => { setTheme(next); redraw(n => n + 1) }}>
+      <Moon className="moon" size={20} aria-hidden="true" />
+      <Sun className="sun" size={20} aria-hidden="true" />
+    </button>
+  )
+}
+
 // `search={false}` on Home, where the hero has the search box instead.
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
@@ -102,7 +118,8 @@ export default function Header({ user, search = true, page = 'home' }) {
     <header className="header">
       <div className="header-row">
         <a className="brand" href="/#/" aria-label="Internal Hub home">
-          <img className="wide-only brand-logo" src="/brand/logo-full-colour.png" alt="" />
+          <img className="wide-only brand-logo brand-logo-light" src="/brand/logo-full-colour.png" alt="" />
+          <img className="wide-only brand-logo brand-logo-dark" src="/brand/logo-full-dark.png" alt="" />
           <span className="brand-divider wide-only" />
           <img className="narrow-only" src="/brand/logo-mark.png" alt="" width="32" height="32" />
           <span className="brand-name">Internal Hub</span>
@@ -123,6 +140,7 @@ export default function Header({ user, search = true, page = 'home' }) {
         <a className={`icon-btn narrow-only header-people ${page === 'manage' ? 'on' : ''}`} href="/#/manage" aria-label="Manage" title="Manage">
           <Icon name="clipboard-list" size={20} />
         </a>
+        <ThemeButton />
         <a className="icon-btn header-admin" href="/admin/" aria-label="Admin settings" title="Admin settings">
           <Icon name="settings" size={20} />
         </a>

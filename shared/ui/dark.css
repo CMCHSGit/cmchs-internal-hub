@@ -1,0 +1,39 @@
+/* Dark mode for the whole site: <html data-theme="dark">, set before first
+   paint from the css_theme key every tool shares. Brand fills that carry
+   meaning (Excel status colours, the stripe, purple buttons) stay as they are;
+   surfaces, text, lines and tints go dark. Imported by ui.css, and on its own
+   by pages that don't use the kit's components (the hub home page). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-page: #161618;
+  --surface-card: #1f1f22;
+  --surface-subtle: #2a2a2e;
+  --text-strong: #f4f4f5;
+  --text-body: #d1d3d4;
+  --text-muted: #a7a9ac;
+  --text-disabled: #6f7074;
+  --text-link: #b9b0e0;
+  --text-link-hover: #d6d0f0;
+  --border-hairline: #3a3a3f;
+  --border-subtle: #2c2c30;
+  --border-strong: #a7a9ac;
+  --border-focus: #968ac1;
+  --chs-black-05: #2a2a2e;
+  --chs-black-10: #333338;
+  --chs-black-20: #4a4a4f;
+  --chs-black-40: #5d5e63;
+  --chs-purple-20: #332c55;
+  --chs-purple-30: #463c78;
+  --chs-green-20: #25321a;
+  --chs-orange-20: #3b2916;
+  --status-critical-tint: #3b1c22;
+  --surface-brand-tint: #2c2649;
+  --accent-fg: #b9b0e0;
+  --surface-accent-tint: #25321a;
+  --surface-warm-tint: #3b2916;
+  --status-ok-tint: #25321a;
+  --status-attention-tint: #3b2916;
+  --status-info-tint: #2c2649;
+  --shadow-card: 0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.35);
+  --shadow-overlay: 0 16px 48px rgba(0,0,0,.6);
+}

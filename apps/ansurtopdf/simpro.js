@@ -15,7 +15,7 @@ import '../../shared/tool-chrome.css'
 import '../../shared/brand-plain.css'
 import { mountToolChrome } from '../../shared/tool-chrome.js'
 
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+import { PROXY_URL } from '../../shared/proxy.js'
 
 const $ = (id) => document.getElementById(id)
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))

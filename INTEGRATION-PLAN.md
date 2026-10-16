@@ -56,10 +56,11 @@ Status is kept here. Tick items as they land, with the commit.
 ### 0. Shared foundations
 - [x] Same header layout, palette and fonts in every tool (`043dad8`;
       tracker `chs-equipment 9bfbc79`); same tab icon (`e34ed42`)
-- [ ] One proxy address for every tool (`shared/proxy.js`)
-- [ ] Shared component kit `shared/ui` (moved from the staff schedule, which
-      keeps working through re-exports)
-- [ ] Dark mode on the hub home page
+- [x] One proxy address for every tool (`shared/proxy.js`)
+- [x] Shared component kit `shared/ui`: `index.jsx` (components, toasts),
+      `ui.css` (tokens, base, component styles), `dark.css` (dark mode). Moved from
+      the staff schedule, whose old paths re-export it. New code imports from here.
+- [x] Dark mode on the hub home page, with a light/dark switch in its header
 - [ ] Dark mode in the demo tracker (or wait for its rebuild, step 4)
 
 ### 1. One repo

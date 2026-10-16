@@ -10,7 +10,7 @@
 
 import { auth } from '../schedule/src/firebase.js'
 
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+import { PROXY_URL } from '../../shared/proxy.js'
 
 // Same preference SimproSync writes. One origin, so whichever company you last
 // synced against is the one searched here.

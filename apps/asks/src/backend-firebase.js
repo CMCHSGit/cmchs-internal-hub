@@ -22,7 +22,7 @@ import { canUsePush, needsHomeScreenInstall, pushEnabledOnThisDevice, enablePush
 import { clean } from './backend.js'
 import { statsOf } from './model.js'
 
-const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+import { PROXY_URL } from '../../../shared/proxy.js'
 const OUTSTANDING = ['open', 'picked', 'waiting']
 
 const withId = (d) => ({ id: d.id, ...d.data() })

@@ -6,6 +6,10 @@
   <title>CMCHS Internal Hub</title>
   <meta name="theme-color" content="#ffffff">
   <link rel="icon" type="image/png" href="/brand/logo-mark.png">
+  <!-- Light or dark before anything renders, or the page flashes the wrong
+       colours. The css_theme key is shared by every tool: one choice for the
+       whole site (shared/tool-chrome.js THEME_BOOT is the same script). -->
+  <script>(function(){try{var t=localStorage.getItem('css_theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t}catch(e){}})()</script>
 
   <!-- Installable as an app. scope "/" in the manifest is the point of the
        whole thing: it's what keeps every tool on this domain inside the app

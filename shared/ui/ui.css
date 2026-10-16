@@ -1,0 +1,229 @@
+/* The CHS design system for every tool on internal.chsnz.co.nz: tokens, light
+   and dark, base styles, and the classes behind index.jsx (Button, IconButton,
+   Tag, Badge, Alert, Switch, StripeRule, Logo, Spinner, Loading, Toast) and
+   form controls (.input, .field, select).
+
+   Moved here from the staff schedule's index.css, which now imports it, so
+   nothing changed for the tools that import that file. New tools import this
+   one. Fonts aren't loaded here: React tools bundle them with @fontsource,
+   plain tools get them from shared/brand-plain.css.
+
+   One kit, one look: add or change a component here, not in a tool
+   (INTEGRATION-PLAN.md). */
+@import '../tokens/colors.css';
+@import '../tokens/typography.css';
+@import '../tokens/spacing.css';
+@import '../tokens/radius.css';
+@import '../tokens/elevation.css';
+@import '../tokens/motion.css';
+@import './dark.css';
+
+/* ════════════════════════════════════════════════════════════════════
+   Base — CHS design system: white surfaces, Source Sans 3 body,
+   Titillium Web display, Connected Purple for actions — plus a dark mode.
+   ════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  color-scheme: light;
+  --nav-h: 60px;
+  --accent-fg: var(--chs-purple);    /* purple used as a text/line colour */
+}
+
+/* Dark mode — <html data-theme> is set before first paint by each page's inline script
+   (the css_theme key, shared by every tool), then switched by tool-chrome.js or
+   the schedule's utils/theme.js.
+   The Excel status fills stay exactly as they are (they carry meaning), with
+   dark text on them; everything around them goes dark. */
+/* (the dark token values are in dark.css) */
+:root[data-theme="dark"] .badge-green,
+:root[data-theme="dark"] .alert-success .alert-title,
+:root[data-theme="dark"] .alert-success .alert-icon  { color: #a6d64a; }
+:root[data-theme="dark"] .badge-orange,
+:root[data-theme="dark"] .alert-warning .alert-title,
+:root[data-theme="dark"] .alert-warning .alert-icon  { color: #f8b472; }
+:root[data-theme="dark"] .badge-critical,
+:root[data-theme="dark"] .alert-critical .alert-title,
+:root[data-theme="dark"] .alert-critical .alert-icon { color: #ff8a9a; }
+:root[data-theme="dark"] .toast { background: #e8e9ea; color: #1d1d1d; }
+/* The logo's wordmark is dark grey, so it needs help on a dark page. This used
+   to be a white plate behind the supplied artwork; it's now a second file whose
+   wordmark is light and whose mark is untouched (see Logo in index.jsx).
+   Both <img>s are in the DOM and CSS picks one, so the right logo is correct on
+   the first paint rather than after React reads the theme. */
+.logo-img { display: block; }
+.logo-dark { display: none; }
+:root[data-theme="dark"] .logo-light { display: none; }
+:root[data-theme="dark"] .logo-dark { display: block; }
+
+html, body, #root { min-height: 100%; }
+body {
+  font: var(--type-body);
+  color: var(--text-body);
+  background: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+button, input, select, textarea { font-family: inherit; color: inherit; }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { color: var(--text-link-hover); }
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
+
+.overline {
+  font: var(--type-overline);
+  letter-spacing: var(--tracking-overline);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.text-sm    { font: var(--type-body-sm); }
+.text-muted { color: var(--text-muted); }
+.ml-8    { margin-left: 8px; }
+.ml-auto { margin-left: auto; }
+@media (max-width: 759.98px) { .hide-narrow { display: none !important; } }
+@media (min-width: 760px)     { .show-narrow { display: none !important; } }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ════════════════════════════════════════════════════════════════════
+   Design system components (see index.jsx)
+   ════════════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  cursor: pointer; transition: var(--transition-control);
+  text-align: center; white-space: nowrap; text-decoration: none;
+}
+.btn-sm { padding: 6px 14px; min-height: 32px; font: var(--weight-regular) var(--size-body-sm)/1.3 var(--font-body); }
+.btn-md { padding: 10px 20px; min-height: 42px; font: var(--type-body-strong); line-height: 1.3; }
+.btn-lg { padding: 14px 28px; min-height: 52px; font: var(--weight-semibold) var(--size-body-lg)/1.2 var(--font-body); }
+.btn-block { display: flex; width: 100%; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.btn-primary { background: var(--chs-purple); color: var(--text-inverse); }
+.btn-primary:active:not(:disabled) { background: #3b2f6b; box-shadow: var(--shadow-inset-press); }
+.btn-secondary { background: transparent; color: var(--accent-fg); border-color: var(--accent-fg); }
+.btn-secondary:active:not(:disabled) { background: var(--chs-purple-20); }
+.btn-ghost { background: transparent; color: var(--text-strong); }
+.btn-ghost:active:not(:disabled) { background: var(--surface-subtle); }
+
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  padding: 0; border: 1px solid transparent; border-radius: var(--radius-md);
+  background: transparent; color: var(--text-body); cursor: pointer; transition: var(--transition-control);
+}
+.icon-btn-sm { width: 30px; height: 30px; }
+.icon-btn-md { width: 40px; height: 40px; }
+.icon-btn-lg { width: 46px; height: 46px; }
+.icon-btn:active { background: var(--surface-subtle); }
+
+.tag {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding: 5px 12px; border-radius: var(--radius-pill);
+  font: var(--weight-regular) var(--size-body-sm)/1.4 var(--font-body);
+  background: var(--surface-card); color: var(--text-body);
+  border: 1px solid var(--border-hairline);
+  cursor: pointer; white-space: nowrap; transition: var(--transition-control);
+}
+.tag-selected { background: var(--chs-purple); border-color: var(--accent-fg); color: var(--text-inverse); }
+
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled)   { background: #48397f; }
+  .btn-secondary:hover:not(:disabled) { background: var(--chs-purple-20); }
+  .btn-ghost:hover:not(:disabled)     { background: var(--surface-subtle); }
+  .icon-btn:hover   { background: var(--surface-subtle); }
+  .tag:not(.tag-selected):hover { background: var(--surface-subtle); }
+}
+
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  font: var(--type-overline); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap;
+  vertical-align: middle;
+}
+.badge-purple   { color: var(--accent-fg);      background: var(--chs-purple-20); }
+.badge-green    { color: #5b8801;                background: var(--chs-green-20); }
+.badge-orange   { color: #a85800;                background: var(--chs-orange-20); }
+.badge-neutral  { color: var(--text-body);       background: var(--chs-black-10); }
+.badge-critical { color: var(--status-critical); background: var(--status-critical-tint); }
+
+.alert { display: flex; gap: var(--space-3); align-items: flex-start; border-radius: var(--radius-md); padding: var(--space-4) var(--space-5); }
+.alert-icon { display: flex; flex: 0 0 auto; margin-top: 2px; }
+.alert-body { flex: 1; min-width: 0; }
+.alert-title { font: var(--type-body-strong); }
+.alert-text { font: var(--type-body-sm); color: var(--text-body); }
+.alert-action { flex: 0 0 auto; align-self: center; }
+.alert-info     { background: var(--surface-brand-tint); }  .alert-info .alert-icon, .alert-info .alert-title { color: var(--accent-fg); }
+.alert-success  { background: var(--chs-green-20); }        .alert-success .alert-icon, .alert-success .alert-title { color: #5b8801; }
+.alert-warning  { background: var(--chs-orange-20); }       .alert-warning .alert-icon, .alert-warning .alert-title { color: #a85800; }
+.alert-critical { background: var(--status-critical-tint); } .alert-critical .alert-icon, .alert-critical .alert-title { color: var(--status-critical); }
+
+.switch { display: inline-flex; align-items: center; gap: var(--space-3); cursor: pointer; user-select: none; position: relative; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch-track {
+  width: 42px; height: 24px; padding: 2px; flex: 0 0 auto; border-radius: var(--radius-pill);
+  background: var(--chs-black-20); transition: background-color var(--duration-base) var(--ease-standard);
+}
+.switch-knob {
+  display: block; width: 20px; height: 20px; border-radius: 50%; background: var(--chs-white);
+  box-shadow: 0 1px 2px rgba(29,29,29,.3); transition: transform var(--duration-base) var(--ease-out);
+}
+.switch input:checked + .switch-track { background: var(--chs-green); }
+.switch input:checked + .switch-track .switch-knob { transform: translateX(18px); }
+.switch input:focus-visible + .switch-track { box-shadow: var(--focus-ring); }
+.switch-label { font: var(--weight-regular) var(--size-body)/1.4 var(--font-body); color: var(--text-strong); }
+
+.stripe-rule { display: flex; width: 100%; }
+.stripe-rule > span { flex: 1; }
+.stripe-rule > span:nth-child(1) { background: var(--stripe-1); }
+.stripe-rule > span:nth-child(2) { background: var(--stripe-2); }
+.stripe-rule > span:nth-child(3) { background: var(--stripe-3); }
+
+/* Form controls — 16px text everywhere: iOS Safari zooms the page in on
+   focusing any field under 16px, which is the threshold, not a style choice. */
+.input, select, textarea.input {
+  width: 100%;
+  font: var(--weight-regular) 16px/1.4 var(--font-body);
+  color: var(--text-strong);
+  padding: 10px 12px;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-hairline);
+  border-radius: var(--radius-md);
+  transition: var(--transition-control);
+  min-width: 0;
+}
+.input:focus, select:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+.input::placeholder { color: var(--text-disabled); }
+select {
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23747577' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+textarea.input { resize: vertical; min-height: 76px; }
+.field { display: flex; flex-direction: column; gap: var(--space-2); }
+.field-label { font: var(--weight-semibold) var(--size-body-sm)/1.4 var(--font-body); color: var(--text-strong); }
+.link-btn { background: none; border: none; padding: 0; color: var(--text-link); font: var(--weight-semibold) var(--size-body-sm)/1.4 var(--font-body); cursor: pointer; }
+
+.spinner {
+  display: inline-block; border-radius: 50%;
+  border: 2px solid var(--chs-purple-20); border-top-color: var(--accent-fg);
+  animation: spin .7s linear infinite;
+}
+.spinner-light { border-color: rgba(255,255,255,.35); border-top-color: #fff; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-block { display: flex; justify-content: center; padding: 48px 0; }
+.loading-screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center; }
+
+.card { background: var(--surface-card); border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(var(--nav-h) + 24px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 60; max-width: 90%; width: max-content;
+  background: var(--chs-black); color: var(--text-inverse);
+  border-radius: var(--radius-md); padding: 10px 16px;
+  font: var(--weight-regular) var(--size-body-sm)/1.4 var(--font-body);
+  box-shadow: var(--shadow-overlay);
+  animation: toast-in var(--duration-base) var(--ease-out);
+  pointer-events: none;
+}
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+@media (min-width: 760px) { .toast { bottom: 32px; } }
