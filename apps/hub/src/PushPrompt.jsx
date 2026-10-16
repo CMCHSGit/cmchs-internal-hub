@@ -62,16 +62,26 @@ async function shouldAsk(uid) {
 }
 
 // Same steps as the schedule's enablePush(), against the hub's Firebase app.
+// A step that never answers shows as an error naming it, not "Turning on…" forever.
+function within(ms, step, promise) {
+  return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out ${step}. Try again.`)), ms))])
+}
+
+// The permission question comes FIRST, before anything is awaited: iOS only
+// shows it while the tap still counts, and loading Firebase first used it up,
+// so the question never appeared and this waited forever.
 async function enable(uid) {
-  const { app, fs, msg, db } = await firebaseParts()
+  const permission = await Notification.requestPermission()
+  if (permission !== 'granted') throw new Error('Notifications weren’t allowed. They can be turned on in the phone’s Settings for this app.')
+  const { app, fs, msg, db } = await within(20000, 'loading', firebaseParts())
   if (!(await msg.isSupported())) throw new Error('This browser can’t show notifications.')
-  if ((await Notification.requestPermission()) !== 'granted') throw new Error('Notifications weren’t allowed.')
-  const token = await msg.getToken(msg.getMessaging(app), {
+  const registration = await within(15000, 'waiting for the app to finish installing', navigator.serviceWorker.ready)
+  const token = await within(20000, 'registering this phone', msg.getToken(msg.getMessaging(app), {
     vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
-    serviceWorkerRegistration: await navigator.serviceWorker.ready,
-  })
+    serviceWorkerRegistration: registration,
+  }))
   if (!token) throw new Error('Couldn’t register this device.')
-  await fs.updateDoc(fs.doc(db, 'users', uid), { fcmTokens: fs.arrayUnion(token) })
+  await within(15000, 'saving', fs.updateDoc(fs.doc(db, 'users', uid), { fcmTokens: fs.arrayUnion(token) }))
   try { localStorage.setItem(ENABLED_KEY, '1') } catch { /* the schedule's card may show once more */ }
 }
 
@@ -123,7 +133,7 @@ export default function PushPrompt({ user }) {
       </div>
       {state !== 'done' && (
         <div className="push-prompt-actions">
-          {state !== 'error' && <button className="btn btn-primary" onClick={turnOn} disabled={state === 'busy'}>{state === 'busy' ? 'Turning on…' : 'Turn on'}</button>}
+          <button className="btn btn-primary" onClick={turnOn} disabled={state === 'busy'}>{state === 'busy' ? 'Turning on…' : state === 'error' ? 'Try again' : 'Turn on'}</button>
           <button className="btn-ghost-sm" onClick={notNow}>{state === 'error' ? 'Close' : 'Not now'}</button>
         </div>
       )}
