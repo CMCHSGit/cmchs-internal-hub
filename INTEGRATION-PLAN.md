@@ -106,8 +106,8 @@ Status is kept here. Tick items as they land, with the commit.
       `/admin/`, `/schedule/settings` and `/projects/#/settings` forward there.
       Not moved, on purpose: hub Manage (news people post, and the request and
       feedback queues: content, not settings) and HR access, which stays on each
-      person's profile. **Needs the Firestore rules published** for people to
-      switch their own reminders (`isOwnNotifications`); until then admins can.
+      person's profile. People switch their own reminders under the Firestore
+      rules' `isOwnNotifications` (published 17 Oct).
 - [x] Ctrl+K searches every section, 17 Oct (`apps/hub/src/Palette.jsx`): pages and
       views, tools, people, jobs and asks, opening in place. Each section adds its
       results through a `search-source.js`. The tracker's own job search, with
