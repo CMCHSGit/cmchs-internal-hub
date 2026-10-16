@@ -312,12 +312,16 @@ a.search-hit:hover { text-decoration: none; }
 /* The header's tabs need the room on a laptop or tablet: the name beside the
    avatar (also in its menu) and the words beside the logo go first, then the
    tool search (Home has its own). Phones use the bottom tab bar instead. */
-@media (min-width: 760px) and (max-width: 1365px) {
+@media (min-width: 760px) and (max-width: 1439px) {
   .header .account-text, .header .brand-name, .header .brand-divider { display: none !important; }
   .header .search { width: 240px; }
 }
+@media (min-width: 760px) and (max-width: 1279px) {
+  .header .search { width: 190px; }
+}
 @media (min-width: 760px) and (max-width: 1023px) {
   .header .header-search { display: none !important; }
+  .header .nav-tab { padding: 0 8px; }
 }
 
 /* "Turn on notifications?" (PushPrompt.jsx) — a card pinned to the bottom. */

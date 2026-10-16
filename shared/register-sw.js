@@ -15,8 +15,7 @@ export function registerServiceWorker({ reloadOnUpdate = false } = {}) {
   // the moment a new worker takes over. Without this the page keeps showing the
   // copy it loaded from the precache — so a deploy looks like it didn't happen
   // until someone thinks to refresh. Only for pages with nothing to lose: NOT
-  // SimproSync (a reload part-way through a sync) and NOT the schedule, which
-  // has its own handling in utils/appUpdates.js that waits for an idle page.
+  // SimproSync (a reload part-way through a sync).
   //
   // reloadOnUpdate: 'idle' (the one app) waits until nobody is typing or has a
   // dialog open, or they switch away from the tab: every change is saved as it

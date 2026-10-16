@@ -10,26 +10,27 @@ import { fileURLToPath } from 'node:url'
  *
  *  - The hub's own (hub.css, shared/tokens/base.css): inside its own pages,
  *    marked .hub-page. :root and html stay global (variables, page defaults).
- *  - The staff schedule's (index.css, settings.css), which Admin settings uses:
- *    inside that section's element only, main.section[data-section="admin"]
+ *  - The staff schedule's (index.css, settings.css), which Admin settings uses
+ *    too: inside those two sections' element only, main.section[data-section=…]
  *    (not [data-section] alone: App.jsx puts that on <body> too). Its :root
  *    variables go there too. The kit it @imports is dropped from this copy:
  *    the shell has already loaded it once, and a second, later copy would
  *    beat the hub's.
  *
- * `body` becomes body[data-section="…"] (App.jsx sets it); the light/dark
+ * `body` becomes body[data-section=…] (App.jsx sets it); the light/dark
  * prefix stays in front of the scope.
  */
 const SCOPES = [
   { file: /[\\/](apps[\\/]hub[\\/]src[\\/]hub\.css|shared[\\/]tokens[\\/]base\.css)$/,
-    inside: '.hub-page', section: 'hub', globalRoot: true },
-  // :where() adds no specificity, so inside Admin these rules win and lose
-  // against the kit exactly as they did when it was a page of its own.
+    inside: '.hub-page', body: 'body[data-section="hub"]', globalRoot: true },
+  // :where() adds no specificity, so inside these sections the rules win and
+  // lose against the kit exactly as they did when each was a page of its own.
   { file: /[\\/]apps[\\/]schedule[\\/]src[\\/](index|settings)\.css$/,
-    inside: ':where(main.section[data-section="admin"])', section: 'admin', globalRoot: false },
+    inside: ':where(main.section:is([data-section="schedule"], [data-section="admin"]))',
+    body: 'body:is([data-section="schedule"], [data-section="admin"])', globalRoot: false },
 ]
 function scopeHubCss() {
-  const scoper = ({ inside, section, globalRoot }) => function scope(sel) {
+  const scoper = ({ inside, body, globalRoot }) => function scope(sel) {
     const s = sel.trim()
     if (s === ':root' || s === 'html') return globalRoot ? s : inside
     if (s === '*' || s === '*::before' || s === '*::after') return globalRoot ? s : `${inside} ${s}`
@@ -38,7 +39,7 @@ function scopeHubCss() {
       const rest = s.slice(dark[0].length).trim()
       return rest ? `${dark[0]} ${scope(rest)}` : (globalRoot ? s : `${dark[0]} ${inside}`)
     }
-    if (/^body\b/.test(s)) return s.replace(/^body/, `body[data-section="${section}"]`)
+    if (/^body\b/.test(s)) return s.replace(/^body/, body)
     return `${inside} ${s}`
   }
   const fileOf = (node, result) => node.source?.input?.file || result.opts.from || ''
@@ -72,6 +73,9 @@ export default defineConfig({
   plugins: [react()],
   css: { postcss: { plugins: [scopeHubCss()] } },
   build: {
+    // dist/.vite/manifest.json: scripts/build.mjs reads it to precache only
+    // what the start page loads, then deletes it.
+    manifest: true,
     rollupOptions: {
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),

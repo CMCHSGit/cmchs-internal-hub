@@ -43,12 +43,16 @@ registerRoute(
 )
 
 // Sections of the one app (apps/hub/src/router.js SECTIONS) have no file of
-// their own: /asks/ is the app at / opened on Asks. Hand back the app's page,
-// the job /404.html does when the network answers instead of this worker.
-// Before the route below, which would otherwise take these navigations first.
+// their own: /asks/ is the app at / opened on Asks, /schedule/my the app opened
+// on the schedule's My week. Hand back the app's page, the job /404.html does
+// when the network answers instead of this worker. Before the route below,
+// which would otherwise take these navigations first.
+const APP_SECTIONS = /^\/(schedule|asks|projects|admin)(\/|$)/
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-  allowlist: [/^\/(asks|projects|admin)(\/|$)/],
+  allowlist: [APP_SECTIONS],
 }))
+/** An address inside the one app: the hub at / or one of its sections. */
+const inApp = (path) => path === '/' || path === '/index.html' || APP_SECTIONS.test(path)
 
 // A tool's page itself: fresh when there is a network, the last copy when
 // there is not. Covers the pages left out of the precache (Ansur, demo).
@@ -56,13 +60,6 @@ registerRoute(
   ({ url, request }) => request.mode === 'navigate' && url.origin === self.location.origin,
   new NetworkFirst({ cacheName: 'tool-pages', networkTimeoutSeconds: 4 }),
 )
-
-// The schedule routes client-side, so /schedule/my and friends have no file
-// behind them. Hand back its index.html — the same job /404.html does when the
-// network serves the request instead of this worker.
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/schedule/index.html'), {
-  allowlist: [/^\/schedule\//],
-}))
 
 // ── Firebase Cloud Messaging ──────────────────────────────────────────────
 // Background push only (app closed, or tab not focused). Foreground messages
@@ -94,10 +91,12 @@ try {
     const { title, body } = payload.notification || {}
     const url = payload.data?.url || '/schedule/'
     const demo = new URL(url, self.location.origin).pathname.startsWith('/demo/')
+    // The one app's icon for both: the schedule's own calendar icon went with
+    // its separate page.
     self.registration.showNotification(title || (demo ? 'Demo tracker' : 'CMCHS Staff Schedule'), {
       body,
-      icon: demo ? '/icons/icon-192.png' : '/schedule/icons/icon-192.png',
-      badge: demo ? '/icons/icon-192.png' : '/schedule/icons/icon-192.png',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
       data: { url },
     })
   })
@@ -110,13 +109,15 @@ self.addEventListener('notificationclick', (event) => {
   const target = new URL(event.notification.data?.url || '/schedule/', self.location.origin)
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    // Only a window already inside the tool the notification is about
-    // (/schedule/ or /demo/). Matching any window on the origin — which is
-    // what this did when the schedule had the origin to itself — would focus
-    // the hub home page, or whatever other tool happened to be open, and
-    // navigate it away.
+    // A window already open on what the notification is about, which then
+    // moves to that screen: one in the same section or tool first; failing
+    // that, for the one app (the schedule, Asks…), any window of it. For a
+    // separate tool (/demo/) only a window inside that tool: matching any
+    // window on the origin would navigate whatever other tool happened to be
+    // open away from someone's half-finished work.
     const tool = '/' + target.pathname.split('/')[1] + '/'
     const existing = windows.find(w => new URL(w.url).pathname.startsWith(tool))
+      || (inApp(target.pathname) ? windows.find(w => inApp(new URL(w.url).pathname)) : undefined)
     if (existing) {
       await existing.focus()
       if ('navigate' in existing) await existing.navigate(target.href).catch(() => {})

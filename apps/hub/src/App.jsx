@@ -1,6 +1,7 @@
 // The one app's shell (INTEGRATION-PLAN.md step 2): sign-in once, one header,
 // and the section the address points at. The hub's own pages (home, People,
-// Manage) and the tools that have moved in (Asks, Projects, Admin) are all sections;
+// Manage) and the tools that have moved in (the schedule, Asks, Projects,
+// Admin) are all sections;
 // moving between them never reloads the page (router.js).
 import { Component, lazy, Suspense, useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
@@ -16,6 +17,7 @@ import SignIn from './SignIn.jsx'
 const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
 const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
 const AdminSection = lazy(() => import('../../admin/src/section.jsx'))
+const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
 // A section that fails to load or crashes (most often: a deploy has replaced
 // the files an open tab was about to fetch) says so, rather than blanking the
@@ -97,6 +99,7 @@ export default function App() {
               {section === 'asks' && <AsksSection />}
               {section === 'projects' && <ProjectsSection />}
               {section === 'admin' && <AdminSection />}
+              {section === 'schedule' && <ScheduleSection />}
             </Suspense>
           </SectionBoundary>
         </main>

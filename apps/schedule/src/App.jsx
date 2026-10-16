@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings as SettingsIcon, Moon, Sun, Plane } from 'lucide-react'
+import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings as SettingsIcon, Plane } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login         from './pages/Login'
 import MySchedule    from './pages/MySchedule'
@@ -11,40 +11,38 @@ import OnCall        from './pages/OnCall'
 import OutOfTown     from './pages/OutOfTown'
 import TeamOnboarding from './components/TeamOnboarding'
 import PullToRefresh  from './components/PullToRefresh'
-import AccountMenu    from './components/AccountMenu'
-import UpdateBanner   from './components/UpdateBanner'
-import { StripeRule, Spinner, IconButton, Loading } from './components/ui'
-import { useTheme } from './utils/theme'
-import { APP_VERSION } from './version'
+import { Loading } from './components/ui'
 
 // Admins only, and it brings the Excel import with it: loaded when opened.
 const Settings = lazy(() => import('./pages/Settings'))
 
-// Short labels for the phone's bottom bar, fuller ones for desktop tabs.
-// Team week is the landing page — it's what everyone else is doing, which
-// is the more useful thing to see first; My week moved to its own path.
+// The schedule's own views: short labels on a phone, fuller ones on a desktop.
+// Team week is the landing page — it's what everyone else is doing, which is
+// the more useful thing to see first; My week has its own path.
 const VIEWS = [
-  { to: '/',       label: 'Team',      tab: 'Team week',      Icon: CalendarDays },
-  { to: '/my',     label: 'My week',   tab: 'My week',        Icon: CalendarCheck },
-  { to: '/day',    label: 'Day',       tab: 'Day',            Icon: MapPin },
-  { to: '/leave',  label: 'Leave',     tab: 'Leave calendar', Icon: CalendarRange },
-  { to: '/oncall', label: 'On call',   tab: 'On call',        Icon: Phone },
-  // Desktop tab only — the phone's bottom bar is full, so phones reach it
-  // from the account menu instead (it's mostly a download-and-email job).
-  { to: '/out-of-town', label: 'Out of town', tab: 'Out of town', Icon: Plane, desktopOnly: true },
+  { to: '/',            label: 'Team',        tab: 'Team week',      Icon: CalendarDays },
+  { to: '/my',          label: 'My week',     tab: 'My week',        Icon: CalendarCheck },
+  { to: '/day',         label: 'Day',         tab: 'Day',            Icon: MapPin },
+  { to: '/leave',       label: 'Leave',       tab: 'Leave calendar', Icon: CalendarRange },
+  { to: '/oncall',      label: 'On call',     tab: 'On call',        Icon: Phone },
+  { to: '/out-of-town', label: 'Out of town', tab: 'Out of town',    Icon: Plane },
 ]
 
+/**
+ * The staff schedule as a section of the hub's one app (section.jsx): the hub
+ * draws the header, the account menu, light/dark and the phone tab bar; this
+ * is the row of the schedule's own views and the view itself.
+ */
 export default function App() {
   return (
     <AuthProvider>
-      {/* The app is served under /schedule/ on internal.chsnz.co.nz. basename
-          strips that prefix, so every route and NavLink below stays a plain
-          "/…" path — and every existing bookmark, reminder-email link and push
-          notification URL keeps working, which a HashRouter would have broken. */}
+      {/* Served under /schedule/. basename strips that prefix, so every route
+          and NavLink below stays a plain "/…" path — and every existing
+          bookmark, reminder-email link and push notification URL keeps
+          working, which a HashRouter would have broken. */}
       <BrowserRouter basename="/schedule">
         <AppRoutes />
       </BrowserRouter>
-      <UpdateBanner />
     </AuthProvider>
   )
 }
@@ -54,9 +52,11 @@ function AppRoutes() {
   const [refreshKey, setRefreshKey] = useState(0)
 
   if (user === undefined || (user && !profileReady)) {
-    return <div className="loading-screen"><Spinner size={32} /></div>
+    return <div className="page"><Loading /></div>
   }
 
+  // The hub has signed them in before this opens; only a sign-out in another
+  // tab, while this one is open, lands here.
   if (!user) {
     return (
       <Routes>
@@ -74,9 +74,9 @@ function AppRoutes() {
   }
 
   return (
-    <div className="app-shell">
+    <div className="sch">
       <TeamOnboarding />
-      <AppHeader />
+      <Views />
       <PullToRefresh onRefresh={handleRefresh}>
         <Routes key={refreshKey}>
           <Route path="/"       element={<TeamWeek />} />
@@ -94,75 +94,24 @@ function AppRoutes() {
           <Route path="*"       element={<Navigate to="/" replace />} />
         </Routes>
       </PullToRefresh>
-      <BottomNav />
-      {/* Always on screen, bumped on every commit — a quick way to tell whether
-          this device is running the latest version or a stale cached copy. */}
-      <span className="version-tag" title={`CMCHS Staff Schedule v${APP_VERSION}`}>v{APP_VERSION}</span>
     </div>
   )
 }
 
-function AppHeader() {
+function Views() {
   const { profile } = useAuth()
-  const [theme, toggleTheme] = useTheme()
+  const views = profile?.role === 'admin'
+    // The schedule's own settings (locations, Excel, activity log). People and
+    // notifications are in the hub's Admin settings, linked from there.
+    ? [...VIEWS, { to: '/settings', label: 'Settings', tab: 'Settings', Icon: SettingsIcon }]
+    : VIEWS
   return (
-    <header className="app-header">
-      <div className="app-header-row">
-        {/* Left to right, as in every tool (shared/hub-back.css): the
-            "‹ Internal Hub" pill back to the hub, the company logo, a divider,
-            then this app's name, which goes to its own home page. Plain <a>
-            for the pill rather than a NavLink on purpose: the hub is outside
-            this router's basename, so "/" here would only ever mean
-            /schedule/. Same origin, so an installed app stays in its window. */}
-        <div className="app-brand">
-          <a className="hub-back" href="/" aria-label="Back to the Internal Hub">
-            <svg className="hub-back-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
-            <span className="hub-back-long">Internal Hub</span><span className="hub-back-short">Hub</span>
-          </a>
-          <span className="tool-brand" aria-hidden="true">
-            <img className="tool-logo tool-logo-light" src={`${import.meta.env.BASE_URL}brand/logo-full-colour.png`} alt="" />
-            <img className="tool-logo tool-logo-dark" src={`${import.meta.env.BASE_URL}brand/logo-full-dark.png`} alt="" />
-            <img className="tool-logo-mark" src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="" />
-          </span>
-          <span className="tool-divider" aria-hidden="true" />
-          <NavLink to="/" end className="app-title-link" aria-label="Staff schedule — team week">
-            <span className="app-title">Staff schedule</span>
-          </NavLink>
-        </div>
-        <nav className="header-tabs" aria-label="Views">
-          {VIEWS.map(v => (
-            <NavLink key={v.to} to={v.to} end className={({ isActive }) => `header-tab${isActive ? ' active' : ''}`}>
-              {v.tab}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="header-actions">
-        <IconButton className="theme-toggle" label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-        </IconButton>
-        <AccountMenu />
-        {/* The schedule's own settings (locations, Excel, activity log).
-            People and notifications are in the hub's Admin, linked from there. */}
-        {profile?.role === 'admin' && (
-          <NavLink to="/settings" className={({ isActive }) => `header-admin${isActive ? ' active' : ''}`} aria-label="Schedule settings" title="Schedule settings">
-            <SettingsIcon size={20} aria-hidden="true" />
-            <span className="header-admin-label">Settings</span>
-          </NavLink>
-        )}
-        </div>
-      </div>
-      <StripeRule thickness={4} />
-    </header>
-  )
-}
-
-function BottomNav() {
-  return (
-    <nav className="bottom-nav" aria-label="Views">
-      {VIEWS.filter(v => !v.desktopOnly).map(({ to, label, Icon }) => (
-        <NavLink key={to} to={to} end className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-          <Icon size={22} aria-hidden="true" />
-          <span>{label}</span>
+    <nav className="sch-views" aria-label="Staff schedule">
+      {views.map(({ to, label, tab, Icon }) => (
+        <NavLink key={to} to={to} end className={({ isActive }) => `sch-view${isActive ? ' active' : ''}`}>
+          <Icon size={18} aria-hidden="true" />
+          <span className="sch-view-label-short">{label}</span>
+          <span className="sch-view-label-long">{tab}</span>
         </NavLink>
       ))}
     </nav>

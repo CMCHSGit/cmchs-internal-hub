@@ -18,3 +18,10 @@
   .shell .hub-page .push-prompt,
   .shell .hub-page .pp-toast { bottom: calc(58px + 16px + env(safe-area-inset-bottom)); }
 }
+
+/* Printing a section (the schedule's week, a job's panel): just the section. */
+@media print {
+  body:not([data-section="hub"]) .hub-chrome .header,
+  .bottom-nav { display: none !important; }
+  .shell { padding-bottom: 0; }
+}

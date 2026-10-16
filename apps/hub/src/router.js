@@ -15,9 +15,11 @@ export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
   { id: 'projects', prefix: '/projects/' },
   { id: 'admin', prefix: '/admin/' },
+  // Routes on real paths inside (/schedule/my…), with react-router, not #/.
+  { id: 'schedule', prefix: '/schedule/' },
 ]
 
-/** Which section an address belongs to, or null for a page outside the app (/schedule/, /demo/…). */
+/** Which section an address belongs to, or null for a page outside the app (/demo/, /maintenance/…). */
 export function sectionOf(path) {
   if (path === '/' || path === '/index.html') return 'hub'
   for (const s of SECTIONS) {
@@ -51,9 +53,14 @@ export function navigate(href, { replace = false } = {}) {
   // relative links inside it resolve the same as before.
   const sec = SECTIONS.find(s => url.pathname === s.prefix.slice(0, -1))
   if (sec) url.pathname = sec.prefix
+  const samePath = url.pathname === location.pathname
   history[replace ? 'replaceState' : 'pushState'](null, '', url.pathname + url.search + url.hash)
-  if (url.hash === '' || url.pathname !== location.pathname) window.scrollTo(0, 0)
-  emit()
+  if (url.hash === '' || !samePath) window.scrollTo(0, 0)
+  // Announced the way the browser announces Back: this shell hears it (the
+  // listener above), and so does a section with a router of its own (the
+  // schedule's react-router), which otherwise wouldn't see /schedule/my
+  // become /schedule/ when the header's Schedule tab is clicked.
+  window.dispatchEvent(new PopStateEvent('popstate', { state: null }))
 }
 
 /**

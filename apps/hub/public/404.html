@@ -7,8 +7,8 @@
   <link rel="icon" type="image/png" href="/brand/logo-mark.png">
   <!-- Deep links into a single-page app. GitHub Pages has no rewrite rules: any
        path with no file behind it lands here, including real routes like
-       /schedule/my. For those, hand the request to that app's index.html with
-       the original path in ?redirect=, which the app puts back before it mounts.
+       /schedule/my. For those, hand the request to the app at / with the
+       original path in ?redirect=, which the app puts back before it mounts.
        Everything else falls through to the genuine not-found page below.
 
        This runs before any of the markup renders, so a real route never flashes
@@ -19,9 +19,7 @@
     (function () {
       // Sections of the one app (apps/hub/src/router.js SECTIONS): handed to the
       // app at / with the address in ?redirect=, which it puts back on load.
-      var SECTIONS = ['/asks/', '/projects/', '/admin/']
-      // Separate apps that route client-side. A path under one of these is its business.
-      var APPS = ['/schedule/']
+      var SECTIONS = ['/schedule/', '/asks/', '/projects/', '/admin/']
       var path = location.pathname
       // Tools that moved: old address prefix -> new one, so bookmarks keep working.
       var MOVED = { '/service/order-parser/': '/service-orders/', '/order-parser/': '/service-orders/' }
@@ -38,11 +36,6 @@
       for (var s = 0; s < SECTIONS.length; s++) {
         if (path !== SECTIONS[s].slice(0, -1) && path.indexOf(SECTIONS[s]) !== 0) continue
         location.replace('/?redirect=' + encodeURIComponent(path + location.search + location.hash))
-        return
-      }
-      for (var i = 0; i < APPS.length; i++) {
-        if (path.indexOf(APPS[i]) !== 0) continue
-        location.replace(APPS[i] + '?redirect=' + encodeURIComponent(path + location.search + location.hash))
         return
       }
     })()

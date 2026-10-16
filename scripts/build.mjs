@@ -1,18 +1,18 @@
 // Builds every app and assembles one site in dist/, which GitHub Pages serves
 // at internal.chsnz.co.nz. Each app lands at its own path:
 //
-//   apps/hub         (Vite)    -> /            (+ /shared/gate.js)
-//   apps/schedule    (Vite)    -> /schedule/
-//   apps/maintenance (Vite)    -> /maintenance/
-//   apps/service-orders (Vite) -> /service-orders/
-//   apps/simprosync  (Vite)    -> /simprosync/
-//   apps/ansurtopdf  (Vite)    -> /ansurtopdf/
-//   apps/admin                 -> /admin/     admin settings: no build of its own, a section of the hub's one app
-//   apps/projects             -> /projects/  no build of its own: a section of the hub's one app
-//   apps/asks                  -> /asks/      no build of its own: a section of the hub's
-//                                         one app (apps/hub/src/router.js, INTEGRATION-PLAN.md)
-//   apps/demo        (fetched) -> /demo/  read-only copy of demo.chsnz.co.nz,
-//                                         built from the chs-equipment repo
+//   apps/hub            (Vite)    -> /             the one app (+ /shared/gate.js)
+//   apps/maintenance    (Vite)    -> /maintenance/
+//   apps/service-orders (Vite)    -> /service-orders/
+//   apps/simprosync     (Vite)    -> /simprosync/
+//   apps/ansurtopdf     (Vite)    -> /ansurtopdf/
+//   apps/demo           (fetched) -> /demo/        read-only copy of demo.chsnz.co.nz,
+//                                                  built from the chs-equipment repo
+//
+// No build of their own, because they are sections of the hub's one app
+// (apps/hub/src/router.js, INTEGRATION-PLAN.md step 2): apps/schedule
+// (/schedule/), apps/asks (/asks/), apps/projects (/projects/) and apps/admin
+// (/admin/).
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
@@ -28,7 +28,6 @@ const DIST = join(ROOT, 'dist')
 // it would be wiped by its own build output landing on top.
 const APPS = [
   { dir: 'apps/hub',        path: '',           build: 'npm run build -w apps/hub',      output: 'dist' },
-  { dir: 'apps/schedule',   path: 'schedule',   build: 'npm run build -w apps/schedule', output: 'dist' },
   { dir: 'apps/maintenance', path: 'maintenance', build: 'npm run build -w apps/maintenance', output: 'dist' },
   { dir: 'apps/service-orders', path: 'service-orders', build: 'npm run build -w apps/service-orders', output: 'dist' },
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
@@ -69,6 +68,29 @@ for (const app of APPS) {
 // built from the ASSEMBLED dist/ — no individual app's build can see the other
 // apps' files. apps/hub emitted sw-src.js (vite.sw.config.js); this fills in its
 // self.__WB_MANIFEST and writes the sw.js that actually ships.
+//
+// Of the one app's own scripts and styles, only what its start page loads is
+// precached: the static imports of its entries, read from the build's
+// manifest. The sections (the schedule, Asks, the project tracker…) and
+// anything only they use load the first time someone opens one, and are kept
+// then (sw.js tool-assets), rather than every phone downloading all of them on
+// install. Choosing by the import graph rather than by file name means a piece
+// two sections share, which Vite names after one of its modules, can't slip in.
+const shellFiles = (() => {
+  const manifest = JSON.parse(readFileSync(join(DIST, '.vite', 'manifest.json'), 'utf8'))
+  const files = new Set()
+  const visit = (key) => {
+    const chunk = manifest[key]
+    if (!chunk || files.has(chunk.file)) return
+    files.add(chunk.file)
+    for (const css of chunk.css || []) files.add(css)
+    for (const imp of chunk.imports || []) visit(imp)
+  }
+  for (const [key, chunk] of Object.entries(manifest)) if (chunk.isEntry) visit(key)
+  return [...files].filter(f => f.startsWith('assets/'))
+})()
+rmSync(join(DIST, '.vite'), { recursive: true, force: true })
+
 const { count, size, warnings } = await injectManifest({
   swSrc: join(DIST, 'sw-src.js'),
   swDest: join(DIST, 'sw.js'),
@@ -83,14 +105,12 @@ const { count, size, warnings } = await injectManifest({
     'index.html',
     '404.html',
     'manifest.webmanifest',
-    'assets/**/*.{js,css}',
+    ...shellFiles,
     'shared/**/*.js',
     'brand/**/*.png',
     'icons/**/*.png',
-    // The schedule's entry page has to be here: the worker's NavigationRoute
-    // hands deep links to it by URL, which only resolves if it is precached.
-    //
-    // The other tools' entry pages are deliberately NOT. Their scripts and
+    // The tools' entry pages are deliberately NOT here (the sections of the
+    // one app have none: the worker hands them index.html). Their scripts and
     // styles are only cached the first time a tool is opened, so a precached
     // page could point at a build's stylesheet that was never cached and that
     // the next deploy deleted from the server — the tool then opened with no
@@ -98,18 +118,12 @@ const { count, size, warnings } = await injectManifest({
     // they go through the worker's network-first page route: always this
     // deploy's page when online, and offline the last copy, whose files were
     // cached when it was loaded.
-    'schedule/index.html',
   ],
   globIgnores: [
     'sw-src.js',
     // Big, rarely opened, or wanted fresh rather than cached. Precaching these
     // would make every phone download them up front for no reason.
     '**/exceljs*.js',
-    // The sections of the one app (Asks, the project tracker…): like the
-    // separate tools before them, cached the first time someone opens one
-    // (sw.js tool-assets), not downloaded by every phone on install.
-    'assets/section-*.{js,css}',
-    'assets/backend-firebase-*.js',
     'ansurtopdf/**',
     // 600 KB and live-data only: no use offline, and it changes on every
     // tracker deploy, which would churn every installed copy's cache.

@@ -94,7 +94,11 @@ Status is kept here. Tick items as they land, with the commit.
   - [x] Admin settings (`/admin/`), 16 Oct. Its screens are the schedule's, so
         the schedule's stylesheets come too, scoped to the Admin section
         (`apps/hub/vite.config.js`) until they are folded into the kit.
-  - [ ] Staff schedule (own router: last)
+  - [x] Staff schedule (`/schedule/`), 17 Oct. Keeps react-router inside, so
+        /schedule/my and every reminder link land as before; its views are a
+        row under the shell's header, and its own header, account menu,
+        phone tab bar, update banner and version tag are gone. The precache
+        is now just what the start page loads (`scripts/build.mjs`).
 - [ ] One Settings area (merges Admin settings, the schedule's Settings, the
       project tracker's Settings, maintenance's settings, hub Manage, People's HR)
 - [ ] Ctrl+K searches every section

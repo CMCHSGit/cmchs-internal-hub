@@ -7,7 +7,7 @@
 | Path | What | Source |
 |---|---|---|
 | `/` | Hub home: tools by category, search, announcements | `apps/hub` (Vite + React) |
-| `/schedule/` | Staff schedule | `apps/schedule` (Vite + React) |
+| `/schedule/` | Staff schedule: team week, my week, day, leave, on call, out of town, and its own Settings for admins | `apps/schedule` (React, react-router inside), a section of the hub's one app (no build of its own) |
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
@@ -170,14 +170,13 @@ If you add a page people should be able to install *from* (iOS reads only the me
 ## Run it locally
 ```
 npm install
-npm run dev                  # hub at http://localhost:5173 with a pretend "Dev User" (no .env needed)
-npm run dev -w apps/schedule # the schedule on its own
+npm run dev                  # the one app at http://localhost:5173 with a pretend "Dev User" (no .env needed)
 npm test -w apps/schedule    # the schedule's unit tests
 npm run build                # whole site into dist/
 npm run preview              # serve dist/ at http://localhost:4173 (needs .env for real sign-in)
 ```
 
-The service worker only registers in a real build, so `npm run dev` never installs one — use `npm run build && npm run preview` to exercise it. Deep links are the other thing `dev` won't show you honestly: Vite's dev server has its own SPA fallback, so `/schedule/my` just works there, while on GitHub Pages it goes through `404.html`.
+The service worker only registers in a real build, so `npm run dev` never installs one — use `npm run build && npm run preview` to exercise it. Deep links are the other thing `dev` won't show you honestly: Vite's dev server has its own SPA fallback, so `/schedule/my` just works there, while on GitHub Pages it goes through `404.html`. The schedule, Admin and anything else reading Firestore need the `.env` to show their screens; without one they show the shell's "didn't load" message.
 For real sign-in locally, copy `.env.example` to `.env` and fill it in with the schedule's Firebase web config.
 
 ## Deploy setup (one-time)
