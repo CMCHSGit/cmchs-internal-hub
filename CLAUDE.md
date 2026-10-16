@@ -6,6 +6,10 @@ which is the demo tracker built in from the `chs-equipment` repo). How it is put
 together, run locally and deployed is in `README.md`; the wider history and
 traps are in `chs-equipment/PROJECT-CONTEXT.md`.
 
+**Everything is being merged into one app from this repo:** read
+`INTEGRATION-PLAN.md` before building anything. It says where new work goes,
+which links between tools must keep working, and how to work while things move.
+
 ## Working agreements
 
 Several people work on these repos with Claude, often at the same time.
