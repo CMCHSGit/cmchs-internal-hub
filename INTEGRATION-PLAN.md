@@ -80,9 +80,15 @@ Status is kept here. Tick items as they land, with the commit.
       from them
 
 ### 2. One shell
-- [ ] The hub becomes the shell, with a router
-- [ ] Move in the React sections: staff schedule, project tracker, Asks,
-      admin, People, Manage. Remove their own headers, toasts and modals.
+- [x] The hub becomes the shell, with a router (`apps/hub/src/router.js`): the
+      path picks the section, a section's own #/ routes work as before, moving
+      between sections never reloads. One Firebase start-up (`shared/firebase.js`).
+      The kit is loaded once for every section; the hub pages' own look is
+      scoped to `.hub-page` (`apps/hub/vite.config.js`) until the two are merged.
+- Move in the React sections, one at a time (recipe below):
+  - [x] Asks (`/asks/`), 16 Oct
+  - [x] People and Manage (they were already hub pages)
+  - [ ] Project tracker  - [ ] Admin settings  - [ ] Staff schedule (own router: last)
 - [ ] One Settings area (merges Admin settings, the schedule's Settings, the
       project tracker's Settings, maintenance's settings, hub Manage, People's HR)
 - [ ] Ctrl+K searches every section
@@ -110,6 +116,24 @@ notifications at the new address.
 - [ ] Remove the duplicates (two Firebase start-ups, `chs-tokens.css` copy,
       the hub's own `.btn/.badge/.card`, per-tool update handling)
 - [ ] Documentation: README, CLAUDE.md, PROJECT-CONTEXT.md
+
+## Moving a tool into the shell (step 2 recipe)
+
+Asks was the first; do the next the same way.
+
+1. **A section entry**: `apps/<tool>/src/section.jsx` exports a component with
+   the tool's own stylesheet import, its providers and its `App`. No header,
+   fonts, kit stylesheet, service worker or update handling: the shell has them.
+2. **Register it**: `SECTIONS` in `apps/hub/src/router.js`, a lazy import and a
+   line in `apps/hub/src/App.jsx`, a tab in `Header.jsx` (and the phone icon).
+3. **Deep links**: add its prefix to `SECTIONS` in `apps/hub/public/404.html` and
+   to the NavigationRoute `allowlist` in `apps/hub/src/sw.js`.
+4. **Drop the separate build**: its entry in `scripts/build.mjs` `APPS` (and any
+   precache line), its `index.html`, `main.jsx`, `vite.config.js`, `public/`, and the
+   `dev`/`build` scripts in its `package.json` (keep `test`).
+5. **Check**: its classes are all from the kit or its own stylesheet (the hub's are
+   scoped away); links in and out don't reload; old links and notifications still
+   land; light and dark; a phone; `npm run build` and every test.
 
 ## Links between tools that must keep working
 

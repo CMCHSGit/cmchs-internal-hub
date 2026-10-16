@@ -4,12 +4,13 @@ import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
 import { markUsed, openPhoneApp, opensInTab, searchTools } from './tools.js'
+import { navigate } from './router.js'
 
 function openTool(tool) {
   markUsed(tool)
   if (openPhoneApp(tool)) return
   if (opensInTab(tool)) window.open(tool.link, '_blank', 'noopener')
-  else location.href = tool.link
+  else navigate(tool.link) // in the app when it has moved in, a page load when not
 }
 
 function Search() {
@@ -111,7 +112,7 @@ function ThemeButton() {
 // `search={false}` on Home, where the hero has the search box instead.
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
-const NAV = [['home', 'Home', '/#/'], ['people', 'People', '/#/people'], ['manage', 'Manage', '/#/manage']]
+const NAV = [['home', 'Home', '/#/'], ['people', 'People', '/#/people'], ['asks', 'Asks', '/asks/'], ['manage', 'Manage', '/#/manage']]
 
 export default function Header({ user, search = true, page = 'home' }) {
   return (
@@ -136,6 +137,9 @@ export default function Header({ user, search = true, page = 'home' }) {
             in for the people who have it, not a tool everyone should see. */}
         <a className={`icon-btn narrow-only header-people ${page === 'people' ? 'on' : ''}`} href="/#/people" aria-label="People" title="People">
           <Icon name="users" size={20} />
+        </a>
+        <a className={`icon-btn narrow-only header-people ${page === 'asks' ? 'on' : ''}`} href="/asks/" aria-label="Asks" title="Asks">
+          <Icon name="inbox" size={20} />
         </a>
         <a className={`icon-btn narrow-only header-people ${page === 'manage' ? 'on' : ''}`} href="/#/manage" aria-label="Manage" title="Manage">
           <Icon name="clipboard-list" size={20} />

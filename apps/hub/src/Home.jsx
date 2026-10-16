@@ -2,6 +2,7 @@
 // design/UPGRADE-v2.md). Top to bottom: hero with search and quick launch,
 // At a glance, News and announcements, Who's where today + Calendar, Tools,
 // footer. The staff-schedule blocks hide themselves if it can't be read.
+import { navigate } from './router.js'
 import { useEffect, useRef, useState } from 'react'
 import { firstNameOf } from '../../../shared/session.js'
 import Calendar from './Calendar.jsx'
@@ -84,7 +85,7 @@ function HeroSearch({ people }) {
             markUsed(toolHits[0])
             if (openPhoneApp(toolHits[0])) return
             if (opensInTab(toolHits[0])) window.open(toolHits[0].link, '_blank', 'noopener')
-            else location.href = toolHits[0].link
+            else navigate(toolHits[0].link)
           }
         }}
       />

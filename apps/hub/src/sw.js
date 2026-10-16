@@ -42,6 +42,14 @@ registerRoute(
   }),
 )
 
+// Sections of the one app (apps/hub/src/router.js SECTIONS) have no file of
+// their own: /asks/ is the app at / opened on Asks. Hand back the app's page,
+// the job /404.html does when the network answers instead of this worker.
+// Before the route below, which would otherwise take these navigations first.
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
+  allowlist: [/^\/asks(\/|$)/],
+}))
+
 // A tool's page itself: fresh when there is a network, the last copy when
 // there is not. Covers the pages left out of the precache (Ansur, demo).
 registerRoute(

@@ -1,0 +1,10 @@
+/* The one app's shell (App.jsx). Not scoped to .hub-page (vite.config.js
+   scopes only hub.css and base.css), because these wrap every section. */
+
+/* The header and the notifications prompt are hub markup on every page, in
+   .hub-page wrappers that make no box of their own, so the header still
+   sticks to the top of the window. */
+.hub-chrome { display: contents; }
+
+/* A section that has moved in, below the shared header. */
+.section, .section-loading { min-height: 60vh; }

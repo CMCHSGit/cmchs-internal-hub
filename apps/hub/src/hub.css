@@ -40,11 +40,11 @@ body { background: var(--chs-black-05); }
 .btn-block { width: 100%; }
 
 .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px;
-  border-radius: var(--radius-md); color: var(--text-body); transition: var(--transition-control); }
+  border: 0; border-radius: var(--radius-md); color: var(--text-body); transition: var(--transition-control); }
 .icon-btn:hover { background: var(--chs-purple-20); color: var(--accent-fg); text-decoration: none; }
 
 .badge { display: inline-flex; align-items: center; border-radius: var(--radius-pill); padding: 1px 8px;
-  font: 600 12px/1.5 var(--font-body); }
+  font: 600 12px/1.5 var(--font-body); text-transform: none; letter-spacing: normal; }
 .badge-orange { background: var(--chs-orange-20); color: var(--text-strong); }
 
 .alert { border-radius: var(--radius-md); background: var(--status-attention-tint); color: var(--text-strong);
@@ -398,6 +398,8 @@ a.pp-contact:hover { color: var(--accent-fg); }
 
 .pp-input { width: 100%; min-height: 40px; padding: 0 12px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md);
   background: var(--surface-card); font: var(--type-body); color: var(--text-strong); }
+/* The shared kit flattens every <select> (its own chevron); the hub's keep the browser's arrow. */
+select.pp-input { appearance: auto; -webkit-appearance: auto; line-height: normal; }
 .pp-input:hover { border-color: var(--border-strong); }
 .pp-input:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
 .pp-label { display: flex; flex-direction: column; gap: 6px; font: 600 13px/1.3 var(--font-body); color: var(--text-strong); }
@@ -576,3 +578,6 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 :root[data-theme="dark"] .theme-btn .sun { display: block; }
 :root[data-theme="dark"] .theme-btn .moon { display: none; }
 :root[data-theme="dark"] .asks-urgent { color: #ff8a9a; }
+
+/* The kit lightens its own badge colours in dark mode; the hub's badges keep theirs. */
+:root[data-theme="dark"] .badge-orange, :root[data-theme="dark"] .badge-green, :root[data-theme="dark"] .badge-purple { color: var(--text-strong); }

@@ -15,7 +15,7 @@
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 | `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects` (Vite + React) |
-| `/asks/` | Asks: quick requests between staff. Send to people or whole teams; the first to pick it up has it, and everyone involved sees who | `apps/asks` (Vite + React) |
+| `/asks/` | Asks: quick requests between staff. Send to people or whole teams; the first to pick it up has it, and everyone involved sees who | `apps/asks`, a section of the hub's one app (no build of its own) |
 
 Also here, not web pages: `backend/` (the Apps Script proxy and nightly backup, Tile sync; see `backend/README.md`) and `rules/` (the Firestore and Realtime Database rules; see `rules/README.md`). Everything is being merged into one app: `INTEGRATION-PLAN.md`.
 

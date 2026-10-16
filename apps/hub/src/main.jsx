@@ -1,14 +1,26 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { registerServiceWorker } from '../../../shared/register-sw.js'
-import '../../../shared/tokens.css'
-import '../../../shared/ui/dark.css'
+import { interceptLinks, normaliseSectionPath, restoreRedirect } from './router.js'
+// The typefaces, then the one design system every section uses (tokens,
+// light/dark, base styles, components), then the hub pages' own look, which
+// vite.config.js keeps inside .hub-page so it can't restyle other sections.
+import '../../../shared/tokens/fonts.css'
+import '../../../shared/ui/ui.css'
+import '../../../shared/tokens/base.css'
 import './hub.css'
+import './shell.css'
 import App from './App.jsx'
 
-// The hub is a launcher with no state worth keeping, so it takes a new deploy
-// straight away rather than sitting on a precached copy until someone refreshes.
-registerServiceWorker({ reloadOnUpdate: true })
+// A deep link that came via 404.html (/?redirect=/asks/…): put it back first.
+restoreRedirect()
+normaliseSectionPath()
+// Links between sections move within the app instead of loading a new page.
+interceptLinks()
+
+// Take a new deploy without anyone refreshing, but never while they're typing
+// or have a dialog open: everything saves as it goes, so a reload then is safe.
+registerServiceWorker({ reloadOnUpdate: 'idle' })
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

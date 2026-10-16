@@ -9,7 +9,8 @@
 //   apps/ansurtopdf  (Vite)    -> /ansurtopdf/
 //   apps/admin       (Vite)    -> /admin/     admin settings (people, Simpro access…)
 //   apps/projects    (Vite)    -> /projects/  project tracker (job register + weekly timeline)
-//   apps/asks        (Vite)    -> /asks/      quick requests between staff, picked up by whoever can
+//   apps/asks                  -> /asks/      no build of its own: a section of the hub's
+//                                         one app (apps/hub/src/router.js, INTEGRATION-PLAN.md)
 //   apps/demo        (fetched) -> /demo/  read-only copy of demo.chsnz.co.nz,
 //                                         built from the chs-equipment repo
 //
@@ -34,7 +35,6 @@ const APPS = [
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
   { dir: 'apps/admin',      path: 'admin',      build: 'npm run build -w apps/admin',    output: 'dist' },
   { dir: 'apps/projects',   path: 'projects',   build: 'npm run build -w apps/projects', output: 'dist' },
-  { dir: 'apps/asks',       path: 'asks',       build: 'npm run build -w apps/asks',     output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]
 

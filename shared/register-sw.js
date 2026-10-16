@@ -17,17 +17,33 @@ export function registerServiceWorker({ reloadOnUpdate = false } = {}) {
   // until someone thinks to refresh. Only for pages with nothing to lose: NOT
   // SimproSync (a reload part-way through a sync) and NOT the schedule, which
   // has its own handling in utils/appUpdates.js that waits for an idle page.
+  //
+  // reloadOnUpdate: 'idle' (the one app) waits until nobody is typing or has a
+  // dialog open, or they switch away from the tab: every change is saved as it
+  // is made, so a reload then loses nothing.
   if (reloadOnUpdate) {
     const hadController = !!navigator.serviceWorker.controller
+    let waiting = false
     let reloaded = false
+    const busy = () => document.activeElement?.matches?.('input, textarea, select, [contenteditable="true"]') || document.querySelector('[role="dialog"]')
+    const reloadIfReady = () => {
+      if (!waiting || reloaded) return
+      if (reloadOnUpdate === 'idle' && busy() && document.visibilityState === 'visible') return
+      reloaded = true
+      window.location.reload()
+    }
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       // A first-ever install also "takes over" an uncontrolled page. That's not
       // an update, and reloading on it would be one pointless refresh per
       // person — or a loop, if anything went wrong.
-      if (!hadController || reloaded) return
-      reloaded = true
-      window.location.reload()
+      if (!hadController) return
+      waiting = true
+      reloadIfReady()
     })
+    if (reloadOnUpdate === 'idle') {
+      document.addEventListener('visibilitychange', reloadIfReady)
+      document.addEventListener('focusout', () => setTimeout(reloadIfReady, 500))
+    }
   }
 
   window.addEventListener('load', () => {
