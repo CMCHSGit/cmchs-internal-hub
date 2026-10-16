@@ -1,19 +1,7 @@
-/* Project tracker. Tokens, buttons, inputs, tags, badges, alerts, switches and
-   light/dark come from the staff schedule's index.css (imported in main.jsx);
-   this is what only the tracker uses. */
-
-/* shared/tool-chrome.css reads the tool's own colour names; map them for the header. */
-header.tool-header {
-  --bg: var(--surface-page);
-  --card: var(--surface-card);
-  --ink: var(--text-strong);
-  --muted: var(--text-muted);
-  --line: var(--border-hairline);
-  --accent: var(--chs-purple);
-  --accent-ink: #fff;
-  color: var(--ink);
-}
-header.tool-header h1 { font-family: var(--font-display); font-weight: var(--weight-semibold); }
+/* Project tracker, a section of the hub's one app (section.jsx). Tokens,
+   buttons, inputs, tags, badges, alerts, switches and light/dark come from the
+   shared kit (shared/ui), which the hub loads; this is what only the tracker
+   uses. It sits under the hub's header, whose height is --shell-header-h. */
 
 /* ── type helpers ── */
 .pt-h1 { font: var(--type-h1); color: var(--text-strong); }
@@ -50,14 +38,14 @@ kbd { font: 500 11px/1 var(--font-mono); padding: 4px 6px; border: 1px solid var
 .pt-gate-card { padding: 24px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
 
 /* ── shell: tabs down the left, content beside; tabs go across on a phone ── */
-.pt-shell { display: flex; flex-wrap: wrap; min-height: calc(100vh - 64px); align-items: stretch; }
+.pt-shell { display: flex; flex-wrap: wrap; min-height: calc(100vh - var(--shell-header-h, 64px)); align-items: stretch; }
 .pt-nav { flex: 1 1 210px; max-width: 100%; box-sizing: border-box; padding: 18px 12px; background: var(--surface-subtle); border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; gap: 2px; }
 .pt-nav-link { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; border-radius: var(--radius-md); color: var(--text-body); font: var(--weight-semibold) 15px/1 var(--font-body); }
 .pt-nav-link:hover { background: var(--surface-card); color: var(--text-strong); }
 .pt-nav-link.on { background: var(--chs-purple-20); color: var(--accent-fg); }
 .pt-nav-count { margin-left: auto; font: var(--weight-semibold) 12px/1 var(--font-body); color: var(--text-muted); }
 .pt-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; }
-.pt-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--border-subtle); background: var(--surface-page); position: sticky; top: 0; z-index: 20; }
+.pt-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--border-subtle); background: var(--surface-page); position: sticky; top: var(--shell-header-h, 0px); z-index: 9; }
 .pt-searchbtn { flex: 1 1 280px; max-width: 540px; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 14px; border: 1px solid var(--border-hairline); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-muted); cursor: pointer; font: var(--type-body-sm); text-align: left; }
 .pt-searchbtn:hover { border-color: var(--border-strong); }
 .pt-searchbtn-text { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

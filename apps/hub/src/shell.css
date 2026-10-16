@@ -8,3 +8,13 @@
 
 /* A section that has moved in, below the shared header. */
 .section, .section-loading { min-height: 60vh; }
+
+/* Phones: room for the bottom tab bar, so nothing ends up hidden behind it. */
+@media (max-width: 759px) {
+  .shell { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+  /* Anything else pinned to the bottom of the window sits above the bar.
+     (The kit's .toast already allows for it, through --nav-h.) */
+  .shell .ak-fab,
+  .shell .hub-page .push-prompt,
+  .shell .hub-page .pp-toast { bottom: calc(58px + 16px + env(safe-area-inset-bottom)); }
+}

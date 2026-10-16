@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Moon, Sun } from 'lucide-react'
+import { ClipboardList, FolderKanban, Home as HomeIcon, Inbox, Moon, Sun, Users } from 'lucide-react'
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
@@ -112,10 +112,11 @@ function ThemeButton() {
 // `search={false}` on Home, where the hero has the search box instead.
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
-const NAV = [['home', 'Home', '/#/'], ['people', 'People', '/#/people'], ['asks', 'Asks', '/asks/'], ['manage', 'Manage', '/#/manage']]
+const NAV = [['home', 'Home', '/#/', HomeIcon], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['manage', 'Manage', '/#/manage', ClipboardList]]
 
 export default function Header({ user, search = true, page = 'home' }) {
   return (
+    <>
     <header className="header">
       <div className="header-row">
         <a className="brand" href="/#/" aria-label="Internal Hub home">
@@ -131,19 +132,10 @@ export default function Header({ user, search = true, page = 'home' }) {
           ))}
         </nav>
         <div className="spacer" />
-        {search && <div className="wide-only"><Search /></div>}
+        {search && <div className="wide-only header-search"><Search /></div>}
         {/* Admin settings. Shown to everyone on purpose: the page asks for the
             admin password (and the admin role), so the gear is just the way
             in for the people who have it, not a tool everyone should see. */}
-        <a className={`icon-btn narrow-only header-people ${page === 'people' ? 'on' : ''}`} href="/#/people" aria-label="People" title="People">
-          <Icon name="users" size={20} />
-        </a>
-        <a className={`icon-btn narrow-only header-people ${page === 'asks' ? 'on' : ''}`} href="/asks/" aria-label="Asks" title="Asks">
-          <Icon name="inbox" size={20} />
-        </a>
-        <a className={`icon-btn narrow-only header-people ${page === 'manage' ? 'on' : ''}`} href="/#/manage" aria-label="Manage" title="Manage">
-          <Icon name="clipboard-list" size={20} />
-        </a>
         <ThemeButton />
         <a className="icon-btn header-admin" href="/admin/" aria-label="Admin settings" title="Admin settings">
           <Icon name="settings" size={20} />
@@ -152,5 +144,15 @@ export default function Header({ user, search = true, page = 'home' }) {
       </div>
       <div className="stripe-rule" aria-hidden="true"><span /><span /><span /></div>
     </header>
+    {/* Phones: the sections as bottom tabs, like the staff schedule's, instead of crowding the header. */}
+    <nav className="bottom-nav" aria-label="Sections">
+      {NAV.map(([id, label, href, Glyph]) => (
+        <a key={id} href={href} className={`bottom-tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined}>
+          <Glyph size={22} aria-hidden="true" />
+          <span>{label}</span>
+        </a>
+      ))}
+    </nav>
+    </>
   )
 }

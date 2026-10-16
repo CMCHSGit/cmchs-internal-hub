@@ -14,7 +14,7 @@
 | `/admin/` | Admin settings: people, teams, roles, Simpro access, demo tracker roles and notifications for every tool. Admins only. (The schedule's locations, Excel import and activity log are at `/schedule/settings`.) | `apps/admin` (Vite + React, reusing `apps/schedule/src`) |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
-| `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects` (Vite + React) |
+| `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects`, a section of the hub's one app (no build of its own) |
 | `/asks/` | Asks: quick requests between staff. Send to people or whole teams; the first to pick it up has it, and everyone involved sees who | `apps/asks`, a section of the hub's one app (no build of its own) |
 
 Also here, not web pages: `backend/` (the Apps Script proxy and nightly backup, Tile sync; see `backend/README.md`) and `rules/` (the Firestore and Realtime Database rules; see `rules/README.md`). Everything is being merged into one app: `INTEGRATION-PLAN.md`.
@@ -26,7 +26,7 @@ Replaces the project team's two linked sheets (the job register and the weekly "
 - **Data** is Firestore in the staff schedule's project: `projectJobs`, `projectAssignments` (one record per person, job, week and activity, so it can feed the staff schedule later), `projectComments`, `projectHistory`, `projectPresence` and `projectSettings/main`. The rules are in `rules/firestore.rules` (`canEditProjects`): everyone signed in reads; admins and anyone on a team edit.
 - **Nothing real lives in this repo.** Jobs come in through Settings → Import from a file: a job register from Excel/CSV, or a project tracker import file (.json: jobs, staff weeks, staff and activity colours together). Keep those files out of git; the sheets carry customer details.
 - **Demo pool sizes** are typed in Settings until the demo tracker feed is connected (the Equipment view and job panels say so).
-- `npm run dev -w apps/projects` without a `.env` runs on a local stand-in with sample jobs (`src/backend-local.js`, never in a real build); two tabs act as two people. `npm test -w apps/projects` checks the dates, availability, clash and search logic (`src/model.js`).
+- `npm run dev` (the hub) without a `.env`, then `/projects/`, runs on a local stand-in with sample jobs (`src/backend-local.js`, never in a real build); two tabs act as two people. `npm test -w apps/projects` checks the dates, availability, clash and search logic (`src/model.js`).
 
 ### Asks
 

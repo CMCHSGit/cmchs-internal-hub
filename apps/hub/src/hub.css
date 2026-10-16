@@ -308,6 +308,16 @@ a.search-hit:hover { text-decoration: none; }
   .news-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mid-cols { grid-template-columns: minmax(0, 1fr); }
 }
+/* The header's tabs need the room on a laptop or tablet: the name beside the
+   avatar (also in its menu) and the words beside the logo go first, then the
+   tool search (Home has its own). Phones use the bottom tab bar instead. */
+@media (min-width: 760px) and (max-width: 1365px) {
+  .header .account-text, .header .brand-name, .header .brand-divider { display: none !important; }
+  .header .search { width: 240px; }
+}
+@media (min-width: 760px) and (max-width: 1023px) {
+  .header .header-search { display: none !important; }
+}
 
 /* "Turn on notifications?" (PushPrompt.jsx) — a card pinned to the bottom. */
 .push-prompt { position: fixed; z-index: 50; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom));
@@ -581,3 +591,17 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 
 /* The kit lightens its own badge colours in dark mode; the hub's badges keep theirs. */
 :root[data-theme="dark"] .badge-orange, :root[data-theme="dark"] .badge-green, :root[data-theme="dark"] .badge-purple { color: var(--text-strong); }
+
+/* Phones: the sections as a bottom tab bar (Header.jsx), as the staff
+   schedule has, so the header keeps just the logo, theme, settings and you. */
+.bottom-nav { display: none; }
+@media (max-width: 759px) {
+  .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex;
+    background: var(--surface-card); border-top: 1px solid var(--border-subtle);
+    padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -2px 8px rgba(0, 0, 0, .06); }
+  .bottom-tab { flex: 1 1 0; min-width: 0; min-height: 58px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; color: var(--text-muted); font: 600 11.5px/1.1 var(--font-body); }
+  .bottom-tab:hover { text-decoration: none; color: var(--text-strong); }
+  .bottom-tab.on { color: var(--accent-fg); }
+  .bottom-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

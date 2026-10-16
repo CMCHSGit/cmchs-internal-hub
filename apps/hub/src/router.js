@@ -13,6 +13,7 @@ import { useSyncExternalStore } from 'react'
 /** Sections that live in this app, by path prefix. Tools not listed are still separate pages. */
 export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
+  { id: 'projects', prefix: '/projects/' },
 ]
 
 /** Which section an address belongs to, or null for a page outside the app (/schedule/, /demo/…). */

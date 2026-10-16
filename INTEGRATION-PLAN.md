@@ -88,7 +88,10 @@ Status is kept here. Tick items as they land, with the commit.
 - Move in the React sections, one at a time (recipe below):
   - [x] Asks (`/asks/`), 16 Oct
   - [x] People and Manage (they were already hub pages)
-  - [ ] Project tracker  - [ ] Admin settings  - [ ] Staff schedule (own router: last)
+  - [x] Project tracker (`/projects/`), 16 Oct. Phones now get a bottom tab
+        bar instead of header tabs; on laptops the header drops the name by
+        the avatar, then its search, so the five tabs fit.
+  - [ ] Admin settings  - [ ] Staff schedule (own router: last)
 - [ ] One Settings area (merges Admin settings, the schedule's Settings, the
       project tracker's Settings, maintenance's settings, hub Manage, People's HR)
 - [ ] Ctrl+K searches every section

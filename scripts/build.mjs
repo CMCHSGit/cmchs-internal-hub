@@ -8,7 +8,7 @@
 //   apps/simprosync  (Vite)    -> /simprosync/
 //   apps/ansurtopdf  (Vite)    -> /ansurtopdf/
 //   apps/admin       (Vite)    -> /admin/     admin settings (people, Simpro access…)
-//   apps/projects    (Vite)    -> /projects/  project tracker (job register + weekly timeline)
+//   apps/projects             -> /projects/  no build of its own: a section of the hub's one app
 //   apps/asks                  -> /asks/      no build of its own: a section of the hub's
 //                                         one app (apps/hub/src/router.js, INTEGRATION-PLAN.md)
 //   apps/demo        (fetched) -> /demo/  read-only copy of demo.chsnz.co.nz,
@@ -34,7 +34,6 @@ const APPS = [
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
   { dir: 'apps/admin',      path: 'admin',      build: 'npm run build -w apps/admin',    output: 'dist' },
-  { dir: 'apps/projects',   path: 'projects',   build: 'npm run build -w apps/projects', output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]
 
@@ -107,6 +106,11 @@ const { count, size, warnings } = await injectManifest({
     // Big, rarely opened, or wanted fresh rather than cached. Precaching these
     // would make every phone download them up front for no reason.
     '**/exceljs*.js',
+    // The sections of the one app (Asks, the project tracker…): like the
+    // separate tools before them, cached the first time someone opens one
+    // (sw.js tool-assets), not downloaded by every phone on install.
+    'assets/section-*.{js,css}',
+    'assets/backend-firebase-*.js',
     'ansurtopdf/**',
     // 600 KB and live-data only: no use offline, and it changes on every
     // tracker deploy, which would churn every installed copy's cache.

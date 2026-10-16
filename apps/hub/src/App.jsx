@@ -14,6 +14,7 @@ import SignIn from './SignIn.jsx'
 
 // Each moved tool loads the first time someone opens it, not with the home page.
 const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
+const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
 
 // The hub's own pages still route on #/: #/people, #/people/<uid>, #/manage, #/manage/<tab>
 function hubRouteOf() {
@@ -36,6 +37,14 @@ export default function App() {
 
   // The hub pages' page colour (hub.css) only applies while they're showing.
   useEffect(() => { document.body.dataset.section = section }, [section])
+  // The header's height, for sections with their own sticky bars (--shell-header-h).
+  useEffect(() => {
+    const header = document.querySelector('header.header')
+    if (!header || !window.ResizeObserver) return
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty('--shell-header-h', header.offsetHeight + 'px'))
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [user])
   // A new hub page starts at the top, as a new page load would.
   useEffect(() => { window.scrollTo(0, 0) }, [page, route?.uid, route?.tab])
 
@@ -66,6 +75,7 @@ export default function App() {
         <main className="section" data-section={section}>
           <Suspense fallback={<div className="section-loading" aria-busy="true" />}>
             {section === 'asks' && <AsksSection />}
+            {section === 'projects' && <ProjectsSection />}
           </Suspense>
         </main>
       )}
