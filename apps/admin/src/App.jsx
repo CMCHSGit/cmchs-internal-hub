@@ -3,7 +3,7 @@
    Uses the staff schedule's own sign-in (its AuthContext), so anyone already
    signed in at the hub lands straight in, and a first visit here sets up the
    same profile a first visit to the schedule would. What keeps non-admins out
-   of the data is firestore.rules (in the chs-equipment repo): only an admin can
+   of the data is rules/firestore.rules (in this repo): only an admin can
    change someone else's record, the locations or read the activity log. The
    checks below only stop them seeing screens that would fail. */
 

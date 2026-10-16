@@ -8,7 +8,7 @@
      projectSettings/main      staff, categories, statuses, colours, demo pool
 
    Security rules for these live with the others in
-   chs-equipment/cmchs-staff-schedule/firestore.rules. */
+   rules/firestore.rules at the top of this repo. */
 
 import { onAuthStateChanged, signInWithPopup } from 'firebase/auth'
 import {

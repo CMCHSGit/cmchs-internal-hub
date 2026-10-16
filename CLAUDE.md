@@ -29,8 +29,9 @@ Several people work on these repos with Claude, often at the same time.
   or addresses.
 - **Keep the service worker's precache small.** Phones download all of it on
   install; big or rarely used files go in `globIgnores` in `scripts/build.mjs`.
-- **Firestore rules are not in this repo** — they are
-  `chs-equipment/cmchs-staff-schedule/firestore.rules`, published by pasting into
-  the Firebase console. Say so when a change needs new rules.
+- **Database rules are in `rules/`** (Firestore: `rules/firestore.rules`; the demo
+  tracker's Realtime Database: `rules/database.rules.json`). A push does not
+  publish them: they are pasted, whole, into the Firebase console. Say so when
+  a change needs publishing (`rules/README.md`).
 - **Ask before anything people would notice and can't undo:** deleting data,
   changing rules, anything that signs people out.

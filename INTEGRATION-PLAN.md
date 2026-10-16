@@ -64,7 +64,8 @@ Status is kept here. Tick items as they land, with the commit.
 - [ ] Dark mode in the demo tracker (or wait for its rebuild, step 4)
 
 ### 1. One repo
-- [ ] Firestore and Realtime Database rules in `rules/` here
+- [x] Firestore and Realtime Database rules in `rules/` here, with their tests
+      (`rules/README.md`); the old copies are gone from both repos
 - [ ] The staff schedule's Excel sync job and scripts here; then switch
       schedule.chsnz.co.nz off with a tombstone service worker (its TODO #36–#40),
       after two Thursdays of the reminder running from here
