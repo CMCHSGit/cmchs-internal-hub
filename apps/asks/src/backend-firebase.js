@@ -18,7 +18,7 @@
 import { onAuthStateChanged, signInWithPopup } from 'firebase/auth'
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, runTransaction, writeBatch } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../../schedule/src/firebase.js'
-import { canUsePush, needsHomeScreenInstall, pushEnabledOnThisDevice, enablePush } from '../../schedule/src/utils/push.js'
+import { canUsePush, needsHomeScreenInstall, pushEnabledOnThisDevice, enablePush, onForegroundMessage } from '../../schedule/src/utils/push.js'
 import { clean } from './backend.js'
 import { statsOf } from './model.js'
 
@@ -140,14 +140,22 @@ export default {
     await b.commit()
   },
 
-  /** Ask the proxy to tell the people the ask's latest event concerns. Fire and forget. */
+  /**
+   * Ask the proxy to tell the people the ask's latest event concerns, and say
+   * how it went: { success, people, pushed, emailed, unreached, error }. Never
+   * throws — the change is saved either way.
+   */
   async notify(id) {
     try {
       const idToken = await auth.currentUser?.getIdToken()
-      if (!idToken) return
-      await fetch(PROXY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'notifyAsk', idToken, id }) })
+      if (!idToken) return { success: false, error: 'Not signed in' }
+      // text/plain keeps it a simple request (no CORS preflight, which Apps
+      // Script can't answer); its reply comes back readable after the redirect.
+      const res = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'notifyAsk', idToken, id }) })
+      return await res.json()
     } catch (e) {
       console.warn('Could not send the notification:', e)
+      return { success: false, error: 'Could not reach the notification service' }
     }
   },
 
@@ -156,5 +164,7 @@ export default {
     needsInstall: needsHomeScreenInstall,
     enabledHere: pushEnabledOnThisDevice,
     enable: enablePush,
+    // The browser shows no notification for a tab that has focus; this hears it instead.
+    onForeground: onForegroundMessage,
   },
 }

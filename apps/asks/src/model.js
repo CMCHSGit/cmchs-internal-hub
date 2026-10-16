@@ -245,6 +245,30 @@ export function cleanComment(text) {
   return str(text, LIMITS.comment)
 }
 
+/**
+ * The latest change on an ask, in a few words, for a notifications list:
+ * "Mike picked it up", "Jess sent you an ask". Someone else's changes only:
+ * null for none, your own, or one older than `days`.
+ */
+export function activityOf(a, me, nameOf, now = Date.now(), days = 14) {
+  const e = a.event
+  if (!e || !e.atMs || e.by === me.uid || e.atMs < now - days * DAY) return null
+  const who = firstName(nameOf(e.by)) || 'Someone'
+  const owner = a.owner === me.uid ? 'you' : firstName(a.ownerName) || 'someone'
+  const text = {
+    created: sentTo(a, me) ? `${who} sent you an ask` : `${who} raised an ask`,
+    added: sentTo(a, me) ? `${who} sent you an ask` : `${who} added people`,
+    claimed: `${who} picked it up`,
+    handed: `${who} handed it back`,
+    given: `${who} gave it to ${owner}`,
+    waiting: `Waiting on ${a.waitingOn || 'someone else'}`,
+    done: `${who} finished it`,
+    reopened: `${who} reopened it`,
+    comment: (e.to || []).includes(me.uid) ? `${who} mentioned you` : `${who} commented`,
+  }[e.type]
+  return text ? { id: a.id, text, title: a.title, atMs: e.atMs } : null
+}
+
 /** A short random id for an event, so the notifier never sends the same one twice. */
 export const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
 

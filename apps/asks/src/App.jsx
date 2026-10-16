@@ -104,6 +104,25 @@ function Shell() {
     return () => { document.removeEventListener('click', click); window.removeEventListener('popstate', pop) }
   }, [])
 
+  // How the last notification went: a quiet confirmation, or why it didn't go.
+  useEffect(() => {
+    const n = s.notice
+    if (!n) return
+    if (!n.success) { toast(`Saved, but the notification didn’t go: ${n.error || 'unknown error'}`); return }
+    if (!n.people) { toast('Saved. There was nobody else to notify.'); return }
+    const phones = n.pushed ? ` on ${n.pushed} phone${n.pushed === 1 ? '' : 's'}` : ''
+    const missed = n.unreached ? `. ${n.unreached} ${n.unreached === 1 ? 'has' : 'have'} notifications off` : ''
+    const bad = n.failed ? `. ${n.failed} phone${n.failed === 1 ? '' : 's'} didn’t accept it` : ''
+    toast(`Notified ${n.people} ${n.people === 1 ? 'person' : 'people'}${phones}${missed}${bad}`)
+  }, [s.notice]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A push that arrives while Asks is open and in front: the browser shows nothing, so show it here.
+  useEffect(() => {
+    let off = () => {}
+    s.onForegroundPush((note) => { if (note?.title) toast(note.body ? `${note.title}: ${note.body}` : note.title) }).then((u) => { off = u || off })
+    return () => off()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const askId = route.params.ask
   const ask = askId ? s.askById.get(askId) : null
 

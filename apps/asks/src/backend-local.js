@@ -95,6 +95,7 @@ export default {
   async notify(id) {
     const e = db.asks[id]?.event
     if (e) console.info(`[dev] would notify: ${e.type} on ${id}`)
+    return { success: true, people: 1, pushed: 1, emailed: 0, unreached: 0 }
   },
 
   push: {
@@ -102,6 +103,7 @@ export default {
     needsInstall: () => false,
     enabledHere: () => localStorage.getItem('asks_dev_push') === '1',
     async enable() { localStorage.setItem('asks_dev_push', '1') },
+    onForeground: async () => () => {},
   },
 
   /** Dev only: start again from the sample data. */

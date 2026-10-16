@@ -5,6 +5,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { firstNameOf } from '../../../shared/session.js'
 import Calendar from './Calendar.jsx'
+import AsksPanel from './AsksPanel.jsx'
+import { asksSummary, readSeen, watchMyAsks } from './asks.js'
 import Icon from './Icon.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
 import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, loadPhotos, mergeNews, photoCountOf, teamNews } from './news.js'
@@ -115,7 +117,7 @@ function HeroSearch({ people }) {
   )
 }
 
-function Hero({ user, today }) {
+function Hero({ user, today, asksCount = 0 }) {
   let sub = ''
   if (today) {
     const out = today.glance.find(g => g.key === 'out').people.length
@@ -137,7 +139,7 @@ function Hero({ user, today }) {
         <nav className="quick" aria-label="Open a tool">
           {tools.map(t => (
             <ToolLink key={t.id} tool={t} className="quick-btn" title={t.description}>
-              <span className="quick-circle"><Icon name={t.icon} size={26} /></span>
+              <span className="quick-circle"><Icon name={t.icon} size={26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
               <span className="quick-label">{t.short || t.name}</span>
             </ToolLink>
           ))}
@@ -407,12 +409,29 @@ export default function Home({ user }) {
   const [news, setNews] = useState(() => seen.news || mergeNews([]))
   useEffect(() => { loadNews().then(n => { seen.news = n; setNews(n) }) }, [])
 
+  // Asks waiting for this person, live (asks.js). null = Asks can't be read: panel hidden.
+  const [asks, setAsks] = useState(undefined)
+  const [seenAsks, setSeenAsks] = useState(readSeen)
+  useEffect(() => {
+    let off = () => {}
+    let live = true
+    watchMyAsks(user, d => { if (live) setAsks(d) }).then(u => { if (live) off = u; else u() })
+    // Opening an ask in Asks (another tab) clears its dot here too
+    const storage = e => { if (e.key === 'asks:seen') setSeenAsks(readSeen()) }
+    const back = () => { if (document.visibilityState === 'visible') setSeenAsks(readSeen()) }
+    window.addEventListener('storage', storage)
+    document.addEventListener('visibilitychange', back)
+    return () => { live = false; off(); window.removeEventListener('storage', storage); document.removeEventListener('visibilitychange', back) }
+  }, [user])
+  const asksNow = asks ? asksSummary(asks.asks, asks.me, asks.names, seenAsks) : null
+
   return (
     <main className="home">
-      <Hero user={user} today={today} />
+      <Hero user={user} today={today} asksCount={asksNow?.mine.length || 0} />
       <div className="stripe-rule stripe-6" aria-hidden="true"><span /><span /><span /></div>
       <div className="home-page">
         {today !== null && <Glance today={today} />}
+        {asksNow && <AsksPanel summary={asksNow} SectionHead={SectionHead} />}
         <News news={news} />
         <TeamNews news={news} />
         <div className={today ? 'mid-cols' : 'mid-cols mid-cols-single'}>

@@ -26,6 +26,7 @@ export function sampleAsks(now = Date.now()) {
       details: 'Firmware 2.4 added the new mode. Can whoever is next on site try it on the theatre 3 machine and note anything odd?',
       createdBy: 'u-lee', createdByName: 'Lee Wong', createdAtMs: now - 26 * HOUR, updatedAtMs: now - 26 * HOUR,
       teams: ['Engineers'], people: ['u-lee'], due: day(3),
+      event: { id: 'e1', type: 'created', by: 'u-lee', atMs: now - 26 * HOUR, to: [], teams: [], ref: '' },
     }),
     base('s2', {
       title: 'Raise the BeneVision alarm log issue with Mindray',
@@ -33,11 +34,13 @@ export function sampleAsks(now = Date.now()) {
       createdBy: 'u-jess', createdByName: 'Jess Reid', createdAtMs: now - 4 * 86400000, updatedAtMs: now - 2 * 86400000,
       assignees: ['u-mike', 'u-sam'], people: ['u-jess', 'u-mike', 'u-sam'],
       owner: 'u-mike', ownerName: 'Mike Tan', status: 'waiting', waitingOn: 'Mindray', commentCount: 2, lastCommentAtMs: now - 2 * 86400000, lastCommentBy: 'Mike Tan',
+      event: { id: 'e2', type: 'comment', by: 'u-mike', atMs: now - 2 * 86400000, to: ['u-jess'], teams: [], ref: 'c2' },
     }),
     base('s3', {
       title: 'Quote for two spare SpO2 cables for Waikato ICU',
       createdBy: 'u-mike', createdByName: 'Mike Tan', createdAtMs: now - 3 * 86400000, updatedAtMs: now - 3 * 86400000,
       assignees: ['u-jess'], people: ['u-mike', 'u-jess'], urgent: true, due: day(-1),
+      event: { id: 'e3', type: 'created', by: 'u-mike', atMs: now - 3 * 86400000, to: [], teams: [], ref: '' },
     }),
     base('s4', {
       title: 'Bring the demo infusion pump back from Tauranga',

@@ -28,6 +28,7 @@ export function StoreProvider({ children }) {
   const [error, setError] = useState(null)
   const [seen, setSeen] = useState(readSeen)
   const [pushOn, setPushOn] = useState(false)
+  const [notice, setNotice] = useState(null) // how the last notification went, for the toast
 
   // ── sign-in ──
   useEffect(() => {
@@ -84,6 +85,9 @@ export function StoreProvider({ children }) {
   const actions = useMemo(() => {
     if (!be || !me) return {}
 
+    /** Tell the people concerned, then say how it went (Shell shows it). */
+    const tell = (id) => be.notify(id).then((r) => { if (r && !r.already) setNotice({ ...r, at: Date.now() }) })
+
     /** Change an ask in a transaction; tell people if the change carries an event. */
     async function change(a, fn) {
       let notify = false
@@ -93,7 +97,7 @@ export function StoreProvider({ children }) {
         notify = !!r.patch.event
         return { ...r, patch: { ...r.patch, updatedAtMs: Date.now() } }
       })
-      if (next && notify) be.notify(a.id)
+      if (next && notify) tell(a.id)
       return next
     }
     const photoDocs = (askId, photos, commentId = '') => photos.map((p) => ({
@@ -116,7 +120,7 @@ export function StoreProvider({ children }) {
           event: eventOf('created', me),
         }, pics)
         markSeen(id)
-        be.notify(id)
+        tell(id)
         return id
       },
 
@@ -213,7 +217,8 @@ export function StoreProvider({ children }) {
 
   const value = {
     be, user, me, users: users || [], userById, asks: asks || [], askById, stats, counts, today, error,
-    ready: !!(me && users && asks), isNew, markSeen, push,
+    ready: !!(me && users && asks), isNew, markSeen, push, notice,
+    onForegroundPush: (cb) => be.push.onForeground(cb),
     signIn: () => be?.signIn(),
     watchThread: (id, cb, onError) => be.watchThread(id, cb, onError),
     ...actions,
