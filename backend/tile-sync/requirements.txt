@@ -1,0 +1,4 @@
+pytile==2024.12.0
+aiohttp>=3.9.0
+google-auth>=2.29
+requests>=2.31
