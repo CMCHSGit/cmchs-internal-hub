@@ -72,9 +72,8 @@ Status is kept here. Tick items as they land, with the commit.
 - [x] Apps Script proxy and backup in `backend/apps-script/` here, with history
       (`backend/README.md`: how to deploy). Same Apps Script projects; clasp works
       from the new folders.
-- [ ] Tile sync script and workflow here, with history: moved, waiting on its
-      Actions secrets here and the `TILE_SYNC_HERE` switch; then the old copy in
-      chs-equipment is removed
+- [x] Tile sync script and workflow here, with history; runs daily from here
+      (`TILE_SYNC_HERE`, first run 16 Oct: 96/96 tiles). Old copy removed.
 - [ ] The demo tracker's source here, with history (`git subtree`), and
       demo.chsnz.co.nz deployed from here until step 4 retires it
 - [ ] Archive `chs-equipment` and `cmchs-staff-schedule` once nothing deploys
