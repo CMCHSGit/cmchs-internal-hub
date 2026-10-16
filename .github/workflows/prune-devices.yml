@@ -1,0 +1,49 @@
+# Weekly clean-up of notification devices that no longer exist (deleted apps,
+# cleared browsers), so Admin's device counts stay honest. Nothing is sent to
+# anyone: see apps/schedule/scripts/prune-devices.mjs.
+#
+# Run it by hand (Actions -> Device clean-up -> Run workflow) to see what it
+# would do: that is a dry run unless you untick it. This repo is public, so its
+# run logs are too — the script only ever prints counts.
+name: Device clean-up
+
+on:
+  schedule:
+    - cron: '0 19 * * 0' # Sun 19:00 UTC = Mon 07:00 NZST (08:00 during daylight saving)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run: count dead devices, remove nothing'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: prune-devices
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      # Full install: firebase-admin is a dev dependency of apps/schedule.
+      - run: npm ci
+      - run: node apps/schedule/scripts/prune-devices.mjs
+        env:
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          DRY_RUN:               ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      # GitHub pauses timed workflows after 60 days without repo activity —
+      # re-enabling this one on every run keeps it alive.
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/prune-devices.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}

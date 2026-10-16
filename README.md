@@ -40,14 +40,16 @@ Instead of a text or another email: anyone raises an ask ("test the new mode on 
 
 **People** sets each person's team, role and Simpro access (the shared `users` collection), and their **demo tracker role** (Account manager / Service & Projects), which lives in the tracker's own database (`accountManagers`, chs-equipment project). `apps/admin/src/tracker.js` reaches it the same way the tracker does: a database pass from the Simpro proxy (`rtdbToken`), then the REST API, saving with an ETag check so a save from the tracker is never overwritten.
 
-**Notifications** has a switch per person per tool, plus how many phones each has turned notifications on for. Missing means on.
+**Notifications** has a switch per person per tool, plus how many devices each has turned notifications on for (every phone or browser; ones that no longer exist are removed each Monday by `.github/workflows/prune-devices.yml`). Missing means on.
 - Staff schedule Thursday reminder: `users/{uid}.notifications.scheduleReminder`; `scripts/remind.mjs` (cmchs-staff-schedule repo) skips anyone with it false.
 - Asks 8:30am summary: `users/{uid}.notifications.asksSummary`; `apps/asks/scripts/summary.mjs` skips anyone with it false.
 - Demo tracker loan reminders: `accountManagers[].notify`; the Apps Script senders (chs-equipment `.gas-proxy`, `sendPushToPerson_`) skip anyone with it false. Test sends still go through.
 
 A switch can only stop notifications: getting them at all needs the person to tap "Enable notifications" on their own phone. The hub home offers that on phones, until that phone is on (`apps/hub/src/PushPrompt.jsx`).
 
-One phone registration covers both tools. Demo reminders go to the phones turned on here (`users/{uid}.fcmTokens`), sent by the Simpro proxy through the staff schedule's Firebase project with links into `/demo/` ("HUB PUSH" in chs-equipment `.gas-proxy/Code.js`). Someone with no phone here still gets them on phones set up at demo.chsnz.co.nz, shown in Admin as "(old demo app)". This needs the proxy's service account granted *Firebase Cloud Messaging API Admin* and *Cloud Datastore Viewer* in the staff schedule's Google Cloud project; `checkHubPush()` in the Apps Script editor says whether it is.
+One device registration covers every tool. Demo reminders go to the phones turned on here (`users/{uid}.fcmTokens`), sent by the Simpro proxy through the staff schedule's Firebase project with links into `/demo/` ("HUB PUSH" in chs-equipment `.gas-proxy/Code.js`). Someone with no phone here still gets them on phones set up at demo.chsnz.co.nz, shown in Admin as "(old demo app)". This needs the proxy's service account granted *Firebase Cloud Messaging API Admin* and *Cloud Datastore Viewer* in the staff schedule's Google Cloud project; `checkHubPush()` in the Apps Script editor says whether it is.
+
+**Adding notifications to a new tool:** don't add another "turn on" step. Send to the same `users/{uid}.fcmTokens` through the staff schedule's Firebase project (as `apps/schedule/scripts/remind.mjs` and `apps/asks/scripts/summary.mjs` do), with a `data.url` into the tool; add its switch as a column on Admin → Notifications; and if a tap should open somewhere other than `/schedule/`, check `notificationclick` in `apps/hub/src/sw.js` (it opens the tool named by the URL's first path segment).
 
 **Staff schedule settings are not here.** Locations, the Excel import and the activity log are the schedule's own Settings page, `/schedule/settings` (`apps/schedule/src/pages/Settings.jsx`), behind the same admin role and password. Old `/admin/#locations`, `#excel` and `#activity` links forward there.
 

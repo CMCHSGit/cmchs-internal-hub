@@ -337,8 +337,8 @@ function TrackerRole({ person, tracker, onChange }) {
  * Missing means on, so nobody's reminders changed when this arrived.
  *
  * A switch can only stop notifications. Getting them at all still needs the
- * person to tap "Enable notifications" on their own phone, which browsers
- * require; the phone counts show who has.
+ * person to turn notifications on, on their own phone, which browsers
+ * require; the device counts show who has.
  */
 function NotificationsTab() {
   const { user } = useAuth()
@@ -389,13 +389,15 @@ function NotificationsTab() {
     logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${member.name}'s demo tracker reminders in Admin.`)
   }
 
-  const phones = n => (n ? `${n} phone${n === 1 ? '' : 's'}` : 'No phone yet')
-  // Demo reminders go to the phones turned on here at the hub; only someone
-  // with none here still gets them on phones set up at demo.chsnz.co.nz.
-  const demoPhones = (u, m) => {
+  // Devices, not phones: a PC browser that turned notifications on counts too.
+  // Ones that no longer exist are removed weekly (apps/schedule/scripts/prune-devices.mjs).
+  const devices = n => (n ? `${n} device${n === 1 ? '' : 's'}` : 'No device yet')
+  // Demo reminders go to the devices turned on here at the hub; only someone
+  // with none here still gets them on devices set up at demo.chsnz.co.nz.
+  const demoDevices = (u, m) => {
     const hub = u.fcmTokens?.length || 0
     const old = m.fcmTokens?.length || 0
-    return hub || !old ? phones(hub) : `${phones(old)} (old demo app)`
+    return hub || !old ? devices(hub) : `${devices(old)} (old demo app)`
   }
   const trackerOnly = (tracker.team || []).filter(m => !(users || []).some(u => !u.pending && findMember([m], u)))
 
@@ -415,11 +417,12 @@ function NotificationsTab() {
         </p>
         <h2 className="admin-side-title">Asks</h2>
         <p className="text-sm text-muted">The 8:30am weekday summary of open asks, for anyone who has some. Pushes about a single ask always go to the people involved.</p>
-        <h2 className="admin-side-title">Phones</h2>
+        <h2 className="admin-side-title">Devices</h2>
         <p className="text-sm text-muted">
           A switch can only stop notifications. To get them at all, the person opens the Internal Hub on their phone
-          and taps “Turn on” when it asks — once covers both tools. The count shows who has. “Old demo app” means
-          they’re still on a phone set up at demo.chsnz.co.nz.
+          and taps “Turn on” when it asks — once covers every tool. The count is every phone or browser they’ve turned
+          notifications on for; ones deleted or cleared since are removed each Monday. “Old demo app” means they’re
+          still on a device set up at demo.chsnz.co.nz.
         </p>
       </div>
 
@@ -446,7 +449,7 @@ function NotificationsTab() {
                       ? <span className="text-sm text-muted">After they sign in</span>
                       : <>
                           <Switch checked={u.notifications?.scheduleReminder !== false} onChange={on => setScheduleReminder(u, on)} label="Staff schedule reminder" />
-                          <span className="text-sm text-muted">{phones(u.fcmTokens?.length || 0)}</span>
+                          <span className="text-sm text-muted">{devices(u.fcmTokens?.length || 0)}</span>
                         </>}
                   </div>
                   <div className="admin-notify-cell">
@@ -455,7 +458,7 @@ function NotificationsTab() {
                       : tracker.error ? <span className="text-sm text-muted">—</span>
                       : m ? <>
                           <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
-                          <span className="text-sm text-muted">{demoPhones(u, m)}</span>
+                          <span className="text-sm text-muted">{demoDevices(u, m)}</span>
                         </>
                       : <span className="text-sm text-muted">{u.pending ? 'After they sign in' : 'Not on its team'}</span>}
                   </div>
@@ -482,7 +485,7 @@ function NotificationsTab() {
                   <div className="admin-notify-cell">
                     <span className="admin-notify-key">Demo tracker</span>
                     <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
-                    <span className="text-sm text-muted">{demoPhones({}, m)}</span>
+                    <span className="text-sm text-muted">{demoDevices({}, m)}</span>
                   </div>
                 </div>
               ))}
