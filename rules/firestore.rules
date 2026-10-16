@@ -70,13 +70,22 @@ service cloud.firestore {
 
     function isOwnSafeUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly(['team', 'fcmTokens', 'displayName', 'workMobile'])
+      return changed.hasOnly(['team', 'fcmTokens', 'displayName', 'workMobile', 'notifications'])
         && (!changed.hasAny(['team']) || resource.data.get('team', null) in [null, ''])
+        // Settings → Your notifications: your own reminders on or off, nothing else in there.
+        && (!changed.hasAny(['notifications']) || isOwnNotifications(request.resource.data.notifications))
         && (!changed.hasAny(['displayName']) || isShortText(request.resource.data.displayName, 1, 80))
         && (!changed.hasAny(['workMobile']) || isShortText(request.resource.data.workMobile, 0, 40));
     }
 
     function isShortText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+
+    function isOwnNotifications(n) {
+      return n is map
+        && n.keys().hasOnly(['scheduleReminder', 'asksSummary'])
+        && n.get('scheduleReminder', true) is bool
+        && n.get('asksSummary', true) is bool;
+    }
 
     function isHRNewPerson() {
       let d = request.resource.data;

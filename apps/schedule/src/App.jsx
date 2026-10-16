@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings as SettingsIcon, Plane } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login         from './pages/Login'
@@ -12,9 +12,7 @@ import OutOfTown     from './pages/OutOfTown'
 import TeamOnboarding from './components/TeamOnboarding'
 import PullToRefresh  from './components/PullToRefresh'
 import { Loading } from './components/ui'
-
-// Admins only, and it brings the Excel import with it: loaded when opened.
-const Settings = lazy(() => import('./pages/Settings'))
+import { navigate } from '../../hub/src/router.js'
 
 // The schedule's own views: short labels on a phone, fuller ones on a desktop.
 // Team week is the landing page — it's what everyone else is doing, which is
@@ -84,9 +82,10 @@ function AppRoutes() {
           <Route path="/day"    element={<DayView />} />
           <Route path="/leave"  element={<LeaveCalendar />} />
           <Route path="/oncall" element={<OnCall />} />
-          <Route path="/settings" element={<Suspense fallback={<Loading />}><Settings /></Suspense>} />
-          {/* /admin was the schedule's admin page; its schedule parts are Settings now. */}
-          <Route path="/admin"  element={<Navigate to="/settings" replace />} />
+          {/* The schedule's settings are a page of the one app's Settings now;
+              /admin was the schedule's admin page before that. */}
+          <Route path="/settings" element={<ToSettings />} />
+          <Route path="/admin"  element={<ToSettings />} />
           <Route path="/out-of-town" element={<OutOfTown />} />
           {/* /team was Team week's path before it became the default — kept
               working for anyone's old bookmark or home-screen shortcut. */}
@@ -100,20 +99,29 @@ function AppRoutes() {
 
 function Views() {
   const { profile } = useAuth()
-  const views = profile?.role === 'admin'
-    // The schedule's own settings (locations, Excel, activity log). People and
-    // notifications are in the hub's Admin settings, linked from there.
-    ? [...VIEWS, { to: '/settings', label: 'Settings', tab: 'Settings', Icon: SettingsIcon }]
-    : VIEWS
   return (
     <nav className="sch-views" aria-label="Staff schedule">
-      {views.map(({ to, label, tab, Icon }) => (
+      {VIEWS.map(({ to, label, tab, Icon }) => (
         <NavLink key={to} to={to} end className={({ isActive }) => `sch-view${isActive ? ' active' : ''}`}>
           <Icon size={18} aria-hidden="true" />
           <span className="sch-view-label-short">{label}</span>
           <span className="sch-view-label-long">{tab}</span>
         </NavLink>
       ))}
+      {/* Locations, Excel and the activity log: in the one app's Settings. */}
+      {profile?.role === 'admin' && (
+        <a href="/settings/schedule" className="sch-view">
+          <SettingsIcon size={18} aria-hidden="true" />
+          <span>Settings</span>
+        </a>
+      )}
     </nav>
   )
+}
+
+/** An old /schedule/settings (or /schedule/admin) address: on to Settings, keeping its #tab. */
+function ToSettings() {
+  const { hash } = useLocation()
+  useEffect(() => { navigate('/settings/schedule' + hash, { replace: true }) }, [hash])
+  return <Loading />
 }

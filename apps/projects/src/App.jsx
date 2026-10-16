@@ -16,7 +16,7 @@ import Timeline from './views/Timeline.jsx'
 import Conferences from './views/Conferences.jsx'
 import Equipment from './views/Equipment.jsx'
 import Archive from './views/Archive.jsx'
-import Settings from './views/Settings.jsx'
+import { navigate } from '../../hub/src/router.js'
 import JobPanel from './JobPanel.jsx'
 import SearchPalette from './Search.jsx'
 import { QuickAdd, ArchivePrompt, ImportDialog } from './dialogs.jsx'
@@ -41,7 +41,7 @@ function hashFor(view, params) {
   return `#/${view}${q ? '?' + q : ''}`
 }
 
-const Ui = createContext(null)
+export const Ui = createContext(null)
 export const useUi = () => useContext(Ui)
 
 export default function App() {
@@ -117,7 +117,10 @@ function Shell() {
 
   const ui = { route, go, openJob, closeJob, toast, askArchive: setPrompt, newJob: (prefill = {}) => setAdding(prefill), openSearch: () => setSearchOpen(true), openImport: () => setImporting(true) }
 
-  const View = { home: Home, table: TableView, timeline: Timeline, conferences: Conferences, equipment: Equipment, archive: Archive, settings: Settings }[route.view]
+  // The tracker's settings are a page of the one app's Settings now
+  // (settings-page.jsx); an old #/settings link goes on there.
+  useEffect(() => { if (route.view === 'settings') navigate('/settings/projects', { replace: true }) }, [route.view])
+  const View = { home: Home, table: TableView, timeline: Timeline, conferences: Conferences, equipment: Equipment, archive: Archive, settings: Loading }[route.view]
 
   return (
     <Ui.Provider value={ui}>
@@ -125,7 +128,7 @@ function Shell() {
       <div className="pt-shell">
         <nav className="pt-nav" aria-label="Project tracker">
           {NAV.map(([id, label, Icon]) => (
-            <a key={id} href={hashFor(id, {})} className={`pt-nav-link${route.view === id ? ' on' : ''}`} aria-current={route.view === id ? 'page' : undefined}>
+            <a key={id} href={id === 'settings' ? '/settings/projects' : hashFor(id, {})} className={`pt-nav-link${route.view === id ? ' on' : ''}`} aria-current={route.view === id ? 'page' : undefined}>
               <Icon size={18} aria-hidden="true" />
               <span>{label}</span>
               {id === 'archive' && s.archived.length > 0 && <span className="pt-nav-count">{s.archived.length}</span>}
@@ -152,7 +155,7 @@ function Shell() {
             {s.canEdit && <Button size="sm" iconLeft={<Plus size={16} />} onClick={() => setAdding({})} title="New job (N)">New job</Button>}
           </div>
           {!s.canEdit && (
-            <div className="pt-readonly"><Lock size={16} aria-hidden="true" /> You can view the tracker. Editing is for staff with a team set in Admin settings.</div>
+            <div className="pt-readonly"><Lock size={16} aria-hidden="true" /> You can view the tracker. Editing is for staff with a team, set in Settings → People and access.</div>
           )}
           {s.error && <div className="pt-pad"><Alert tone="critical" title="Not everything loaded">{s.error}</Alert></div>}
           <View params={route.params} />

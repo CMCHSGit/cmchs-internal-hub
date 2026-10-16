@@ -3,7 +3,7 @@
  * per pair of AM/PM rows, Monday–Friday across, the week's comment at the end.
  *
  * Plain functions over an ExcelJS workbook: no Firebase, no DOM. That's
- * deliberate — the same reader runs in the browser (Admin → Excel) and can
+ * deliberate — the same reader runs in the browser (Settings → Staff schedule → Excel) and can
  * run in a Node script for an automatic link later.
  *
  * Two layouts exist in the file. Every sheet since late July 2025 has a team

@@ -35,7 +35,7 @@ export default function Settings() {
   return (
     <div className="pt-page pt-settings">
       <div className="pt-pagehead"><h1 className="pt-h1">Settings</h1></div>
-      {ro && <Alert tone="info" title="View only">Changing settings is for staff with a team set in Admin settings.</Alert>}
+      {ro && <Alert tone="info" title="View only">Changing settings is for staff with a team, set in Settings → People and access.</Alert>}
 
       <section className="card pt-card">
         <div className="pt-card-head">

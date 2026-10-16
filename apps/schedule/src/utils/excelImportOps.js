@@ -3,7 +3,7 @@ import { excelPeople, matchPeople, buildMapping, planImport, nameKey } from './e
 
 /**
  * The writes an import plan (from planImport) turns into, as plain data:
- * [{ collection, id, data, merge }]. Shared by Admin → Excel in the browser
+ * [{ collection, id, data, merge }]. Shared by Settings → Staff schedule → Excel in the browser
  * (excelImportWrite.js) and the automatic import that runs on a PC
  * (scripts/excel-import.mjs), so both write exactly the same thing. `now()`
  * returns the timestamp to store — each side passes its own SDK's server time.
@@ -52,7 +52,7 @@ export function importOps(plan, { editorUid = null, now }) {
  * would do without being asked:
  *  - only names it matches with certainty (an Excel name set on the person, full name, or first name within
  *    the same team). Anyone ambiguous, close-but-not-sure or not in the app is left out and counted, for an
- *    admin to sort out in Admin → Excel — once picked there, the person's Excel name is remembered and they
+ *    admin to sort out in Settings → Staff schedule → Excel — once picked there, the person's Excel name is remembered and they
  *    match here from then on;
  *  - never adds people;
  *  - the app wins a conflict (a cell changed in both places since the last import).
@@ -88,7 +88,7 @@ export function describeRun({ plan, selected, left }) {
     `${entries} ${entries === 1 ? 'entry' : 'entries'} brought in for ${s.people} ${s.people === 1 ? 'person' : 'people'} across ${selected.length} ${selected.length === 1 ? 'week' : 'weeks'}`,
     `${s.conflict} kept as the app has them (changed in both)`,
     plan.onCall.length ? `${plan.onCall.length} on-call set` : null,
-    leftOut ? `${leftOut} Excel ${leftOut === 1 ? 'name' : 'names'} left for Admin → Excel (${left.ambiguous} several fit, ${left.maybe} to check, ${left.none} not in the app)` : null,
+    leftOut ? `${leftOut} Excel ${leftOut === 1 ? 'name' : 'names'} left for Settings → Staff schedule → Excel (${left.ambiguous} several fit, ${left.maybe} to check, ${left.none} not in the app)` : null,
     plan.warnings.length ? `${plan.warnings.length} ${plan.warnings.length === 1 ? 'warning' : 'warnings'}` : null,
   ].filter(Boolean).join(' · ')
 }

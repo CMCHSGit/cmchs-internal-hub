@@ -1,5 +1,5 @@
 /* SimproSync entry point - gate in front of the sync tool: admins, plus anyone
-   given Simpro access (users/{uid}.simproAccess) in the hub's Admin settings.
+   given Simpro access (users/{uid}.simproAccess) in the hub's Settings → People and access.
    Uses the CMCHS Staff Schedule Firebase project (same Microsoft sign-in,
    same users/{uid} record). Simpro calls go through chs-equipment's existing
    Apps Script proxy, authenticated with this user's Firebase ID token - the
@@ -137,10 +137,10 @@ onAuthStateChanged(auth, async user => {
     const prof = await getDoc(doc(db, 'users', user.uid))
     const p = prof.exists() ? prof.data() : null
     // Admins always; anyone else once an admin turns on their Simpro access in
-    // the hub's Admin settings — the same rule the proxy applies to every call.
+    // the hub's Settings → People and access — the same rule the proxy applies to every call.
     const admin = p?.role === 'admin'
     if (!admin && p?.simproAccess !== true)
-      return gate('denied', `${user.email} doesn't have Simpro access, so SimproSync is not available. An admin can turn it on for you in Admin settings on the Internal Hub.`)
+      return gate('denied', `${user.email} doesn't have Simpro access, so SimproSync is not available. An admin can turn it on for you in Settings → People and access on the Internal Hub.`)
     // Deleting assets stays admin-only (the proxy refuses DELETE from anyone
     // else), so there's no point showing it to them.
     $('delCard').hidden = !admin

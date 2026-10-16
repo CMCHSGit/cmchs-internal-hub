@@ -1,7 +1,7 @@
 // The one app's shell (INTEGRATION-PLAN.md step 2): sign-in once, one header,
 // and the section the address points at. The hub's own pages (home, People,
-// Manage) and the tools that have moved in (the schedule, Asks, Projects,
-// Admin) are all sections;
+// Manage) and the tools that have moved in (the schedule, Asks, Projects) and
+// Settings are all sections;
 // moving between them never reloads the page (router.js).
 import { Component, lazy, Suspense, useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
@@ -17,7 +17,7 @@ import SignIn from './SignIn.jsx'
 // Each moved tool loads the first time someone opens it, not with the home page.
 const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
 const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
-const AdminSection = lazy(() => import('../../admin/src/section.jsx'))
+const SettingsSection = lazy(() => import('../../settings/src/section.jsx'))
 const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
 // A section that fails to load or crashes (most often: a deploy has replaced
@@ -99,7 +99,7 @@ export default function App() {
             <Suspense fallback={<div className="section-loading" aria-busy="true" />}>
               {section === 'asks' && <AsksSection />}
               {section === 'projects' && <ProjectsSection />}
-              {section === 'admin' && <AdminSection />}
+              {section === 'settings' && <SettingsSection />}
               {section === 'schedule' && <ScheduleSection />}
             </Suspense>
           </SectionBoundary>

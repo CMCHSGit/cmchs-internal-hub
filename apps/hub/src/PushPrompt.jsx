@@ -33,9 +33,21 @@ function canUsePush() {
   return !(isIOS() && !standalone) // iOS: Home Screen only
 }
 
-// On here already, whether turned on from this prompt or the schedule's card.
-function pushEnabledOnThisDevice() {
+// On here already, whether turned on from this prompt, Settings or the schedule's card.
+export function pushEnabledOnThisDevice() {
   try { return Notification.permission === 'granted' && localStorage.getItem(ENABLED_KEY) === '1' } catch { return false }
+}
+
+/**
+ * This device and notifications, for Settings: 'on', 'off' (can be turned on),
+ * 'install' (an iPhone that hasn't added the hub to its Home Screen),
+ * 'blocked' (turned off for the site) or 'computer' (they're for phones).
+ */
+export function pushStatus() {
+  if (!isPhone() || !('Notification' in window) || !('serviceWorker' in navigator)) return 'computer'
+  if (!canUsePush()) return 'install'
+  if (Notification.permission === 'denied') return 'blocked'
+  return pushEnabledOnThisDevice() ? 'on' : 'off'
 }
 
 function snoozed() {
@@ -70,7 +82,7 @@ function within(ms, step, promise) {
 // The permission question comes FIRST, before anything is awaited: iOS only
 // shows it while the tap still counts, and loading Firebase first used it up,
 // so the question never appeared and this waited forever.
-async function enable(uid) {
+export async function enable(uid) {
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') throw new Error('Notifications weren’t allowed. They can be turned on in the phone’s Settings for this app.')
   const { app, fs, msg, db } = await within(20000, 'loading', firebaseParts())

@@ -365,6 +365,14 @@ button.pt-ratio { cursor: pointer; width: 100%; }
   .pt-staff-row > :nth-child(n+4) { grid-column: 2 / -1; }
   .pt-pool-row { grid-template-columns: 1fr 1fr; }
 }
+/* By the room the list actually has, not the window's: these screens also
+   open in Settings (settings-page.jsx), beside its own menu. */
+.pt-staff, .pt-pool { container-type: inline-size; }
+@container (max-width: 860px) {
+  .pt-staff-row { grid-template-columns: 32px 1fr 70px; }
+  .pt-staff-row > :nth-child(n+4) { grid-column: 2 / -1; }
+  .pt-pool-row { grid-template-columns: 1fr 1fr; }
+}
 @media (max-width: 560px) { .pt-grid2 { grid-template-columns: 1fr; } }
 
 /* ── Compact (Table and Timeline): one line per job, so the register and the

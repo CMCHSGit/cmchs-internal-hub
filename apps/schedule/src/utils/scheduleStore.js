@@ -60,7 +60,7 @@ export async function writeLeaveRange({ person, from, to, type, editorUid }) {
 
 /**
  * Anything typed that isn't a known location yet becomes a shared
- * suggestion for everyone (and shows up in Admin → Locations). Failures
+ * suggestion for everyone (and shows up in Settings → Staff schedule → Locations). Failures
  * are swallowed — never let this block saving the schedule itself.
  */
 export async function addNewLocations(names, known) {

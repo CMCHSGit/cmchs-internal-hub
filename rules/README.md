@@ -37,5 +37,11 @@ then, with a `firebase.json` of
 npx firebase emulators:exec --only firestore --project rules-test "node <path to>/rules/tests/firestore-rules.test.mjs"
 ```
 
+On Windows, if the emulator stops at once with "Fatal error" and
+`firestore-debug.log` says "Unable to establish loopback connection", give
+Java a short folder for its internal pipe first:
+`JAVA_TOOL_OPTIONS="-Djdk.net.unixdomain.tmpdir=C:/Users/<you>/.uds"` (any
+existing folder).
+
 The tests read `../firestore.rules` relative to themselves, so the copy here is
 always the one tested.

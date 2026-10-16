@@ -4,66 +4,20 @@ import { db } from '../../schedule/src/firebase'
 import { useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Bell } from 'lucide-react'
 import Toast from '../../schedule/src/components/Toast'
-import AdminLock, { isUnlocked } from '../../schedule/src/components/AdminLock'
 import { TEAMS, teamLabel } from '../../schedule/src/utils/teams'
 import { logActivity } from '../../schedule/src/utils/activityLog'
 import { Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
 import { TRACKER_ROLES, findMember, loadTeam, trackerRoleLabel, updateTeam } from './tracker'
 
 /*
- * People and notifications, for every tool. The staff schedule's own settings
- * (locations, the Excel import, the activity log) are on its Settings page,
- * /schedule/settings — they moved there from here.
+ * People and access, and everyone's notifications: two pages of the one
+ * app's Settings (apps/settings), which shows them to admins behind the admin
+ * password. They were the two tabs of Admin settings at /admin/; that address
+ * now forwards to them (apps/hub/src/router.js).
  */
-const TABS = [['users', 'People'], ['notifications', 'Notifications']]
-const MOVED_TO_SCHEDULE = ['locations', 'excel', 'activity']
 
-/** The open tab lives in the address (/admin/#notifications), so a link or a reload lands on it. */
-function tabFromHash() {
-  const t = location.hash.slice(1)
-  return TABS.some(([id]) => id === t) ? t : 'users'
-}
-
-/** Only rendered for admins — App.jsx turns everyone else away first. */
-export default function Admin() {
-  const [tab, setTabState] = useState(tabFromHash)
-  const [unlocked, setUnlocked] = useState(isUnlocked)
-
-  // An old link or bookmark to a tab that moved: send it on to the schedule.
-  const moved = location.hash.slice(1)
-  useEffect(() => {
-    if (MOVED_TO_SCHEDULE.includes(moved)) location.replace(`/schedule/settings#${moved}`)
-  }, [moved])
-  if (MOVED_TO_SCHEDULE.includes(moved)) return <div className="page"><Loading /></div>
-
-  function setTab(t) {
-    setTabState(t)
-    history.replaceState(null, '', t === 'users' ? location.pathname : `#${t}`)
-  }
-
-  if (!unlocked) return <AdminLock onUnlock={() => setUnlocked(true)} />
-
-  return (
-    <div className="page admin-page">
-      <div className="settings-head">
-        <div className="tabs" role="tablist">
-          {TABS.map(([t, label]) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <a className="settings-elsewhere text-sm" href="/schedule/settings">Locations, Excel and the activity log are in the staff schedule’s Settings</a>
-      </div>
-
-      {tab === 'users'     && <UsersTab />}
-      {tab === 'notifications' && <NotificationsTab />}
-    </div>
-  )
-}
-
-/* ── Users tab ── */
-function UsersTab() {
+/* ── People and access ── */
+export function UsersTab() {
   const { user } = useAuth()
   const [users,      setUsers]      = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -94,7 +48,7 @@ function UsersTab() {
       return showToast(e.message || 'Could not save to the demo tracker — try again.')
     }
     showToast('Saved.')
-    logActivity(user, `Set ${name}'s demo tracker role to ${trackerRoleLabel(role)} in Admin.`)
+    logActivity(user, `Set ${name}'s demo tracker role to ${trackerRoleLabel(role)} in Settings.`)
   }
 
   async function updateUser(uid, field, value) {
@@ -109,12 +63,12 @@ function UsersTab() {
     setUsers(prev => prev.map(u => u.uid === uid ? { ...u, [field]: value } : u))
     showToast('Saved.')
     if (field === 'simproAccess') {
-      logActivity(user, value ? `Gave ${name} Simpro access in Admin.` : `Took away ${name}'s Simpro access in Admin.`)
+      logActivity(user, value ? `Gave ${name} Simpro access in Settings.` : `Took away ${name}'s Simpro access in Settings.`)
       return
     }
     const fieldLabel = field === 'team' ? 'team' : 'role'
     const valueLabel = field === 'team' ? (teamLabel(value) || 'No team') : value
-    logActivity(user, `Set ${name}'s ${fieldLabel} to ${valueLabel} in Admin.`)
+    logActivity(user, `Set ${name}'s ${fieldLabel} to ${valueLabel} in Settings.`)
   }
 
   /**
@@ -138,7 +92,7 @@ function UsersTab() {
       setUsers(prev => [...prev, { uid: id, ...person }])
       setNewName('')
       showToast(`Added ${name}.`)
-      logActivity(user, `Added ${name} (${teamLabel(newTeam)}) in Admin.`)
+      logActivity(user, `Added ${name} (${teamLabel(newTeam)}) in Settings.`)
     } catch (e) {
       console.error(e)
       showToast('Could not add them — try again.')
@@ -151,7 +105,7 @@ function UsersTab() {
     await deleteDoc(doc(db, 'users', u.uid))
     setUsers(prev => prev.filter(x => x.uid !== u.uid))
     showToast(`Removed ${u.displayName}.`)
-    logActivity(user, `Removed ${u.displayName} in Admin.`)
+    logActivity(user, `Removed ${u.displayName} in Settings.`)
   }
 
   function showToast(msg) {
@@ -340,7 +294,7 @@ function TrackerRole({ person, tracker, onChange }) {
  * person to turn notifications on, on their own phone, which browsers
  * require; the device counts show who has.
  */
-function NotificationsTab() {
+export function NotificationsTab() {
   const { user } = useAuth()
   const [users, setUsers] = useState(null)
   const [toast, setToast] = useState(null)
@@ -368,7 +322,7 @@ function NotificationsTab() {
     }
     setUsers(prev => prev.map(u => u.uid === person.uid ? { ...u, notifications: { ...u.notifications, [key]: on } } : u))
     showToast('Saved.')
-    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${name}'s ${label} in Admin.`)
+    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${name}'s ${label} in Settings.`)
   }
   const setScheduleReminder = (person, on) => setUserNotification(person, 'scheduleReminder', 'staff schedule reminder', on)
   const setAsksSummary = (person, on) => setUserNotification(person, 'asksSummary', 'Asks morning summary', on)
@@ -386,7 +340,7 @@ function NotificationsTab() {
       return showToast(e.message || 'Could not save to the demo tracker — try again.')
     }
     showToast('Saved.')
-    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${member.name}'s demo tracker reminders in Admin.`)
+    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${member.name}'s demo tracker reminders in Settings.`)
   }
 
   // Devices, not phones: a PC browser that turned notifications on counts too.

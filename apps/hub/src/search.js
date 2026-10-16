@@ -48,7 +48,6 @@ export const PAGES = [
   { title: 'Leave calendar', sub: 'Staff schedule', href: '/schedule/leave', also: 'schedule holiday annual leave away' },
   { title: 'On call', sub: 'Staff schedule', href: '/schedule/oncall', also: 'schedule oncall roster after hours' },
   { title: 'Out of town', sub: 'Staff schedule', href: '/schedule/out-of-town', also: 'schedule fbt vehicle report travel' },
-  { title: 'Schedule settings', sub: 'Staff schedule · admins', href: '/schedule/settings', also: 'schedule locations excel import activity log' },
   { title: 'My asks', sub: 'Asks', href: '/asks/#/mine', also: 'asks requests todo inbox' },
   { title: 'All asks', sub: 'Asks', href: '/asks/#/all', also: 'asks requests' },
   { title: 'Company asks', sub: 'Asks', href: '/asks/#/company', also: 'asks counts' },
@@ -58,9 +57,12 @@ export const PAGES = [
   { title: 'Conferences', sub: 'Projects', href: '/projects/#/conferences', also: 'projects events expo' },
   { title: 'Demo equipment', sub: 'Projects', href: '/projects/#/equipment', also: 'projects devices pool availability loans' },
   { title: 'Archive', sub: 'Projects', href: '/projects/#/archive', also: 'projects completed old jobs' },
-  { title: 'Project tracker settings', sub: 'Projects', href: '/projects/#/settings', also: 'projects categories statuses staff' },
-  { title: 'Admin settings', sub: 'Admins', href: '/admin/', also: 'admin people roles teams simpro access users' },
-  { title: 'Notifications', sub: 'Admin settings', href: '/admin/#notifications', also: 'admin push reminders phones devices' },
+  { title: 'Settings', sub: 'Appearance', href: '/settings/', also: 'preferences theme dark light mode start page open on' },
+  { title: 'Your notifications', sub: 'Settings', href: '/settings/you/notifications', also: 'push phone reminders alerts turn on off' },
+  { title: 'People and access', sub: 'Settings · admins', href: '/settings/people', also: 'admin roles teams simpro access users' },
+  { title: 'Everyone’s notifications', sub: 'Settings · admins', href: '/settings/notifications', also: 'admin push reminders who gets' },
+  { title: 'Staff schedule settings', sub: 'Settings · admins', href: '/settings/schedule', also: 'schedule locations excel import activity log' },
+  { title: 'Project tracker settings', sub: 'Settings', href: '/settings/projects', also: 'projects categories statuses staff equipment pool backup' },
 ]
 
 /** Places to go: pages, views and tools (tools.json), best first. */

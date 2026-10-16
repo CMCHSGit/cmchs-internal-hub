@@ -42,7 +42,7 @@ test('placeHits: tools too, but not twice when a tool is also a page', () => {
 test('every page links somewhere in the app, once', () => {
   const hrefs = PAGES.map(p => p.href)
   assert.equal(new Set(hrefs).size, hrefs.length)
-  for (const h of hrefs) assert.match(h, /^\/(#\/|schedule\/|asks\/|projects\/|admin\/)/)
+  for (const h of hrefs) assert.match(h, /^\/(#\/|schedule\/|asks\/|projects\/|settings\/)/)
 })
 
 const directory = [

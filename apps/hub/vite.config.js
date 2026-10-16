@@ -10,8 +10,9 @@ import { fileURLToPath } from 'node:url'
  *
  *  - The hub's own (hub.css, shared/tokens/base.css): inside its own pages,
  *    marked .hub-page. :root and html stay global (variables, page defaults).
- *  - The staff schedule's (index.css, settings.css), which Admin settings uses
- *    too: inside those two sections' element only, main.section[data-section=…]
+ *  - The staff schedule's (index.css, settings.css), which Settings uses too
+ *    (its admin pages are built from it): inside those two sections' element
+ *    only, main.section[data-section=…]
  *    (not [data-section] alone: App.jsx puts that on <body> too). Its :root
  *    variables go there too. The kit it @imports is dropped from this copy:
  *    the shell has already loaded it once, and a second, later copy would
@@ -26,8 +27,8 @@ const SCOPES = [
   // :where() adds no specificity, so inside these sections the rules win and
   // lose against the kit exactly as they did when each was a page of its own.
   { file: /[\\/]apps[\\/]schedule[\\/]src[\\/](index|settings)\.css$/,
-    inside: ':where(main.section:is([data-section="schedule"], [data-section="admin"]))',
-    body: 'body:is([data-section="schedule"], [data-section="admin"])', globalRoot: false },
+    inside: ':where(main.section:is([data-section="schedule"], [data-section="settings"]))',
+    body: 'body:is([data-section="schedule"], [data-section="settings"])', globalRoot: false },
 ]
 function scopeHubCss() {
   const scoper = ({ inside, body, globalRoot }) => function scope(sel) {

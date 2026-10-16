@@ -98,12 +98,11 @@ export default function Header({ user, search = true, page = 'home' }) {
             <Icon name="search" size={20} />
           </button>
         )}
-        {/* Admin settings. Shown to everyone on purpose: the page asks for the
-            admin password (and the admin role), so the gear is just the way
-            in for the people who have it, not a tool everyone should see. */}
+        {/* Settings: everyone's own (appearance, notifications), and for
+            admins the admin pages behind the admin password. */}
         <ThemeButton />
-        <a className={`icon-btn header-admin ${page === 'admin' ? 'on' : ''}`} href="/admin/" aria-label="Admin settings" title="Admin settings"
-          aria-current={page === 'admin' ? 'page' : undefined}>
+        <a className={`icon-btn header-admin ${page === 'settings' ? 'on' : ''}`} href="/settings/" aria-label="Settings" title="Settings"
+          aria-current={page === 'settings' ? 'page' : undefined}>
           <Icon name="settings" size={20} />
         </a>
         <Account user={user} />

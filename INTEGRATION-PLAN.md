@@ -99,8 +99,15 @@ Status is kept here. Tick items as they land, with the commit.
         row under the shell's header, and its own header, account menu,
         phone tab bar, update banner and version tag are gone. The precache
         is now just what the start page loads (`scripts/build.mjs`).
-- [ ] One Settings area (merges Admin settings, the schedule's Settings, the
-      project tracker's Settings, maintenance's settings, hub Manage, People's HR)
+- [x] One Settings area, 17 Oct (`/settings/`, `apps/settings`): You (appearance,
+      start page, your notifications), Admin (people and access, everyone's
+      notifications: Admin settings' two tabs) and Sections (the schedule's and the
+      tracker's own settings screens; Maintenance's is a link until step 3).
+      `/admin/`, `/schedule/settings` and `/projects/#/settings` forward there.
+      Not moved, on purpose: hub Manage (news people post, and the request and
+      feedback queues: content, not settings) and HR access, which stays on each
+      person's profile. **Needs the Firestore rules published** for people to
+      switch their own reminders (`isOwnNotifications`); until then admins can.
 - [x] Ctrl+K searches every section, 17 Oct (`apps/hub/src/Palette.jsx`): pages and
       views, tools, people, jobs and asks, opening in place. Each section adds its
       results through a `search-source.js`. The tracker's own job search, with

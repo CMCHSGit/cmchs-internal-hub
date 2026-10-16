@@ -47,7 +47,8 @@ registerRoute(
 // on the schedule's My week. Hand back the app's page, the job /404.html does
 // when the network answers instead of this worker. Before the route below,
 // which would otherwise take these navigations first.
-const APP_SECTIONS = /^\/(schedule|asks|projects|admin)(\/|$)/
+// (/admin/ moved into Settings; the app forwards it.)
+const APP_SECTIONS = /^\/(schedule|asks|projects|settings|admin)(\/|$)/
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
   allowlist: [APP_SECTIONS],
 }))

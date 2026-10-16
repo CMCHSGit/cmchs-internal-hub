@@ -28,7 +28,7 @@ async function transferSchedules(pendingId, realUid) {
 }
 
 /**
- * Admin settings (the hub's apps/admin) can bulk-create "pending" placeholder profiles (team,
+ * Settings → People and access (apps/admin) can bulk-create "pending" placeholder profiles (team,
  * excelName) for staff who haven't signed in yet, keyed by a made-up id
  * rather than their eventual real uid (which doesn't exist until they do).
  * On an actual first sign-in, adopt one of those placeholders — preferring
@@ -74,6 +74,9 @@ async function claimPendingProfile(firebaseUser) {
 
 const AuthContext = createContext(null)
 
+const DEV_USER = { uid: 'dev', displayName: 'Dev User', email: 'dev.user@cass.co.nz' }
+const DEV_PROFILE = { displayName: 'Dev User', email: DEV_USER.email, team: 'Management', role: 'admin' }
+
 export function AuthProvider({ children }) {
   const [user,         setUser]         = useState(undefined) // undefined = loading auth
   const [profile,      setProfile]      = useState(null)
@@ -81,6 +84,15 @@ export function AuthProvider({ children }) {
   const loadedUidRef = useRef(null) // whose profile we've already fetched this session
 
   useEffect(() => {
+    // `npm run dev` without a .env: the same pretend "Dev User" the hub's
+    // shell signs in (shared/session.js), as an admin, so the screens can be
+    // worked on. A real build always has auth (scripts/build.mjs insists).
+    if (!auth) {
+      setUser(import.meta.env.DEV ? DEV_USER : null)
+      setProfile(import.meta.env.DEV ? DEV_PROFILE : null)
+      setProfileReady(true)
+      return
+    }
     return onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
         loadedUidRef.current = null

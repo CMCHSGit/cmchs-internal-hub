@@ -14,10 +14,28 @@ import { useSyncExternalStore } from 'react'
 export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
   { id: 'projects', prefix: '/projects/' },
-  { id: 'admin', prefix: '/admin/' },
-  // Routes on real paths inside (/schedule/my…), with react-router, not #/.
+  // These two route on real paths inside (/schedule/my, /settings/people),
+  // with react-router, not #/.
   { id: 'schedule', prefix: '/schedule/' },
+  { id: 'settings', prefix: '/settings/' },
 ]
+
+/**
+ * Pages that moved into Settings: where an old address now goes, or null.
+ * Admin settings' tabs (/admin/, /admin/#notifications) and the schedule's
+ * settings (/schedule/settings#excel); the tracker's #/settings is forwarded
+ * by the tracker itself, since it is only the #… part.
+ */
+export function movedTo(path, hash = '') {
+  if (path === '/admin' || path.startsWith('/admin/')) {
+    const tab = hash.replace(/^#\/?/, '')
+    if (tab === 'notifications') return '/settings/notifications'
+    if (['locations', 'excel', 'activity'].includes(tab)) return '/settings/schedule' + (tab === 'locations' ? '' : '#' + tab)
+    return '/settings/people'
+  }
+  if (path === '/schedule/settings' || path === '/schedule/settings/') return '/settings/schedule' + hash
+  return null
+}
 
 /** Which section an address belongs to, or null for a page outside the app (/demo/, /maintenance/…). */
 export function sectionOf(path) {
@@ -43,7 +61,9 @@ export function useAddress() {
 
 /** Go to an address in the app without a page load (or with one, if it isn't in the app). */
 export function navigate(href, { replace = false } = {}) {
-  const url = new URL(href, location.href)
+  let url = new URL(href, location.href)
+  const moved = url.origin === location.origin && movedTo(url.pathname, url.hash)
+  if (moved) url = new URL(moved, location.href)
   if (url.origin !== location.origin || !sectionOf(url.pathname)) {
     if (replace) location.replace(url.href)
     else location.assign(url.href)
@@ -80,7 +100,7 @@ export function interceptLinks() {
     const a = e.target.closest?.('a[href]')
     if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return
     const url = new URL(a.getAttribute('href'), location.href)
-    if (url.origin !== location.origin || !sectionOf(url.pathname)) return
+    if (url.origin !== location.origin || !(sectionOf(url.pathname) || movedTo(url.pathname, url.hash))) return
     if (url.pathname === location.pathname && url.search === location.search) return // same page: let #… work as it always has
     e.preventDefault()
     navigate(url.href)
@@ -103,8 +123,35 @@ export function restoreRedirect() {
   history.replaceState(null, '', p)
 }
 
-/** /asks → /asks/ on load, so the address is the section's and relative links resolve as before. */
+/**
+ * On load: an address that moved goes to its new place, and /asks becomes
+ * /asks/, so the address is the section's and relative links resolve as before.
+ */
 export function normaliseSectionPath() {
+  const moved = movedTo(location.pathname, location.hash)
+  if (moved) return history.replaceState(null, '', moved)
   const sec = SECTIONS.find(s => location.pathname === s.prefix.slice(0, -1))
   if (sec) history.replaceState(null, '', sec.prefix + location.search + location.hash)
+}
+
+/** Where the app opens, if someone chose (Settings → Appearance): per device. */
+export const START_KEY = 'hub:start'
+export const START_PAGES = [
+  ['', 'Home'],
+  ['/schedule/', 'Team week'],
+  ['/schedule/my', 'My week'],
+  ['/asks/#/mine', 'My asks'],
+  ['/projects/#/home', 'Project tracker'],
+]
+
+/**
+ * Opening the app at plain "/" (its icon, a bookmark of the site) lands on
+ * the chosen start page. Only then: the logo and the Home tab go to "/#/",
+ * so Home is always one click away.
+ */
+export function applyStartPage() {
+  if (location.pathname !== '/' || location.search || location.hash) return
+  let start = ''
+  try { start = localStorage.getItem(START_KEY) || '' } catch { /* private mode: Home */ }
+  if (START_PAGES.some(([href]) => href && href === start)) history.replaceState(null, '', start)
 }

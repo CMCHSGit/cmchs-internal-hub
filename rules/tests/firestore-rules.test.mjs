@@ -48,6 +48,16 @@ await check('user picks a team while theirs is empty (TeamOnboarding)', true, ()
   updateDoc(doc(as('notyet'), 'users/notyet'), { team: 'Engineers' }))
 await check('user registers a phone for push (push.js)', true, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { fcmTokens: arrayUnion('tok-123') }))
+await check('user turns their own schedule reminder off (Settings → Your notifications)', true, () =>
+  updateDoc(doc(as('bob'), 'users/bob'), { 'notifications.scheduleReminder': false }))
+await check('user turns their own Asks summary back on', true, () =>
+  updateDoc(doc(as('bob'), 'users/bob'), { 'notifications.asksSummary': true }))
+await check('user can\'t put anything else in their notifications', false, () =>
+  updateDoc(doc(as('bob'), 'users/bob'), { 'notifications.everything': true }))
+await check('user can\'t set a reminder to something that isn\'t on or off', false, () =>
+  updateDoc(doc(as('bob'), 'users/bob'), { 'notifications.asksSummary': 'yes' }))
+await check('user can\'t change someone else\'s notifications', false, () =>
+  updateDoc(doc(as('bob'), 'users/zed'), { 'notifications.scheduleReminder': false }))
 await check('first-time sign-in deletes the placeholder it claims', true, () =>
   deleteDoc(doc(as('brandnew'), 'users/pending-dee')))
 await check('admin changes someone\'s role (Admin page)', true, () =>

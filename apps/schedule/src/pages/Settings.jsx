@@ -17,11 +17,11 @@ import '../settings.css'
 const ExcelImport = lazy(() => import('../components/ExcelImport'))
 
 /**
- * /schedule/settings — the staff schedule's own settings, for schedule admins:
- * the location suggestions, the import from the company Excel file, and the
- * activity log. People (teams, roles, Simpro access) and everyone's
- * notifications are set in the Internal Hub's Admin (/admin/), which covers
- * every tool, not just this one.
+ * The staff schedule's own settings, for schedule admins: the location
+ * suggestions, the import from the company Excel file, and the activity log.
+ * A page of the one app's Settings (/settings/schedule, apps/settings), next
+ * to People and access and everyone's notifications; /schedule/settings
+ * forwards there. Its tabs are the #… part, as they always were.
  */
 const TABS = [['locations', 'Locations'], ['excel', 'Excel'], ['activity', 'Activity log']]
 
@@ -55,7 +55,6 @@ export default function Settings() {
             </button>
           ))}
         </div>
-        <a className="settings-elsewhere text-sm" href="/admin/">People and notifications are in the Internal Hub’s Admin</a>
       </div>
 
       {tab === 'locations' && <LocationsTab />}

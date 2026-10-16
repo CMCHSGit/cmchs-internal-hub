@@ -98,7 +98,7 @@ test('it brings in the people it is sure of, and leaves the rest for Admin → E
   // the two Sams, "Mike" and "Zed" are left alone — nothing is guessed, and nobody is added
   assert.equal(store.db.schedules.size, 3)
   assert.equal(store.db.users.size, 5)
-  assert.match(r.summary, /3 Excel names left for Admin → Excel \(1 several fit, 1 to check, 1 not in the app\)/)
+  assert.match(r.summary, /3 Excel names left for Settings → Staff schedule → Excel \(1 several fit, 1 to check, 1 not in the app\)/)
   // imported entries are not "saved in the app", so the app → Excel copy won't echo them back
   assert.equal(store.db.schedules.get(`${W1}_u-alex`).submittedAt, undefined)
   assert.equal(store.db.schedules.get(`${W1}_u-alex`).needsConfirm, false)

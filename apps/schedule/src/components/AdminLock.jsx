@@ -4,9 +4,9 @@ import { Button } from './ui'
 
 /**
  * The admin password — a second step on top of the admin role, useful on an
- * admin's unlocked phone or computer. Asked by the hub's Admin (/admin/) and
- * the schedule's Settings (/schedule/settings); one origin, one sessionStorage,
- * so unlocking either unlocks both until the tab/app is closed.
+ * admin's unlocked phone or computer. Asked by the admin pages of Settings
+ * (/settings/people, /settings/notifications, /settings/schedule); one origin,
+ * one sessionStorage, so unlocking one unlocks all until the tab/app is closed.
  *
  * Only its SHA-256 is kept here (this repo is public), but this is a lock on
  * the door, not a safe: it runs in the browser. What actually protects admin
