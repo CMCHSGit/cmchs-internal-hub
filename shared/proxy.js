@@ -1,4 +1,4 @@
-/* The Apps Script proxy (chs-equipment/.gas-proxy), one address for every tool.
+/* The Apps Script proxy (backend/apps-script/proxy), one address for every tool.
 
    It holds the keys the browser must never see (Simpro, the chs-equipment
    service account) and does the jobs a static site can't: the demo tracker's

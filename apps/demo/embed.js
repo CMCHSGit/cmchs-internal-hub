@@ -14,7 +14,7 @@
 //    site has one worker, the hub's, and one push setup, the schedule's.
 //    Demo reminders reach the phones turned on through that setup (the hub
 //    home's prompt); the Simpro proxy sends them ("HUB PUSH" in
-//    chs-equipment .gas-proxy) with links back to /demo/.
+//    backend/apps-script/proxy) with links back to /demo/.
 //  - The phone layout is used on phone-sized screens only. The tracker
 //    treats "installed" as "phone", which is true on demo.chsnz.co.nz but
 //    not here: the hub is installed on desktops too, and an installed

@@ -33,5 +33,9 @@ Several people work on these repos with Claude, often at the same time.
   tracker's Realtime Database: `rules/database.rules.json`). A push does not
   publish them: they are pasted, whole, into the Firebase console. Say so when
   a change needs publishing (`rules/README.md`).
+- **The back end is in `backend/`** (the Apps Script proxy and nightly backup,
+  Tile sync). `clasp push` does not make Apps Script code live: `git pull`, push,
+  then `clasp deploy -i <id>` and check the live `/exec` address, exactly as in
+  `backend/README.md`. This has bitten twice.
 - **Ask before anything people would notice and can't undo:** deleting data,
   changing rules, anything that signs people out.

@@ -330,7 +330,7 @@ function TrackerRole({ person, tracker, onChange }) {
  *    cmchs-staff-schedule repo) skips anyone with it false.
  *  - Demo tracker: loan reminders (starting soon, due back, overdue, action
  *    needed). accountManagers[].notify in the tracker's database; the Apps
- *    Script senders (chs-equipment .gas-proxy) skip anyone with it false.
+ *    Script senders (backend/apps-script/proxy) skip anyone with it false.
  *  - Asks: the 8:30am weekday "you have N open asks" summary.
  *    users/{uid}.notifications.asksSummary; apps/asks/scripts/summary.mjs
  *    skips anyone with it false. (Pushes about a single ask always go.)

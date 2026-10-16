@@ -69,10 +69,12 @@ Status is kept here. Tick items as they land, with the commit.
 - [ ] The staff schedule's Excel sync job and scripts here; then switch
       schedule.chsnz.co.nz off with a tombstone service worker (its TODO #36–#40),
       after two Thursdays of the reminder running from here
-- [ ] Apps Script proxy and backup in `backend/apps-script/` here
-      (needs clasp re-linked from the new folders; deploy discipline unchanged)
-- [ ] Tile sync script and workflow here (needs its Actions secrets added to
-      this repo)
+- [x] Apps Script proxy and backup in `backend/apps-script/` here, with history
+      (`backend/README.md`: how to deploy). Same Apps Script projects; clasp works
+      from the new folders.
+- [ ] Tile sync script and workflow here, with history: moved, waiting on its
+      Actions secrets here and the `TILE_SYNC_HERE` switch; then the old copy in
+      chs-equipment is removed
 - [ ] The demo tracker's source here, with history (`git subtree`), and
       demo.chsnz.co.nz deployed from here until step 4 retires it
 - [ ] Archive `chs-equipment` and `cmchs-staff-schedule` once nothing deploys

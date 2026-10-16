@@ -11,7 +11,7 @@
 //
 // One phone registration covers every tool: the staff schedule's reminders,
 // and the demo tracker's, which the Simpro proxy sends to these same phones
-// (chs-equipment .gas-proxy, "HUB PUSH"). Admin's switches decide which of
+// (backend/apps-script/proxy, "HUB PUSH"). Admin's switches decide which of
 // them a person actually gets.
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'

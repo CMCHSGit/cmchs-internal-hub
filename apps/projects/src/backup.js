@@ -1,6 +1,6 @@
 /* Backups: one JSON file with everything the tracker keeps, exactly as
    stored, so it can be put back. The nightly backup writes this same format
-   to Google Drive (chs-equipment/.gas-backup/Code.js, readProjectTracker_());
+   to Google Drive (backend/apps-script/backup/Code.js, readProjectTracker_());
    Settings → Backups can download one now and restore from either.
 
    {

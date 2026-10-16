@@ -18,7 +18,8 @@ Matches tiles by the number before the ')' in the tile's name, e.g.:
 
 Run manually:  python tile_sync.py          (needs TILE_EMAIL/TILE_PASSWORD
                                               in the environment)
-Scheduled:     .github/workflows/tile-sync.yml (daily)
+Scheduled:     .github/workflows/tile-sync.yml at the top of this repo (daily,
+               once the TILE_SYNC_HERE repository variable is true)
 
 SETUP
 -----

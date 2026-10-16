@@ -1,7 +1,7 @@
 /**
  * CHS Equipment Tracker — Daily Backup
  * =====================================================
- * A SEPARATE Google Apps Script project from .gas-proxy/Code.js (the
+ * A SEPARATE Google Apps Script project from ../proxy/Code.js (the
  * Simpro/reminder proxy) — this one is a standalone script, not a deployed
  * web app, and isn't called by the tracker at all. It just reads straight
  * from the tracker's Firebase Realtime Database on a daily timer and writes
@@ -570,7 +570,7 @@ function asksBackupNow() {
 
 // Run once from the Apps Script editor to install the daily trigger.
 // Deletes any prior trigger with the same handler first, same pattern
-// .gas-proxy/Code.js's installers use, so re-running this is always safe.
+// ../proxy/Code.js's installers use, so re-running this is always safe.
 function installDailyBackupTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(t) {
     if (t.getHandlerFunction() === 'dailyBackup') ScriptApp.deleteTrigger(t);

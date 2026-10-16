@@ -1,0 +1,45 @@
+# Daily Tile location sync: where each demo device's Tile tracker last was,
+# written to the demo tracker's Realtime Database (/tileLocations). See
+# backend/tile-sync/tile_sync.py. Moved here from the chs-equipment repo
+# (INTEGRATION-PLAN.md step 1).
+#
+# The daily run only happens once the repository variable TILE_SYNC_HERE is
+# 'true', so it can't run here and in chs-equipment on the same morning. A
+# manual run (Actions -> Tile location sync -> Run workflow) always works, which
+# is how to test it before switching the timer on.
+#
+# NB: this repo is public, so run logs are too. tile_sync.py only ever prints
+# tile counts, never names or addresses.
+name: Tile location sync
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # 18:00 UTC = 07:00 NZST (06:00 during daylight saving)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  tile-sync:
+    if: github.event_name == 'workflow_dispatch' || vars.TILE_SYNC_HERE == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/tile-sync/requirements.txt
+      - run: python backend/tile-sync/tile_sync.py
+        env:
+          TILE_EMAIL:    ${{ secrets.TILE_EMAIL }}
+          TILE_PASSWORD: ${{ secrets.TILE_PASSWORD }}
+          # The chs-equipment project's service account (the demo tracker's
+          # database), not the staff schedule's FIREBASE_* one.
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.CHS_EQUIPMENT_SERVICE_ACCOUNT }}
+      # GitHub pauses timed workflows after 60 days without repo activity -
+      # re-enabling this one on every run keeps it alive.
+      - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/tile-sync.yml/enable"
+        env:
+          GH_TOKEN: ${{ github.token }}
