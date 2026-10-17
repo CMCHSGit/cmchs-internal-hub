@@ -80,3 +80,31 @@ test('filterLoans: search, account manager, overdue only and the sorts', () => {
   assert.deepEqual(filterLoans([...list], { sort: 'manager' }).map((g) => g.am), ['Sam', 'Tama', ''])
   assert.deepEqual(filterLoans([...list], { sort: 'recent' }).map((g) => g.loanTo), ['Auckland', 'Waikato', 'Napier'])
 })
+
+import { fmtWhen, jobOf, readinessKey, readinessOf } from '../src/model.js'
+
+test('readiness key: the BatchID, else the old loandoc key with Firebase-forbidden characters made _', () => {
+  assert.equal(readinessKey({ batchId: 'batch_1' }), 'batch_1')
+  assert.equal(readinessKey({ loanTo: 'A.B', endDate: '2026-10-01' }), 'loandoc_A_B%7C%7C%7C2026-10-01')
+})
+
+test('readiness: no test required, not tested in the first week, tested and dispatched with when', () => {
+  const meta = { b1: { noTestRequired: true }, b2: { tested: true, testedAt: '2026-10-15T04:40:00Z', dispatched: true } }
+  assert.equal(readinessOf({ batchId: 'b1', startDate: '2026-10-14' }, { loanMeta: meta, today }).noTestRequired, true)
+  assert.equal(readinessOf({ batchId: 'b1', startDate: '2026-10-14' }, { loanMeta: meta, today }).notTested, false)
+  assert.equal(readinessOf({ batchId: 'b3', startDate: '2026-10-14' }, { loanMeta: meta, today }).notTested, true)  // started 2 days ago
+  assert.equal(readinessOf({ batchId: 'b3', startDate: '2026-09-01' }, { loanMeta: meta, today }).notTested, false) // over a week
+  assert.equal(readinessOf({ batchId: 'b3', startDate: '2026-10-20' }, { loanMeta: meta, today }).notTested, false) // not started
+  const r = readinessOf({ batchId: 'b2', startDate: '2026-10-14' }, { loanMeta: meta, today })
+  assert.equal(r.notTested, false)
+  assert.equal(fmtWhen(r.tested), '15 Oct, 17:40')
+  assert.equal(r.dispatched, true)
+})
+
+test('job: number, closed, test, or still being made', () => {
+  assert.deepEqual(jobOf({ simproJobId: 209677 }), { label: 'Job #209677', closed: false, test: false })
+  assert.equal(jobOf({ simproJobId: 209067, simproClosedAt: '2026-06-18' }).closed, true)
+  assert.equal(jobOf({ simproJobId: 'TEST-123456' }).test, true)
+  assert.equal(jobOf({ simproJobId: { status: 'pending' } }).pending, true)
+  assert.equal(jobOf({}), null)
+})

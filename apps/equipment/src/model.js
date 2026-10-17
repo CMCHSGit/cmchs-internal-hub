@@ -224,6 +224,7 @@ export function loanSections({ equipment = [], upcoming = [], loanMeta = {}, loa
     g.longTerm = isLoanLongTerm(g.batchId, ctx)
     g.island = doc?.island || ''
     g.notes = doc ? (doc.notesCell || doc.notes || '') : ''
+    g.doc = doc || null
     g.overdue = !g.longTerm && !!g.endDate && g.endDate < today
     g.startingSoon = isStartingSoon(today, g.startDate, g.island)
     return g
@@ -270,4 +271,46 @@ export function filterLoans(list, { q = '', am = '', overdueOnly = false, sort =
     start: (a, b) => ((a.startDate || '') < (b.startDate || '') ? -1 : 1),
   }[sort]
   return by ? out.sort(by) : out
+}
+
+/* ── A loan card's details (old: buildActiveLoanCard and its helpers) ── */
+
+/** Where a loan's testing and dispatch are kept in loanMeta (old: _readinessKey). */
+export function readinessKey(g) {
+  if (g.batchId) return g.batchId
+  return ('loandoc_' + encodeURIComponent((g.loanTo || '') + '|||' + (g.endDate || ''))).replace(/[.#$[\]/]/g, '_')
+}
+
+/**
+ * Testing and dispatch, as the old card shows them (old: buildReadinessButtons,
+ * its read-only part): "No test required", or a "Not tested" warning for a
+ * loan that started in the last 7 days untested; Tested and Dispatched with
+ * when, once set. The buttons that set them come with the loan actions.
+ */
+export function readinessOf(g, { loanMeta = {}, today = nzDate() } = {}) {
+  const r = loanMeta[readinessKey(g)] || {}
+  const started = !!g.startDate && g.startDate <= today
+  const recent = !!g.startDate && daysBetween(g.startDate, today) <= 7
+  return {
+    noTestRequired: !!r.noTestRequired,
+    notTested: !r.noTestRequired && started && recent && !r.tested,
+    tested: r.tested ? (r.testedAt || true) : null,
+    dispatched: r.dispatched ? (r.dispatchedAt || true) : null,
+  }
+}
+
+/** "15 Oct, 17:40" (old: _fmtReadinessTs). */
+export function fmtWhen(ts) {
+  if (!ts || ts === true) return ''
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return String(ts).slice(0, 10)
+  return d.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+/** The Simpro job on a loan's form: "Job #209677", "(Closed)" once closed, or pending while it's made. */
+export function jobOf(doc) {
+  const sj = doc?.simproJobId
+  if (!sj) return null
+  if (typeof sj === 'object') return { label: 'Simpro job being made', pending: true }
+  return { label: 'Job #' + sj, closed: !!doc.simproClosedAt, test: String(sj).startsWith('TEST-') }
 }

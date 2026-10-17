@@ -59,3 +59,8 @@
 .eq-device:first-child { border-top: none; }
 .eq-device.pending .eq-small { color: var(--accent-fg); }
 .eq-device.ghost { opacity: .6; }
+.eq-job { color: var(--accent-fg); font-weight: 600; }
+.eq-job.closed { color: var(--text-muted); font-weight: 400; }
+.eq-demo { color: var(--accent-fg); }
+.eq-demo.clinical { color: var(--status-critical); font-weight: 600; }
+.eq-ready { display: flex; flex-wrap: wrap; gap: 4px 12px; }

@@ -7,7 +7,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '../../../shared/ui/index.jsx'
-import { daysBetween, filterLoans, fmtDate, loanSections } from './model.js'
+import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readinessOf } from './model.js'
 
 const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Due back'], ['recent', 'Most recent start'], ['alpha', 'Customer A–Z'], ['manager', 'Account manager']]
 
@@ -75,7 +75,10 @@ function LoanCard({ g, s, open, onToggle }) {
     : g.longTerm ? `Since ${fmtDate(g.startDate)} · no end date` : `${fmtDate(g.startDate)} to ${fmtDate(g.endDate)}`
   const what = g.kind === 'booking'
     ? `${g.pending.length} ${g.pending.length === 1 ? 'device' : 'devices'} booked`
-    : `${count} ${count === 1 ? 'device' : 'devices'}${g.pending.length ? ` (+${g.pending.length} still to come)` : ''}`
+    : `${count} ${count === 1 ? 'device' : 'devices'}${g.pending.length ? ` (+${g.pending.length} pending pickup)` : ''}${g.ghosts.length ? ` (+${g.ghosts.length} transferred out)` : ''}`
+  const job = jobOf(g.doc)
+  const demoType = g.doc?.demoType || ''
+  const ready = readinessOf(g, { loanMeta: s.loanMeta, today: s.today })
   const byId = (id, assetNo) => s.equipment.find((e) => e.id === id || e.CHSAssetNo === assetNo)
   return (
     <article className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && g.startingSoon ? ' soon' : ''}`}>
@@ -83,9 +86,24 @@ function LoanCard({ g, s, open, onToggle }) {
         <span className="eq-loan-main">
           <span className="eq-loan-who">{g.loanTo}</span>
           <span className="eq-small">{[g.am, g.location, when, what].filter(Boolean).join(' · ')}</span>
+          {(job || demoType) && (
+            <span className="eq-small">
+              {job && <span className={job.closed ? 'eq-job closed' : 'eq-job'}>{job.closed ? '✓ ' : ''}{job.label}{job.closed ? ' (Closed)' : ''}</span>}
+              {job && demoType && ' · '}
+              {demoType && <span className={demoType === 'Clinical Trial' ? 'eq-demo clinical' : 'eq-demo'}>{demoType}</span>}
+            </span>
+          )}
+          {(ready.noTestRequired || ready.tested || ready.dispatched) && (
+            <span className="eq-small eq-ready">
+              {ready.noTestRequired && <span>— No test required</span>}
+              {ready.tested && <span>✔ Tested{fmtWhen(ready.tested) && ` ${fmtWhen(ready.tested)}`}</span>}
+              {ready.dispatched && <span>Dispatched{fmtWhen(ready.dispatched) && ` ${fmtWhen(ready.dispatched)}`}</span>}
+            </span>
+          )}
         </span>
         <span className="eq-loan-badges">
           {g.overdue && <Badge tone="critical">Overdue</Badge>}
+          {ready.notTested && <Badge tone="orange">Not tested</Badge>}
           {upcomingKind && (g.startingSoon ? <Badge tone="orange">Starting soon</Badge> : <Badge tone="purple">{g.kind === 'booking' ? 'Booked' : 'Scheduled'}</Badge>)}
           {g.longTerm && <Badge tone="neutral">Long term</Badge>}
           {g.kind === 'loan' && g.pending.length > 0 && !g.longTerm && <Badge tone="orange">Needs reassigning</Badge>}

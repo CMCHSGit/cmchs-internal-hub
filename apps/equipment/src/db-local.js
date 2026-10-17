@@ -29,11 +29,20 @@ function sample() {
     { id: 'h_dev_5', ts: ts(-16), chsAssetNo: '100311', model: 'N15', action: 'Count', notes: 'Counted on the shelf', operator: 'Kiri Moana' },
   ]
   return {
-    data: { equipment, history, loanMeta: { batch_dev_4: { accountManager: 'Sam Lee', longTerm: true } }, _v: String(Date.now()) },
+    data: { equipment, history, _v: String(Date.now()), loanMeta: {
+      batch_dev_1: { accountManager: 'Sam Lee', noTestRequired: true, dispatched: true, dispatchedAt: ts(-10) },
+      batch_dev_2: { accountManager: 'Tama Brown', tested: true, testedAt: ts(-31), dispatched: true, dispatchedAt: ts(-30) },
+      batch_dev_4: { accountManager: 'Sam Lee', longTerm: true },
+    } },
     upcomingLoans: {
       batch_dev_6: { id: 'batch_dev_6', loanTo: 'Napier Hospital', location: 'CCU', startDate: day(20), endDate: day(34), accountManager: 'Tama Brown', items: [{ id: 'id_dev_7', CHSAssetNo: '100421', Model: 'D30', SerialNo: 'D30-110046' }] },
     },
-    loanDocs: {},
+    loanDocs: {
+      batch_dev_1: { simproJobId: 209677, demoType: 'Clinical Trial', notes: 'Ship with the full set of accessories.' },
+      batch_dev_2: { simproJobId: 209306, demoType: 'Conference/Presentation' },
+      batch_dev_3: { demoType: 'Evaluation', island: 'North' },
+      batch_dev_4: { simproJobId: 209067, simproClosedAt: ts(-100), longTerm: true },
+    },
     accountManagers: [{ name: 'Sam Lee', email: 'sam.lee@example.com', role: 'am' }, { name: 'Tama Brown', email: 'tama.brown@example.com', role: 'am' }, { name: 'Kiri Moana', email: 'kiri.moana@example.com', role: 'service' }],
     kitGroups: {},
     retired: [],
