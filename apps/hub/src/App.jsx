@@ -31,13 +31,25 @@ const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 class SectionBoundary extends Component {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
-  componentDidCatch(err) { console.error('[shell] section failed', err) }
+  componentDidCatch(err) {
+    console.error('[shell] section failed', err)
+    // A page opened before a deploy asks for a section's file by its old
+    // name, which the deploy removed: reload onto the new version by itself,
+    // once a minute at most, so a real fault shows the message, not a loop.
+    const missing = /dynamically imported module|Importing a module script failed|error loading dynamically/i.test(String(err?.message || err))
+    let last = 0
+    try { last = Number(sessionStorage.getItem('hub:chunkReload')) || 0 } catch { /* private mode */ }
+    if (missing && Date.now() - last > 60000) {
+      try { sessionStorage.setItem('hub:chunkReload', String(Date.now())) } catch { /* private mode */ }
+      location.reload()
+    }
+  }
   render() {
     if (!this.state.failed) return this.props.children
     return (
       <div className="hub-page"><div className="section-failed">
         <p>This part of the hub didn’t load. It may have just been updated.</p>
-        <button className="btn btn-primary" onClick={() => location.reload()}>Reload</button>
+        <button className="btn btn-primary btn-lg" onClick={() => location.reload()}>Reload</button>
       </div></div>
     )
   }
