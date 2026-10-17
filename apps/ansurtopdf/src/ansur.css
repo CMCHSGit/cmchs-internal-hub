@@ -1,0 +1,117 @@
+/* The Ansur PVT Report Builder inside the hub (section.jsx): its own page's
+   styles, kept to this section and moved onto the kit. Its colour names
+   (--accent, --line…) now point at the kit's tokens, so it follows the hub's
+   palette and light and dark; its buttons, fields, cards and table look like
+   the kit's. The PDFs themselves are drawn by builder.js, not by this. */
+.an-host {
+  --bg: var(--surface-subtle); --surface: var(--surface-card); --ink: var(--text-strong); --muted: var(--text-muted);
+  --line: var(--border-subtle); --accent: var(--accent-fg); --accent-ink: var(--text-inverse);
+  --pass: #5b8801; --pass-bg: var(--chs-green-20); --fail: var(--status-critical); --fail-bg: var(--status-critical-tint);
+  --other: #a85800; --other-bg: var(--chs-orange-20); --drop: var(--surface-brand-tint);
+  max-width: 1040px; margin: 0 auto; padding: 22px 24px 48px; display: flex; flex-direction: column; gap: 16px;
+  font: var(--type-body); color: var(--text-body);
+}
+:root[data-theme="dark"] .an-host { --pass: var(--chs-green); --other: var(--chs-orange); }
+.an-head { display: flex; flex-direction: column; gap: 4px; }
+.an-title { margin: 0; font: var(--type-h2); color: var(--text-strong); }
+.an-sub { margin: 0; max-width: 70ch; font: var(--type-body-sm); color: var(--text-muted); }
+.an-page { display: flex; flex-direction: column; gap: 16px; }
+body.busy .an-host { cursor: progress; }
+
+.an-host .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.an-host #drop { padding: 28px 20px; text-align: center; border: 2px dashed var(--border-hairline); box-shadow: none; transition: background .15s, border-color .15s; }
+.an-host #drop.over { background: var(--surface-brand-tint); border-color: var(--accent-fg); }
+.an-host #drop p { margin: 0 0 14px; color: var(--text-muted); }
+.an-host #drop strong { color: var(--text-strong); }
+.an-host .btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+
+/* Buttons, as the kit's: plain ones primary, .ghost secondary, .plain ghost */
+.an-host button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 10px 20px;
+  font: var(--type-body-strong); line-height: 1.3; border-radius: var(--radius-md); cursor: pointer; transition: var(--transition-control);
+  background: var(--chs-purple); color: var(--text-inverse); border: 1px solid var(--chs-purple); }
+.an-host button.ghost { background: transparent; color: var(--accent-fg); border-color: var(--accent-fg); }
+.an-host button.plain { background: transparent; color: var(--text-strong); border-color: transparent; }
+.an-host button:disabled { opacity: .45; cursor: not-allowed; }
+.an-host button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (hover: hover) {
+  .an-host button:hover:not(:disabled) { background: #3b2f6b; }
+  .an-host button.ghost:hover:not(:disabled) { background: var(--chs-purple-20); }
+  .an-host button.plain:hover:not(:disabled) { background: var(--surface-subtle); }
+}
+
+/* Fields, as the kit's .input (selects already are, from the kit) */
+.an-host input[type=text], .an-host input[type=search], .an-host textarea { width: 100%; min-width: 0; font: var(--weight-regular) 16px/1.4 var(--font-body);
+  color: var(--text-strong); padding: 10px 12px; background: var(--surface-card); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); }
+.an-host input[type=text]:focus, .an-host input[type=search]:focus, .an-host textarea:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+.an-host input[type=checkbox] { accent-color: var(--accent-fg); }
+
+.an-host .folder { margin-top: 10px; font: var(--type-body-sm); color: var(--text-muted); }
+.an-host .folder b { color: var(--text-strong); }
+.an-host #bulk { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0 0; }
+.an-host #bulk .spacer { flex: 1; }
+.an-host #count { font: var(--type-body-sm); color: var(--text-muted); }
+.an-host label.chk { display: inline-flex; gap: 6px; align-items: center; font: var(--type-body-sm); color: var(--text-body); cursor: pointer; }
+.an-host .sigline { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; font: var(--type-body-sm); color: var(--text-muted); }
+.an-host .sigline input[type=text] { width: auto; min-width: 240px; }
+.an-host .siglist { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; justify-content: center; }
+/* Signatures sit on white, as they will on the PDF. */
+.an-host .sigitem { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 8px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: #fff; color: #1d1d1d; font: var(--type-body-sm); }
+.an-host .sigitem img { height: 28px; max-width: 140px; object-fit: contain; }
+.an-host .sigline img { height: 34px; max-width: 180px; object-fit: contain; background: #fff; border: 1px solid var(--border-subtle); border-radius: 4px; padding: 2px 6px; }
+.an-host .fn small { display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted); }
+.an-host .fn small.nosig { color: var(--status-critical); }
+.an-host .msg { min-height: 22px; margin: 8px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.an-host .msg.ok { color: var(--pass); }
+.an-host .msg.warn { color: var(--status-critical); }
+
+.an-host #assetListWrap { margin-top: 14px; padding: 14px 16px; }
+.an-host #assetListWrap .head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.an-host #assetListWrap .head .spacer { flex: 1; }
+.an-host #assetListWrap .note, .an-host .note { font: var(--type-body-sm); color: var(--text-muted); }
+.an-host #assetList { font: 12.5px/1.5 var(--font-mono); resize: vertical; background: var(--surface-subtle); }
+
+/* The records, as the kit's .data-table */
+.an-host #tableWrap { overflow: hidden; }
+.an-host table { width: 100%; border-collapse: collapse; font: var(--type-body-sm); }
+.an-host th, .an-host td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+.an-host th { font-weight: 600; color: var(--text-muted); background: var(--surface-subtle); }
+.an-host tr:last-child td { border-bottom: 0; }
+.an-host td.fn { word-break: break-word; max-width: 340px; color: var(--text-strong); }
+.an-host td.act { white-space: nowrap; text-align: right; }
+.an-host td.act button { min-height: 32px; padding: 6px 14px; margin-left: 6px; font: var(--weight-regular) var(--size-body-sm)/1.3 var(--font-body); }
+.an-host td.err { color: var(--status-critical); }
+.an-host .pill { display: inline-block; padding: 2px 9px; border-radius: var(--radius-pill); font: var(--weight-semibold) 12px/1.4 var(--font-body); }
+.an-host .pill.pass { color: var(--pass); background: var(--pass-bg); }
+.an-host .pill.fail { color: var(--fail); background: var(--fail-bg); }
+.an-host .pill.other { color: var(--other); background: var(--other-bg); }
+.an-host #empty { margin: 18px 2px 0; font: var(--type-body); color: var(--text-muted); }
+.an-host .notes { margin-top: 12px; font: var(--type-body-sm); color: var(--text-muted); }
+.an-host .notes summary { cursor: pointer; color: var(--text-strong); font-weight: 600; }
+.an-host .notes ul { padding-left: 20px; margin: 8px 0 0; }
+
+/* The Simpro panel */
+.an-host #simpro { margin-top: 2px; padding: 16px 18px; }
+.an-host .sp-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.an-host #sp-q { flex: 1; min-width: 220px; width: auto; }
+.an-host .sp-field { display: flex; flex-direction: column; gap: 6px; font: var(--weight-semibold) var(--size-body-sm)/1.4 var(--font-body); color: var(--text-strong); }
+.an-host .sp-job { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
+.an-host .sp-job span { font: var(--type-body-sm); color: var(--text-muted); }
+.an-host #sp-results { display: flex; flex-direction: column; gap: 6px; }
+.an-host #sp-results:empty { display: none; }
+.an-host .sp-hit { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; width: 100%;
+  background: var(--surface-card); color: var(--text-strong); border-color: var(--border-subtle); }
+.an-host .sp-hit span { font: var(--type-body-sm); color: var(--text-muted); font-weight: 400; }
+@media (hover: hover) { .an-host .sp-hit:hover:not(:disabled) { background: var(--surface-subtle); } }
+.an-host #sp-notes { width: 100%; }
+
+@media (max-width: 759px) {
+  .an-host { padding: 16px 16px 32px; }
+  .an-host table, .an-host thead, .an-host tbody, .an-host tr, .an-host td { display: block; width: 100%; }
+  .an-host thead { display: none; }
+  .an-host tr { border-bottom: 1px solid var(--border-subtle); padding: 8px 0; }
+  .an-host td { border: 0; padding: 3px 14px; }
+  .an-host td[data-label]::before { content: attr(data-label) ": "; color: var(--text-muted); font: var(--type-caption); }
+  .an-host td.act { text-align: left; padding-top: 8px; }
+  .an-host td.act button { margin: 0 6px 0 0; }
+  .an-host td.fn { max-width: none; font-weight: 600; }
+}

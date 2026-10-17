@@ -2,7 +2,6 @@
 // at internal.chsnz.co.nz. Each app lands at its own path:
 //
 //   apps/hub            (Vite)    -> /             the one app (+ /shared/gate.js)
-//   apps/ansurtopdf     (Vite)    -> /ansurtopdf/
 //   apps/demo           (fetched) -> /demo/        read-only copy of demo.chsnz.co.nz,
 //                                                  built from the chs-equipment repo
 //
@@ -10,7 +9,8 @@
 // (apps/hub/src/router.js, INTEGRATION-PLAN.md steps 2 and 3): apps/schedule
 // (/schedule/), apps/asks (/asks/), apps/projects (/projects/), apps/settings
 // (/settings/, with apps/admin's screens), apps/service-orders (/service-orders/),
-// apps/maintenance (/maintenance/) and apps/simprosync (/simprosync/).
+// apps/maintenance (/maintenance/), apps/simprosync (/simprosync/) and
+// apps/ansurtopdf (/ansurtopdf/).
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
@@ -26,7 +26,6 @@ const DIST = join(ROOT, 'dist')
 // it would be wiped by its own build output landing on top.
 const APPS = [
   { dir: 'apps/hub',        path: '',           build: 'npm run build -w apps/hub',      output: 'dist' },
-  { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
 ]
 
@@ -119,7 +118,6 @@ const { count, size, warnings } = await injectManifest({
     // Big, rarely opened, or wanted fresh rather than cached. Precaching these
     // would make every phone download them up front for no reason.
     '**/exceljs*.js',
-    'ansurtopdf/**',
     // 600 KB and live-data only: no use offline, and it changes on every
     // tracker deploy, which would churn every installed copy's cache.
     'demo/**',

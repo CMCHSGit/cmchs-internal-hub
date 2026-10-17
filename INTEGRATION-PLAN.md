@@ -125,7 +125,8 @@ in React on the kit (`src/`) and moves into the shell (the step 2 recipe).
       and restyled onto the kit, not rewritten, because it writes to and deletes
       from Simpro and can't be tested here. The shell's update reload now waits
       for a run to finish (`working()` in `shared/register-sw.js`).
-- [ ] Ansur
+- [x] Ansur (`/ansurtopdf/`), 17 Oct: moved in with its working code as it is and
+      restyled onto the kit, like SimproSync. The PDFs are unchanged (pdf-lib draws them).
 - [ ] Later: SimproSync and Ansur as real components, once they can be tested
       against Simpro and real Ansur files
 

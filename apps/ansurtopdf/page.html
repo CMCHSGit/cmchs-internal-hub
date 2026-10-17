@@ -1,0 +1,111 @@
+<!-- Ansur's page, rendered by src/section.jsx inside the hub's one app.
+     builder.js and simpro.js drive it by id, unchanged from when it was a page of its own. -->
+
+  <section id="drop" class="card" aria-label="Add records">
+    <p><strong>Drop .mtr files here</strong> or choose them from your computer.</p>
+    <div class="btns">
+      <button id="pick" type="button">Choose files</button>
+      <button id="openFolder" type="button" class="ghost">Open a folder…</button>
+      <input id="file" type="file" accept=".mtr" multiple hidden>
+    </div>
+    <div class="folder" id="folderLine">Folder: <b id="folderName">none</b> <span>(open a folder to save PDFs straight back into it)</span></div>
+    <div class="sigline">
+      <label class="chk"><input type="checkbox" id="optSig" checked> Add signature block</label>
+      <input type="text" id="sigName" list="engList" placeholder="Engineer name, as entered in Ansur" autocomplete="off">
+      <datalist id="engList"></datalist>
+      <button id="sigPick" type="button" class="ghost">Optional: use a signature image for this name</button>
+      <input id="sigFile" type="file" accept="image/png,image/jpeg" hidden>
+    </div>
+    <div id="sigList" class="siglist"></div>
+    <div class="sigline" id="sigNote"></div>
+  </section>
+
+  <div id="bulk" hidden>
+    <button id="zip" type="button">Download all PDFs</button>
+    <button id="saveFolder" type="button" class="ghost" hidden>Save PDFs to folder</button>
+    <label class="chk" id="overwriteWrap" hidden><input type="checkbox" id="optOverwrite"> Replace existing PDFs</label>
+    <span class="spacer"></span>
+    <label class="chk"><input type="checkbox" id="optUnrecorded"> Include tests with no results</label>
+    <span id="count"></span>
+    <button id="clear" type="button" class="plain">Clear</button>
+  </div>
+  <div id="msg" class="msg" role="status" aria-live="polite"></div>
+
+  <div id="tableWrap" class="card" hidden>
+    <table>
+      <thead><tr><th>File</th><th>Serial</th><th>Model</th><th>Asset no.</th><th>Test date</th><th>Result</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <p id="empty">No records loaded yet.</p>
+
+  <div id="assetListWrap" class="card" hidden>
+    <div class="head">
+      <strong>Asset list</strong>
+      <span class="note" id="assetListCount"></span>
+      <span class="spacer"></span>
+      <label class="chk"><input type="checkbox" id="assetListHeader" checked> Header row</label>
+      <button id="copyAssets" type="button">Copy</button>
+    </div>
+    <textarea id="assetList" rows="8" readonly spellcheck="false"></textarea>
+    <p class="note">Model, serial and asset number for every converted record, tab separated - paste straight into a spreadsheet.</p>
+  </div>
+
+  <!-- The one part of this page that talks to anything. Inert until someone
+       signs in; everything above works offline exactly as before. -->
+  <section id="simpro" class="card" aria-label="Simpro job">
+    <div class="head">
+      <strong>Simpro job</strong>
+      <span class="note">Attach these reports to a job, and update its notes, stage and status.</span>
+      <span class="spacer"></span>
+      <span class="note" id="sp-who"></span>
+    </div>
+
+    <button id="sp-signin" type="button">Sign in to attach to a job</button>
+
+    <div id="sp-body" hidden>
+      <div id="sp-find">
+        <div class="sp-row">
+          <label class="sp-field">Company<select id="sp-company"></select></label>
+        </div>
+        <div class="sp-row">
+          <input id="sp-q" type="text" placeholder="Job number, customer or description" autocomplete="off">
+          <button id="sp-search" type="button">Search</button>
+        </div>
+        <div id="sp-results"></div>
+      </div>
+
+      <div id="sp-chosen" hidden>
+        <div class="sp-row">
+          <div id="sp-chosen-text" class="sp-job"></div>
+          <button id="sp-change" type="button" class="plain">Change job</button>
+        </div>
+
+        <label class="sp-field" for="sp-notes">Notes to add to the job</label>
+        <textarea id="sp-notes" rows="4" spellcheck="true" placeholder="Added to the end of the job's existing notes - nothing is overwritten."></textarea>
+
+        <div class="sp-row">
+          <label class="sp-field">Stage<select id="sp-stage"></select></label>
+          <label class="sp-field">Status<select id="sp-status"><option value="">Leave unchanged</option></select></label>
+        </div>
+
+        <div class="sp-row">
+          <button id="sp-go" type="button" class="primary" disabled>Attach and update</button>
+          <span class="note" id="sp-count"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="sp-msg" class="msg" role="status" aria-live="polite"></div>
+  </section>
+
+
+  <details class="notes">
+    <summary>How it works</summary>
+    <ul>
+      <li>Each PDF has the same name as its record, ending in <code>.pdf</code> (for example <code>HJ-67031856 - TM80 AS-NZS 3551 PVT 01.10.2026.pdf</code>).</li>
+      <li>Reports show the overall result, the device under test, and every checklist item and measurement with its limits and status. Tests with no recorded results are left out unless you tick “Include tests with no results”.</li>
+      <li>“Open a folder…” and “Save PDFs to folder” work in Edge and Chrome. In other browsers, use “Download all PDFs”, which gives you one PDF, or a .zip when there’s more than one.</li>
+      <li>The .mtr files are only read, never changed.</li>
+    </ul>
+  </details>

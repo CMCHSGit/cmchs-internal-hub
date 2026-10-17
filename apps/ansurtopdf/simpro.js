@@ -11,11 +11,14 @@
    admin (or have simproAccess granted) and relays an allowlisted request. The
    Simpro key never reaches the page. */
 
-import '../../shared/tool-chrome.css'
-import '../../shared/brand-plain.css'
-import { mountToolChrome } from '../../shared/tool-chrome.js'
-
 import { PROXY_URL } from '../../shared/proxy.js'
+
+/**
+ * Starts the panel on Ansur's page, which must already be in the document.
+ * The section (src/section.jsx) calls it each time Ansur opens; everything
+ * below is as it was when this module ran once on a page of its own.
+ */
+export function mountSimproPanel() {
 
 const $ = (id) => document.getElementById(id)
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
@@ -462,6 +465,4 @@ hasStoredSession().then((stored) => {
     .catch(() => note(''))
 })
 
-// The header, back button and light/dark switch are shared with the other
-// tools so they look and behave the same in all of them.
-mountToolChrome()
+}
