@@ -135,8 +135,38 @@ Screen by screen, one responsive layout, on the current Realtime Database
 through a small data layer. A parity checklist against the old tracker, then
 switch `/demo/` over, tombstone demo.chsnz.co.nz, staff re-enable
 notifications at the new address.
-- [ ] Data layer  - [ ] Scan / loan  - [ ] Loans  - [ ] Database
-- [ ] Calendar  - [ ] History  - [ ] Import  - [ ] Settings  - [ ] Parity check
+
+How (17 Oct, from a map of the old tracker's 15,900 lines):
+- **Built at `/equipment/`** (`apps/equipment`), a section of the one app,
+  while `/demo/` and demo.chsnz.co.nz carry on unchanged. Not in the header
+  until it replaces `/demo/`.
+- **Same data, same shape.** Both run side by side until the switch, so the
+  new screens read and save exactly as the old one does: the whole `/data`
+  document (equipment, history, loanMeta, `_v`) with its ETag guard and the
+  same merge (`_mergeEquipmentAndHistory`), plus `upcomingLoans`,
+  `loanDocs`, `kitGroups`, `retired`, `accountManagers`, `auditLog`. One
+  safer difference: no unconditional save when the ETag can't be fetched.
+- **Read-only first.** Screens arrive read-only, then gain their writes one
+  feature at a time, each checked against the old tracker on the same data.
+- **What it fixes, and what waits.** The 1 MB page (792 KB of script parsed on
+  every open) goes. The big cost doesn't: every open downloads the whole
+  database document, every change re-downloads it everywhere, and every save
+  uploads it whole. That is the data's shape, fixed by step 5 (one Firestore
+  record per item), not by new screens.
+- **Kept as they are for now**: the admin password (plain text in `/config`,
+  checked in the browser; step 5's roles replace it), EmailJS for loan emails,
+  Simpro calls through the proxy, `nzNow()`'s fixed +12:00 timestamps.
+
+- [x] Data layer (pass, reads, ETag save and merge, live updates), dev stand-in,
+      17 Oct (`apps/equipment/src/db.js`, `store.jsx`, the rules in `model.js`, tested)
+- [x] Equipment, read-only, 17 Oct: list, status filters, search, an item's record and history
+- [ ] Equipment edits (add, edit, retire, delete, kits) come with their features below
+- [ ] Loans (desktop Loans, phone Loans/Today/Overview), read-only, then actions
+- [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
+- [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
+- [ ] Retired, kits, test reports, account managers, settings, test mode
+- [ ] Links in (?newLoan from the project tracker, ?return / ?extend / ?reassign)
+- [ ] Parity check, then switch `/demo/` over
 
 ### 5. One identity and data platform
 - [x] Demo tracker reminders go to phones turned on at internal.chsnz.co.nz

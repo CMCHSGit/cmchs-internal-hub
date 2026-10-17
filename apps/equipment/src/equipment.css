@@ -1,0 +1,25 @@
+/* The rebuilt demo tracker (App.jsx). Everything else is the kit's. */
+.eq-page { max-width: 1440px; margin: 0 auto; padding: 22px 24px 48px; display: flex; flex-direction: column; gap: 14px; }
+.eq-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.eq-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.eq-title { margin: 0; font: var(--type-h2); color: var(--text-strong); }
+.eq-sub { margin: 4px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.eq-old { display: inline-flex; align-items: center; gap: 6px; font: var(--type-body-sm); color: var(--accent-fg); }
+.eq-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.eq-count { margin-left: 4px; color: var(--text-muted); font-weight: 400; }
+.tag-selected .eq-count { color: inherit; }
+.eq-search { max-width: 520px; }
+.eq-shown { margin: -4px 0 0; }
+.eq-strong { font-weight: 600; color: var(--text-strong); }
+.eq-small { display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted); }
+.eq-mono { font-family: var(--font-mono); font-size: 13px; }
+.eq-note { margin: 0; font: var(--type-body-sm); color: var(--text-muted); }
+.eq-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 18px; margin: 4px 0 0; }
+.eq-fields div { min-width: 0; }
+.eq-fields dt { font: var(--weight-semibold) 12px/1.4 var(--font-body); color: var(--text-muted); }
+.eq-fields dd { margin: 2px 0 0; font: var(--type-body-sm); color: var(--text-strong); overflow-wrap: anywhere; white-space: pre-line; }
+.eq-h3 { margin: 8px 0 0; font: var(--type-h4); color: var(--text-strong); }
+.eq-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.eq-history li { padding: 8px 0; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); color: var(--text-body); }
+.eq-history li:first-child { border-top: none; }
+@media (max-width: 759px) { .eq-page { padding: 16px 16px 32px; } }

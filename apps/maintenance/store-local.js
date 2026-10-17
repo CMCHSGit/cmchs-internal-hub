@@ -16,7 +16,9 @@ const SAMPLE = {
   ],
 }
 
-let db = load()
+// Read on first use, not on import, so a real build (which never calls this
+// file) can leave it out altogether.
+let db = null
 const entryListeners = new Set(), settingsListeners = new Set()
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.entries)) return s } catch { /* fresh */ }
@@ -30,16 +32,18 @@ function save() {
 const id = () => 'dev-' + Math.random().toString(36).slice(2, 10)
 
 export function watchEntries(onChange) {
+  db ??= load()
   entryListeners.add(onChange); setTimeout(() => onChange(db.entries.map((e) => ({ ...e }))), 150)
   return () => entryListeners.delete(onChange)
 }
 export function watchSettings(onChange) {
+  db ??= load()
   settingsListeners.add(onChange); setTimeout(() => onChange({ pmTypes: [...db.pmTypes] }), 100)
   return () => settingsListeners.delete(onChange)
 }
-export async function createEntry(entry) { db.entries = [...db.entries, { id: id(), ...entry }]; save() }
-export async function saveEntry(eid, entry) { db.entries = db.entries.map((e) => (e.id === eid ? { ...e, ...entry } : e)); save() }
-export async function removeEntry(eid) { db.entries = db.entries.filter((e) => e.id !== eid); save() }
-export async function createMany(list, _who, onProgress) { db.entries = [...db.entries, ...list.map((e) => ({ id: id(), ...e }))]; save(); onProgress?.(list.length, list.length); return list.length }
-export async function removeMany(ids, onProgress) { const s = new Set(ids); db.entries = db.entries.filter((e) => !s.has(e.id)); save(); onProgress?.(ids.length, ids.length); return ids.length }
-export async function savePmTypes(pmTypes) { db.pmTypes = pmTypes; save() }
+export async function createEntry(entry) { db ??= load(); db.entries = [...db.entries, { id: id(), ...entry }]; save() }
+export async function saveEntry(eid, entry) { db ??= load(); db.entries = db.entries.map((e) => (e.id === eid ? { ...e, ...entry } : e)); save() }
+export async function removeEntry(eid) { db ??= load(); db.entries = db.entries.filter((e) => e.id !== eid); save() }
+export async function createMany(list, _who, onProgress) { db ??= load(); db.entries = [...db.entries, ...list.map((e) => ({ id: id(), ...e }))]; save(); onProgress?.(list.length, list.length); return list.length }
+export async function removeMany(ids, onProgress) { db ??= load(); const s = new Set(ids); db.entries = db.entries.filter((e) => !s.has(e.id)); save(); onProgress?.(ids.length, ids.length); return ids.length }
+export async function savePmTypes(pmTypes) { db ??= load(); db.pmTypes = pmTypes; save() }

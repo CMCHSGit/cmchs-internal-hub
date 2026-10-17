@@ -11,7 +11,8 @@
     "apps/service-orders",
     "apps/admin",
     "apps/projects",
-    "apps/asks"
+    "apps/asks",
+    "apps/equipment"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

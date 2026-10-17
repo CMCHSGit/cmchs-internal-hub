@@ -48,7 +48,7 @@ registerRoute(
 // when the network answers instead of this worker. Before the route below,
 // which would otherwise take these navigations first.
 // (/admin/ moved into Settings; the app forwards it.)
-const APP_SECTIONS = /^\/(schedule|asks|projects|service-orders|maintenance|simprosync|ansurtopdf|settings|admin)(\/|$)/
+const APP_SECTIONS = /^\/(schedule|asks|projects|service-orders|maintenance|simprosync|ansurtopdf|equipment|settings|admin)(\/|$)/
 registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
   allowlist: [APP_SECTIONS],
 }))

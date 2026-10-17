@@ -13,7 +13,9 @@ const SAMPLE = [
   { so: '5001260', title: 'Spare ECG leads for stock', sn: '', pn: '0010-30-42720', partName: '5-lead ECG cable', needReturn: '', site: 'CHS stock', notes: '', jobs: '', appliedBy: 'Kiri Moana', dateRaised: day(-3), receivedDate: '', oldSo: '', extraNotes: '', stage: 'CHS spare parts order' },
 ]
 
-let rows = load()
+// Read on first use, not on import, so a real build (which never calls this
+// file) can leave it out altogether.
+let rows = null
 const listeners = new Set()
 function load() {
   try { const s = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(s)) return s } catch { /* fresh */ }
@@ -26,13 +28,15 @@ function save() {
 const id = () => 'dev-' + Math.random().toString(36).slice(2, 10)
 
 export function watchOrders(onChange) {
+  rows ??= load()
   listeners.add(onChange)
   setTimeout(() => onChange(rows.map((r) => ({ ...r }))), 150)
   return () => listeners.delete(onChange)
 }
-export async function createOrder(order) { rows = [...rows, { id: id(), ...order }]; save() }
-export async function saveOrder(oid, order) { rows = rows.map((r) => (r.id === oid ? { ...r, ...order } : r)); save() }
-export async function removeOrder(oid) { rows = rows.filter((r) => r.id !== oid); save() }
+export async function createOrder(order) { rows ??= load(); rows = [...rows, { id: id(), ...order }]; save() }
+export async function saveOrder(oid, order) { rows ??= load(); rows = rows.map((r) => (r.id === oid ? { ...r, ...order } : r)); save() }
+export async function removeOrder(oid) { rows ??= load(); rows = rows.filter((r) => r.id !== oid); save() }
 export async function createMany(list, _who, onProgress) {
+  rows ??= load()
   rows = [...rows, ...list.map((o) => ({ id: id(), ...o }))]; save(); onProgress?.(list.length, list.length); return list.length
 }

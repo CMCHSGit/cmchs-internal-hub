@@ -18,6 +18,8 @@ export const SECTIONS = [
   { id: 'maintenance', prefix: '/maintenance/' },
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
+  // The rebuilt demo tracker while it's built (INTEGRATION-PLAN.md step 4).
+  { id: 'equipment', prefix: '/equipment/' },
   // These two route on real paths inside (/schedule/my, /settings/people),
   // with react-router, not #/.
   { id: 'schedule', prefix: '/schedule/' },
