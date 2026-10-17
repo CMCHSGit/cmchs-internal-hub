@@ -5,15 +5,14 @@
      Admin     People and access, Everyone's notifications: admins only, behind
                the admin password, as Admin settings at /admin/ was.
      Sections  each section's own settings: the staff schedule's (admins), the
-               project tracker's, and Maintenance's (still a separate tool, so
-               a link until it is rebuilt, step 3).
+               project tracker's and Maintenance's (its PM types).
 
    Pages are real paths (/settings/people…) through react-router, so a page's
    own tabs keep the #… part, as the schedule's always have
    (/settings/schedule#excel). The screens are the sections' own, unchanged. */
 import { lazy, Suspense, useState } from 'react'
 import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { Bell, CalendarDays, ExternalLink, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { Bell, CalendarDays, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import AdminLock, { isUnlocked } from '../../schedule/src/components/AdminLock'
 import { Loading } from '../../../shared/ui/index.jsx'
@@ -24,6 +23,7 @@ const UsersTab = lazy(() => import('../../admin/src/Admin.jsx').then(m => ({ def
 const NotificationsTab = lazy(() => import('../../admin/src/Admin.jsx').then(m => ({ default: m.NotificationsTab })))
 const ScheduleSettings = lazy(() => import('../../schedule/src/pages/Settings.jsx'))
 const TrackerSettings = lazy(() => import('../../projects/src/settings-page.jsx'))
+const PmTypes = lazy(() => import('../../maintenance/src/PmTypes.jsx'))
 
 const PAGES = [
   { group: 'You', to: '/', label: 'Appearance', Icon: Palette, title: 'Appearance', sub: 'Light or dark, and where the hub opens. For this device.' },
@@ -32,7 +32,7 @@ const PAGES = [
   { group: 'Admin', admin: true, to: '/notifications', label: 'Everyone’s notifications', Icon: ShieldCheck, title: 'Everyone’s notifications', sub: 'Who gets which reminders, across the tools.' },
   { group: 'Sections', admin: true, to: '/schedule', label: 'Staff schedule', Icon: CalendarDays, title: 'Staff schedule', sub: 'Location suggestions, the Excel import and the activity log.' },
   { group: 'Sections', to: '/projects', label: 'Project tracker', Icon: FolderKanban, title: 'Project tracker', sub: 'Staff, categories, statuses, demo equipment and backups.' },
-  { group: 'Sections', href: '/maintenance/', label: 'Maintenance', Icon: Wrench, outside: true },
+  { group: 'Sections', to: '/maintenance', label: 'Maintenance', Icon: Wrench, title: 'Maintenance', sub: 'The PM types a site can be scheduled for.' },
 ]
 
 export default function App() {
@@ -58,12 +58,7 @@ function Layout() {
         {groups.map(g => (
           <div key={g} className="st-nav-group" role="group" aria-label={g}>
             <span className="overline st-nav-head">{g}</span>
-            {pages.filter(p => p.group === g).map(p => p.outside ? (
-              <a key={p.label} className="st-nav-link" href={p.href}>
-                <p.Icon size={18} aria-hidden="true" /><span>{p.label}</span>
-                <ExternalLink size={14} aria-label="opens the tool" className="st-nav-out" />
-              </a>
-            ) : (
+            {pages.filter(p => p.group === g).map(p => (
               <NavLink key={p.to} to={p.to} end className={({ isActive }) => `st-nav-link${isActive ? ' on' : ''}`}>
                 <p.Icon size={18} aria-hidden="true" /><span>{p.label}</span>
               </NavLink>
@@ -81,6 +76,7 @@ function Layout() {
             {/* Has its own admin check and password, as it always had. */}
             <Route path="/schedule" element={<Page p={PAGES[4]}><ScheduleSettings /></Page>} />
             <Route path="/projects" element={<Page p={PAGES[5]}><TrackerSettings /></Page>} />
+            <Route path="/maintenance" element={<Page p={PAGES[6]}><PmTypes /></Page>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

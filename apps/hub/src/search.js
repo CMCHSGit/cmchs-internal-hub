@@ -63,6 +63,7 @@ export const PAGES = [
   { title: 'Everyone’s notifications', sub: 'Settings · admins', href: '/settings/notifications', also: 'admin push reminders who gets' },
   { title: 'Staff schedule settings', sub: 'Settings · admins', href: '/settings/schedule', also: 'schedule locations excel import activity log' },
   { title: 'Project tracker settings', sub: 'Settings', href: '/settings/projects', also: 'projects categories statuses staff equipment pool backup' },
+  { title: 'PM types', sub: 'Settings · Maintenance', href: '/settings/maintenance', also: 'maintenance settings first second third pm' },
 ]
 
 /** Places to go: pages, views and tools (tools.json), best first. */

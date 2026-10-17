@@ -119,7 +119,9 @@ in React on the kit (`src/`) and moves into the shell (the step 2 recipe).
 `npm run dev` without a .env gets a local stand-in for its data.
 - [x] Service Orders (`/service-orders/`), 17 Oct. The kit gained `useConfirm`
       (no more `confirm()`), a danger button and `.data-table` (cards on a phone).
-- [ ] Maintenance  - [ ] SimproSync  - [ ] Ansur
+- [x] Maintenance (`/maintenance/`), 17 Oct. Its PM types moved into Settings →
+      Maintenance; the build-version stamp went (the shell handles versions).
+- [ ] SimproSync  - [ ] Ansur
 
 ### 4. Rebuild the demo tracker
 Screen by screen, one responsive layout, on the current Realtime Database

@@ -9,6 +9,11 @@ import {
   serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../schedule/src/firebase.js'
+import * as devStore from './store-local.js'
+
+// `npm run dev` without a .env has no Firestore: made-up entries instead
+// (store-local.js). In a real build this is always null and drops out.
+const local = import.meta.env.DEV && !db ? devStore : null
 
 export const COL = 'maintenance'
 // The PM types a site can be scheduled for. Editable from the page, because
@@ -123,6 +128,7 @@ export const yearOf = (e) => (e.due ? Number(e.due.slice(0, 4)) : null)
 
 /** Live feed of every entry, newest-due first handled by the caller. */
 export function watchEntries(onChange, onError) {
+  if (local) return local.watchEntries(onChange, onError)
   return onSnapshot(
     collection(db, COL),
     // Skip the settings document — it shares the collection but is not a PM.
@@ -142,6 +148,7 @@ function tidy(entry) {
 }
 
 export async function createEntry(entry, who) {
+  if (local) return local.createEntry(tidy(entry), who)
   return addDoc(collection(db, COL), {
     ...tidy(entry),
     createdAt: serverTimestamp(), createdBy: who,
@@ -150,15 +157,18 @@ export async function createEntry(entry, who) {
 }
 
 export async function saveEntry(id, entry, who) {
+  if (local) return local.saveEntry(id, tidy(entry), who)
   return updateDoc(doc(db, COL, id), { ...tidy(entry), updatedAt: serverTimestamp(), updatedBy: who })
 }
 
 export async function removeEntry(id) {
+  if (local) return local.removeEntry(id)
   return deleteDoc(doc(db, COL, id))
 }
 
 /** Import writes in batches — 500 is Firestore's hard limit per batch. */
 export async function createMany(entries, who, onProgress) {
+  if (local) return local.createMany(entries.map(tidy), who, onProgress)
   let done = 0
   for (let i = 0; i < entries.length; i += 400) {
     const chunk = entries.slice(i, i + 400)
@@ -179,6 +189,7 @@ export async function createMany(entries, who, onProgress) {
 
 /** Live feed of the editable lists. Falls back to the defaults when unset. */
 export function watchSettings(onChange, onError) {
+  if (local) return local.watchSettings(onChange, onError)
   return onSnapshot(
     doc(db, COL, SETTINGS_ID),
     (snap) => {
@@ -191,6 +202,7 @@ export function watchSettings(onChange, onError) {
 }
 
 export async function savePmTypes(pmTypes, who) {
+  if (local) return local.savePmTypes(pmTypes, who)
   return setDoc(
     doc(db, COL, SETTINGS_ID),
     { pmTypes, updatedAt: serverTimestamp(), updatedBy: who },
@@ -202,6 +214,7 @@ export async function savePmTypes(pmTypes, who) {
 export async function removeMany(ids, onProgress) {
   // Never let a bulk delete take the settings document with it.
   ids = ids.filter((id) => !isSettings(id))
+  if (local) return local.removeMany(ids, onProgress)
   let done = 0
   for (let i = 0; i < ids.length; i += 400) {
     const chunk = ids.slice(i, i + 400)

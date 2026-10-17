@@ -9,7 +9,7 @@
 | `/` | Hub home: tools by category, search, announcements | `apps/hub` (Vite + React) |
 | `/schedule/` | Staff schedule: team week, my week, day, leave, on call, out of town, and its own Settings for admins | `apps/schedule` (React, react-router inside), a section of the hub's one app (no build of its own) |
 | `/simprosync/` | Simpro Asset Sync | `apps/simprosync` (Vite) |
-| `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
+| `/maintenance/` | Maintenance schedule: planned maintenance by site, what's due and what's done. Its PM types are in Settings → Maintenance | `apps/maintenance`: its data and import modules, and `src/` the page (React on the kit), a section of the hub's one app (no build of its own) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/settings/` | Settings, from the header's gear. Everyone: appearance (light, dark, match the device; where the hub opens) and their own notifications. Admins: people and access (teams, roles, Simpro access, demo tracker roles) and everyone's notifications, behind the admin password. And each section's own: the staff schedule's (locations, Excel import, activity log) and the project tracker's. `/admin/`, `/schedule/settings` and `/projects/#/settings` forward there. | `apps/settings` (React, react-router inside), a section of the hub's one app; its pages are `apps/admin`'s, the schedule's and the tracker's own screens |
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders`: its data and parsing modules, and `src/` the page (React on the kit), a section of the hub's one app (no build of its own) |

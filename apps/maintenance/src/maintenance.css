@@ -1,0 +1,46 @@
+/* The maintenance schedule (App.jsx) and its PM types page in Settings
+   (PmTypes.jsx). Everything else is the kit's. Laid out as Service Orders is. */
+.mt-page { max-width: 1440px; margin: 0 auto; padding: 22px 24px 48px; display: flex; flex-direction: column; gap: 14px; }
+.mt-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.mt-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.mt-title { margin: 0; font: var(--type-h2); color: var(--text-strong); }
+.mt-sub { margin: 4px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.mt-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.mt-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.mt-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--text-body); text-decoration: none; }
+.mt-tile b { font: var(--weight-semibold) 26px/1.15 var(--font-display); color: var(--text-strong); }
+.mt-tile span { font: var(--type-body-sm); color: var(--text-muted); }
+.mt-tile:hover { text-decoration: none; border-color: var(--border-strong); }
+.mt-tile.on { border-color: var(--accent-fg); background: var(--surface-brand-tint); box-shadow: inset 0 0 0 1px var(--accent-fg); }
+.mt-tile.critical b { color: var(--status-critical); }
+.mt-tile.warn b { color: #a85800; }
+.mt-tile.ok b { color: #5b8801; }
+:root[data-theme="dark"] .mt-tile.warn b { color: var(--chs-orange); }
+:root[data-theme="dark"] .mt-tile.ok b { color: var(--chs-green); }
+
+.mt-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 14px 16px; }
+.mt-filters .field { flex: 1 1 140px; min-width: 130px; }
+.mt-filters .mt-grow { flex: 3 1 240px; }
+.mt-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.mt-spacer { flex: 1; }
+.mt-link { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-fg); }
+.mt-danger { color: var(--status-critical); }
+
+.mt-strong { font-weight: 600; color: var(--text-strong); }
+.mt-small { display: block; margin-top: 2px; font: var(--type-caption); color: var(--text-muted); }
+.mt-mono { font-family: var(--font-mono); font-size: 13px; }
+.mt-ml { white-space: pre-line; }
+.mt-biomeds { box-shadow: inset 0 0 0 1px currentColor; }
+.mt-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.mt-sheets { display: flex; flex-direction: column; gap: 8px; }
+.mt-sheet { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.mt-sheet input { accent-color: var(--accent-fg); }
+.mt-types { font: 14px/1.6 var(--font-body); max-width: 420px; }
+
+@media (max-width: 759px) {
+  .mt-page { padding: 16px 16px 32px; }
+  .mt-grid2 { grid-template-columns: 1fr; }
+  .mt-head-actions { width: 100%; }
+}

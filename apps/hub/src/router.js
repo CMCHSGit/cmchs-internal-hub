@@ -15,6 +15,7 @@ export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
   { id: 'projects', prefix: '/projects/' },
   { id: 'service-orders', prefix: '/service-orders/' },
+  { id: 'maintenance', prefix: '/maintenance/' },
   // These two route on real paths inside (/schedule/my, /settings/people),
   // with react-router, not #/.
   { id: 'schedule', prefix: '/schedule/' },
