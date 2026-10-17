@@ -37,6 +37,7 @@ export default function Loans({ s, params, setParams }) {
 
   return (
     <>
+      {!s.extrasReady && <p className="text-sm text-muted eq-loading-extras"><span className="spinner" style={{ width: 14, height: 14 }} aria-hidden="true" /> Loading the loan forms: job numbers, demo types and some account managers are still to come.</p>}
       <p className="text-sm text-muted eq-shown">
         {active.length} active {active.length === 1 ? 'loan' : 'loans'} · {devices} devices
         {upcomingCount > 0 && ` · ${upcomingCount} upcoming`}{sections.longTerm.length > 0 && ` · ${sections.longTerm.length} long-term`}

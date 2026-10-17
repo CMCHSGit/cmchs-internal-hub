@@ -17,22 +17,31 @@ export function StoreProvider({ children }) {
   const [state, setState] = useState({ ready: false, error: '' })
   const version = useRef(null) // the data/_v we last loaded or saved
 
+  // The equipment and bookings first, which is all the Equipment view needs to
+  // show; the loan forms (the biggest part, for job numbers, demo types and
+  // older loans' account managers), the team, kits and retired items follow
+  // without holding it up. extrasReady says when they're in.
   const load = useCallback(async () => {
+    const extras = Promise.all([read('loanDocs'), read('accountManagers'), read('kitGroups'), read('retired')])
+    extras.catch(() => {}) // reported below, once the first part is showing
     try {
-      const [data, upcoming, loanDocs, managers, kits, retired] = await Promise.all([
-        read('data'), read('upcomingLoans'), read('loanDocs'), read('accountManagers'), read('kitGroups'), read('retired'),
-      ])
+      const [data, upcoming] = await Promise.all([read('data'), read('upcomingLoans')])
       const d = data.data || {}
       version.current = d._v || null
-      setState({
+      setState((s) => ({
+        loanDocs: {}, managers: [], kits: {}, retired: [], extrasReady: false, ...s,
         ready: true, error: '',
         equipment: list(d.equipment), history: list(d.history), loanMeta: d.loanMeta || {},
-        upcoming: list(upcoming.data), loanDocs: loanDocs.data || {},
-        managers: list(managers.data), kits: kits.data || {}, retired: list(retired.data),
-        loadedAt: Date.now(),
-      })
+        upcoming: list(upcoming.data), loadedAt: Date.now(),
+      }))
     } catch (e) {
-      setState((s) => ({ ...s, error: e.message || String(e) }))
+      return setState((s) => ({ ...s, error: e.message || String(e) }))
+    }
+    try {
+      const [loanDocs, managers, kits, retired] = await extras
+      setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, managers: list(managers.data), kits: kits.data || {}, retired: list(retired.data), extrasReady: true }))
+    } catch (e) {
+      setState((s) => ({ ...s, error: 'The loan forms didn’t load: ' + (e.message || e) }))
     }
   }, [])
 

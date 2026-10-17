@@ -64,3 +64,4 @@
 .eq-demo { color: var(--accent-fg); }
 .eq-demo.clinical { color: var(--status-critical); font-weight: 600; }
 .eq-ready { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.eq-loading-extras { display: flex; align-items: center; gap: 8px; margin: 0; }
