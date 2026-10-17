@@ -8,7 +8,7 @@ them in (`git log --oneline 0798b65^2` for the proxy).
 | Folder | What | Runs |
 |---|---|---|
 | `apps-script/proxy/` | The Apps Script web app every tool calls (`shared/proxy.js`): the demo tracker's database pass (`rtdbToken`), Simpro (`simproSync`, the tracker's job create/update/close), pushes (`notifyHubRequest`, `notifyAsk`, `testPush`), and the demo tracker's reminder timers | Google, as a web app |
-| `apps-script/backup/` | Nightly 3am backup to Google Drive: the demo tracker, the project tracker, Asks | Google, on a timer |
+| `apps-script/backup/` | Nightly 3am backup to Google Drive: the demo tracker (a spreadsheet, and its whole database as JSON to restore from), the project tracker, Asks | Google, on a timer |
 | `tile-sync/` | Daily Tile tracker locations into the demo tracker's database | GitHub Actions, `.github/workflows/tile-sync.yml` |
 
 Secrets are never here: the Simpro key and the service-account key are Apps

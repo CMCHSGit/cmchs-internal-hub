@@ -35,6 +35,26 @@
  *   with its /loanDocs.json detail) and Upcoming Loans (one row per item
  *   within each unconfirmed booking).
  *
+ * THE WHOLE TRACKER DATABASE TOO (2026-10-17):
+ *   The spreadsheet above is for reading; it can't be put back, and it leaves
+ *   out the kits, retired items, account managers, audit log and the full loan
+ *   forms. So the same folder also gets, each night:
+ *     - Demo-Tracker-YYYY-MM-DD.json — every top-level path of the tracker's
+ *       Realtime Database exactly as stored (data, upcomingLoans, loanDocs,
+ *       accountManagers, retired, kitGroups, auditLog, config…), except the
+ *       uploaded test report files. Kept a year.
+ *     - Test report files/<key>--<id>.txt — each uploaded test report once,
+ *       the first night it exists, exactly as stored (a data: URL). They're
+ *       up to 8 MB each, so in every nightly file they'd soon pass Apps
+ *       Script's 50 MB limit.
+ *   To restore: Firebase console → chs-equipment → Realtime Database → open the
+ *   path to put back (e.g. data) → ⋮ → Import JSON, with that path's part of
+ *   the file. Importing the whole file at the top would also delete the test
+ *   report files, which aren't in it. The file holds what the database does,
+ *   including /config's admin password, so keep the folder private.
+ *   Same signed reads as the spreadsheet; checkTrackerJsonBackup() says
+ *   whether it can read. Independent of the others.
+ *
  * THE PROJECT TRACKER TOO (2026-10-15):
  *   The same nightly run also backs up the project tracker
  *   (internal.chsnz.co.nz/projects/), whose data is in the STAFF SCHEDULE's
@@ -117,6 +137,7 @@ function dailyBackup() {
   // Each half reports its own failure; these catch what escapes that (a
   // failure email that itself can't be sent), so one never stops the other.
   try { equipmentBackup_(); } catch (err) { console.error('Demo tracker backup stopped:', err.toString()); }
+  try { trackerJsonBackup_(); } catch (err) { console.error('Demo tracker JSON backup stopped:', err.toString()); }
   try { projectsBackup_(); } catch (err) { console.error('Project tracker backup stopped:', err.toString()); }
   try { asksBackup_(); } catch (err) { console.error('Asks backup stopped:', err.toString()); }
 }
@@ -240,6 +261,104 @@ function equipmentBackup_() {
       'The daily backup failed.\n\nError: ' + err.toString() + '\n\nPlease check the Apps Script logs.'
     );
   }
+}
+
+// ── The demo tracker's whole database, as JSON ─────────────────────────────
+// See "THE WHOLE TRACKER DATABASE TOO" at the top. Only counts go to the log.
+
+const TRACKER_JSON_PREFIX = 'Demo-Tracker-';
+const TEST_REPORTS_FOLDER_NAME = 'Test report files';
+const TEST_REPORT_FILES = 'testReportFiles';
+
+// The database's top-level paths (data, upcomingLoans, loanDocs…), without
+// their contents.
+function trackerPaths_() {
+  const resp = firebaseGet_('/.json?shallow=true');
+  if (resp.getResponseCode() !== 200) throw new Error('Could not list the tracker database (' + resp.getResponseCode() + ')');
+  return Object.keys(JSON.parse(resp.getContentText()) || {});
+}
+
+function trackerRead_(path) {
+  const resp = firebaseGet_('/' + path + '.json');
+  if (resp.getResponseCode() !== 200) throw new Error('Could not read ' + path + ' (' + resp.getResponseCode() + ')');
+  return JSON.parse(resp.getContentText());
+}
+
+function trackerJsonBackup_() {
+  try {
+    const folders = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
+    const folder  = folders.hasNext() ? folders.next() : DriveApp.createFolder(BACKUP_FOLDER_NAME);
+    const sub     = folder.getFoldersByName(TEST_REPORTS_FOLDER_NAME);
+    const reportFolder = sub.hasNext() ? sub.next() : folder.createFolder(TEST_REPORTS_FOLDER_NAME);
+    const stamp   = Utilities.formatDate(new Date(), 'Pacific/Auckland', 'yyyy-MM-dd');
+    const name    = TRACKER_JSON_PREFIX + stamp + '.json';
+
+    // 1. Every path, read one at a time (each read and the file stay well
+    //    under Apps Script's 50 MB limits), written as the database's own tree.
+    const tree = {};
+    const paths = trackerPaths_().filter(function(p) { return p !== TEST_REPORT_FILES; });
+    paths.forEach(function(p) { tree[p] = trackerRead_(p); });
+    folder.createFile(Utilities.newBlob(JSON.stringify(tree), 'application/json', name));
+
+    // 2. Each uploaded test report once, the first night it exists, as
+    //    <report key>--<file id>.txt holding exactly what the database holds
+    //    (the file as a data: URL), so it goes back as it was. A test report
+    //    never changes once uploaded, so one already saved is left alone.
+    const have = {};
+    const existing = reportFolder.getFiles();
+    while (existing.hasNext()) have[existing.next().getName()] = true;
+    let reports = 0, newReports = 0;
+    const listed = firebaseGet_('/' + TEST_REPORT_FILES + '.json?shallow=true');
+    const keys = listed.getResponseCode() === 200 ? Object.keys(JSON.parse(listed.getContentText()) || {}) : [];
+    keys.forEach(function(key) {
+      const ids = firebaseGet_('/' + TEST_REPORT_FILES + '/' + encodeURIComponent(key) + '.json?shallow=true');
+      Object.keys(JSON.parse(ids.getContentText()) || {}).forEach(function(id) {
+        reports++;
+        const fileName = (key + '--' + id).replace(/[\\/:*?"<>|]/g, '_') + '.txt';
+        if (have[fileName]) return;
+        const body = trackerRead_(TEST_REPORT_FILES + '/' + encodeURIComponent(key) + '/' + encodeURIComponent(id));
+        if (typeof body !== 'string') return;
+        reportFolder.createFile(Utilities.newBlob(body, 'text/plain', fileName));
+        newReports++;
+      });
+    });
+
+    // 3. Keep a year (the folder's other backups are kept a year too). The
+    //    test report files are kept: they're the only copy outside the database.
+    const files  = folder.getFiles();
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 365);
+    while (files.hasNext()) {
+      const f = files.next();
+      if (f.getName().indexOf(TRACKER_JSON_PREFIX) === 0 && f.getDateCreated() < cutoff) f.setTrashed(true);
+    }
+
+    console.log('Demo tracker JSON backup complete: ' + name + ' (' + paths.length + ' paths, ' +
+      reports + ' test report files, ' + newReports + ' new)');
+  } catch (err) {
+    console.error('Demo tracker JSON backup failed:', err.toString());
+    try {
+      MailApp.sendEmail(NOTIFY_EMAIL, 'Demo Tracker JSON Backup Failed - ' + new Date().toDateString(),
+        'The nightly copy of the demo tracker\'s whole database failed.\n\nError: ' + err.toString() +
+        '\n\nRun checkTrackerJsonBackup() in the Apps Script editor to see why.');
+    } catch (mailErr) { console.error('Could not send the failure email:', mailErr.toString()); }
+  }
+}
+
+// Run from the editor: lists what the JSON backup would save, writes nothing.
+function checkTrackerJsonBackup() {
+  CacheService.getScriptCache().remove('rtdbAccessToken');
+  try {
+    const paths = trackerPaths_();
+    Logger.log('READY — the JSON backup can read the tracker database: ' + paths.length + ' top-level paths (' + paths.join(', ') + ').');
+  } catch (err) {
+    Logger.log('NOT READY — ' + err.message + '. Run checkBackupDatabaseAuth() to check the service account.');
+  }
+}
+
+// Run from the editor to take the JSON backup now.
+function trackerJsonBackupNow() {
+  trackerJsonBackup_();
 }
 
 // Shared by all four sheets above — sets values (skipping when a sheet has
@@ -419,6 +538,7 @@ function projectsBackupNow() {
 function setupBackups() {
   installDailyBackupTrigger();
   checkBackupDatabaseAuth();
+  checkTrackerJsonBackup();
   checkProjectsBackup();
   checkAsksBackup();
 }
@@ -640,7 +760,9 @@ function firebaseGet_(path) {
   const url = FIREBASE_BASE + path;
   const token = backupDbToken_();
   if (token) {
-    const signed = UrlFetchApp.fetch(url + '?access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    // '&' when the path already has a query (?shallow=true).
+    const sep = url.indexOf('?') >= 0 ? '&' : '?';
+    const signed = UrlFetchApp.fetch(url + sep + 'access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
     const code = signed.getResponseCode();
     if (code !== 401 && code !== 403) return signed;
     Logger.log('Database refused the service account token (' + code + ') for ' + path + ' — retrying unsigned.');
