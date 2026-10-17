@@ -160,6 +160,11 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
 - [x] Data layer (pass, reads, ETag save and merge, live updates), dev stand-in,
       17 Oct (`apps/equipment/src/db.js`, `store.jsx`, the rules in `model.js`, tested)
 - [x] Equipment, read-only, 17 Oct: list, status filters, search, an item's record and history
+      Checked against the old tracker on the live data, 17 Oct: its header's five counts
+      (427 · 79 on loan · 36 booked · 312 available · 33 overdue) match exactly.
+      Found: 8 items with a space typed into On Loan To / start / end, counted as
+      overdue to no one by both (100027, 100039, 100109, 100126, 100226, 100269,
+      100289, 100307): a data fix in the old tracker, not a rule to change here.
 - [ ] Equipment edits (add, edit, retire, delete, kits) come with their features below
 - [x] Loans, read-only, 17 Oct: the old Loans tab's sections and rules (`loanSections`, tested),
       search, account manager, overdue only and its sorts
