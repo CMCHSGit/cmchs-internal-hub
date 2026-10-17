@@ -1,0 +1,113 @@
+/* SimproSync inside the hub (section.jsx): its own page's styles, kept to
+   this section and moved onto the kit. Its colour names (--accent, --line…)
+   now point at the kit's tokens, so it follows the hub's palette and light
+   and dark; its buttons, fields, cards and tables look like the kit's. The
+   markup is page.html, which app.js drives by id. */
+.ss-host {
+  --bg: var(--surface-subtle); --card: var(--surface-card); --ink: var(--text-strong); --muted: var(--text-muted);
+  --line: var(--border-subtle);
+  --accent: var(--accent-fg); --accent-ink: var(--text-inverse); --accent-soft: var(--surface-brand-tint);
+  --ok: #5b8801; --ok-soft: var(--chs-green-20); --warn: #a85800; --warn-soft: var(--chs-orange-20);
+  --bad: var(--status-critical); --bad-soft: var(--status-critical-tint);
+  max-width: 1100px; margin: 0 auto; padding: 22px 24px 60px; display: flex; flex-direction: column; gap: 16px;
+  font: var(--type-body); color: var(--text-body);
+}
+:root[data-theme="dark"] .ss-host { --ok: var(--chs-green); --warn: var(--chs-orange); }
+.ss-head { display: flex; flex-direction: column; gap: 4px; }
+.ss-title { margin: 0; font: var(--type-h2); color: var(--text-strong); }
+.ss-sub { margin: 0; font: var(--type-body-sm); color: var(--text-muted); }
+.ss-page { display: grid; gap: 16px; }
+body.busy .ss-host { cursor: progress; }
+
+/* Cards and headings */
+.ss-host .card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 16px 18px; }
+.ss-host .card h2 { margin: 0 0 12px; font: var(--type-overline); letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--text-muted); }
+.ss-host .row { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; }
+.ss-host .sheetrow { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px; background: var(--surface-subtle); }
+.ss-host label.f { display: grid; gap: 6px; min-width: 180px; flex: 1; font: var(--weight-semibold) var(--size-body-sm)/1.4 var(--font-body); color: var(--text-strong); }
+
+/* Fields, as the kit's .input (selects already are, from the kit) */
+.ss-host input[type=text] { width: 100%; min-width: 0; font: var(--weight-regular) 16px/1.4 var(--font-body); color: var(--text-strong);
+  padding: 10px 12px; background: var(--surface-card); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); transition: var(--transition-control); }
+.ss-host input[type=text]:focus { outline: none; border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+.ss-host input[type=file] { display: none; }
+
+/* Buttons, as the kit's: plain ones secondary, .primary purple, .danger red */
+.ss-host button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 42px; padding: 10px 20px;
+  font: var(--type-body-strong); line-height: 1.3; border-radius: var(--radius-md); cursor: pointer; transition: var(--transition-control);
+  background: transparent; color: var(--accent-fg); border: 1px solid var(--accent-fg); white-space: nowrap; }
+.ss-host button.primary { background: var(--chs-purple); border-color: var(--chs-purple); color: var(--text-inverse); }
+.ss-host button.danger { background: var(--status-critical); border-color: var(--status-critical); color: #fff; }
+.ss-host button:disabled { opacity: .45; cursor: not-allowed; }
+.ss-host button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+@media (hover: hover) {
+  .ss-host button:hover:not(:disabled) { background: var(--chs-purple-20); }
+  .ss-host button.primary:hover:not(:disabled) { background: #3b2f6b; }
+  .ss-host button.danger:hover:not(:disabled) { filter: brightness(1.08); background: var(--status-critical); }
+}
+
+.ss-host .ok { color: var(--ok); }
+.ss-host .bad { color: var(--bad); }
+.ss-host .muted { color: var(--text-muted); }
+.ss-host #keyState { margin-right: auto; }
+
+/* The drop zone */
+.ss-host .drop { border: 2px dashed var(--border-hairline); border-radius: var(--radius-lg); padding: 34px 18px; text-align: center; background: var(--surface-card); transition: border-color .15s, background-color .15s; }
+.ss-host .drop.over { border-color: var(--accent-fg); background: var(--surface-brand-tint); }
+.ss-host .drop.has-file { padding: 18px; }
+.ss-host .drop p { margin: 4px 0; }
+.ss-host .drop .big { font: var(--type-h4); color: var(--text-strong); }
+.ss-host #fileInfo { margin-top: 14px; text-align: left; }
+.ss-host #fileName { font-weight: 600; color: var(--text-strong); }
+.ss-host .actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* Errors, progress */
+.ss-host #error { background: var(--status-critical-tint); color: var(--status-critical); border-radius: var(--radius-md); padding: 12px 16px; white-space: pre-wrap; font: var(--type-body-sm); }
+.ss-host #progress { display: grid; gap: 6px; }
+.ss-host .bar { height: 8px; background: var(--border-subtle); border-radius: 4px; overflow: hidden; }
+.ss-host #progBar { height: 100%; background: var(--chs-purple); width: 0; transition: width .2s; }
+.ss-host #progBar.indeterminate { width: 35% !important; animation: ss-slide 1.1s infinite ease-in-out; }
+@keyframes ss-slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+
+/* Result tiles and banners, as the hub's other tiles */
+.ss-host .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.ss-host .tile { display: grid; padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+.ss-host .tile b { font: var(--weight-semibold) 26px/1.15 var(--font-display); color: var(--text-strong); }
+.ss-host .tile span { font: var(--type-body-sm); color: var(--text-muted); }
+.ss-host .tile small { display: block; font: var(--type-caption); }
+.ss-host .tile.accent { border-color: var(--accent-fg); background: var(--surface-brand-tint); }
+.ss-host .tile.warn { border-color: var(--warn); background: var(--warn-soft); }
+.ss-host .tile.warn b { color: var(--warn); }
+.ss-host .banner { grid-column: 1 / -1; border-radius: var(--radius-md); padding: 10px 14px; font: var(--type-body-strong); }
+.ss-host .banner.ok { background: var(--ok-soft); color: var(--ok); }
+.ss-host .banner.bad { background: var(--bad-soft); color: var(--bad); }
+
+/* The result tabs, as the kit's underline tabs */
+.ss-host #tabs { display: flex; gap: 20px; flex-wrap: wrap; border-bottom: 1px solid var(--border-subtle); margin: 6px 0 12px; }
+.ss-host #tabs button { min-height: 0; padding: 10px 0 12px; border: none; border-bottom: 3px solid transparent; border-radius: 0; background: none; color: var(--text-muted); font: var(--type-body); }
+.ss-host #tabs button.on { color: var(--text-strong); border-bottom-color: var(--accent-fg); font: var(--type-body-strong); }
+@media (hover: hover) { .ss-host #tabs button:hover:not(:disabled) { background: none; color: var(--text-strong); } }
+
+/* Tables, as the kit's .data-table */
+.ss-host .tablewrap { overflow: auto; max-height: 520px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); }
+.ss-host table { border-collapse: collapse; width: 100%; font: var(--type-body-sm); }
+.ss-host th, .ss-host td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+.ss-host th { position: sticky; top: 0; background: var(--surface-subtle); font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.ss-host .old { color: var(--text-muted); text-decoration: line-through; }
+.ss-host .new { font-weight: 600; color: var(--text-strong); }
+.ss-host .pill { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); font: var(--weight-semibold) 11px/1.4 var(--font-body); }
+.ss-host .pill.ok { background: var(--ok-soft); color: var(--ok); }
+.ss-host .pill.bad { background: var(--bad-soft); color: var(--bad); }
+.ss-host details.asset { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 6px; padding: 8px 12px; }
+.ss-host details.asset summary { cursor: pointer; }
+.ss-host details.asset .tablewrap { margin: 8px 0 4px; max-height: none; }
+.ss-host .empty { color: var(--text-muted); font-style: italic; }
+.ss-host #log { margin: 8px 0 0; max-height: 300px; overflow: auto; white-space: pre-wrap; font: 12px/1.5 var(--font-mono); color: var(--text-muted); }
+.ss-host .help { margin: 10px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+
+/* Delete by type: admins only */
+.ss-host .danger-zone { border-color: var(--status-critical); }
+.ss-host .danger-zone summary { cursor: pointer; list-style-position: inside; }
+.ss-host .danger-zone summary h2 { display: inline; margin: 0; color: var(--status-critical); }
+
+@media (max-width: 759px) { .ss-host { padding: 16px 16px 40px; } }

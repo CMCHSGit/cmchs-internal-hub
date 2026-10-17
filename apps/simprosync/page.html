@@ -1,0 +1,67 @@
+<!-- SimproSync's page, rendered by src/section.jsx inside the hub's one app.
+     app.js drives it by these ids, unchanged from when it was a page of its own. -->
+  <section class="card">
+    <h2>Setup</h2>
+    <div class="row">
+      <label class="f">Simpro company<select id="company"><option>Loading…</option></select></label>
+    </div>
+    <p class="help">Signed in with Microsoft. Simpro requests are relayed through the equipment tracker's Apps Script proxy - the Simpro key never reaches this page. Reports record who ran each sync.</p>
+  </section>
+
+  <section class="drop" id="drop">
+    <p class="big">Drop the asset list here</p>
+    <p class="muted">.xlsx or .csv · or <label for="file" style="color:var(--accent);cursor:pointer;text-decoration:underline">browse for the file</label></p>
+    <input type="file" id="file" accept=".xlsx,.xlsm,.csv">
+    <div id="fileInfo" hidden>
+      <div class="row">
+        <label class="f">File<span id="fileName"></span></label>
+        <label class="f">Only these serials (optional)<input type="text" id="only" placeholder="e.g. FP5-69036350, FP5-69036347"></label>
+      </div>
+      <div id="warrantyFilterRow" hidden style="margin-top:4px">
+        <div style="font-size:14px;color:var(--ink)"><b>Extended Warranty</b> <span class="muted" id="warrantyCount"></span></div>
+        <p class="help" style="margin:2px 0 0">Job notes list every attached asset, grouped - the ones marked Yes under "Extended Warranty required on these devices", the rest under "Not required on the following". Defibrillators also show their battery serial number.</p>
+      </div>
+      <div style="margin-top:10px">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Sheets to sync — tick which ones, and check each one's Simpro asset type</div>
+        <div id="sheetPicker" style="display:grid;gap:6px"></div>
+      </div>
+      <div class="actions" style="margin-top:14px"><button class="primary" id="runDry">Preview changes</button><span class="muted">Reads Simpro and compares. Nothing is changed yet. Ticked sheets run together as one combined report.</span></div>
+    </div>
+  </section>
+
+  <div id="error" hidden></div>
+  <section class="card" id="progress" hidden><span id="progText"></span><div class="bar"><div id="progBar"></div></div></section>
+
+  <section class="card" id="results" hidden>
+    <h2 id="resultTitle">Preview</h2>
+    <div class="tiles" id="tiles"></div>
+    <div class="actions">
+      <button class="danger" id="apply" disabled>Apply to Simpro</button>
+      <button id="download">Download report (.csv)</button>
+    </div>
+    <div id="tabs"></div>
+    <div id="tabBody"></div>
+    <details style="margin-top:14px"><summary class="muted">Run log</summary><pre id="log"></pre></details>
+  </section>
+
+  <p class="help">How it works: assets are matched on <b>Serial Number</b> within each <b>Site ID</b>. Existing assets are updated, new serials are created. Blank cells never clear Simpro, values not in a Simpro list are rejected, Excel errors such as #REF! are skipped, and the sync never deletes anything. If the sheet has a <b>Simpro Job</b> column, each job's assets are attached to it after the import and the job is set to stage <b>Complete</b> / status <b>Job : Completed</b> &mdash; only if every asset attached.</p>
+
+  <details class="card danger-zone" id="delCard">
+    <summary><h2>Delete assets by type</h2></summary>
+    <p class="help" style="margin-top:0">Finds every customer asset of one asset type across all sites, so you can review them, then deletes them. Deleting cannot be undone. Simpro archives an asset that has service history (e.g. it is on a job) instead of removing it, so job records keep it. Admins only.</p>
+    <div class="row" style="margin-top:10px">
+      <label class="f">Asset type<select id="delType"><option value="">Choose…</option></select></label>
+      <label class="f">Only these site IDs (optional)<input type="text" id="delSites" placeholder="e.g. 2535, 2349 - blank means every site"></label>
+    </div>
+    <div class="actions" style="margin-top:12px"><button class="primary" id="delFind" disabled>Find assets</button><span class="muted" id="delStatus">Reads Simpro only. Nothing is deleted yet.</span></div>
+    <p class="bad" id="delError" hidden></p>
+    <div id="delResults" hidden style="margin-top:14px">
+      <div id="delModels" style="margin-bottom:14px"></div>
+      <div class="tiles" id="delTiles"></div>
+      <div class="actions">
+        <button class="danger" id="delRun" disabled>Delete</button>
+        <button id="delDownload">Download list (.csv)</button>
+      </div>
+      <div id="delTable" style="margin-top:12px"></div>
+    </div>
+  </details>

@@ -20,6 +20,7 @@ const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
 const SettingsSection = lazy(() => import('../../settings/src/section.jsx'))
 const ServiceOrdersSection = lazy(() => import('../../service-orders/src/section.jsx'))
 const MaintenanceSection = lazy(() => import('../../maintenance/src/section.jsx'))
+const SimproSyncSection = lazy(() => import('../../simprosync/src/section.jsx'))
 const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
 // A section that fails to load or crashes (most often: a deploy has replaced
@@ -104,6 +105,7 @@ export default function App() {
               {section === 'settings' && <SettingsSection />}
               {section === 'service-orders' && <ServiceOrdersSection />}
               {section === 'maintenance' && <MaintenanceSection />}
+              {section === 'simprosync' && <SimproSyncSection />}
               {section === 'schedule' && <ScheduleSection />}
             </Suspense>
           </SectionBoundary>
