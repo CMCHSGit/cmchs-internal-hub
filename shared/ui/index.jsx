@@ -172,3 +172,26 @@ export function Dialog({ title, description, onClose, children, width = 560, cla
     </div>
   )
 }
+
+/* ── Confirm ── */
+/**
+ * The kit's "Are you sure?", in place of the browser's confirm():
+ * const [confirmDialog, confirm] = useConfirm(); render {confirmDialog} once,
+ * then `if (!(await confirm({ title, message, confirmLabel, danger }))) return`.
+ * Escape, a click outside or Cancel answer no.
+ */
+export function useConfirm() {
+  const [ask, setAsk] = useState(null)
+  const confirm = useCallback(opts => new Promise(resolve => setAsk({ ...opts, resolve })), [])
+  const answer = yes => { ask?.resolve(yes); setAsk(null) }
+  const dialog = ask && (
+    <Dialog title={ask.title || 'Are you sure?'} onClose={() => answer(false)} width={460}>
+      {ask.message && <p className="confirm-text">{ask.message}</p>}
+      <div className="dialog-actions">
+        <Button variant="ghost" onClick={() => answer(false)}>{ask.cancelLabel || 'Cancel'}</Button>
+        <Button variant={ask.danger ? 'danger' : 'primary'} onClick={() => answer(true)}>{ask.confirmLabel || 'OK'}</Button>
+      </div>
+    </Dialog>
+  )
+  return [dialog, confirm]
+}

@@ -14,6 +14,7 @@ import { useSyncExternalStore } from 'react'
 export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
   { id: 'projects', prefix: '/projects/' },
+  { id: 'service-orders', prefix: '/service-orders/' },
   // These two route on real paths inside (/schedule/my, /settings/people),
   // with react-router, not #/.
   { id: 'schedule', prefix: '/schedule/' },

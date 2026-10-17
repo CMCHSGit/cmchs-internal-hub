@@ -114,7 +114,12 @@ Status is kept here. Tick items as they land, with the commit.
       its filters, stays on its search button.
 
 ### 3. Rebuild the plain tools on the kit
-- [ ] Service Orders  - [ ] Maintenance  - [ ] SimproSync  - [ ] Ansur
+Each tool keeps its data and logic modules as they are; its page is rebuilt
+in React on the kit (`src/`) and moves into the shell (the step 2 recipe).
+`npm run dev` without a .env gets a local stand-in for its data.
+- [x] Service Orders (`/service-orders/`), 17 Oct. The kit gained `useConfirm`
+      (no more `confirm()`), a danger button and `.data-table` (cards on a phone).
+- [ ] Maintenance  - [ ] SimproSync  - [ ] Ansur
 
 ### 4. Rebuild the demo tracker
 Screen by screen, one responsive layout, on the current Realtime Database

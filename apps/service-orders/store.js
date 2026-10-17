@@ -11,6 +11,11 @@ import {
   serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../schedule/src/firebase.js'
+import * as devStore from './store-local.js'
+
+// `npm run dev` without a .env has no Firestore: made-up orders instead
+// (store-local.js). In a real build this is always null and drops out.
+const local = import.meta.env.DEV && !db ? devStore : null
 
 export const COL = 'serviceOrders'
 
@@ -80,6 +85,7 @@ export const LATE_DAYS = 30
 
 /** Live feed of every order. */
 export function watchOrders(onChange, onError) {
+  if (local) return local.watchOrders(onChange, onError)
   return onSnapshot(
     collection(db, COL),
     (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
@@ -99,6 +105,7 @@ function tidy(order) {
 }
 
 export async function createOrder(order, who) {
+  if (local) return local.createOrder(tidy(order), who)
   return addDoc(collection(db, COL), {
     ...tidy(order),
     stageAt: serverTimestamp(),
@@ -109,6 +116,7 @@ export async function createOrder(order, who) {
 
 /** `stageChanged` stamps when it moved, so "how long has it sat here" is answerable later. */
 export async function saveOrder(id, order, who, stageChanged = false) {
+  if (local) return local.saveOrder(id, tidy(order), who)
   return updateDoc(doc(db, COL, id), {
     ...tidy(order),
     ...(stageChanged ? { stageAt: serverTimestamp() } : {}),
@@ -117,11 +125,13 @@ export async function saveOrder(id, order, who, stageChanged = false) {
 }
 
 export async function removeOrder(id) {
+  if (local) return local.removeOrder(id)
   return deleteDoc(doc(db, COL, id))
 }
 
 /** Import writes in batches — 500 is Firestore's hard limit per batch. */
 export async function createMany(orders, who, onProgress) {
+  if (local) return local.createMany(orders.map(tidy), who, onProgress)
   let done = 0
   for (let i = 0; i < orders.length; i += 400) {
     const chunk = orders.slice(i, i + 400)

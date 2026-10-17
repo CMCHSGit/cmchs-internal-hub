@@ -1,0 +1,47 @@
+/* Service orders (App.jsx). Everything else is the kit's: buttons, fields,
+   badges, alerts, dialogs and the data table. */
+.so-page { max-width: 1440px; margin: 0 auto; padding: 22px 24px 48px; display: flex; flex-direction: column; gap: 14px; }
+.so-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.so-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.so-title { margin: 0; font: var(--type-h2); color: var(--text-strong); }
+.so-sub { margin: 4px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.so-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* The stages, as the spreadsheet's tabs were, with counts. */
+.so-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.so-tile { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--text-body); text-decoration: none; }
+.so-tile b { font: var(--weight-semibold) 26px/1.15 var(--font-display); color: var(--text-strong); }
+.so-tile span { font: var(--type-body-sm); color: var(--text-muted); }
+.so-tile:hover { text-decoration: none; border-color: var(--border-strong); }
+.so-tile.on { border-color: var(--accent-fg); background: var(--surface-brand-tint); box-shadow: inset 0 0 0 1px var(--accent-fg); }
+.so-tile.warn b { color: var(--status-critical); }
+
+.so-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 14px 16px; }
+.so-filters .field { flex: 1 1 160px; min-width: 150px; }
+.so-filters .so-grow { flex: 3 1 260px; }
+.so-bar { display: flex; align-items: center; gap: 10px; }
+.so-spacer { flex: 1; }
+
+.so-table td { min-width: 0; }
+.so-strong { font-weight: 600; color: var(--text-strong); }
+.so-small { display: block; margin-top: 2px; font: var(--type-caption, var(--type-body-sm)); color: var(--text-muted); }
+.so-mono { font-family: var(--font-mono); font-size: 13px; }
+.so-ml { white-space: pre-line; }
+
+/* A field the parser or the Simpro lookup filled in, to check rather than type. */
+.so-auto { border-color: var(--chs-green) !important; background: var(--chs-green-20) !important; }
+.so-grid2, .so-grid3 { display: grid; gap: 12px; }
+.so-grid2 { grid-template-columns: 1fr 1fr; }
+.so-grid3 { grid-template-columns: 1fr 1fr 1fr; }
+.so-paste { min-height: 300px; font: 12.5px/1.5 var(--font-mono); }
+.so-del { color: var(--status-critical); }
+.so-sheets { display: flex; flex-direction: column; gap: 8px; }
+.so-sheet { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.so-sheet input { accent-color: var(--accent-fg); }
+
+@media (max-width: 759px) {
+  .so-page { padding: 16px 16px 32px; }
+  .so-grid2, .so-grid3 { grid-template-columns: 1fr; }
+  .so-head-actions { width: 100%; }
+}

@@ -243,3 +243,38 @@ textarea.input { resize: vertical; min-height: 76px; }
   border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--text-body); }
 .dialog mark { background: #fddab4; color: #1d1d1d; border-radius: 2px; padding: 0 1px; }
 @media (max-width: 759px) { .dialog-scrim { padding: 12px 8px; } .dialog { max-height: calc(100dvh - 24px); } }
+.dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; }
+.dialog-actions .spacer { flex: 1; }
+.confirm-text { margin: 0; font: var(--type-body); color: var(--text-body); white-space: pre-line; }
+
+/* A button for something that can't be undone (delete). */
+.btn-danger { background: var(--status-critical); color: #fff; }
+.btn-danger:active:not(:disabled) { box-shadow: var(--shadow-inset-press); }
+@media (hover: hover) { .btn-danger:hover:not(:disabled) { filter: brightness(1.08); } }
+
+/* ── Data table ──
+   <div className="data-table-wrap"><table className="data-table">…</table></div>.
+   Headers that sort are buttons (.data-table-sort). On a phone each row is a
+   card, each cell a line labelled from its data-label. */
+.data-table-wrap { overflow-x: auto; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.data-table { width: 100%; border-collapse: collapse; font: var(--type-body-sm); color: var(--text-body); }
+.data-table th, .data-table td { padding: 10px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-subtle); }
+.data-table thead th { position: sticky; top: 0; z-index: 1; font-weight: 600; color: var(--text-muted); white-space: nowrap; background: var(--surface-subtle); }
+.data-table tbody tr:last-child > * { border-bottom: none; }
+.data-table tbody tr.data-table-row { cursor: pointer; }
+.data-table tbody tr.data-table-row:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--border-focus); }
+@media (hover: hover) { .data-table tbody tr.data-table-row:hover { background: var(--surface-subtle); } }
+.data-table-sort { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.data-table-sort:focus-visible { box-shadow: var(--focus-ring); border-radius: 4px; }
+.data-table-empty { padding: 32px 16px; text-align: center; color: var(--text-muted); font: var(--type-body); }
+@media (max-width: 759px) {
+  .data-table-wrap { border: none; background: none; box-shadow: none; overflow: visible; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: auto; }
+  .data-table thead { display: none; }
+  .data-table tbody tr { margin-bottom: 10px; padding: 8px 14px; background: var(--surface-card); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+  .data-table td { display: flex; gap: 12px; align-items: baseline; padding: 6px 0; border: none; }
+  .data-table td + td { border-top: 1px solid var(--border-subtle); }
+  .data-table td::before { content: attr(data-label); flex: 0 0 34%; color: var(--text-muted); font: var(--weight-semibold) 12px/1.4 var(--font-body); }
+  .data-table td > * { min-width: 0; }
+}

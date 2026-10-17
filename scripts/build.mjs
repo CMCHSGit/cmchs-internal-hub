@@ -3,16 +3,15 @@
 //
 //   apps/hub            (Vite)    -> /             the one app (+ /shared/gate.js)
 //   apps/maintenance    (Vite)    -> /maintenance/
-//   apps/service-orders (Vite)    -> /service-orders/
 //   apps/simprosync     (Vite)    -> /simprosync/
 //   apps/ansurtopdf     (Vite)    -> /ansurtopdf/
 //   apps/demo           (fetched) -> /demo/        read-only copy of demo.chsnz.co.nz,
 //                                                  built from the chs-equipment repo
 //
 // No build of their own, because they are sections of the hub's one app
-// (apps/hub/src/router.js, INTEGRATION-PLAN.md step 2): apps/schedule
-// (/schedule/), apps/asks (/asks/), apps/projects (/projects/) and apps/admin
-// (/admin/).
+// (apps/hub/src/router.js, INTEGRATION-PLAN.md steps 2 and 3): apps/schedule
+// (/schedule/), apps/asks (/asks/), apps/projects (/projects/), apps/settings
+// (/settings/, with apps/admin's screens) and apps/service-orders (/service-orders/).
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
@@ -29,7 +28,6 @@ const DIST = join(ROOT, 'dist')
 const APPS = [
   { dir: 'apps/hub',        path: '',           build: 'npm run build -w apps/hub',      output: 'dist' },
   { dir: 'apps/maintenance', path: 'maintenance', build: 'npm run build -w apps/maintenance', output: 'dist' },
-  { dir: 'apps/service-orders', path: 'service-orders', build: 'npm run build -w apps/service-orders', output: 'dist' },
   { dir: 'apps/simprosync', path: 'simprosync', build: 'npm run build -w apps/simprosync', output: 'dist' },
   { dir: 'apps/ansurtopdf', path: 'ansurtopdf', build: 'npm run build -w apps/ansurtopdf', output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },

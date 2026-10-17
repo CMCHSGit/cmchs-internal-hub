@@ -12,7 +12,7 @@
 | `/maintenance/` | Maintenance Schedule | `apps/maintenance` (Vite) |
 | `/ansurtopdf/` | Ansur PVT Report Builder | `apps/ansurtopdf` (single static page) |
 | `/settings/` | Settings, from the header's gear. Everyone: appearance (light, dark, match the device; where the hub opens) and their own notifications. Admins: people and access (teams, roles, Simpro access, demo tracker roles) and everyone's notifications, behind the admin password. And each section's own: the staff schedule's (locations, Excel import, activity log) and the project tracker's. `/admin/`, `/schedule/settings` and `/projects/#/settings` forward there. | `apps/settings` (React, react-router inside), a section of the hub's one app; its pages are `apps/admin`'s, the schedule's and the tracker's own screens |
-| `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders` (Vite) |
+| `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders`: its data and parsing modules, and `src/` the page (React on the kit), a section of the hub's one app (no build of its own) |
 | `/demo/` | Demo equipment tracker, the full app (same live data as demo.chsnz.co.nz) | `apps/demo` (built from the chs-equipment repo) |
 | `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects`, a section of the hub's one app (no build of its own) |
 | `/asks/` | Asks: quick requests between staff. Send to people or whole teams; the first to pick it up has it, and everyone involved sees who | `apps/asks`, a section of the hub's one app (no build of its own) |

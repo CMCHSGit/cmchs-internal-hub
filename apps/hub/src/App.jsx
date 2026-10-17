@@ -18,6 +18,7 @@ import SignIn from './SignIn.jsx'
 const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
 const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
 const SettingsSection = lazy(() => import('../../settings/src/section.jsx'))
+const ServiceOrdersSection = lazy(() => import('../../service-orders/src/section.jsx'))
 const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
 // A section that fails to load or crashes (most often: a deploy has replaced
@@ -100,6 +101,7 @@ export default function App() {
               {section === 'asks' && <AsksSection />}
               {section === 'projects' && <ProjectsSection />}
               {section === 'settings' && <SettingsSection />}
+              {section === 'service-orders' && <ServiceOrdersSection />}
               {section === 'schedule' && <ScheduleSection />}
             </Suspense>
           </SectionBoundary>
