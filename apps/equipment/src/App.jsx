@@ -3,6 +3,8 @@
    same data, until this one does everything it does.
 
    So far, read-only (changes are still made in the old tracker):
+     Overview   the phone's Today and Overview in one (Overview.jsx): your
+                loans if you're an account manager, then everyone's.
      Equipment  the old Database tab and the phone's Equipment screen in one:
                 search, a status filter with counts, the list (cards on a
                 phone), and an item's record with its loan, bookings and history.
@@ -10,20 +12,21 @@
    Which view, and its filters, live in the address (#/loans?am=…), so a
    link or Back lands on the same thing. */
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, ExternalLink, Truck } from 'lucide-react'
+import { Boxes, ExternalLink, LayoutDashboard, Truck } from 'lucide-react'
 import { Alert, Badge, Dialog, Loading } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal } from './db.js'
 import Loans from './Loans.jsx'
+import Overview from './Overview.jsx'
 
 const TONE = Object.fromEntries(STATUSES.map((s) => [s.key, s.tone]))
 const LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]))
-const VIEWS = [['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck]]
+const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck]]
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
-  const view = VIEWS.some(([id]) => id === v) ? v : 'equipment'
+  const view = VIEWS.some(([id]) => id === v) ? v : 'overview'
   return { view, params: Object.fromEntries(new URLSearchParams(q || '')) }
 }
 const hashOf = (view, params = {}) => {
@@ -70,9 +73,9 @@ function Shell() {
           </a>
         ))}
       </nav>
-      {route.view === 'loans'
-        ? <Loans s={s} params={route.params} setParams={setParams} />
-        : <Equipment s={s} params={route.params} setParams={setParams} />}
+      {route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} />
+        : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} />
+          : <Overview s={s} />}
     </div>
   )
 }

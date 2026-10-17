@@ -4,7 +4,7 @@
    Current (overdue ones marked), then Long term. A loan opens to show its
    devices, what it's still waiting on, and anything since moved to another
    loan. Changes are still made in the old tracker. */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '../../../shared/ui/index.jsx'
 import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readinessOf } from './model.js'
@@ -12,7 +12,12 @@ import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readin
 const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Due back'], ['recent', 'Most recent start'], ['alpha', 'Customer A–Z'], ['manager', 'Account manager']]
 
 export default function Loans({ s, params, setParams }) {
-  const [openKey, setOpenKey] = useState(null)
+  // ?open=kind:key opens one loan (Overview's rows); ?at= scrolls to a section.
+  const [openKey, setOpenKey] = useState(params.open || null)
+  useEffect(() => {
+    const el = params.open ? document.querySelector(`[data-loan="${CSS.escape(params.open)}"]`) : params.at && document.getElementById('loans-' + params.at)
+    el?.scrollIntoView({ block: params.open ? 'center' : 'start' })
+  }, [params.open, params.at])
   const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
     [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
   const f = { q: params.q || '', am: params.am || '', overdueOnly: params.overdue === '1', sort: params.sort || 'added' }
@@ -33,7 +38,7 @@ export default function Loans({ s, params, setParams }) {
   const devices = active.reduce((n, g) => n + g.items.length, 0)
   const upcomingCount = s.upcoming.filter((u) => s.testMode || !String(u.id || '').startsWith('testbatch_')).length +
     sections.upcoming.filter((g) => g.kind === 'scheduled').length
-  const set = (k, v) => setParams({ ...params, [k]: v || undefined })
+  const set = (k, v) => setParams({ ...params, open: undefined, at: undefined, [k]: v || undefined })
 
   return (
     <>
@@ -56,10 +61,10 @@ export default function Loans({ s, params, setParams }) {
       </div>
 
       {lists.map(([id, title, hint, list]) => list.length > 0 && (
-        <section key={id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
+        <section key={id} id={'loans-' + id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
           <h2 className="eq-section-title">{title} <span className="eq-count">{list.length}</span></h2>
           {hint && <p className="eq-note">{hint}</p>}
-          {list.map((g) => <LoanCard key={g.kind + g.key} g={g} s={s} open={openKey === g.kind + g.key} onToggle={() => setOpenKey(openKey === g.kind + g.key ? null : g.kind + g.key)} />)}
+          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
         </section>
       ))}
       {lists.every(([, , , l]) => !l.length) && <p className="data-table-empty">{all.length ? 'No loans match that.' : 'No active loans.'}</p>}
@@ -82,7 +87,7 @@ function LoanCard({ g, s, open, onToggle }) {
   const ready = readinessOf(g, { loanMeta: s.loanMeta, today: s.today })
   const byId = (id, assetNo) => s.equipment.find((e) => e.id === id || e.CHSAssetNo === assetNo)
   return (
-    <article className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && g.startingSoon ? ' soon' : ''}`}>
+    <article data-loan={g.kind + ':' + g.key} className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && g.startingSoon ? ' soon' : ''}`}>
       <button type="button" className="eq-loan-head" aria-expanded={open} onClick={onToggle}>
         <span className="eq-loan-main">
           <span className="eq-loan-who">{g.loanTo}</span>

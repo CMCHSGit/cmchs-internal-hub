@@ -36,6 +36,8 @@ function sample() {
     } },
     upcomingLoans: {
       batch_dev_6: { id: 'batch_dev_6', loanTo: 'Napier Hospital', location: 'CCU', startDate: day(20), endDate: day(34), accountManager: 'Tama Brown', items: [{ id: 'id_dev_7', CHSAssetNo: '100421', Model: 'D30', SerialNo: 'D30-110046' }] },
+      // Started yesterday, still waiting on a monitor that's out (overdue) at Waikato: a transfer due.
+      batch_dev_7: { id: 'batch_dev_7', loanTo: 'Hutt Hospital', location: 'Ward 4', startDate: day(-1), endDate: day(13), accountManager: 'Sam Lee', items: [{ id: 'id_dev_4', CHSAssetNo: '100310', Model: 'N15', SerialNo: 'BV-2209881' }] },
     },
     loanDocs: {
       batch_dev_1: { simproJobId: 209677, demoType: 'Clinical Trial', notes: 'Ship with the full set of accessories.' },
@@ -43,7 +45,8 @@ function sample() {
       batch_dev_3: { demoType: 'Evaluation', island: 'North' },
       batch_dev_4: { simproJobId: 209067, simproClosedAt: ts(-100), longTerm: true },
     },
-    accountManagers: [{ name: 'Sam Lee', email: 'sam.lee@example.com', role: 'am' }, { name: 'Tama Brown', email: 'tama.brown@example.com', role: 'am' }, { name: 'Kiri Moana', email: 'kiri.moana@example.com', role: 'service' }],
+    // Sam Lee has the dev sign-in's email (shared/session.js), so Overview shows "Yours" in dev.
+    accountManagers: [{ name: 'Sam Lee', email: 'dev.user@cass.co.nz', role: 'am' }, { name: 'Tama Brown', email: 'tama.brown@example.com', role: 'am' }, { name: 'Kiri Moana', email: 'kiri.moana@example.com', role: 'service' }],
     kitGroups: {},
     retired: [],
   }

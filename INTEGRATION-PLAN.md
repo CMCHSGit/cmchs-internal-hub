@@ -168,8 +168,12 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
 - [ ] Equipment edits (add, edit, retire, delete, kits) come with their features below
 - [x] Loans, read-only, 17 Oct: the old Loans tab's sections and rules (`loanSections`, tested),
       search, account manager, overdue only and its sorts
-- [ ] Loans: the phone's Today and Overview, then the loan actions (extend, add items,
-      reassign and transfer, long term, readiness, copy, delete)
+- [x] Overview, 17 Oct: the phone's Today and Overview in one responsive page (`Overview.jsx`,
+      `overviewOf` tested). Yours when the sign-in matches someone on the tracker's team, then
+      everyone's; the new tracker's landing view. Overdue is the Loans tab's rule (never a long-term
+      loan), where the old phone counted a long-term loan past its end date as overdue.
+- [ ] Loans: the loan actions (extend, add items, reassign and transfer, long term, readiness,
+      copy, delete)
 - [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode

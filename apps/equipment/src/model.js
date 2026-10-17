@@ -314,3 +314,71 @@ export function jobOf(doc) {
   if (typeof sj === 'object') return { label: 'Simpro job being made', pending: true }
   return { label: 'Job #' + sj, closed: !!doc.simproClosedAt, test: String(sj).startsWith('TEST-') }
 }
+
+/* ── Overview: the phone's two home screens in one (old: mpRenderToday for
+   account managers, mpRenderOverview for Service & Projects) ── */
+
+// Service & Projects when the team list gives no role (old: SERVICE_TEAM_OPERATORS).
+const SERVICE_TEAM = ['Peter Lin', 'Jonathan Nasrun']
+
+/** The signed-in person's tracker team record: by name, else by email (old: matchStaffOperator). */
+export function memberFor(user, managers = []) {
+  if (!user) return null
+  const name = (user.displayName || '').trim().toLowerCase(), email = (user.email || '').toLowerCase()
+  return (name && managers.find((a) => (a.name || '').trim().toLowerCase() === name)) ||
+    (email && managers.find((a) => (a.email || '').toLowerCase() === email)) || null
+}
+
+/** 'am' (account manager) or 'service' (Service & Projects) (old: amEffectiveRole). */
+export const roleOf = (m) => (m && (m.role || (SERVICE_TEAM.includes(m.name) ? 'service' : 'am'))) || ''
+
+/**
+ * Everyone's loans at a glance, from loanSections' groups:
+ *   active      started loans (needs reassigning, current, long term)
+ *   ahead       not started yet: scheduled loans, and bookings with a date and
+ *               devices, starting after today (old: mpAllUpcoming)
+ *   stuck       bookings whose start has come with devices still out on
+ *               another loan: "transfers due" (old: mpStuckLoans)
+ *   needsTesting  scheduled loans not yet tested or marked no test required
+ *   out / dueToday / overdueOut  devices, for the utilisation bar
+ *   byAM        active loans per account manager, with how many are overdue
+ * Overdue is the Loans tab's (a long-term loan never is), so the numbers agree.
+ */
+export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta = {}, today = nzDate(), testMode = false } = {}) {
+  const active = [...sections.needsReassign, ...sections.current, ...sections.longTerm]
+  const ahead = sections.upcoming
+    .filter((g) => (g.kind === 'scheduled' || (g.startDate && g.pending.length)) && (!g.startDate || g.startDate > today))
+  const stuck = upcoming.filter((u) => (testMode || !isTestBatch(u.id)) && u.startDate && u.startDate <= today)
+  const needsTesting = ahead.filter((g) => {
+    if (g.kind === 'booking') return false // nothing reserved yet, so nothing to test
+    const r = loanMeta[readinessKey(g)] || {}
+    return !r.tested && !r.noTestRequired
+  })
+  const devices = (list) => list.reduce((n, g) => n + g.items.length, 0)
+  const overdue = active.filter((g) => g.overdue)
+  const dueToday = active.filter((g) => !g.overdue && g.endDate === today)
+  const byAM = new Map()
+  for (const g of active) {
+    const am = g.am || 'Unassigned'
+    const v = byAM.get(am) || { am, n: 0, overdue: 0 }
+    v.n++; if (g.overdue) v.overdue++
+    byAM.set(am, v)
+  }
+  return {
+    total: equipment.filter((e) => testMode || !isTestBatch(e.BatchID)).length,
+    active, ahead, stuck, needsTesting, overdue,
+    out: devices(active), dueTodayOut: devices(dueToday), overdueOut: devices(overdue),
+    byAM: [...byAM.values()].sort((a, b) => a.am.localeCompare(b.am)),
+  }
+}
+
+/** One account manager's part of it (old: mpRenderToday): their loans, what needs doing, what's coming. */
+export function yoursOf(ov, name) {
+  const active = ov.active.filter((g) => g.am === name)
+  return {
+    active,
+    overdue: active.filter((g) => g.overdue),
+    ahead: ov.ahead.filter((g) => g.am === name && g.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    stuck: ov.stuck.filter((u) => u.accountManager === name),
+  }
+}
