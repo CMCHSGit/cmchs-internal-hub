@@ -21,7 +21,8 @@
 //    desktop would otherwise get the phone UI. So standalone is reported by
 //    width instead.
 //  - Your name is taken from the hub sign-in, so neither layout asks who you
-//    are a second time.
+//    are a second time, and its waiting screens say "Opening the demo
+//    tracker…" rather than "Signing you in".
 //
 // READ_ONLY = true turns it back into a read-only copy: every write refused
 // before it leaves the browser, editing buttons dimmed, a banner. It was
@@ -56,6 +57,41 @@
   }
   try {
     Object.defineProperty(navigator, 'standalone', { value: realMatchMedia(PHONE).matches })
+  } catch (e) {}
+
+  // No "signing you in" screens: the hub signed you in before /demo/ opened.
+  // While the tracker loads it shows a card saying "Signing you in with your
+  // Cass Microsoft account…" (computer) or "Signing you back in…" (phone),
+  // though all it is doing is loading the equipment. Those waiting screens
+  // say so instead, rewritten as the page is read in, before they are drawn.
+  // The tracker's real sign-in prompt (#staff-signin, only if the hub's
+  // session has lapsed) is a different element and is left alone.
+  var OPENING = 'Opening the demo tracker…'
+  var WAITING = { 'mp-resume-body': OPENING, 'mp-signin-hint': OPENING }
+  function relabel(el) {
+    if (el.id && WAITING[el.id]) el.textContent = WAITING[el.id]
+    else if (el.id === 'login-wrap') {
+      var sub = el.querySelector('.login-sub')
+      if (sub) sub.textContent = OPENING
+    } else if (el.classList && el.classList.contains('login-sub') && el.closest && el.closest('#login-wrap')) {
+      el.textContent = OPENING
+    }
+  }
+  try {
+    var waitingObserver = new MutationObserver(function (changes) {
+      for (var i = 0; i < changes.length; i++) {
+        var added = changes[i].addedNodes
+        for (var j = 0; j < added.length; j++) if (added[j].nodeType === 1) relabel(added[j])
+      }
+    })
+    waitingObserver.observe(document.documentElement, { childList: true, subtree: true })
+    // Everything is parsed by then; later changes (the name picker) are the tracker's own.
+    document.addEventListener('DOMContentLoaded', function () {
+      waitingObserver.disconnect()
+      Object.keys(WAITING).forEach(function (id) { var el = document.getElementById(id); if (el) relabel(el) })
+      var wrap = document.getElementById('login-wrap')
+      if (wrap) relabel(wrap)
+    })
   } catch (e) {}
 
   // "Who are you?" is now answered by the tracker itself: its staff sign-in
