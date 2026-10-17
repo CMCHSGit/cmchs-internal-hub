@@ -26,14 +26,20 @@ export default function Loans({ s, params, setParams }) {
     ['current', 'Current', '', show(sections.current)],
     ['longTerm', 'Long term', 'No end date.', show(sections.longTerm)],
   ]
-  const devices = sections.current.reduce((n, g) => n + g.items.length, 0) + sections.needsReassign.reduce((n, g) => n + g.items.length, 0)
+  // The old tab's count line, counted its way: active includes long term;
+  // upcoming is every booking (even one that's a loan's pending items) plus
+  // the scheduled loans.
+  const active = [...sections.needsReassign, ...sections.current, ...sections.longTerm]
+  const devices = active.reduce((n, g) => n + g.items.length, 0)
+  const upcomingCount = s.upcoming.filter((u) => s.testMode || !String(u.id || '').startsWith('testbatch_')).length +
+    sections.upcoming.filter((g) => g.kind === 'scheduled').length
   const set = (k, v) => setParams({ ...params, [k]: v || undefined })
 
   return (
     <>
       <p className="text-sm text-muted eq-shown">
-        {sections.current.length + sections.needsReassign.length} active {sections.current.length + sections.needsReassign.length === 1 ? 'loan' : 'loans'} · {devices} {devices === 1 ? 'device' : 'devices'} out
-        · {sections.upcoming.length} upcoming · {sections.longTerm.length} long term
+        {active.length} active {active.length === 1 ? 'loan' : 'loans'} · {devices} devices
+        {upcomingCount > 0 && ` · ${upcomingCount} upcoming`}{sections.longTerm.length > 0 && ` · ${sections.longTerm.length} long-term`}
       </p>
       <div className="card eq-toolbar">
         <label className="field eq-grow"><span className="field-label">Search</span>
