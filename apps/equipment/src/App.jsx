@@ -2,33 +2,84 @@
    it's built. The old one carries on at /demo/ and demo.chsnz.co.nz, on the
    same data, until this one does everything it does.
 
-   So far: the equipment, read-only. The old Database tab and the phone's
-   Equipment screen in one: search, a status filter with counts, the list
-   (cards on a phone), and an item's full record with its loan, bookings and
-   history. Changes are still made in the old tracker. */
-import { useMemo, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+   So far, read-only (changes are still made in the old tracker):
+     Equipment  the old Database tab and the phone's Equipment screen in one:
+                search, a status filter with counts, the list (cards on a
+                phone), and an item's record with its loan, bookings and history.
+     Loans      the old Loans tab (Loans.jsx).
+   Which view, and its filters, live in the address (#/loans?am=…), so a
+   link or Back lands on the same thing. */
+import { useEffect, useMemo, useState } from 'react'
+import { Boxes, ExternalLink, Truck } from 'lucide-react'
 import { Alert, Badge, Dialog, Loading } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal } from './db.js'
+import Loans from './Loans.jsx'
 
 const TONE = Object.fromEntries(STATUSES.map((s) => [s.key, s.tone]))
 const LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]))
-const filterFromHash = () => { const k = location.hash.replace(/^#\/?/, '').split('?')[0]; return STATUSES.some((s) => s.key === k) ? k : 'all' }
+const VIEWS = [['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck]]
+
+function routeOf() {
+  const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
+  const view = VIEWS.some(([id]) => id === v) ? v : 'equipment'
+  return { view, params: Object.fromEntries(new URLSearchParams(q || '')) }
+}
+const hashOf = (view, params = {}) => {
+  const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString()
+  return '#/' + view + (q ? '?' + q : '')
+}
 
 export default function App() {
   return (
     <StoreProvider>
-      <Equipment />
+      <Shell />
     </StoreProvider>
   )
 }
 
-function Equipment() {
+function Shell() {
   const s = useStore()
+  const [route, setRoute] = useState(routeOf)
+  useEffect(() => {
+    const f = () => setRoute(routeOf())
+    window.addEventListener('hashchange', f)
+    return () => window.removeEventListener('hashchange', f)
+  }, [])
+  // Filters change the address without a new history entry for every key typed.
+  const setParams = (params) => { history.replaceState(null, '', hashOf(route.view, params)); setRoute({ view: route.view, params }) }
+
+  if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
+  if (!s.ready) return <div className="eq-page"><Loading /></div>
+  return (
+    <div className="eq-page">
+      <div className="eq-head">
+        <div>
+          <h1 className="eq-title">Demo equipment</h1>
+          <p className="eq-sub">The new demo tracker, being built. It shows the same equipment and loans as the current one, read-only for now.</p>
+        </div>
+        <a className="eq-old" href="/demo/">Make changes in the current tracker <ExternalLink size={14} aria-hidden="true" /></a>
+      </div>
+      {isLocal && <Alert tone="info" title="Made-up equipment">This is the dev server without a .env: the equipment here is made up, and kept in this browser.</Alert>}
+      {s.error && <Alert tone="warning" title="Couldn’t refresh">{s.error}</Alert>}
+      <nav className="eq-views" aria-label="Demo equipment">
+        {VIEWS.map(([id, label, Icon]) => (
+          <a key={id} href={hashOf(id)} className={`eq-view${route.view === id ? ' on' : ''}`} aria-current={route.view === id ? 'page' : undefined}>
+            <Icon size={18} aria-hidden="true" />{label}
+          </a>
+        ))}
+      </nav>
+      {route.view === 'loans'
+        ? <Loans s={s} params={route.params} setParams={setParams} />
+        : <Equipment s={s} params={route.params} setParams={setParams} />}
+    </div>
+  )
+}
+
+function Equipment({ s, params, setParams }) {
   const [q, setQ] = useState('')
-  const [filter, setFilter] = useState(filterFromHash)
+  const filter = STATUSES.some((x) => x.key === params.show) ? params.show : 'all'
   const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1 })
   const [open, setOpen] = useState(null) // an item's id
 
@@ -50,25 +101,12 @@ function Equipment() {
     })
   }, [withStatus, q, filter, sort])
 
-  const pick = (k) => { setFilter(k); history.replaceState(null, '', k === 'all' ? location.pathname : '#/' + k) }
+  const pick = (k) => setParams({ ...params, show: k === 'all' ? '' : k })
   const item = open && (s.equipment || []).find((e) => e.id === open)
-
-  if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
-  if (!s.ready) return <div className="eq-page"><Loading /></div>
-
   const COLUMNS = [['CHSAssetNo', 'Asset no.'], ['Model', 'Model'], ['SerialNo', 'Serial no.'], ['status', 'Status'], ['ShelfLocation', 'Shelf']]
-  return (
-    <div className="eq-page">
-      <div className="eq-head">
-        <div>
-          <h1 className="eq-title">Demo equipment</h1>
-          <p className="eq-sub">The new demo tracker, being built. It shows the same equipment as the current one, read-only for now.</p>
-        </div>
-        <a className="eq-old" href="/demo/">Make changes in the current tracker <ExternalLink size={14} aria-hidden="true" /></a>
-      </div>
-      {isLocal && <Alert tone="info" title="Made-up equipment">This is the dev server without a .env: the equipment here is made up, and kept in this browser.</Alert>}
-      {s.error && <Alert tone="warning" title="Couldn’t refresh">{s.error}</Alert>}
 
+  return (
+    <>
       <nav className="eq-filters" aria-label="Show">
         {[['all', 'All'], ...STATUSES.map((x) => [x.key, x.label])].map(([k, label]) => (
           <button key={k} type="button" className={`tag${filter === k ? ' tag-selected' : ''}`} aria-pressed={filter === k} onClick={() => pick(k)}>
@@ -106,7 +144,7 @@ function Equipment() {
       </div>
 
       {item && <ItemDialog e={item} ctx={ctx} history={s.history} onClose={() => setOpen(null)} />}
-    </div>
+    </>
   )
 }
 

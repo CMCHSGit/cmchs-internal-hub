@@ -142,3 +142,132 @@ export function historyFor(e, history = []) {
   return history.filter((h) => h.chsAssetNo === e.CHSAssetNo)
     .sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')))
 }
+
+/* ── Loans (old: renderLoans and its helpers) ── */
+
+/** Starts within 3 business days in the North Island, else 5, or already has (old: isStartingSoon). */
+export function isStartingSoon(today, startDate, island) {
+  if (!startDate) return false
+  if (startDate <= today) return true
+  let businessDays = 0
+  let cur = today
+  while (cur < startDate) {
+    const [y, m, d] = cur.split('-').map(Number)
+    const next = new Date(Date.UTC(y, m - 1, d + 1))
+    cur = next.toISOString().slice(0, 10)
+    const dow = next.getUTCDay()
+    if (dow !== 0 && dow !== 6) businessDays++
+  }
+  return businessDays <= (island === 'North' ? 3 : 5)
+}
+
+/** Whole days from a to b (YYYY-MM-DD). */
+export function daysBetween(a, b) {
+  if (!a || !b) return 0
+  return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000)
+}
+
+// Old loans with no BatchID keep their form and account manager under this key.
+const legacyKeys = (loanTo, endDate) => [
+  'loandoc_' + encodeURIComponent((loanTo || '') + '|||' + (endDate || '')),
+  'loandoc_' + (loanTo || '') + '|||' + (endDate || ''),
+]
+
+/** A loan's account manager (old: getLoanAM, then getGroupAM's fallback). */
+export function loanAM({ batchId, loanTo, endDate, accountManager }, { loanMeta = {}, loanDocs = {} } = {}) {
+  if (batchId && loanMeta[batchId]?.accountManager) return loanMeta[batchId].accountManager
+  if (loanTo) {
+    const [enc, dec] = legacyKeys(loanTo, endDate)
+    const found = loanMeta[enc]?.accountManager || loanMeta[dec]?.accountManager || loanDocs[enc]?.accountManager || loanDocs[dec]?.accountManager
+    if (found) return found
+  }
+  return accountManager || ''
+}
+
+/** A loan's form: by its BatchID, else by the old key. */
+export function loanDocFor(g, loanDocs = {}) {
+  if (g.batchId && loanDocs[g.batchId]) return loanDocs[g.batchId]
+  const [enc, dec] = legacyKeys(g.loanTo, g.endDate)
+  return loanDocs[enc] || loanDocs[dec] || null
+}
+
+/**
+ * The Loans tab's sections, as the old renderLoans builds them:
+ *  - items out are grouped by BatchID (old items without one: customer,
+ *    location and end date); a later start date makes the loan scheduled;
+ *  - a booking in upcomingLoans with the same id as a loan is that loan's
+ *    pending items, not a loan of its own;
+ *  - needsReassign: started loans still waiting on pending items (not long
+ *    term); upcoming: the scheduled loans, then the bookings left over;
+ *    current: everything else that isn't long term; longTerm.
+ * Test loans are left out unless test mode is on. Each loan carries its
+ * account manager, its form's island and notes, whether it's overdue or
+ * starting soon, and ghosts: items since transferred to another loan.
+ */
+export function loanSections({ equipment = [], upcoming = [], loanMeta = {}, loanDocs = {}, today = nzDate(), testMode = false } = {}) {
+  const ctx = { loanMeta, loanDocs }
+  const onLoan = equipment.filter((e) => isOut(e) && !(!testMode && isTestBatch(e.BatchID)))
+  const grouped = new Map(), scheduledGrouped = new Map()
+  for (const e of onLoan) {
+    const scheduled = !!e.LoanStartDate && e.LoanStartDate > today
+    const target = scheduled ? scheduledGrouped : grouped
+    const key = e.BatchID || (e.OnLoanTo + '|||' + (e.Location || '') + '|||' + (e.LoanEndDate || ''))
+    if (!target.has(key)) {
+      target.set(key, { key, kind: scheduled ? 'scheduled' : 'loan', batchId: e.BatchID || '', loanTo: e.OnLoanTo, location: e.Location || '',
+        startDate: e.LoanStartDate || '', endDate: e.LoanEndDate || '', items: [], pending: [], ghosts: [] })
+    }
+    target.get(key).items.push(e)
+  }
+  const finish = (g) => {
+    const doc = loanDocFor(g, loanDocs)
+    g.am = loanAM(g, ctx)
+    g.longTerm = isLoanLongTerm(g.batchId, ctx)
+    g.island = doc?.island || ''
+    g.notes = doc ? (doc.notesCell || doc.notes || '') : ''
+    g.overdue = !g.longTerm && !!g.endDate && g.endDate < today
+    g.startingSoon = isStartingSoon(today, g.startDate, g.island)
+    return g
+  }
+  const loans = [...grouped.values()].map(finish)
+  const scheduled = [...scheduledGrouped.values()].map(finish)
+
+  // Items transferred out still show on the loan they left, marked as such.
+  for (const e of equipment.filter((x) => x._transferNote && isOut(x))) {
+    const tn = e._transferNote
+    const from = loans.find((g) => (tn.fromBatchId && g.items[0]?.BatchID === tn.fromBatchId) ||
+      (g.loanTo === tn.fromLoanTo && (g.endDate || '') === (tn.fromEndDate || '')))
+    if (from && !from.ghosts.some((x) => x.id === e.id)) from.ghosts.push(e)
+  }
+
+  const merged = new Set()
+  for (const g of [...loans, ...scheduled]) {
+    const u = g.batchId && upcoming.find((x) => x.id === g.batchId)
+    if (u) { g.pending = u.items || []; merged.add(u.id) }
+  }
+  const bookings = upcoming
+    .filter((u) => (testMode || !isTestBatch(u.id)) && !merged.has(u.id))
+    .map((u) => finish({ key: u.id, kind: 'booking', batchId: u.id, loanTo: u.loanTo || '', location: u.location || '', startDate: u.startDate || '',
+      endDate: u.endDate || '', accountManager: u.accountManager || '', items: [], pending: u.items || [], ghosts: [] }))
+
+  return {
+    needsReassign: loans.filter((g) => g.pending.length && !g.longTerm),
+    upcoming: [...scheduled, ...bookings],
+    current: loans.filter((g) => !g.longTerm && !g.pending.length),
+    longTerm: loans.filter((g) => g.longTerm),
+  }
+}
+
+/** The Loans tab's search, account manager filter and sorts (old: renderLoans' toolbar). */
+export function filterLoans(list, { q = '', am = '', overdueOnly = false, sort = 'added' } = {}, today = nzDate()) {
+  const s = q.toLowerCase()
+  const out = list.filter((g) => (!s || g.loanTo.toLowerCase().includes(s) || g.location.toLowerCase().includes(s)) &&
+    (!am || g.am === am) && (!overdueOnly || (g.endDate && g.endDate < today)))
+  const by = {
+    manager: (a, b) => { const ma = (a.am || 'zzz').toLowerCase(), mb = (b.am || 'zzz').toLowerCase(); return ma !== mb ? (ma < mb ? -1 : 1) : (b.startDate || '0000').localeCompare(a.startDate || '0000') },
+    recent: (a, b) => (b.startDate || '0000').localeCompare(a.startDate || '0000'),
+    alpha: (a, b) => a.loanTo.localeCompare(b.loanTo),
+    expiry: (a, b) => ((a.endDate || '9999') < (b.endDate || '9999') ? -1 : 1),
+    start: (a, b) => ((a.startDate || '') < (b.startDate || '') ? -1 : 1),
+  }[sort]
+  return by ? out.sort(by) : out
+}

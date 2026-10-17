@@ -161,7 +161,10 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       17 Oct (`apps/equipment/src/db.js`, `store.jsx`, the rules in `model.js`, tested)
 - [x] Equipment, read-only, 17 Oct: list, status filters, search, an item's record and history
 - [ ] Equipment edits (add, edit, retire, delete, kits) come with their features below
-- [ ] Loans (desktop Loans, phone Loans/Today/Overview), read-only, then actions
+- [x] Loans, read-only, 17 Oct: the old Loans tab's sections and rules (`loanSections`, tested),
+      search, account manager, overdue only and its sorts
+- [ ] Loans: the phone's Today and Overview, then the loan actions (extend, add items,
+      reassign and transfer, long term, readiness, copy, delete)
 - [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode
