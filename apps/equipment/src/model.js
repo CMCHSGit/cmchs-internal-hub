@@ -907,3 +907,61 @@ export function countEquipment(equipment, history, id, { keepOnLoan = false, tod
   const eq = [...equipment]; eq[idx] = next
   return { equipment: eq, history: [entry, ...history], was }
 }
+
+/* ── Calendar, history, audit (old: renderCalendar, renderHistory, renderAuditLog) ── */
+
+/** Days from `start`, `n` of them, as YYYY-MM-DD (UTC arithmetic on the date itself, so no time zone drift). */
+export function dayList(start, n) {
+  const t = Date.parse(start + 'T00:00:00Z')
+  return Array.from({ length: n }, (_, i) => new Date(t + i * 86400000).toISOString().slice(0, 10))
+}
+
+/**
+ * The calendar's rows (old: renderCalendar): loans and bookings that touch
+ * the window, long-term ones left out (no end to draw), sorted as chosen.
+ * state: overdue | active | scheduled | booking.
+ */
+export function calendarRows(sections, { from, to, sort = 'start-asc', today = nzDate() } = {}) {
+  const rows = [...sections.needsReassign, ...sections.current, ...sections.upcoming]
+    .filter((g) => !g.longTerm && (g.kind !== 'booking' || g.pending.length))
+    .filter((g) => !(g.endDate && g.endDate < from) && !(g.startDate && g.startDate > to))
+    .map((g) => ({ ...g, state: g.kind === 'booking' ? 'booking' : g.kind === 'scheduled' ? 'scheduled' : g.endDate && g.endDate < today ? 'overdue' : 'active' }))
+  const dur = (g) => (g.startDate && g.endDate ? Math.max(0, daysBetween(g.startDate, g.endDate)) : 0)
+  const by = {
+    'start-asc': (a, b) => ((a.startDate || '9999') < (b.startDate || '9999') ? -1 : 1),
+    'start-desc': (a, b) => ((a.startDate || '0000') > (b.startDate || '0000') ? -1 : 1),
+    'end-asc': (a, b) => ((a.endDate || '9999') < (b.endDate || '9999') ? -1 : 1),
+    'end-desc': (a, b) => ((a.endDate || '0000') > (b.endDate || '0000') ? -1 : 1),
+    'dur-asc': (a, b) => dur(a) - dur(b), 'dur-desc': (a, b) => dur(b) - dur(a),
+    'name-asc': (a, b) => (a.loanTo || '').localeCompare(b.loanTo || ''), 'name-desc': (a, b) => (b.loanTo || '').localeCompare(a.loanTo || ''),
+  }[sort]
+  return by ? rows.sort(by) : rows
+}
+
+/** History, searched and filtered (old: renderHistory): asset, model, customer, location, notes. */
+export function filterHistory(history, { q = '', action = '' } = {}) {
+  const s = q.trim().toLowerCase()
+  return history.filter((h) => h && (!action || h.action === action) &&
+    (!s || [h.chsAssetNo, h.model, h.loanTo, h.location, h.notes, h.operator].join(' ').toLowerCase().includes(s)))
+}
+
+/** The audit log's kinds of entry, labelled as the old one, and its three filters. */
+export const AUDIT_LABELS = {
+  loan_created: 'Loan created', loan_deleted: 'Loan deleted', scheduled_deleted: 'Scheduled deleted', loan_extended: 'Extended', loan_edited: 'Edited',
+  loan_longterm_on: 'Made long-term', loan_longterm_off: 'Returned to active', items_returned: 'Returned', item_removed: 'Item removed', items_added: 'Items added',
+  orphan_recovered: 'Orphan recovered', orphan_deleted: 'Orphan deleted', items_transferred: 'Transferred', loan_reassigned: 'Moved',
+  simpro_created: 'Simpro created', simpro_updated: 'Simpro updated', simpro_closed: 'Simpro closed',
+  asset_added: 'Asset added', asset_edited: 'Asset edited', asset_deleted: 'Asset deleted', asset_retired: 'Asset retired',
+  upcoming_loan_deleted: 'Booking cancelled', upcoming_item_removed: 'Item removed', am_removed: 'AM removed', retired_asset_deleted: 'Retired asset deleted',
+  kit_deleted: 'Kit deleted', kit_accessory_removed: 'Kit accessory removed', test_report_uploaded: 'Test report uploaded', test_report_deleted: 'Test report deleted', history_deleted: 'History deleted',
+}
+export const AUDIT_KINDS = {
+  loans: ['loan_created', 'loan_deleted', 'loan_extended', 'loan_edited', 'loan_longterm_on', 'loan_longterm_off', 'items_returned', 'item_removed', 'items_added', 'items_transferred', 'loan_reassigned', 'scheduled_deleted', 'orphan_recovered', 'orphan_deleted', 'upcoming_loan_deleted', 'upcoming_item_removed'],
+  database: ['asset_added', 'asset_edited', 'asset_deleted', 'asset_retired'],
+  simpro: ['simpro_created', 'simpro_updated', 'simpro_closed'],
+}
+export function filterAudit(entries, { q = '', kind = '' } = {}) {
+  const s = q.trim().toLowerCase(), types = kind ? AUDIT_KINDS[kind] : null
+  return entries.filter((e) => e && (!types || types.includes(e.type)) &&
+    (!s || [e.summary, e.operator, e.type, ...(e.detail?.items || [])].join(' ').toLowerCase().includes(s)))
+}

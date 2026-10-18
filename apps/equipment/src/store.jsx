@@ -723,11 +723,17 @@ export function StoreProvider({ children }) {
     return { item: c.equipment.find((e) => e && e.id === id), was: c.was, started: a.changes.length }
   }, [audit, closeJob, operator, touch, updateData])
 
+  /** The newest 300 audit entries, newest first (old: loadAudit); read when the log is opened. */
+  const loadAudit = useCallback(async () => {
+    const { data } = await read('auditLog', { params: { orderBy: '"$key"', limitToLast: 300 } })
+    return list(data).sort((a, b) => String(b.ts || '').localeCompare(String(a.ts || '')))
+  }, [])
+
   const value = useMemo(() => ({
     ...state, today: nzDate(), testMode: readTestMode(), reload: load, user, me, operator,
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
-    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem,
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
   }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
-    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem])
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

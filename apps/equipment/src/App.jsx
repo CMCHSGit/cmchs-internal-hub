@@ -13,7 +13,7 @@
    Which view, and its filters, live in the address (#/loans?am=…), so a
    link or Back lands on the same thing. */
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, ExternalLink, LayoutDashboard, PlusCircle, ScanLine, Truck } from 'lucide-react'
+import { Boxes, CalendarDays, ExternalLink, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, Truck } from 'lucide-react'
 import { Alert, Badge, Dialog, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, searchEquipment, statusOf, upcomingFor } from './model.js'
@@ -22,10 +22,12 @@ import Loans from './Loans.jsx'
 import Overview from './Overview.jsx'
 import NewLoan from './NewLoan.jsx'
 import Scan from './Scan.jsx'
+import Calendar from './Calendar.jsx'
+import History from './History.jsx'
 
 const TONE = Object.fromEntries(STATUSES.map((s) => [s.key, s.tone]))
 const LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]))
-const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine]]
+const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['calendar', 'Calendar', CalendarDays], ['history', 'History', HistoryIcon]]
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
@@ -66,7 +68,7 @@ function Shell() {
       <div className="eq-head">
         <div>
           <h1 className="eq-title">Demo equipment</h1>
-          <p className="eq-sub">The new demo tracker, being built. It shows the same equipment and loans as the current one; so far a loan’s testing, dispatch and end date can be changed here.</p>
+          <p className="eq-sub">The new demo tracker, being built. It works on the same equipment and loans as the current one, so a change in either shows in both.</p>
         </div>
         <a className="eq-old" href="/demo/">Make changes in the current tracker <ExternalLink size={14} aria-hidden="true" /></a>
       </div>
@@ -79,7 +81,9 @@ function Shell() {
           </a>
         ))}
       </nav>
-      {route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} onDone={showToast} />
+      {route.view === 'calendar' ? <Calendar s={s} params={route.params} setParams={setParams} go={go} />
+        : route.view === 'history' ? <History s={s} params={route.params} setParams={setParams} />
+        : route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} onDone={showToast} />
         : route.view === 'new' ? <NewLoan key={JSON.stringify(route.params)} s={s} params={route.params} go={go} onDone={showToast} />
         : route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} />

@@ -204,7 +204,11 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       the camera (BarcodeDetector, else jsQR). New loan is its own view (above). Stored text (history
       notes, Counted, audit, Simpro notes, the printed form) uses the old DD/MM/YYYY (`oldDate`), so
       both trackers' records match and the old count overview still reads Counted.
-- [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
+- [x] Calendar and History, 19 Oct (`Calendar.jsx`, `History.jsx`; `calendarRows`, `filterHistory`,
+      `filterAudit` tested): loans and bookings as bars across 4 to 26 weeks (coloured by state, not
+      per loan as the old one), a bar opens its loan; device history searchable and by kind, a loan's
+      entry opening its form; the audit log (newest 300), by kind and searchable.
+- [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode
 - [ ] Links in (?newLoan from the project tracker, ?return / ?extend / ?reassign)
 - [ ] Parity check, then switch `/demo/` over
