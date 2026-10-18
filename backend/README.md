@@ -32,12 +32,11 @@ npx clasp deploy -i AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqD
 ```
 
 `-i` keeps the same `/exec` address (`shared/proxy.js`). The proxy is at
-deployment **@42**. Then check what is actually live:
+deployment **@43**. Then check what is actually live:
 
 ```bash
 PROXY="https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec"
 curl -s -L "$PROXY"                                        # {"status":"CHS Simpro Proxy is live"}
-curl -s -L "$PROXY?data=%7B%22loanTo%22%3A%22test%22%7D"   # {"success":false,"action":"creation-disabled"}
 ```
 
 The backup isn't a web app, so it has no deployment: `npx clasp push --force`
