@@ -180,7 +180,29 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
   async function pick(e) {
     const files = [...(e.target.files || [])]
     e.target.value = ''
+    addFiles(files)
+  }
+  // Dropped anywhere on the dialog, or pasted (Ctrl+V): pictures only, the rest ignored.
+  const [dragging, setDragging] = useState(false)
+  const imagesIn = list => [...(list || [])].filter(f => f.type?.startsWith('image/'))
+  const dropProps = {
+    onDragOver: e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); setDragging(true) } },
+    onDragLeave: e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false) },
+    onDrop: e => {
+      if (![...e.dataTransfer.types].includes('Files')) return
+      e.preventDefault(); setDragging(false)
+      const files = imagesIn(e.dataTransfer.files)
+      if (photos === null) return
+      if (files.length) addFiles(files); else setError('Only pictures can go in an announcement.')
+    },
+    onPaste: e => {
+      const files = imagesIn([...(e.clipboardData?.items || [])].map(i => i.kind === 'file' ? i.getAsFile() : null).filter(Boolean))
+      if (files.length && photos !== null) { e.preventDefault(); addFiles(files) }
+    },
+  }
+  async function addFiles(files) {
     const room = MAX_NEWS_PHOTOS - (photos || []).length
+    if (room <= 0) { setError(`Up to ${MAX_NEWS_PHOTOS} photos. Remove one to add another.`); return }
     if (files.length > room) setError(`Up to ${MAX_NEWS_PHOTOS} photos, so only the first ${room} were added.`)
     else setError('')
     try {
@@ -209,7 +231,7 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
 
   return (
     <Dialog title={initial.id ? 'Edit announcement' : 'New announcement'} onClose={onClose} wide>
-      <form className="stack-16" onSubmit={save}>
+      <form className="stack-16" onSubmit={save} {...dropProps}>
         <label className="pp-label">Title<input className="pp-input" value={a.title} onChange={e => set('title')(e.target.value)} required maxLength={200} autoFocus /></label>
         <label className="pp-label">Message<textarea className="pp-input mg-textarea" rows={5} value={a.body} onChange={e => set('body')(e.target.value)} maxLength={4000} /></label>
         <div className="pp-two">
@@ -227,7 +249,8 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
             : <label className="pp-label">Date<input className="pp-input" type="date" value={a.date || ''} onChange={e => set('date')(e.target.value)} /></label>}
         </div>
         <div className="pp-label">Regions<RegionPicker value={a.regions} onChange={set('regions')} /></div>
-        <div className="mg-photo">
+        <div className={`mg-photo ${dragging ? 'mg-photo-drop' : ''}`}>
+          {dragging && <div className="mg-drop-hint"><Icon name="camera" size={22} /> Drop photos to add them</div>}
           {photos === null
             ? <span className="caption">Loading photos…</span>
             : photos.length
@@ -245,7 +268,7 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
                     </figure>
                   ))}
                 </div>
-              : <span className="caption">No photos. The first one shows on the home page card; all of them go in the email.</span>}
+              : <span className="caption">No photos yet. Drag pictures here, paste one, or pick them below. The first one shows on the home page card; all of them go in the email.</span>}
           <input ref={file} type="file" accept="image/*" multiple hidden onChange={pick} />
           {photos !== null && photos.length < MAX_NEWS_PHOTOS && (
             <button type="button" className="btn-ghost-sm self-start" onClick={() => file.current.click()}>

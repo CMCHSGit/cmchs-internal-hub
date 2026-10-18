@@ -603,7 +603,12 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 .mg-paste { min-height: 240px; }
 .mg-check { display: flex; align-items: flex-start; gap: 10px; font: var(--type-body-sm); color: var(--text-body); cursor: pointer; }
 .mg-check input { margin-top: 3px; width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--chs-purple); }
-.mg-photo { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--border-hairline); border-radius: var(--radius-md); }
+.mg-photo { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--border-hairline); border-radius: var(--radius-md);
+  transition: border-color var(--duration-fast) var(--ease-standard), background var(--duration-fast) var(--ease-standard); }
+/* Pictures dragged over the editor (Manage.jsx AnnouncementEditor) */
+.mg-photo-drop { border: 2px dashed var(--border-brand); background: var(--surface-brand-tint); }
+.mg-drop-hint { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface-brand-tint) 88%, transparent); font: 600 15px/1 var(--font-body); color: var(--text-accent); pointer-events: none; }
 .mg-photos { display: flex; flex-wrap: wrap; gap: 10px; }
 .mg-photo-item { position: relative; margin: 0; }
 .mg-photo-item img { display: block; height: 140px; width: auto; max-width: 220px; border-radius: var(--radius-md); object-fit: cover; }
