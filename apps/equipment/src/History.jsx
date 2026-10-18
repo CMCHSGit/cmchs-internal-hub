@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Badge, Loading } from '../../../shared/ui/index.jsx'
 import LoanForm from './LoanForm.jsx'
+import { AdminDialog } from './Items.jsx'
 import { AUDIT_LABELS, filterAudit, filterHistory, fmtDate } from './model.js'
 
 const ACTIONS = [['', 'Everything'], ['Loan', 'Loaned out'], ['Return', 'Returned'], ['Count', 'Counted'], ['Transfer', 'Transferred'], ['Converted', 'Converted']]
@@ -38,6 +39,9 @@ function Devices({ s, params, setParams }) {
   const action = ACTIONS.some(([a]) => a === params.action) ? params.action : ''
   const [shown, setShown] = useState(PAGE)
   const [form, setForm] = useState(null) // a loan entry's loan form key
+  const [picked, setPicked] = useState(new Set()) // entries ticked to delete (old: History management)
+  const [deleting, setDeleting] = useState(false)
+  const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const rows = useMemo(() => filterHistory(s.history || [], { q, action }), [s.history, q, action])
   useEffect(() => setShown(PAGE), [q, action])
   return (
@@ -51,12 +55,20 @@ function Devices({ s, params, setParams }) {
         </label>
       </div>
       <p className="text-sm text-muted eq-shown">{rows.length} {rows.length === 1 ? 'record' : 'records'}</p>
+      {picked.size > 0 && (
+        <div className="card eq-selbar">
+          <span className="eq-grow">{picked.size} ticked</span>
+          <button type="button" className="btn btn-ghost btn-sm eq-danger" onClick={() => setDeleting(true)}>Delete</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPicked(new Set())}>Clear</button>
+        </div>
+      )}
       <div className="data-table-wrap">
         <table className="data-table">
-          <thead><tr><th>When</th><th>Asset</th><th>What</th><th>Customer</th><th>Dates</th><th>Notes</th><th>Who</th></tr></thead>
+          <thead><tr><th aria-label="Tick" /><th>When</th><th>Asset</th><th>What</th><th>Customer</th><th>Dates</th><th>Notes</th><th>Who</th></tr></thead>
           <tbody>
             {rows.slice(0, shown).map((h) => (
               <tr key={h.id || h.ts + h.chsAssetNo} className="data-table-row">
+                <td data-label="Tick">{h.id && <input type="checkbox" checked={picked.has(h.id)} onChange={() => toggle(h.id)} aria-label="Tick to delete" />}</td>
                 <td data-label="When" className="eq-nowrap">{when(h.ts)}</td>
                 <td data-label="Asset"><span className="eq-strong">{h.chsAssetNo}</span><span className="eq-small">{h.model}</span></td>
                 <td data-label="What"><Badge tone={TONE[h.action] || 'neutral'}>{h.action}</Badge>
@@ -73,6 +85,10 @@ function Devices({ s, params, setParams }) {
       </div>
       {rows.length > shown && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShown((n) => n + PAGE)}>Show {Math.min(PAGE, rows.length - shown)} more</button>}
       {form && <HistoryForm s={s} docKey={form} onClose={() => setForm(null)} />}
+      {deleting && (
+        <AdminDialog s={s} title={`Delete ${picked.size} history ${picked.size === 1 ? 'entry' : 'entries'}?`} message="They’re gone for good: from both trackers and the devices’ records." confirmLabel="Delete" danger
+          onClose={() => setDeleting(false)} onConfirm={async () => { await s.deleteHistory([...picked]); setPicked(new Set()); setDeleting(false) }} />
+      )}
     </>
   )
 }

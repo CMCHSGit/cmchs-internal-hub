@@ -846,6 +846,64 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, touch])
 
+  /** A loan's Simpro job number put right, or cleared if the job's gone (old: promptEditSimproJob). */
+  const setJobNumber = useCallback(async (key, jobId, loanTo) => {
+    if (jobId == null) {
+      await write(`loanDocs/${enc(key)}/simproJobId`, null, { method: 'DELETE' })
+      await audit('simpro_updated', `Simpro job number cleared — ${loanTo}`, { loanTo, pdfKey: key })
+    } else {
+      await write('loanDocs/' + enc(key), { simproJobId: jobId }, { method: 'PATCH' })
+      await audit('simpro_updated', `Simpro job #${jobId} manually linked${loanTo ? ' — ' + loanTo : ''}`, { loanTo: loanTo || '', jobId, pdfKey: key })
+    }
+    setState((s) => { const d = { ...(s.loanDocs[key] || {}) }; if (jobId == null) delete d.simproJobId; else d.simproJobId = jobId; return { ...s, loanDocs: { ...s.loanDocs, [key]: d } } })
+    await touch()
+  }, [audit, touch])
+
+  /**
+   * One device off a loan with no history entry, after the admin password,
+   * for putting a mistake right (old: removeDeviceFromLoan): its loan
+   * cleared, its row off the loan form, the Simpro job's device list updated.
+   */
+  const removeFromLoan = useCallback(async (g, item) => {
+    await updateData((d) => ({ ...d, equipment: d.equipment.map((e) => (e && e.id === item.id ? { ...e, OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '', BorrowerEmail: '', _transferNote: null } : e)) }))
+    await audit('item_removed', `${item.CHSAssetNo} removed from loan${g.loanTo ? ' to ' + g.loanTo : ''}`, { assetNo: item.CHSAssetNo, loanTo: g.loanTo || '' })
+    if (g.batchId) {
+      try {
+        const { data: doc } = await read('loanDocs/' + enc(g.batchId))
+        if (doc) {
+          const rows = Array.isArray(doc.savedRows) ? rowsWithout(doc.savedRows, [item.CHSAssetNo])
+            : g.items.filter((e) => e.id !== item.id).map((e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || '', ''])
+          if (Array.isArray(doc.savedRows)) await write('loanDocs/' + enc(g.batchId), { savedRows: rows }, { method: 'PATCH' })
+          const jobId = jobNumber(doc.simproJobId)
+          if (jobId) await simpro({ loanTo: doc.loanTo || '', location: doc.location || '', notes: doc.notesCell || '', shippingDetails: doc.authCell || '', startDate: toISO(doc.startDate || ''), endDate: toISO(doc.endDate || ''),
+            accountManager: doc.accountManager || '', contactNumber: doc.contactNumber || '', jobType: doc.jobType || 'Demo',
+            items: rows.filter((r) => r[0]).map((r) => ({ CHSAssetNo: r[0], Description: r[2] || r[1] || '', SerialNo: r[3] || '' })), jobId, pdfKey: g.batchId })
+        }
+      } catch (e) { console.warn('[equipment] loan form not updated after removing a device', e) }
+    }
+    await touch()
+  }, [audit, simpro, touch, updateData])
+
+  /** One device off a booking's list, after the admin password (old: removeItemFromUpcomingLoan); a booking left empty goes. */
+  const removeFromBooking = useCallback(async (g, assetNo) => {
+    const u = (latest.current.upcoming || []).find((x) => x.id === g.batchId)
+    if (!u) throw new Error('That booking has gone.')
+    const left = (u.items || []).filter((i) => i.CHSAssetNo !== assetNo)
+    await updateData((d) => ({ ...d, equipment: d.equipment.map((e) => (e && e.CHSAssetNo === assetNo && e._upcomingLoanId === u.id ? { ...e, _upcomingLoanId: null } : e)) }))
+    await saveBookings((latest.current.upcoming || []).map((x) => (x.id === u.id ? { ...u, items: left } : x)), [u.id])
+    await audit('upcoming_item_removed', `${assetNo} removed from upcoming loan for ${u.loanTo}${left.length ? '' : ' (loan cancelled — no items left)'}`, { loanTo: u.loanTo, assetNo })
+    await touch()
+    return { emptied: !left.length }
+  }, [audit, saveBookings, touch, updateData])
+
+  /** History entries deleted, after the admin password (old: deleteSelectedHistory). */
+  const deleteHistory = useCallback(async (ids) => {
+    const gone = new Set(ids)
+    await updateData((d) => ({ ...d, history: d.history.filter((h) => !gone.has(h.id)) }))
+    await audit('history_deleted', `${ids.length} history entr${ids.length > 1 ? 'ies' : 'y'} deleted`, { ids })
+    await touch()
+  }, [audit, touch, updateData])
+
   /** The newest 300 audit entries, newest first (old: loadAudit); read when the log is opened. */
   const loadAudit = useCallback(async () => {
     const { data } = await read('auditLog', { params: { orderBy: '"$key"', limitToLast: 300 } })
@@ -857,8 +915,10 @@ export function StoreProvider({ children }) {
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
     saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory,
   }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    testMode, setTestMode, saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport])
+    testMode, setTestMode, saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

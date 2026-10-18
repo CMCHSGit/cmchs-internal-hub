@@ -8,14 +8,14 @@ import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
-import { canExtend, demoTypeOptions, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { canExtend, demoTypeOptions, jobNumber, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
 export default function LoanActions({ g, s, all = [], go, onDone, start = null, onStarted }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer' | 'reports'
+  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer' | 'reports' | 'job'
   const [confirmDialog, confirm] = useConfirm()
   // Opened from a link (?return=, ?extend=, ?reassign=): straight to that action, once.
   const [preset, setPreset] = useState(null)
@@ -61,6 +61,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
         {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
         {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
+        {g.kind !== 'booking' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking('job')}>Job number</Button>}
         <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>
       </div>
       {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
@@ -96,6 +97,10 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
         )
       })()}
       {asking === 'reports' && <TestReports s={s} g={g} onClose={() => setAsking(null)} />}
+      {asking === 'job' && (
+        <JobDialog g={g} current={jobNumber((s.loanDocs?.[loanDocKey(g)] || g.doc)?.simproJobId)} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onSave={(n) => run(() => s.setJobNumber(loanDocKey(g), n, g.loanTo), n == null ? `Job number cleared for ${g.loanTo}.` : `Job #${n} linked to ${g.loanTo}.`)} />
+      )}
       {asking === 'add' && (
         <AddDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.skipped.length ? `; ${plural(r.skipped.length, 'was', 'were')} left out (dates clash)` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />
@@ -385,6 +390,27 @@ function TransferDialog({ g, all, preset = null, busy, error, onClose, onSave, o
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button variant="secondary" disabled={busy || !nos.length} onClick={() => onNew(nos)}>Move to a new loan…</Button>
           <Button type="submit" disabled={busy || !nos.length || !target}>{busy ? 'Moving…' : `Move ${plural(nos.length, 'item', 'items')}`}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/** A loan's Simpro job number put right, or cleared if the job no longer exists (old: promptEditSimproJob). */
+function JobDialog({ g, current, busy, error, onClose, onSave }) {
+  const [v, setV] = useState(current != null ? String(current) : '')
+  const t = v.trim()
+  const bad = t && !/^\d+$/.test(t)
+  return (
+    <Dialog title={`Simpro job number: ${g.loanTo}`} description="The number of the job in Simpro this loan belongs to. Empty it if the job no longer exists." onClose={onClose} width={440}>
+      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (!bad && (t ? Number(t) !== current : current != null)) onSave(t ? Number(t) : null) }}>
+        <label className="field"><span className="field-label">Job number</span><input className="input eq-mono" inputMode="numeric" value={v} onChange={(e) => setV(e.target.value)} autoFocus /></label>
+        {bad && <p className="eq-note eq-problem">A job number is digits only.</p>}
+        {!t && current != null && <p className="eq-note">Saving with it empty clears the number: the loan then shows under Manage, Simpro, as a loan with no job.</p>}
+        {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy || bad || (t ? Number(t) === current : current == null)}>{busy ? 'Saving…' : t ? 'Save' : 'Clear it'}</Button>
         </div>
       </form>
     </Dialog>

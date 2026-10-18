@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
+import { AdminDialog } from './Items.jsx'
 import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readinessOf } from './model.js'
 
 const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Due back'], ['recent', 'Most recent start'], ['alpha', 'Customer A–Z'], ['manager', 'Account manager']]
@@ -77,6 +78,7 @@ export default function Loans({ s, params, setParams, go }) {
 }
 
 function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
+  const [removing, setRemoving] = useState(null) // { e } a device on the loan, or { p } one on its booking list
   const count = g.items.length
   const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
   const days = upcomingKind ? daysBetween(s.today, g.startDate) : 0
@@ -125,7 +127,7 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
         <div className="eq-loan-body">
           {g.notes && <p className="eq-loan-notes">{g.notes}</p>}
           <ul className="eq-devices">
-            {g.items.map((e) => <Device key={e.id} e={e} />)}
+            {g.items.map((e) => <Device key={e.id} e={e} onRemove={() => setRemoving({ e })} />)}
             {g.pending.map((p) => {
               const e = byId(p.id, p.CHSAssetNo)
               const now = e && e.OnLoanTo && e.Returned !== 'Yes' && e.BatchID !== g.batchId ? e : null
@@ -133,6 +135,7 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
                 <li key={'p' + (p.id || p.CHSAssetNo)} className="eq-device pending">
                   <span className="eq-strong">{p.CHSAssetNo}</span> {p.Model || e?.Model}
                   <span className="eq-small">{now ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}` : 'Waiting to be picked up'}</span>
+                  <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${p.CHSAssetNo} off the booking`} title="Take off the booking" onClick={() => setRemoving({ p })}>×</button>
                 </li>
               )
             })}
@@ -144,17 +147,27 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
             ))}
           </ul>
           <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
+          {removing?.e && (
+            <AdminDialog s={s} title={`Take ${removing.e.CHSAssetNo} off this loan?`} confirmLabel="Take it off" danger onClose={() => setRemoving(null)}
+              message="For putting a mistake right: it comes off the loan and its form with no history entry. If it has come back, use Return items instead."
+              onConfirm={async () => { await s.removeFromLoan(g, removing.e); setRemoving(null); onDone?.(`${removing.e.CHSAssetNo} taken off the loan.`) }} />
+          )}
+          {removing?.p && (
+            <AdminDialog s={s} title={`Take ${removing.p.CHSAssetNo} off the booking for ${g.loanTo}?`} confirmLabel="Take it off" danger onClose={() => setRemoving(null)}
+              onConfirm={async () => { const r = await s.removeFromBooking(g, removing.p.CHSAssetNo); setRemoving(null); onDone?.(r.emptied ? `${removing.p.CHSAssetNo} taken off: the booking had nothing left, so it’s cancelled.` : `${removing.p.CHSAssetNo} taken off the booking.`) }} />
+          )}
         </div>
       )}
     </article>
   )
 }
 
-function Device({ e }) {
+function Device({ e, onRemove }) {
   return (
     <li className="eq-device">
       <span className="eq-strong">{e.CHSAssetNo}</span> {e.Model}{e.Description && <span className="text-muted"> · {e.Description}</span>}
       {e.SerialNo && <span className="eq-small eq-mono">{e.SerialNo}</span>}
+      {onRemove && <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${e.CHSAssetNo} off this loan`} title="Take off this loan (admin)" onClick={onRemove}>×</button>}
     </li>
   )
 }

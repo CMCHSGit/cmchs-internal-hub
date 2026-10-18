@@ -209,3 +209,5 @@
 .eq-kit-list { display: flex; flex-direction: column; gap: 6px; }
 .eq-selbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; position: sticky; top: 8px; z-index: 3; }
 .eq-kit-offer { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--accent-fg); }
+.eq-device { position: relative; padding-right: 36px; }
+.eq-device-x { position: absolute; right: 0; top: 6px; color: var(--text-muted); }
