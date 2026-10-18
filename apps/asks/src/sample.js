@@ -32,7 +32,7 @@ export function sampleAsks(now = Date.now()) {
       title: 'Raise the BeneVision alarm log issue with Mindray',
       details: 'Customer says the alarm log clears after a power cycle. Ticket number from them would be great.',
       createdBy: 'u-jess', createdByName: 'Jess Reid', createdAtMs: now - 4 * 86400000, updatedAtMs: now - 2 * 86400000,
-      assignees: ['u-mike', 'u-sam'], people: ['u-jess', 'u-mike', 'u-sam'],
+      assignees: ['u-mike', 'u-sam'], cc: ['u-lee'], people: ['u-jess', 'u-mike', 'u-sam', 'u-lee'], // Lee copied in
       owner: 'u-mike', ownerName: 'Mike Tan', status: 'waiting', waitingOn: 'Mindray', commentCount: 2, lastCommentAtMs: now - 2 * 86400000, lastCommentBy: 'Mike Tan',
       event: { id: 'e2', type: 'comment', by: 'u-mike', atMs: now - 2 * 86400000, to: ['u-jess'], teams: [], ref: 'c2' },
     }),

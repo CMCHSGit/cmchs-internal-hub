@@ -1005,9 +1005,12 @@ function fsFields_(fields) {
 }
 
 // Who an ask's event is for — never the person who made the change. Pure, so
-// it can be checked outside Apps Script. users: [{ uid, team, pending }].
+// it can be checked outside Apps Script (apps/asks/tests/notify.test.mjs).
+// users: [{ uid, team, pending }]. People copied in (cc) hear when it's
+// raised, when they're copied in later, and when it's done; and @mentions.
 function askRecipients_(ask, ev, users, comment) {
   const assignees = ask.assignees || [];
+  const cc = ask.cc || [];
   const teams = ask.teams || [];
   const people = ask.people || [];
   const out = {};
@@ -1016,14 +1019,15 @@ function askRecipients_(ask, ev, users, comment) {
     return users.filter(function(u) { return !u.pending && u.team && ts.indexOf(u.team) >= 0; }).map(function(u) { return u.uid; });
   };
   switch (ev.type) {
-    case 'created':  add(assignees); add(membersOf(teams)); break;
+    case 'created':  add(assignees); add(membersOf(teams)); add(cc); break;
     case 'added':    add((ev.to || []).filter(function(u) { return assignees.indexOf(u) >= 0; }));
-                     add(membersOf((ev.teams || []).filter(function(t) { return teams.indexOf(t) >= 0; }))); break;
+                     add(membersOf((ev.teams || []).filter(function(t) { return teams.indexOf(t) >= 0; })));
+                     add((ev.cc || []).filter(function(u) { return cc.indexOf(u) >= 0; })); break;
     case 'claimed':  add([ask.createdBy]); add(assignees); break;
     case 'handed':   add([ask.createdBy]); add(assignees); add(membersOf(teams)); break;
     case 'given':    add([ask.owner, ask.createdBy]); break;
     case 'waiting':  add([ask.createdBy]); break;
-    case 'done':     add([ask.createdBy]); add(assignees); break;
+    case 'done':     add([ask.createdBy]); add(assignees); add(cc); break;
     case 'reopened': if (ask.owner) add([ask.owner]); else { add(assignees); add(membersOf(teams)); } break;
     case 'comment':
       add([ask.createdBy]);
@@ -1040,6 +1044,9 @@ function askMessage_(ask, ev, actor, recipientUid, comment) {
   const who = String(actor || 'Someone').split(/\s+/)[0];
   const what = String(ask.title || '').slice(0, 120);
   const ownerFirst = String(ask.ownerName || 'someone').split(/\s+/)[0];
+  // Copied in, not sent it: told it's for their information.
+  const copied = (ask.cc || []).indexOf(recipientUid) >= 0 && (ask.assignees || []).indexOf(recipientUid) < 0;
+  if (copied && (ev.type === 'created' || ev.type === 'added')) return { title: who + ' copied you in on an ask', body: what };
   switch (ev.type) {
     case 'created':
     case 'added':    return { title: 'New ask from ' + who, body: what };

@@ -107,14 +107,17 @@ export function StoreProvider({ children }) {
 
     return {
       async create(input, photos = []) {
-        const f = cleanAsk(input)
+        const { cc, ...f } = cleanAsk(input)
+        const copied = cc.filter((u) => u !== me.uid)
         const id = be.newId()
         const now = Date.now()
         const pics = photoDocs(id, photos.slice(0, LIMITS.photos))
         await be.create(id, {
           ...f,
+          // Only written when someone's copied in, so an ask without needs nothing new of the rules.
+          ...(copied.length ? { cc: copied } : {}),
           createdBy: me.uid, createdByName: me.name, createdAtMs: now, updatedAtMs: now,
-          people: peopleOf({ createdBy: me.uid, assignees: f.assignees }),
+          people: peopleOf({ createdBy: me.uid, assignees: f.assignees, cc: copied }),
           owner: '', ownerName: '', status: 'open', waitingOn: '', doneAtMs: 0, doneBy: '',
           photoCount: pics.length, commentCount: 0, lastCommentAtMs: 0, lastCommentBy: '',
           event: eventOf('created', me),
@@ -163,15 +166,23 @@ export function StoreProvider({ children }) {
         patch: { status: cur.owner ? 'picked' : 'open', doneAtMs: 0, doneBy: '', event: eventOf('reopened', me) },
       })),
 
-      /** The asker (or an admin) edits it. Only people and teams newly added are told. */
+      /** The asker (or an admin) edits it. Only people, teams and copied-in people newly added are told. */
       edit: (a, input) => change(a, (cur) => {
-        const f = cleanAsk(input)
+        const { cc: ccIn, ...f } = cleanAsk(input)
+        const cc = ccIn.filter((u) => u !== me.uid)
+        const curCc = cur.cc || []
         const added = f.assignees.filter((u) => !cur.assignees.includes(u) && u !== me.uid)
-        const removed = cur.assignees.filter((u) => !f.assignees.includes(u))
+        const newCc = cc.filter((u) => !curCc.includes(u))
         const newTeams = f.teams.filter((t) => !cur.teams.includes(t))
-        const people = union(cur.people.filter((u) => !removed.includes(u) || u === cur.owner || u === cur.createdBy), f.assignees)
+        // Taken off: no longer sees it, unless they asked, have it, or are still on it another way.
+        const staying = new Set([cur.owner, cur.createdBy, ...f.assignees, ...cc])
+        const removed = [...cur.assignees, ...curCc].filter((u) => !staying.has(u))
+        const people = union(cur.people.filter((u) => !removed.includes(u)), f.assignees, cc)
         return {
-          patch: { ...f, people, ...(added.length || newTeams.length ? { event: eventOf('added', me, { to: added, teams: newTeams }) } : {}) },
+          patch: {
+            ...f, people, ...(cc.length || cur.cc ? { cc } : {}),
+            ...(added.length || newTeams.length || newCc.length ? { event: eventOf('added', me, { to: added, teams: newTeams, cc: newCc }) } : {}),
+          },
         }
       }),
 

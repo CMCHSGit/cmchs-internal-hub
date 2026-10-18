@@ -4,7 +4,7 @@
    project tracker's. */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, Users, Search } from 'lucide-react'
+import { X, Users, Search, UserPlus } from 'lucide-react'
 import { Badge } from '../../schedule/src/components/ui'
 import { avatarStyle, initialsOf, statusOf, TEAMS } from './model.js'
 import { useStore } from './store.jsx'
@@ -86,6 +86,60 @@ export function sentToText(a, userById, meUid) {
   const all = [...names, ...teams]
   if (all.length <= 1) return all[0] || 'nobody'
   return all.slice(0, -1).join(', ') + ' and ' + all[all.length - 1]
+}
+
+/** "Jess and you": who's copied in, or '' for nobody. */
+export function ccText(a, userById, meUid) {
+  const names = (a.cc || []).map((u) => (u === meUid ? 'you' : userById.get(u)?.name || 'someone'))
+  if (names.length <= 1) return names[0] || ''
+  return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]
+}
+
+/**
+ * Copy people in to keep them in the loop: chips for whoever's copied in,
+ * and a search to add more. Folded away behind "Copy someone in" until it's
+ * wanted, so a quick ask stays quick. Not the people it's sent to, or me.
+ */
+export function CcPicker({ cc, exclude = [], onChange }) {
+  const { users, me } = useStore()
+  const [open, setOpen] = useState(cc.length > 0)
+  const [q, setQ] = useState('')
+  const nameOf = (uid) => users.find((u) => u.uid === uid)?.name || 'Someone'
+  const matches = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    return users.filter((u) => u.uid !== me.uid && !exclude.includes(u.uid) && !cc.includes(u.uid))
+      .filter((u) => !s || u.name.toLowerCase().includes(s) || (u.team || '').toLowerCase().includes(s))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [users, q, me.uid, exclude, cc])
+  if (!open) {
+    return <button type="button" className="link-btn ak-cc-open" onClick={() => setOpen(true)}><UserPlus size={16} aria-hidden="true" /> Copy someone in</button>
+  }
+  return (
+    <div className="ak-sendto ak-cc">
+      <div className="ak-chips" aria-live="polite">
+        {!cc.length && <span className="text-sm text-muted">Nobody copied in</span>}
+        {cc.map((uid) => (
+          <button key={uid} type="button" className="ak-chip" onClick={() => onChange(cc.filter((x) => x !== uid))} aria-label={`Stop copying ${nameOf(uid)} in`}>
+            <Avatar name={nameOf(uid)} size={20} title="" /> {nameOf(uid)} <X size={14} aria-hidden="true" />
+          </button>
+        ))}
+      </div>
+      <div className="ak-search">
+        <Search size={16} aria-hidden="true" />
+        <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search people" aria-label="Search people to copy in" />
+      </div>
+      <div className="ak-picklist ak-picklist-short" role="group" aria-label="People to copy in">
+        {matches.map((u) => (
+          <button key={u.uid} type="button" className="ak-check ak-pickrow" onClick={() => { onChange([...cc, u.uid]); setQ('') }}>
+            <Avatar name={u.name} size={24} title="" />
+            <span className="ak-grow">{u.name}</span>
+            <span className="text-sm text-muted">{u.team}</span>
+          </button>
+        ))}
+        {!matches.length && <Empty>Nobody else matches that.</Empty>}
+      </div>
+    </div>
+  )
 }
 
 /**

@@ -7,7 +7,11 @@
      createdBy, createdByName    who asked
      assignees: [uid]            the people it was sent to
      teams: [team]               whole teams it was sent to (anyone on them can pick it up)
-     people: [uid]               everyone involved by name: the asker, assignees,
+     cc: [uid]                   people kept in the loop: they can see it and are told
+                                 when it's raised and when it's done, but it isn't
+                                 theirs to do (not counted, can't pick it up). Only
+                                 written once someone is copied in (older asks have none)
+     people: [uid]               everyone involved by name: the asker, assignees, cc,
                                  whoever picked it up and anyone @mentioned.
                                  Firestore's rules let these people, the teams
                                  above and admins see it; nobody else.
@@ -18,7 +22,8 @@
      doneAtMs, doneBy
      photoCount, commentCount, lastCommentAtMs, lastCommentBy
      event                       the last change that notifies people (see notify in
-                                 backend-firebase.js): { id, type, by, atMs, to, teams, ref }
+                                 backend-firebase.js): { id, type, by, atMs, to, teams, ref },
+                                 and cc: [uid] for people newly copied in by an edit
 
    askStats/{id} mirrors the counting fields with no text in them (statsOf), so
    the Company view can show everyone's load without showing anyone's asks. */
@@ -36,7 +41,7 @@ export const STATUSES = [
 export const statusOf = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0]
 
 // The same limits firestore.rules enforces.
-export const LIMITS = { title: 200, details: 4000, comment: 4000, waitingOn: 120, photos: 6, assignees: 40, people: 60 }
+export const LIMITS = { title: 200, details: 4000, comment: 4000, waitingOn: 120, photos: 6, assignees: 40, cc: 40, people: 60 }
 
 const DAY = 86400000
 
@@ -58,6 +63,11 @@ export function canSee(a, me) {
 /** Was it sent to me, by name or through my team? */
 export function sentTo(a, me) {
   return (a.assignees || []).includes(me.uid) || (!!me.team && (a.teams || []).includes(me.team))
+}
+
+/** Copied in to keep in the loop, and not also sent it. */
+export function isCopied(a, me) {
+  return (a.cc || []).includes(me.uid) && !sentTo(a, me)
 }
 
 /** Is it mine to do right now: picked up by me, or not picked up yet and sent to me. */
@@ -86,16 +96,18 @@ export function sortAsks(list, today) {
  *   toPick  sent to me (or my team), nobody has picked it up
  *   onIt    I've picked it up
  *   asked   I asked, not done yet
+ *   cc      I'm copied in to keep in the loop, not done yet
  *   done    finished in the last fortnight, that I was part of
  */
 export function myBuckets(asks, me, today, now = Date.now()) {
-  const out = { toPick: [], onIt: [], asked: [], done: [] }
+  const out = { toPick: [], onIt: [], asked: [], cc: [], done: [] }
   for (const a of asks) {
     if (a.status === 'done') {
       if ((a.doneAtMs || 0) > now - 14 * DAY && ((a.people || []).includes(me.uid) || sentTo(a, me))) out.done.push(a)
     } else if (a.owner === me.uid) out.onIt.push(a)
     else if (!a.owner && sentTo(a, me)) out.toPick.push(a)
     else if (a.createdBy === me.uid) out.asked.push(a)
+    else if (isCopied(a, me)) out.cc.push(a)
   }
   for (const k of Object.keys(out)) out[k] = sortAsks(out[k], today)
   return out
@@ -109,7 +121,7 @@ export function myCount(asks, me, today) {
 
 /** Everyone involved by name, without repeats. */
 export function peopleOf(a, extra = []) {
-  return [...new Set([a.createdBy, ...(a.assignees || []), a.owner, ...extra].filter(Boolean))]
+  return [...new Set([a.createdBy, ...(a.assignees || []), ...(a.cc || []), a.owner, ...extra].filter(Boolean))]
 }
 
 /** The text-free copy kept in askStats/{id} — firestore.rules checks it matches the ask exactly. */
@@ -233,6 +245,8 @@ export function cleanAsk(input) {
     details: str(input.details, LIMITS.details),
     assignees: [...new Set(input.assignees || [])].slice(0, LIMITS.assignees),
     teams: [...new Set(input.teams || [])].filter((t) => TEAMS.includes(t)),
+    // Someone it's sent to needn't be copied in as well.
+    cc: [...new Set(input.cc || [])].filter((u) => !(input.assignees || []).includes(u)).slice(0, LIMITS.cc),
     due: /^\d{4}-\d{2}-\d{2}$/.test(input.due || '') ? input.due : '',
     urgent: !!input.urgent,
   }
@@ -256,8 +270,8 @@ export function activityOf(a, me, nameOf, now = Date.now(), days = 14) {
   const who = firstName(nameOf(e.by)) || 'Someone'
   const owner = a.owner === me.uid ? 'you' : firstName(a.ownerName) || 'someone'
   const text = {
-    created: sentTo(a, me) ? `${who} sent you an ask` : `${who} raised an ask`,
-    added: sentTo(a, me) ? `${who} sent you an ask` : `${who} added people`,
+    created: sentTo(a, me) ? `${who} sent you an ask` : isCopied(a, me) ? `${who} copied you in` : `${who} raised an ask`,
+    added: sentTo(a, me) ? `${who} sent you an ask` : (e.cc || []).includes(me.uid) ? `${who} copied you in` : `${who} added people`,
     claimed: `${who} picked it up`,
     handed: `${who} handed it back`,
     given: `${who} gave it to ${owner}`,

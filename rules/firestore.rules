@@ -283,7 +283,7 @@ service cloud.firestore {
     // Asks (internal.chsnz.co.nz/asks/) — quick requests between staff,
     // picked up by whoever can do them. An ask is seen only by the people
     // involved: whoever asked, the people and whole teams it was sent to,
-    // whoever picked it up or was @mentioned (all named in `people`), plus
+    // whoever picked it up, was @mentioned or copied in (cc) (all named in `people`), plus
     // admins. Anyone involved may change it — pick it up, hand it back, mark
     // it done, comment — but only for themselves: taking an ask someone else
     // has is for its owner, the asker or an admin. The asker or an admin
@@ -296,7 +296,7 @@ service cloud.firestore {
     }
     function isAsk(d) {
       return d.keys().hasOnly(['title', 'details', 'createdBy', 'createdByName', 'createdAtMs', 'updatedAtMs',
-          'assignees', 'teams', 'people', 'owner', 'ownerName', 'status', 'waitingOn', 'urgent', 'due',
+          'assignees', 'teams', 'cc', 'people', 'owner', 'ownerName', 'status', 'waitingOn', 'urgent', 'due',
           'doneAtMs', 'doneBy', 'photoCount', 'commentCount', 'lastCommentAtMs', 'lastCommentBy', 'event'])
         && isShortText(d.title, 1, 200) && isShortText(d.details, 0, 4000)
         && d.createdBy is string && d.createdAtMs is number && d.doneAtMs is number
@@ -304,6 +304,8 @@ service cloud.firestore {
         && d.assignees is list && d.assignees.size() <= 40
         && d.teams is list && d.teams.hasOnly(['Admin', 'Management', 'Engineers', 'Sales', 'Application'])
         && d.assignees.size() + d.teams.size() > 0
+        // Copied in to keep in the loop: optional (older asks have none), and they can see it.
+        && (!('cc' in d) || (d.cc is list && d.cc.size() <= 40 && d.cc.hasOnly(d.people)))
         && d.people is list && d.people.size() <= 60 && d.createdBy in d.people
         && d.owner is string && (d.owner == '' || d.owner in d.people)
         // Nobody has an open one; somebody has one being worked on or waiting.

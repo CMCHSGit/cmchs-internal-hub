@@ -7,7 +7,7 @@ import { X, Hand, Check, Clock, Undo2, UserPlus, Pencil, Trash2, RotateCcw, Send
 import { Alert, Badge, Button, Loading } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
 import { useUi } from './App.jsx'
-import { Avatar, Empty, Lightbox, Popover, RichText, StatusBadge, sentToText } from './ui.jsx'
+import { Avatar, Empty, Lightbox, Popover, RichText, StatusBadge, ccText, sentToText } from './ui.jsx'
 import { PhotoAdder } from './NewAsk.jsx'
 import { canClaim, dueLabel, firstName, isOverdue, LIMITS, mentionAt, mentionMatches, sentTo, timeAgo } from './model.js'
 
@@ -85,6 +85,7 @@ export default function AskPanel({ ask: a, onClose }) {
         <dd><Avatar name={a.createdByName} size={22} /> {asker ? 'You' : a.createdByName} <span className="text-muted">· {timeAgo(a.createdAtMs)}</span></dd>
         <dt>Sent to</dt>
         <dd>{sentToText(a, userById, me.uid)}</dd>
+        {(a.cc || []).length > 0 && <><dt>CC</dt><dd>{ccText(a, userById, me.uid)}</dd></>}
         <dt>{done ? 'Done by' : 'Who has it'}</dt>
         <dd>
           {a.owner

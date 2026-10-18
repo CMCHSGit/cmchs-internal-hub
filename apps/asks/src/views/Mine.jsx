@@ -37,6 +37,13 @@ export default function Mine() {
         <AskList asks={b.asked} empty="Nothing open that you asked for." />
         <div><Button variant="secondary" size="sm" onClick={() => ui.newAsk()}>Ask for something</Button></div>
       </section>
+      {b.cc.length > 0 && (
+        <section className="ak-section">
+          <h2 className="ak-h3">Kept in the loop</h2>
+          <p className="ak-sub">You’re copied in on these. Nothing for you to do; you’ll hear when they’re done.</p>
+          <AskList asks={b.cc} empty="" />
+        </section>
+      )}
       {b.done.length > 0 && (
         <section className="ak-section">
           <h2 className="ak-h3">Done in the last two weeks</h2>

@@ -6,7 +6,7 @@ import { useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import { Alert, Button, Switch } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
-import { Field, Modal, SendToPicker } from './ui.jsx'
+import { CcPicker, Field, Modal, SendToPicker } from './ui.jsx'
 import { compressPhoto } from './photos.js'
 import { LIMITS } from './model.js'
 
@@ -18,6 +18,7 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
     details: ask?.details || '',
     assignees: ask?.assignees || prefill.assignees || [],
     teams: ask?.teams || prefill.teams || [],
+    cc: ask?.cc || prefill.cc || [],
     due: ask?.due || '',
     urgent: !!ask?.urgent,
   }))
@@ -59,6 +60,10 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
         <div className="field">
           <span className="field-label">Send to</span>
           <SendToPicker assignees={f.assignees} teams={f.teams} onChange={set} />
+        </div>
+        <div className="field">
+          <span className="field-label">CC <span className="text-muted ak-label-hint">to keep them in the loop: they’re told when it’s sent and when it’s done</span></span>
+          <CcPicker cc={f.cc} exclude={f.assignees} onChange={(cc) => set({ cc })} />
         </div>
         <div className="ak-formrow">
           <Field label="Due" hint="Optional">

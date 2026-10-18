@@ -88,7 +88,7 @@ test('a new ask needs a title and someone to send it to', () => {
   assert.throws(() => cleanAsk({ title: '  ', assignees: ['u-mike'] }), /what you need/)
   assert.throws(() => cleanAsk({ title: 'Test it' }), /at least one person or team/)
   const ok = cleanAsk({ title: '  Test   it ', teams: ['Engineers', 'Nope', 'Engineers'], due: 'soon', urgent: 1 })
-  assert.deepEqual(ok, { title: 'Test it', details: '', assignees: [], teams: ['Engineers'], due: '', urgent: true })
+  assert.deepEqual(ok, { title: 'Test it', details: '', assignees: [], teams: ['Engineers'], cc: [], due: '', urgent: true })
 })
 
 test('events carry who and an id', () => {

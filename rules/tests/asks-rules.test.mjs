@@ -106,6 +106,17 @@ await check('Mike (the asker) deletes A3 with its stats', true, () => {
   return b.commit()
 })
 
+console.log('\nCopied in (cc) — must work')
+const CC = ask({ createdBy: 'jess', createdByName: 'Jess', assignees: ['mike'], cc: ['lee'], people: ['jess', 'mike', 'lee'] })
+await check('Jess raises an ask to Mike, copying Lee in', true, () => {
+  const db = as('jess'); const b = writeBatch(db)
+  b.set(doc(db, 'asks/cc1'), CC); b.set(doc(db, 'askStats/cc1'), statsOf(CC))
+  return b.commit()
+})
+await check('Lee (copied in) reads it', true, () => getDoc(doc(as('lee'), 'asks/cc1')))
+await check('Lee finds it in his list', true, () => getDocs(query(collection(as('lee'), 'asks'), where('people', 'array-contains', 'lee'))))
+await check('Jess stops copying Lee in (cc emptied, Lee off people)', true, () => change(as('jess'), 'cc1', CC, { cc: [], people: ['jess', 'mike'] }))
+
 console.log('\nWhat must be refused')
 await check('Jess (Sales) reads an ask sent to Engineers', false, () => getDoc(doc(as('jess'), 'asks/a1')))
 await check('Jess lists every ask', false, () => getDocs(collection(as('jess'), 'asks')))
@@ -130,6 +141,9 @@ await check('a photo that isn\'t a JPEG data URL', false, () => setDoc(doc(as('l
 await check('a photo over the size limit', false, () => setDoc(doc(as('lee'), 'asks/a1/photos/p3'), { uid: 'lee', data: 'data:image/jpeg;base64,' + 'A'.repeat(500000), w: 1, h: 1, atMs: NOW, commentId: '' }))
 await check('signed out: the company counts', false, () => getDocs(collection(anon, 'askStats')))
 await check('signed out: an ask', false, () => getDoc(doc(anon, 'asks/a1')))
+await check('copying in someone who isn\'t on people (so couldn\'t see it)', false, () => setDoc(doc(as('jess'), 'asks/cc2'), ask({ createdBy: 'jess', assignees: ['mike'], cc: ['lee'], people: ['jess', 'mike'] })))
+await check('cc that isn\'t a list', false, () => setDoc(doc(as('jess'), 'asks/cc3'), ask({ createdBy: 'jess', assignees: ['mike'], cc: 'lee', people: ['jess', 'mike', 'lee'] })))
+await check('Sam (not on it) reads an ask Lee is copied in on', false, () => getDoc(doc(as('sam'), 'asks/cc1')))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 await env.cleanup()

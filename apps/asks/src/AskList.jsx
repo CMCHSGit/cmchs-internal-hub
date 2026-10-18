@@ -4,7 +4,7 @@ import { CalendarDays, Flame, Hand, MessageSquare, Camera } from 'lucide-react'
 import { Badge } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
 import { useUi } from './App.jsx'
-import { Avatar, Empty, StatusBadge, sentToText } from './ui.jsx'
+import { Avatar, Empty, StatusBadge, ccText, sentToText } from './ui.jsx'
 import { canClaim, dueLabel, firstName, isOverdue, timeAgo } from './model.js'
 
 export function AskRow({ ask: a, showClaim = false }) {
@@ -35,7 +35,7 @@ export function AskRow({ ask: a, showClaim = false }) {
             <span className="ak-item-title">{a.title}</span>
           </span>
           <span className="ak-item-meta">
-            <span>{a.createdBy === me.uid ? 'You' : firstName(a.createdByName)} → {sentToText(a, s.userById, me.uid)}</span>
+            <span>{a.createdBy === me.uid ? 'You' : firstName(a.createdByName)} → {sentToText(a, s.userById, me.uid)}{(a.cc || []).length > 0 && `, cc ${ccText(a, s.userById, me.uid)}`}</span>
             <span aria-hidden="true">·</span>
             <span>{timeAgo(a.createdAtMs)}</span>
             {a.commentCount > 0 && <span className="ak-meta-icon" title={`${a.commentCount} comment${a.commentCount === 1 ? '' : 's'}`}><MessageSquare size={13} aria-hidden="true" /> {a.commentCount}</span>}
