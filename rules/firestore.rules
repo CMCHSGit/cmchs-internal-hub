@@ -485,6 +485,14 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create, update, delete: if isStaff();
     }
+    // settings/equipmentCutover: where the tracker's data is ({ source: 'rtdb' |
+    // 'firestore', readOnly, by, at }; apps/equipment/src/db.js). Staff read it;
+    // an admin moves it (Manage, Data source).
+    match /settings/equipmentCutover {
+      allow read: if isStaff();
+      allow create, update: if isAdmin()
+        && request.resource.data.source in ['rtdb', 'firestore'] && request.resource.data.readOnly is bool;
+    }
     // settings/equipment: simproConfig and the added demo types. Anyone turns
     // Simpro job creation off; only an admin turns it on.
     match /settings/equipment {

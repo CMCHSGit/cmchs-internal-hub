@@ -1,5 +1,5 @@
 /* An equipment record's changes (old: the Add/Edit item form, Retire, and
-   Delete with the admin password). The loan fields are on the form as in
+   Delete, which an admin confirms: the hub role, not the old admin password). The loan fields are on the form as in
    the old one, for putting a record right; loans themselves are made and
    changed from Loans. */
 import { useState } from 'react'
@@ -52,29 +52,36 @@ export function ItemForm({ s, item = null, onClose, onDone }) {
   )
 }
 
-/** Something only an admin may do, after the admin password (old: adminPrompt). */
+/**
+ * Something only a hub admin may do (step 5A: in place of the old tracker's
+ * admin password, adminPrompt). An admin confirms; anyone else is told who can.
+ * The Firestore rules refuse it for anyone else too.
+ */
 export function AdminDialog({ s, title, message, confirmLabel, danger = false, children, onClose, onConfirm }) {
-  const [pw, setPw] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function go(e) {
     e.preventDefault()
     setBusy(true); setError('')
-    try {
-      if (!(await s.checkAdmin(pw))) { setError('That isn’t the admin password.'); return }
-      await onConfirm()
-    } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) }
+    try { await onConfirm() } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) }
+  }
+  if (!s.isAdmin) {
+    return (
+      <Dialog title={title} onClose={onClose} width={440}>
+        <p className="confirm-text">Only a hub admin can do this. Ask one of the admins (Settings, People and access, lists them).</p>
+        <div className="dialog-actions"><Button onClick={onClose}>OK</Button></div>
+      </Dialog>
+    )
   }
   return (
     <Dialog title={title} onClose={onClose} width={480}>
       <form className="eq-form" onSubmit={go}>
         {message && <p className="confirm-text">{message}</p>}
         {children}
-        <label className="field"><span className="field-label">Admin password</span><input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="off" autoFocus /></label>
         {error && <Alert tone="critical" title="Not done">{error}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" variant={danger ? 'danger' : 'primary'} disabled={busy || !pw}>{busy ? 'Working…' : confirmLabel}</Button>
+          <Button type="submit" variant={danger ? 'danger' : 'primary'} disabled={busy} autoFocus>{busy ? 'Working…' : confirmLabel}</Button>
         </div>
       </form>
     </Dialog>

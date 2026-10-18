@@ -115,12 +115,8 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
           onSave={(f) => run(() => s.editLoan(g, f), (r) => (r.started === 'all' ? 'Loan updated: it has started.' : r.started === 'some' ? 'Loan updated, but some devices are still out on another loan.' : 'Loan updated.'))} />
       )}
       {asking === 'delete' && (
-        <DeleteDialog g={g} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
-          onSave={async (pw) => {
-            setError('')
-            try { if (!(await s.checkAdmin(pw))) return setError('That isn’t the admin password.') } catch (e) { return setError(e.message || String(e)) }
-            run(() => s.deleteLoan(g), g.kind === 'booking' ? `Booking for ${g.loanTo} cancelled.` : `Loan for ${g.loanTo} deleted.`)
-          }} />
+        <DeleteDialog g={g} isAdmin={s.isAdmin} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onSave={() => run(() => s.deleteLoan(g), g.kind === 'booking' ? `Booking for ${g.loanTo} cancelled.` : `Loan for ${g.loanTo} deleted.`)} />
       )}
       {confirmDialog}
     </div>
@@ -312,25 +308,23 @@ function EditDialog({ g, s, busy, error, onClose, onSave }) {
 }
 
 /** Delete, with the admin password (old: adminPrompt, then a confirm). */
-function DeleteDialog({ g, busy, error, onClose, onSave }) {
-  const [pw, setPw] = useState('')
+/** Delete, for hub admins (step 5A: the role, in place of the old admin password). */
+function DeleteDialog({ g, isAdmin, busy, error, onClose, onSave }) {
   const booking = g.kind === 'booking'
   const list = (booking ? g.pending : g.items).map((e) => e.CHSAssetNo).join(', ')
   return (
     <Dialog title={booking ? `Cancel the booking for ${g.loanTo}?` : `Delete the loan for ${g.loanTo}?`} onClose={onClose} width={460}>
-      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (pw) onSave(pw) }}>
+      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (isAdmin) onSave() }}>
         <p className="confirm-text">
           {booking ? `It starts ${fmtDate(g.startDate)}. The booking goes; loans now running aren’t touched.`
             : g.kind === 'scheduled' ? `It starts ${fmtDate(g.startDate)}. These devices are cleared of it: ${list}. This can’t be undone.`
               : `These devices are marked as returned: ${list}. This can’t be undone.`}
         </p>
-        <label className="field"><span className="field-label">Admin password</span>
-          <input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="off" autoFocus />
-        </label>
+        {!isAdmin && <Alert tone="info" title="Hub admins only">Ask one of the admins to do this (Settings, People and access, lists them).</Alert>}
         {error && <Alert tone="critical" title="Not done">{error}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Keep it</Button>
-          <Button type="submit" variant="danger" disabled={busy || !pw}>{busy ? 'Working…' : booking ? 'Cancel booking' : 'Delete loan'}</Button>
+          <Button type="submit" variant="danger" disabled={busy || !isAdmin}>{busy ? 'Working…' : booking ? 'Cancel booking' : 'Delete loan'}</Button>
         </div>
       </form>
     </Dialog>

@@ -70,8 +70,9 @@ function Shell() {
     history.replaceState(null, '', location.pathname + (t ? hashOf(t.view, t.params) : location.hash))
     if (t) { setRoute({ view: t.view, params: t.params }); if (t.note) showToast(t.note) }
   }, [s.ready]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Test mode is only for the two who test the tracker; anyone else signed in here has it switched off (old: updateTestModeUI).
-  useEffect(() => { if (s.testMode && s.operator && !['Peter Lin', 'Jonathan Nasrun'].includes(s.operator)) s.setTestMode(false) }, [s.testMode, s.operator]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Test mode is for admins and the testers an admin marks (users.trackerTester, shared/can.js); anyone else
+  // signed in here has it switched off (old: updateTestModeUI, with two names written in).
+  useEffect(() => { if (s.testMode && s.profile && !s.canTestMode) s.setTestMode(false) }, [s.testMode, s.profile, s.canTestMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
   if (!s.ready) return <div className="eq-page"><Loading /></div>
@@ -84,6 +85,7 @@ function Shell() {
         </div>
       </div>
       {isLocal && <Alert tone="info" title="Made-up equipment">This is the dev server without a .env: the equipment here is made up, and kept in this browser.</Alert>}
+      {s.cutover?.readOnly && <Alert tone="warning" title="Read-only for a few minutes">The tracker’s data is moving to its new home. Everything shows as usual, but changes wait until it’s done.</Alert>}
       {s.error && <Alert tone="warning" title="Couldn’t refresh">{s.error}</Alert>}
       <nav className="eq-views" aria-label="Demo equipment">
         {VIEWS.map(([id, label, Icon]) => (

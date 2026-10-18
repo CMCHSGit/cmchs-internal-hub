@@ -3,15 +3,14 @@
    team (account managers and roles) is kept in Settings, People and access,
    for every tool at once. */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Alert, Badge, Button, Loading, useConfirm } from '../../../shared/ui/index.jsx'
+import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { AdminDialog } from './Items.jsx'
+import { setCutover } from './db.js'
 import {
   EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, toCsv,
 } from './model.js'
 
-const PARTS = [['retired', 'Sold / Retired'], ['kits', 'Kits'], ['data', 'Import and export'], ['simpro', 'Simpro'], ['test', 'Test mode']]
-// Who may use test mode (old: TEST_MODE_OPERATORS).
-const TEST_PEOPLE = ['Peter Lin', 'Jonathan Nasrun']
+const PARTS = [['retired', 'Sold / Retired'], ['kits', 'Kits'], ['data', 'Import and export'], ['simpro', 'Simpro'], ['test', 'Test mode'], ['source', 'Data source']]
 
 /** A library from the same CDN the old tracker uses, once (old: needLib): SheetJS and PapaParse. */
 const LIBS = { xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX'], papa: ['https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js', 'Papa'] }
@@ -31,7 +30,8 @@ const save = (blob, name) => { const a = document.createElement('a'); a.href = U
 
 export default function Manage({ s, params, setParams, onDone }) {
   const part = PARTS.some(([p]) => p === params.part) ? params.part : 'retired'
-  const parts = PARTS.filter(([p]) => p !== 'test' || TEST_PEOPLE.includes(s.operator) || s.testMode)
+  // Test mode: admins and the testers an admin marks (shared/can.js), not the two names the old one had written in.
+  const parts = PARTS.filter(([p]) => (p !== 'test' || s.canTestMode || s.testMode) && (p !== 'source' || s.isAdmin))
   return (
     <div className="eq-manage">
       <nav className="eq-filters" aria-label="Manage">
@@ -43,6 +43,7 @@ export default function Manage({ s, params, setParams, onDone }) {
       {part === 'data' && <Data s={s} onDone={onDone} />}
       {part === 'simpro' && <Simpro s={s} onDone={onDone} />}
       {part === 'test' && <TestMode s={s} onDone={onDone} />}
+      {part === 'source' && s.isAdmin && <Source s={s} onDone={onDone} />}
     </div>
   )
 }
@@ -309,7 +310,59 @@ function TestMode({ s, onDone }) {
       <h3 className="eq-h3">Test mode is {s.testMode ? 'on' : 'off'} in this browser</h3>
       <p className="eq-note">With it on, loans are made as test loans (seen only with test mode on), and Simpro jobs and emails are pretended rather than sent. Everything else is saved for real. The current tracker shares the same switch in this browser.</p>
       <div>{s.testMode ? <Button variant="secondary" onClick={() => { s.setTestMode(false); onDone('Test mode is off: Simpro and email are live again.') }}>Turn off</Button> : <Button onClick={() => setAsking(true)}>Turn on…</Button>}</div>
-      {asking && <AdminDialog s={s} title="Turn test mode on?" confirmLabel="Turn on" onClose={() => setAsking(false)} onConfirm={async () => { s.setTestMode(true); setAsking(false); onDone('Test mode is on: Simpro jobs and emails are pretended.') }} />}
+      {asking && <TestModeConfirm s={s} onClose={() => setAsking(false)} onConfirm={() => { s.setTestMode(true); setAsking(false); onDone('Test mode is on: Simpro jobs and emails are pretended.') }} />}
+    </section>
+  )
+}
+
+/** Test mode on: for admins and the testers an admin marks (users.trackerTester). */
+function TestModeConfirm({ s, onClose, onConfirm }) {
+  return (
+    <Dialog title="Turn test mode on?" onClose={onClose} width={440}>
+      <p className="confirm-text">{s.canTestMode ? 'Loans you make are test loans until you turn it off, in this browser.' : 'Test mode is for admins and the testers an admin marks.'}</p>
+      <div className="dialog-actions">
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        {s.canTestMode && <Button onClick={onConfirm} autoFocus>Turn on</Button>}
+      </div>
+    </Dialog>
+  )
+}
+
+/**
+ * Data source (step 5B's cutover, admins): where the tracker's data is, and
+ * read-only for the quiet hour while it's copied. The steps, in order:
+ * read-only on; the migration run (backend/tracker-migration, by someone with
+ * the keys); Firestore on; read-only off. Every open tracker, the project
+ * tracker's feed and the proxy follow the switch within a second or two.
+ */
+function Source({ s, onDone }) {
+  const c = s.cutover || { source: 'rtdb', readOnly: false }
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [confirmDialog, confirm] = useConfirm()
+  async function change(next, ask) {
+    if (ask && !(await confirm(ask))) return
+    setBusy(true); setError('')
+    try { await setCutover({ ...c, ...next }, s.operator); onDone('Data source saved.') } catch (e) { setError(e.message || String(e)) } finally { setBusy(false) }
+  }
+  const fs = c.source === 'firestore'
+  return (
+    <section className="card eq-kit">
+      <h3 className="eq-h3">The tracker’s data is in {fs ? 'Firestore (the hub)' : 'the old Realtime Database'}{c.readOnly ? ', read-only' : ''}</h3>
+      {c.at && <p className="eq-note">Last changed {fmtDate(c.at.slice(0, 10))}{c.by ? ' by ' + c.by : ''}.</p>}
+      <ol className="eq-bullets">
+        <li>Read-only on, so nothing changes while it’s copied.</li>
+        <li>The migration run (backend/tracker-migration: its dry run first, then --write), by someone with the two keys.</li>
+        <li>Firestore on. Every open tracker reloads onto it.</li>
+        <li>Read-only off.</li>
+      </ol>
+      <div className="eq-actions-row">
+        <Button variant="secondary" disabled={busy} onClick={() => change({ readOnly: !c.readOnly })}>{c.readOnly ? 'Read-only off' : 'Read-only on'}</Button>
+        {!fs && <Button disabled={busy} onClick={() => change({ source: 'firestore' }, { title: 'Move the tracker onto Firestore?', message: 'Only once the migration has run and its check passed. Every open tracker reloads onto it.', confirmLabel: 'Move it' })}>Firestore on</Button>}
+        {fs && <Button variant="danger" disabled={busy} onClick={() => change({ source: 'rtdb' }, { title: 'Go back to the old database?', message: 'Changes made on Firestore since the move aren’t in the old database. Only for undoing a move that went wrong.', confirmLabel: 'Go back', danger: true })}>Back to the old database</Button>}
+      </div>
+      {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+      {confirmDialog}
     </section>
   )
 }

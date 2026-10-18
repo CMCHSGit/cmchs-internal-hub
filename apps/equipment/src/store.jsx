@@ -12,9 +12,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { watchUser } from '../../../shared/session.js'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { auth } from '../../schedule/src/firebase.js'
-import { isLocal, read, watch, write } from './db.js'
+import { collection, doc as fsDoc, getDoc, getDocs } from 'firebase/firestore'
+import { db as hubDb } from '../../schedule/src/firebase.js'
+import { can } from '../../../shared/can.js'
+import { cutover, isLocal, loadCutover, onFirestore, read, readOld, watch, watchCutover, write } from './db.js'
+import { commit as fsCommit } from './db-firestore.js'
 import {
-  activateBookings, addToBooking, applyImport, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, addToBooking, applyImport, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -35,6 +39,19 @@ export function StoreProvider({ children }) {
   latest.current = state
   const [user, setUser] = useState(null)
   useEffect(() => watchUser(setUser), [])
+  // Their hub record (role, trackerTester: shared/can.js) and everyone's
+  // (users.trackerRole: the team, teamFrom). The dev server has neither: there
+  // the person is an admin and a tester, so every screen can be tried.
+  const [people, setPeople] = useState({ profile: null, users: [] })
+  useEffect(() => {
+    if (!user) return
+    if (!hubDb) { setPeople({ profile: { role: 'admin', trackerTester: true }, users: [] }); return }
+    let live = true
+    Promise.all([getDoc(fsDoc(hubDb, 'users', user.uid)), getDocs(collection(hubDb, 'users'))])
+      .then(([me, all]) => { if (live) setPeople({ profile: me.exists() ? me.data() : null, users: all.docs.map((d) => ({ uid: d.id, ...d.data() })) }) })
+      .catch((e) => console.warn('[equipment] hub records not read', e))
+    return () => { live = false }
+  }, [user])
 
   // The equipment and bookings first, which is all the lists need to show;
   // the loan forms (the biggest part, for job numbers, demo types and older
@@ -44,7 +61,8 @@ export function StoreProvider({ children }) {
   // /data and at /loanMeta, which the old tracker writes first. Its loadData
   // lays /loanMeta over /data's copy, one loan at a time; so does this.
   const load = useCallback(async () => {
-    const extras = Promise.all([read('loanDocs'), read('accountManagers'), read('kitGroups'), read('retired'), read('customDemoTypes')])
+    await loadCutover() // where the data is (db.js): the old database, or Firestore after the cutover
+    const extras = Promise.all([read('loanDocs'), readOld('accountManagers').catch(() => ({ data: [] })), read('kitGroups'), read('retired'), read('customDemoTypes')])
     extras.catch(() => {}) // reported below, once the first part is showing
     try {
       const [data, upcoming, meta] = await Promise.all([read('data'), read('upcomingLoans'), read('loanMeta')])
@@ -54,7 +72,7 @@ export function StoreProvider({ children }) {
         loanDocs: {}, managers: [], kits: {}, retired: [], extrasReady: false, ...s,
         ready: true, error: '',
         equipment: list(d.equipment), history: list(d.history), loanMeta: { ...(d.loanMeta || {}), ...(meta.data || {}) },
-        upcoming: list(upcoming.data), loadedAt: Date.now(),
+        upcoming: list(upcoming.data), loadedAt: Date.now(), cutover: cutover(),
       }))
     } catch (e) {
       return setState((s) => ({ ...s, error: e.message || String(e) }))
@@ -76,9 +94,19 @@ export function StoreProvider({ children }) {
     if (v && version.current && v !== version.current) load()
   }), [load])
 
+  // The cutover switch moved (an admin, in Manage): a new source means a fresh
+  // start on it; read-only just shows (and blocks saves, in db.js).
+  useEffect(() => watchCutover((c) => {
+    setState((s) => {
+      if (s.cutover && s.cutover.source !== c.source) setTimeout(() => location.reload(), 0)
+      return { ...s, cutover: c }
+    })
+  }), [])
+
   /** Moves data/_v so other open trackers reload (old: bumpRemoteVersion). If
    *  nothing else changed since we loaded, this one needn't reload as well. */
   const touch = useCallback(async () => {
+    if (onFirestore()) return // Firestore's listeners tell everyone open
     const { data: was } = await read('data/_v')
     const v = Date.now().toString()
     await write('data/_v', v)
@@ -94,6 +122,13 @@ export function StoreProvider({ children }) {
    * can't be had, nothing is written.
    */
   const updateData = useCallback(async (change) => {
+    if (cutover().readOnly) throw new Error('The demo tracker is read-only for a few minutes while its data moves. Try again shortly.')
+    // On Firestore: the change run on the state as it is, only the documents it touches written, in one transaction (db-firestore.js).
+    if (onFirestore()) {
+      const next = await fsCommit((s) => { const r = change({ equipment: s.equipment, history: s.history }); return { equipment: r.equipment, history: r.history } })
+      setState((s) => ({ ...s, equipment: next.equipment, history: next.history }))
+      return
+    }
     for (let attempt = 1; attempt <= 5; attempt++) {
       const { data: remote, etag } = await read('data', { etag: true })
       if (!etag) throw new Error('Could not check for other changes, so nothing was saved. Try again.')
@@ -110,7 +145,8 @@ export function StoreProvider({ children }) {
   }, [])
 
   // Who's making changes: their name on the tracker's team, else their sign-in name.
-  const me = memberFor(user, state.managers || [])
+  const team = useMemo(() => teamFrom(state.managers || [], people.users), [state.managers, people.users])
+  const me = memberFor(user, team)
   const operator = me?.name || user?.displayName || user?.email || ''
 
   /** An audit log entry, as the old writeAudit (source 'hub': the old log shows it as Desktop). */
@@ -341,16 +377,6 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, patchMeta, touch, updateData])
 
-  /**
-   * The admin password, as the old tracker checks it before a delete
-   * (old: adminPrompt against /config.adminPassword). Kept until step 5
-   * replaces it with roles (INTEGRATION-PLAN.md).
-   */
-  const checkAdmin = useCallback(async (pw) => {
-    const { data } = await read('config/adminPassword')
-    if (!data) throw new Error('The admin password couldn’t be checked. Try again.')
-    return pw === data
-  }, [])
 
   /** A demo type typed in that isn't on the list yet joins it (old: addCustomDemoTypeIfNew). */
   const addDemoType = useCallback(async (t) => {
@@ -938,12 +964,14 @@ export function StoreProvider({ children }) {
   }, [])
 
   const value = useMemo(() => ({
-    ...state, today: nzDate(), testMode, setTestMode, reload: load, user, me, operator,
-    updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
+    ...state, managers: team, today: nzDate(), testMode, setTestMode, reload: load, user, me, operator,
+    // What this person may do (step 5A, shared/can.js): in place of the admin password and the two test-mode names.
+    profile: people.profile, isAdmin: can(people.profile, 'equipment.admin'), canTestMode: can(people.profile, 'equipment.testMode'),
+    updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
     saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
     setJobNumber, removeFromLoan, removeFromBooking, deleteHistory,
-  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
+  }), [state, team, people, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
     testMode, setTestMode, saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
     setJobNumber, removeFromLoan, removeFromBooking, deleteHistory])

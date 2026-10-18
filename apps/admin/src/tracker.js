@@ -17,7 +17,7 @@
    the tracker's saveBin()). */
 // The pass and the database address are the rebuilt tracker's (one pass for
 // the whole app): apps/equipment/src/db.js.
-import { DB_URL, dbToken } from '../../equipment/src/db.js'
+import { DB_URL, dbToken, loadCutover, read } from '../../equipment/src/db.js'
 
 const TEAM = DB_URL + '/accountManagers.json'
 
@@ -27,11 +27,14 @@ export const TRACKER_ROLES = [
 ]
 export const trackerRoleLabel = id => TRACKER_ROLES.find(r => r.id === id)?.label || 'Account manager'
 
-/** Reads one path of the tracker's database (e.g. 'upcomingLoans'). Read-only: the project tracker's demo feed uses it. */
+/**
+ * Reads one path of the tracker's data (e.g. 'upcomingLoans'). Read-only: the
+ * project tracker's demo feed uses it. Wherever the data is: the old database,
+ * or Firestore after step 5's cutover (db.js decides).
+ */
 export async function readTracker(path) {
-  const res = await fetch(DB_URL + '/' + path + '.json?auth=' + encodeURIComponent(await dbToken()))
-  if (!res.ok) throw new Error('Could not read the demo tracker (' + res.status + ')')
-  return res.json()
+  await loadCutover()
+  return (await read(path)).data
 }
 
 async function readTeam() {

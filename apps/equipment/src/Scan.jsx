@@ -8,7 +8,7 @@
      Count      one at a time: counted and back in the office, or counted
                 where it is if it's out on loan; the count so far above.
      Stocktake  every scan is counted and returned straight away, for going
-                along a shelf. Behind the admin password, as the old one.
+                along a shelf. For hub admins (the old one asked for the admin password).
    New loans are made in New loan. */
 import { useMemo, useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
@@ -26,8 +26,6 @@ export default function Scan({ s, params, setParams, onDone }) {
   const [queue, setQueue] = useState([]) // Return: item ids
   const [current, setCurrent] = useState(null) // Count: an item id
   const [session, setSession] = useState([]) // Stocktake: what's been counted
-  const [unlocked, setUnlocked] = useState(false)
-  const [pw, setPw] = useState('')
   const [busy, setBusy] = useState(false)
   const box = useRef(null)
   const ctx = { loanMeta: s.loanMeta, loanDocs: s.loanDocs }
@@ -67,7 +65,8 @@ export default function Scan({ s, params, setParams, onDone }) {
   }, [s.equipment])
 
   const switchMode = (m) => { setParams({ mode: m === 'return' ? undefined : m }); setQueue([]); setCurrent(null); setMsg(null); setCamera(false) }
-  const locked = mode === 'stocktake' && !unlocked
+  // A stocktake is for hub admins (step 5A: the role, in place of the old admin password).
+  const locked = mode === 'stocktake' && !s.isAdmin
 
   return (
     <div className="eq-scan">
@@ -81,10 +80,7 @@ export default function Scan({ s, params, setParams, onDone }) {
       </p>
 
       {locked ? (
-        <form className="card eq-unlock" onSubmit={async (e) => { e.preventDefault(); const ok = await run(() => s.checkAdmin(pw)); if (ok) { setUnlocked(true); setPw(''); setMsg(null) } else if (ok === false) setMsg({ tone: 'critical', text: 'That isn’t the admin password.' }) }}>
-          <label className="field"><span className="field-label">Admin password, to start a stocktake</span><input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="off" autoFocus /></label>
-          <Button type="submit" disabled={busy || !pw}>Start stocktake</Button>
-        </form>
+        <Alert tone="info" title="Hub admins only">A stocktake counts and returns everything scanned, so it’s for admins. Ask one, or use Count.</Alert>
       ) : (
         <>
           <div className="eq-picker-add">
@@ -155,7 +151,7 @@ export default function Scan({ s, params, setParams, onDone }) {
         )
       })()}
 
-      {mode === 'stocktake' && unlocked && (
+      {mode === 'stocktake' && !locked && (
         <section className="card eq-scan-list">
           <div className="eq-strong">{session.length} counted this session</div>
           {session.length ? (

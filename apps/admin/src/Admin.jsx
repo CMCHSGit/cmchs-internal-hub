@@ -34,9 +34,20 @@ export function UsersTab() {
     setLoading(false)
   }
 
-  /** Their role in the demo tracker — adds them to its team if they're not on it yet. */
+  /**
+   * Their role in the demo tracker. On their hub record (users.trackerRole,
+   * step 5A: what the tracker reads), and, while the old database still takes
+   * writes, on the tracker's old team list too (adding them if they're not on it).
+   */
   async function setTrackerRole(person, role) {
     const name = person.displayName || person.email
+    try {
+      await updateDoc(doc(db, 'users', person.uid), { trackerRole: role })
+      setUsers(list => list.map(u => (u.uid === person.uid ? { ...u, trackerRole: role } : u)))
+    } catch (e) {
+      console.error(e)
+      return showToast(e.message || 'Could not save the role — try again.')
+    }
     try {
       await tracker.update(list => {
         const m = findMember(list, person)
@@ -44,8 +55,8 @@ export function UsersTab() {
         else list.push({ name, email: person.email || '', role })
       })
     } catch (e) {
-      console.error(e)
-      return showToast(e.message || 'Could not save to the demo tracker — try again.')
+      // The old list is read-only after the cutover: the hub record is what counts.
+      console.warn('[admin] old demo tracker team list not updated', e)
     }
     showToast('Saved.')
     logActivity(user, `Set ${name}'s demo tracker role to ${trackerRoleLabel(role)} in Settings.`)

@@ -85,6 +85,10 @@ await check('Kiri returns an item and closes its loan', true, () => batch(as('ki
   b.set(doc(db, 'equipmentHistory/h3'), entry('h3', { chsAssetNo: '100311', action: 'Return' }))
 }))
 await check('the system (no operator) logs an auto-transfer', true, () => setDoc(doc(as('sam'), 'equipmentHistory/h4'), entry('h4', { action: 'Transfer', operator: null })))
+await check('Sam reads where the tracker\'s data is (the cutover switch)', true, () => getDoc(doc(as('sam'), 'settings/equipmentCutover')))
+await check('an admin moves the tracker onto Firestore, read-only', true, () => setDoc(doc(as('admin1'), 'settings/equipmentCutover'), { source: 'firestore', readOnly: true, by: 'Ann Admin', at: TS }))
+await check('Sam moves the tracker\'s data (only an admin may)', false, () => setDoc(doc(as('sam'), 'settings/equipmentCutover'), { source: 'rtdb', readOnly: false }))
+await check('a source that isn\'t one of the two', false, () => setDoc(doc(as('admin1'), 'settings/equipmentCutover'), { source: 'excel', readOnly: false }))
 await check('Sam adds an item', true, () => setDoc(doc(as('sam'), 'equipment/i9'), item('i9', '100900')))
 await check('Sam edits an item', true, () => updateDoc(doc(as('sam'), 'equipment/i1'), { ShelfLocation: 'Shelf 2', Notes: 'Battery replaced' }))
 await check('Sam retires an item: off the list and onto the retired list together', true, () => batch(as('sam'), (b, db) => {

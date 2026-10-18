@@ -8,8 +8,20 @@
    tracker's demo feed use this too (apps/admin/src/tracker.js).
 
    `npm run dev` without a .env has no sign-in: the same calls then go to a
-   made-up database kept in this browser (db-local.js). */
-import { auth } from '../../schedule/src/firebase.js'
+   made-up database kept in this browser (db-local.js).
+
+   THE CUTOVER (step 5B, STEP-5-PLAN.md): settings/equipmentCutover in the
+   hub's Firestore says where the tracker's data is: { source: 'rtdb' |
+   'firestore', readOnly }. With 'firestore', read(), write() and watch() go to
+   db-paths.js instead, which answers the same paths from Firestore, so
+   nothing above this changes. readOnly refuses every write (for the quiet
+   hour while the data is copied across). An admin sets it (Manage, Data
+   source); everything open follows within a second. On the dev server the
+   switch is kept in this browser instead. */
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'
+import { auth, db as firestore } from '../../schedule/src/firebase.js'
+import * as fsPaths from './db-paths.js'
+import { watchTracker } from './db-firestore.js'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import * as devDb from './db-local.js'
 
@@ -19,6 +31,47 @@ const CHS_KEY = 'AIzaSyB-A5wIEoqD9SBQPJnc6bs_qjHytZFDaBA'
 
 const local = import.meta.env.DEV && !auth ? devDb : null
 export const isLocal = !!local
+
+/* ── Where the data is ── */
+const DEV_SWITCH = 'dev:equipment-cutover'
+const CUTOVER = ['settings', 'equipmentCutover']
+let cut = { source: 'rtdb', readOnly: false }
+const norm = (d) => ({ source: d?.source === 'firestore' ? 'firestore' : 'rtdb', readOnly: d?.readOnly === true, by: d?.by || '', at: d?.at || '' })
+/** Where the tracker's data is now: { source, readOnly, by, at }. */
+export const cutover = () => cut
+export const onFirestore = () => cut.source === 'firestore'
+/** Reads the switch (once, before the first read of the data). */
+export async function loadCutover() {
+  if (local || !firestore) { try { cut = norm(JSON.parse(localStorage.getItem(DEV_SWITCH) || 'null')) } catch { cut = norm(null) } return cut }
+  try { const snap = await getDoc(doc(firestore, ...CUTOVER)); cut = norm(snap.exists() ? snap.data() : null) } catch { cut = norm(null) }
+  return cut
+}
+/** Calls onChange(cutover) whenever the switch changes. Returns stop(). */
+export function watchCutover(onChange) {
+  if (local || !firestore) {
+    const f = (e) => { if (e.key === DEV_SWITCH) loadCutover().then(onChange) }
+    window.addEventListener('storage', f)
+    return () => window.removeEventListener('storage', f)
+  }
+  return onSnapshot(doc(firestore, ...CUTOVER), (snap) => { cut = norm(snap.exists() ? snap.data() : null); onChange(cut) }, () => {})
+}
+/** The switch changed (an admin, from Manage). */
+export async function setCutover(next, by = '') {
+  const value = { source: next.source === 'firestore' ? 'firestore' : 'rtdb', readOnly: !!next.readOnly, by, at: new Date().toISOString() }
+  if (local || !firestore) { localStorage.setItem(DEV_SWITCH, JSON.stringify(value)); cut = norm(value); return cut }
+  const { setDoc } = await import('firebase/firestore')
+  await setDoc(doc(firestore, ...CUTOVER), value)
+  cut = norm(value)
+  return cut
+}
+/** A path from the old database whatever the switch says (the team list, until step 5A retires it). */
+export async function readOld(path) {
+  if (local) return local.read(path)
+  const res = await fetchDb(path, {}, {})
+  if (!res.ok) throw new Error(`Could not read the demo tracker's ${path} (${res.status})`)
+  return { data: await res.json(), etag: null }
+}
+const readOnlyError = () => new Error('The demo tracker is read-only for a few minutes while its data moves. Try again shortly.')
 
 /*
  * The pass is kept in this browser between visits, under the same key and in
@@ -93,6 +146,7 @@ async function fetchDb(path, params, init = {}) {
  * shallow…, JSON-quoted as the API wants).
  */
 export async function read(path, { etag = false, params = {} } = {}) {
+  if (onFirestore()) return fsPaths.read(path)
   if (local) return local.read(path, { etag })
   const res = await fetchDb(path, params, etag ? { headers: { 'X-Firebase-ETag': 'true' } } : {})
   if (!res.ok) throw new Error(`Could not read the demo tracker's ${path} (${res.status})`)
@@ -105,6 +159,8 @@ export async function read(path, { etag = false, params = {} } = {}) {
  * (412), so the caller can merge and try again.
  */
 export async function write(path, value, { method = 'PUT', etag = null } = {}) {
+  if (cut.readOnly) throw readOnlyError()
+  if (onFirestore()) return fsPaths.write(path, value, { method })
   if (local) return local.write(path, value, { method, etag })
   const headers = { 'Content-Type': 'application/json' }
   if (etag) headers['if-match'] = etag
@@ -121,6 +177,14 @@ export async function write(path, value, { method = 'PUT', etag = null } = {}) {
  * don't work at all, it checks every 15 seconds instead. Returns stop().
  */
 export function watch(path, onChange) {
+  if (onFirestore()) {
+    let last, n = 0
+    return watchTracker((s) => {
+      const v = path === 'data/_v' ? 'fs-' + (++n) : fsPaths.pick(s, path)
+      const k = JSON.stringify(v)
+      if (k !== last) { last = k; onChange(v) }
+    })
+  }
   if (local) return local.watch(path, onChange)
   let es = null, timer = null, stopped = false, last
   const tell = (v) => { const s = JSON.stringify(v); if (s !== last) { last = s; onChange(v) } }

@@ -50,8 +50,6 @@ function sample() {
     kitGroups: { kit_dev_1: { label: 'TEX20 ultrasound kit', triggers: ['100166'], accessories: [{ assetNo: '100640', model: 'SK-600' }, { assetNo: '100999', model: 'Probe (not in the list)' }] } },
     retired: [],
     customDemoTypes: ['Evaluation'],
-    // Made up for the dev server only: the real one is in the real database.
-    config: { adminPassword: 'dev' },
   }
 }
 

@@ -62,19 +62,21 @@ timestamps are NZ clock time marked `+12:00` all year (`nzNow`).
 
 ## 5A Roles in place of the admin password; the team into `users`
 
-- [ ] `users/{uid}` gains `trackerRole` (`'am'` | `'service'`), and each person's
+- [x] (19 Oct: Settings writes `users.trackerRole` first, the old list after; the tracker's team is `teamFrom`
+      the old list with hub roles laid over and hub-only people added) `users/{uid}` gains `trackerRole` (`'am'` | `'service'`), and each person's
       demo reminders switch is `notifications.demoReminders` (bool, beside the
       schedule's and Asks' switches, which people already set for themselves;
       this was `trackerNotify`). Settings → People and access already sets the tracker role
       (`apps/admin/src/Admin.jsx`, `setTrackerRole`): make it write `users` too,
       and keep `accountManagers` in step (written from `users`) until nothing reads it.
-- [ ] One permission check (`can(user, 'equipment.admin')`, hub role `admin`):
-      written, `shared/can.js` (tests: `apps/hub/tests/can.test.mjs`), not used yet;
+- [x] One permission check (`can(user, 'equipment.admin')`, hub role `admin`), 19 Oct: in use. Admins
+      confirm, anyone else is told it's for admins; the old admin password is no longer asked for.
+      `shared/can.js` (tests: `apps/hub/tests/can.test.mjs`);
       used where the new tracker asks for the admin password today: `checkAdmin`
       in `store.jsx`, called from `AdminDialog` (`Items.jsx`), `DeleteDialog`
       (`LoanActions.jsx`), Scan's stocktake, Manage (import, Simpro on, test
       mode, retired delete). An admin just confirms; anyone else doesn't see the button.
-- [ ] Test mode's two people (`Peter Lin`, `Jonathan Nasrun`, hard-coded in
+- [x] (19 Oct: `can(profile, 'equipment.testMode')` in App.jsx and Manage.jsx) Test mode's two people (`Peter Lin`, `Jonathan Nasrun`, hard-coded in
       `App.jsx`, `Manage.jsx` and `model.js`'s `SERVICE_TEAM`) become a role or setting.
       Decided: `users.trackerTester` (admins set it; the rules already stop
       anyone else, tested), checked by `can(profile, 'equipment.testMode')`.
@@ -162,6 +164,13 @@ Work:
 - [ ] The cutover, planned with Jonathan for a quiet hour: a read-only banner on
       the tracker, final migration, the data layer switched, the counts and a
       few loans checked by hand, the Realtime Database rules set read-only.
+      **Built, 19 Oct**: `settings/equipmentCutover` ({ source: 'rtdb' | 'firestore', readOnly }) is
+      the switch (Manage → Data source, admins; rules tested). `db.js` sends every read and write to
+      the old database or, on Firestore, to `db-paths.js`, which answers the same paths through
+      `db-firestore.js`'s `commit()`; `store.jsx`'s `updateData` commits directly. Read-only refuses
+      every save, with a banner. Tried end to end on the dev stand-in on both sources (testing,
+      extend, return with a booking starting, new loan and its form, test reports, retire/restore,
+      count, the audit log). The project tracker's feed (`tracker.js readTracker`) follows it.
 - [ ] Everything else moved to Firestore at the same cutover: the proxy's
       reminders and its Simpro write-back of `simproJobId` (`Code.js` ~226, ~1319),
       the backup, Tile sync, the project tracker's demo feed (`tracker.js`

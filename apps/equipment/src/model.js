@@ -1197,3 +1197,21 @@ export function linkTarget(search, sections, upcoming = [], equipment = []) {
   if (tab) return { view: tabs[tab] || 'overview', params: {} }
   return null
 }
+
+/**
+ * The tracker's team (step 5A): the old list (accountManagers), with each
+ * person's role from their hub record (users.trackerRole) where it's set, and
+ * anyone with a hub tracker role who isn't on the old list added. Matched by
+ * email, else name. Once every role is on the hub records, the old list goes.
+ */
+export function teamFrom(old = [], users = []) {
+  const out = old.filter(Boolean).map((a) => ({ ...a }))
+  for (const u of users) {
+    if (!u || u.pending || !u.trackerRole) continue
+    const name = String(u.displayName || u.email || '').trim(), email = String(u.email || '').toLowerCase()
+    const m = out.find((a) => (email && String(a.email || '').toLowerCase() === email) || (name && String(a.name || '').trim().toLowerCase() === name.toLowerCase()))
+    if (m) { m.role = u.trackerRole; if (!m.email && u.email) m.email = u.email }
+    else out.push({ name, email: u.email || '', role: u.trackerRole })
+  }
+  return out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+}
