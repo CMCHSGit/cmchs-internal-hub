@@ -6,14 +6,14 @@
    old tracker. */
 import { useState } from 'react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
-import { canExtend, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { canExtend, demoTypeOptions, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
 export default function LoanActions({ g, s, onDone }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active'
+  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete'
   const [confirmDialog, confirm] = useConfirm()
   const rb = readinessButtons(g, { loanMeta: s.loanMeta, today: s.today })
 
@@ -46,6 +46,8 @@ export default function LoanActions({ g, s, onDone }) {
         {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
         {g.kind === 'loan' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
         {g.kind === 'loan' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
+        <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>
         <span className="eq-note">Other changes: <a href="/demo/">the current tracker</a>.</span>
       </div>
       {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
@@ -69,6 +71,18 @@ export default function LoanActions({ g, s, onDone }) {
       {asking === 'active' && (
         <ActiveDialog g={g} today={s.today} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onSave={(d) => run(() => s.returnToActive(g, d), `${g.loanTo} is back on active loans, due ${fmtDate(d)}.`)} />
+      )}
+      {asking === 'edit' && (
+        <EditDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onSave={(f) => run(() => s.editLoan(g, f), (r) => (r.started === 'all' ? 'Loan updated: it has started.' : r.started === 'some' ? 'Loan updated, but some devices are still out on another loan.' : 'Loan updated.'))} />
+      )}
+      {asking === 'delete' && (
+        <DeleteDialog g={g} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onSave={async (pw) => {
+            setError('')
+            try { if (!(await s.checkAdmin(pw))) return setError('That isn’t the admin password.') } catch (e) { return setError(e.message || String(e)) }
+            run(() => s.deleteLoan(g), g.kind === 'booking' ? `Booking for ${g.loanTo} cancelled.` : `Loan for ${g.loanTo} deleted.`)
+          }} />
       )}
       {confirmDialog}
     </div>
@@ -192,6 +206,93 @@ function ActiveDialog({ g, today, busy, error, onClose, onSave }) {
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" disabled={busy || !!problem}>{busy ? 'Saving…' : 'Return to active'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/** A loan's details (old: the Edit Loan modal): who, where, when, the account manager and the loan form's extras. */
+function EditDialog({ g, s, busy, error, onClose, onSave }) {
+  const doc = g.doc || {}
+  const managerOf = (name) => (s.managers || []).find((m) => m.name === name)
+  const [f, setF] = useState(() => ({
+    loanTo: g.loanTo || '', location: g.location || '', startDate: g.startDate || '', endDate: g.endDate || '',
+    am: g.am || '', email: managerOf(g.am)?.email || g.items[0]?.BorrowerEmail || '',
+    contact: doc.contactNumber || '', notes: doc.notesCell || doc.notes || '', shipping: doc.authCell || '', demoType: doc.demoType || '',
+  }))
+  const [otherType, setOtherType] = useState(false)
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const problem = editProblem(g, f)
+  const types = demoTypeOptions(s.demoTypes, f.demoType)
+  const n = g.kind === 'booking' ? g.pending.length : g.items.length
+  return (
+    <Dialog title={`Edit: ${g.loanTo}`} description={`${n} ${n === 1 ? 'device' : 'devices'}`} onClose={onClose} width={620}>
+      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (!problem) onSave(f) }}>
+        <div className="eq-form-row">
+          <label className="field"><span className="field-label">Loan to</span><input className="input" value={f.loanTo} onChange={set('loanTo')} /></label>
+          <label className="field"><span className="field-label">Location</span><input className="input" value={f.location} onChange={set('location')} /></label>
+        </div>
+        <div className="eq-form-row">
+          <label className="field"><span className="field-label">Start</span><input className="input" type="date" value={f.startDate} onChange={set('startDate')} /></label>
+          {!g.longTerm && <label className="field"><span className="field-label">End</span><input className="input" type="date" value={f.endDate} onChange={set('endDate')} /></label>}
+        </div>
+        <div className="eq-form-row">
+          <label className="field"><span className="field-label">Account manager</span>
+            <select value={f.am} onChange={(e) => { const am = e.target.value; setF((x) => ({ ...x, am, email: managerOf(am)?.email || x.email })) }}>
+              <option value="">Select account manager…</option>
+              {[...(s.managers || [])].sort((a, b) => (a.name || '').localeCompare(b.name || '')).map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
+              {f.am && !managerOf(f.am) && <option value={f.am}>{f.am}</option>}
+            </select>
+          </label>
+          <label className="field"><span className="field-label">Their email</span><input className="input" type="email" value={f.email} onChange={set('email')} /></label>
+        </div>
+        <div className="eq-form-row">
+          <label className="field"><span className="field-label">Contact number</span><input className="input" value={f.contact} onChange={set('contact')} /></label>
+          <label className="field"><span className="field-label">Demo type</span>
+            {otherType
+              ? <input className="input" value={f.demoType} onChange={set('demoType')} placeholder="Type the demo type" autoFocus />
+              : <select value={f.demoType} onChange={(e) => (e.target.value === '__other__' ? (setOtherType(true), setF((x) => ({ ...x, demoType: '' }))) : set('demoType')(e))}>
+                <option value="">Select demo type…</option>
+                {types.map((t) => <option key={t} value={t}>{t}</option>)}
+                <option value="__other__">Other…</option>
+              </select>}
+          </label>
+        </div>
+        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Shipping and authorisation</span><textarea className="input" rows={2} value={f.shipping} onChange={set('shipping')} /></label>
+        <p className="eq-note">A box left empty keeps what it had, as in the current tracker (notes, shipping, contact and demo type are saved as shown).</p>
+        {problem && <p className="eq-note eq-problem">{problem}</p>}
+        {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy || !!problem}>{busy ? 'Saving…' : 'Save changes'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/** Delete, with the admin password (old: adminPrompt, then a confirm). */
+function DeleteDialog({ g, busy, error, onClose, onSave }) {
+  const [pw, setPw] = useState('')
+  const booking = g.kind === 'booking'
+  const list = (booking ? g.pending : g.items).map((e) => e.CHSAssetNo).join(', ')
+  return (
+    <Dialog title={booking ? `Cancel the booking for ${g.loanTo}?` : `Delete the loan for ${g.loanTo}?`} onClose={onClose} width={460}>
+      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (pw) onSave(pw) }}>
+        <p className="confirm-text">
+          {booking ? `It starts ${fmtDate(g.startDate)}. The booking goes; loans now running aren’t touched.`
+            : g.kind === 'scheduled' ? `It starts ${fmtDate(g.startDate)}. These devices are cleared of it: ${list}. This can’t be undone.`
+              : `These devices are marked as returned: ${list}. This can’t be undone.`}
+        </p>
+        <label className="field"><span className="field-label">Admin password</span>
+          <input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="off" autoFocus />
+        </label>
+        {error && <Alert tone="critical" title="Not done">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Keep it</Button>
+          <Button type="submit" variant="danger" disabled={busy || !pw}>{busy ? 'Working…' : booking ? 'Cancel booking' : 'Delete loan'}</Button>
         </div>
       </form>
     </Dialog>

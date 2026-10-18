@@ -14,7 +14,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { auth } from '../../schedule/src/firebase.js'
 import { isLocal, read, watch, write } from './db.js'
 import {
-  activateBookings, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, deleteLoanEquipment, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -42,7 +42,7 @@ export function StoreProvider({ children }) {
   // /data and at /loanMeta, which the old tracker writes first. Its loadData
   // lays /loanMeta over /data's copy, one loan at a time; so does this.
   const load = useCallback(async () => {
-    const extras = Promise.all([read('loanDocs'), read('accountManagers'), read('kitGroups'), read('retired')])
+    const extras = Promise.all([read('loanDocs'), read('accountManagers'), read('kitGroups'), read('retired'), read('customDemoTypes')])
     extras.catch(() => {}) // reported below, once the first part is showing
     try {
       const [data, upcoming, meta] = await Promise.all([read('data'), read('upcomingLoans'), read('loanMeta')])
@@ -58,8 +58,9 @@ export function StoreProvider({ children }) {
       return setState((s) => ({ ...s, error: e.message || String(e) }))
     }
     try {
-      const [loanDocs, managers, kits, retired] = await extras
-      setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, managers: list(managers.data), kits: kits.data || {}, retired: list(retired.data), extrasReady: true }))
+      const [loanDocs, managers, kits, retired, demoTypes] = await extras
+      setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, managers: list(managers.data), kits: kits.data || {}, retired: list(retired.data),
+        demoTypes: Array.isArray(demoTypes.data) ? demoTypes.data.filter(Boolean) : [], extrasReady: true }))
     } catch (e) {
       setState((s) => ({ ...s, error: 'The loan forms didn’t load: ' + (e.message || e) }))
     }
@@ -307,9 +308,101 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, patchMeta, touch, updateData])
 
+  /**
+   * The admin password, as the old tracker checks it before a delete
+   * (old: adminPrompt against /config.adminPassword). Kept until step 5
+   * replaces it with roles (INTEGRATION-PLAN.md).
+   */
+  const checkAdmin = useCallback(async (pw) => {
+    const { data } = await read('config/adminPassword')
+    if (!data) throw new Error('The admin password couldn’t be checked. Try again.')
+    return pw === data
+  }, [])
+
+  /** A demo type typed in that isn't on the list yet joins it (old: addCustomDemoTypeIfNew). */
+  const addDemoType = useCallback(async (t) => {
+    const v = String(t || '').trim()
+    const known = latest.current.demoTypes || []
+    if (!v || DEMO_TYPES.includes(v) || known.includes(v)) return
+    const next = [...known, v]
+    try { await write('customDemoTypes', next); setState((s) => ({ ...s, demoTypes: next })) } catch (e) { console.warn('[equipment] demo type not added to the list', e) }
+  }, [])
+
+  /**
+   * Edit (old: confirmReassignAM in edit mode). A blank field keeps what it
+   * had. A booking is changed on the booking, and if its start has now come
+   * it takes any devices that are free (as the old one). A loan's devices
+   * are changed in /data. A new account manager goes in loanMeta; contact,
+   * notes, shipping and demo type go on the loan form.
+   */
+  const editLoan = useCallback(async (g, f) => {
+    const today = nzDate(), ts = nzNow()
+    const docKey = g.kind === 'booking' ? g.batchId : loanDocKey(g)
+    let started = null
+    if (g.kind === 'booking') {
+      const u = latest.current.upcoming.find((x) => x.id === g.batchId)
+      if (!u) throw new Error('That booking has gone: someone may have changed it. Reload and try again.')
+      const next = editBooking(u, f)
+      await write('upcomingLoans/' + enc(u.id), next)
+      setState((s) => ({ ...s, upcoming: s.upcoming.map((x) => (x.id === u.id ? next : x)) }))
+      if (next.startDate && next.startDate <= today) {
+        let a = null
+        await updateData((d) => { a = activateBookings(d.equipment, d.history, [next], { today, ts }); return { equipment: a.equipment, history: a.history } })
+        for (const c of a.changes) {
+          if (c.remove) await write('upcomingLoans/' + enc(c.id), null, { method: 'DELETE' })
+          else await write(`upcomingLoans/${enc(c.id)}/items`, c.items)
+        }
+        if (a.changes.length) setState((s) => ({ ...s, upcoming: s.upcoming.flatMap((x) => { const c = a.changes.find((y) => y.id === x.id); return !c ? [x] : c.remove ? [] : [{ ...x, items: c.items }] }) }))
+        for (const [type, summary, detail, op] of a.audits) await audit(type, summary, detail, op)
+        started = a.changes[0] ? (a.changes[0].remove ? 'all' : 'some') : 'none'
+      }
+    } else {
+      await updateData((d) => ({ ...d, equipment: editEquipment(d.equipment, g, f) }))
+      if (f.am) for (const k of [...new Set([g.batchId, docKey].filter(Boolean))]) await patchMeta(k, { accountManager: f.am })
+    }
+    if (docKey) {
+      const patch = { contactNumber: f.contact || '', notesCell: f.notes || '', authCell: f.shipping || '', demoType: f.demoType || '', ...(f.am ? { accountManager: f.am } : {}) }
+      try {
+        await write('loanDocs/' + enc(docKey), patch, { method: 'PATCH' })
+        setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [docKey]: { ...(s.loanDocs[docKey] || {}), ...patch } } }))
+      } catch (e) { console.warn('[equipment] loan form not updated', e) }
+    }
+    if (f.demoType) await addDemoType(f.demoType)
+    await audit('loan_edited', `${g.kind === 'booking' ? 'Upcoming loan' : 'Loan'} for ${f.loanTo || g.loanTo} edited`, { loanTo: f.loanTo || g.loanTo, batchId: g.batchId || '' })
+    await touch()
+    return { started }
+  }, [addDemoType, audit, patchMeta, touch, updateData])
+
+  /**
+   * Delete, after the admin password (old: _performDeleteLoan,
+   * deleteScheduledLoanByKey, deleteUpcomingLoanPrompt). A loan's devices are
+   * cleared as returned, each with a Return entry saying an admin deleted it,
+   * and its form removed; a booking is removed (nothing was out).
+   */
+  const deleteLoan = useCallback(async (g) => {
+    const n = g.kind === 'booking' ? g.pending.length : g.items.length
+    if (g.kind === 'booking') {
+      await updateData((d) => ({ ...d, equipment: d.equipment.map((e) => (e && e._upcomingLoanId === g.batchId ? { ...e, _upcomingLoanId: null } : e)) }))
+      await write('upcomingLoans/' + enc(g.batchId), null, { method: 'DELETE' })
+      setState((s) => ({ ...s, upcoming: s.upcoming.filter((u) => u.id !== g.batchId) }))
+      await audit('upcoming_loan_deleted', `Upcoming loan for ${g.loanTo} cancelled — ${n} item${n !== 1 ? 's' : ''} cleared`, { loanTo: g.loanTo, items: g.pending.map((i) => i.CHSAssetNo) })
+    } else {
+      const ts = nzNow()
+      await updateData((d) => deleteLoanEquipment(d.equipment, d.history, g, { ts, operator }))
+      const batchIds = [...new Set(g.items.map((e) => e.BatchID).filter(Boolean))]
+      for (const b of batchIds) { try { await write('loanDocs/' + enc(b), null, { method: 'DELETE' }) } catch { /* as the old one */ } }
+      setState((s) => { const docs = { ...s.loanDocs }; batchIds.forEach((b) => delete docs[b]); return { ...s, loanDocs: docs } })
+      const scheduled = g.kind === 'scheduled'
+      await audit(scheduled ? 'scheduled_deleted' : 'loan_deleted',
+        `${scheduled ? 'Scheduled loan' : 'Loan'} for ${g.loanTo} deleted — ${n} item${n !== 1 ? 's' : ''} ${scheduled ? 'cleared' : 'marked as returned'}`,
+        { loanTo: g.loanTo, items: g.items.map((e) => e.CHSAssetNo) })
+    }
+    await touch()
+  }, [audit, operator, touch, updateData])
+
   const value = useMemo(() => ({
     ...state, today: nzDate(), testMode: readTestMode(), reload: load, user, me, operator,
-    updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive,
-  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive])
+    updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
+  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

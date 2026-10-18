@@ -185,7 +185,12 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       Simpro job closed with a note and its form removed, a part-returned one its form trimmed.
       Make long-term (a BatchID adopted first if it has none, Simpro job closed with the devices
       listed, loanMeta and form marked, end dates cleared) and Return to active.
-- [ ] Loans: the other loan actions (edit, transfer and reassign, copy, add items, delete)
+- [x] Edit and delete, 19 Oct: a loan's or booking's details (blanks keep what they had, as the
+      old one; an end before the start refused), the account manager to loanMeta, contact, notes,
+      shipping and demo type to its form, a new demo type added to the list; a booking whose start
+      has come takes its free devices. Delete after the admin password (kept until step 5): devices
+      cleared as returned with a Return entry each, the form removed; a booking cancelled.
+- [ ] Loans: transfer and reassign, copy, add items
 - [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode

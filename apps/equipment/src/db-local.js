@@ -49,6 +49,9 @@ function sample() {
     accountManagers: [{ name: 'Sam Lee', email: 'dev.user@cass.co.nz', role: 'am' }, { name: 'Tama Brown', email: 'tama.brown@example.com', role: 'am' }, { name: 'Kiri Moana', email: 'kiri.moana@example.com', role: 'service' }],
     kitGroups: {},
     retired: [],
+    customDemoTypes: ['Evaluation'],
+    // Made up for the dev server only: the real one is in the real database.
+    config: { adminPassword: 'dev' },
   }
 }
 

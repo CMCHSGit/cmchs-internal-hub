@@ -118,3 +118,4 @@
 .eq-pick { display: flex; align-items: flex-start; gap: 10px; padding: 9px 0; cursor: pointer; font: var(--type-body-sm); color: var(--text-body); }
 .eq-pick input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--accent-fg); flex: 0 0 auto; }
 .eq-bullets { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font: var(--type-body-sm); color: var(--text-body); }
+.eq-danger { color: var(--status-critical); }

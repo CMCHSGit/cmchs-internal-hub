@@ -551,3 +551,58 @@ export function toISO(d) {
 
 /** A Simpro job number that's real: not missing, not the "being made" placeholder. */
 export const jobNumber = (id) => (id != null && typeof id !== 'object' && id !== 'pending' && !Number.isNaN(Number(id)) ? Number(id) : null)
+
+/* ── Edit and delete (old: confirmReassignAM's edit branches, _performDeleteLoan,
+   deleteScheduledLoanByKey, deleteUpcomingLoanPrompt) ── */
+
+/** The demo types offered (old: demoTypeOptionsHtml): the fixed ones, the ones people added, and the current one if it's neither. */
+export const DEMO_TYPES = ['Conference/Presentation', 'Clinical Trial', 'Hotswap']
+export function demoTypeOptions(custom = [], current = '') {
+  const known = [...DEMO_TYPES, ...custom.filter((t) => t && !DEMO_TYPES.includes(t))]
+  return current && !known.includes(current) ? [...known, current] : known
+}
+
+/**
+ * A loan's devices with the edited details. As the old edit, a field left
+ * blank keeps what it had: only what's filled in changes.
+ */
+export function editEquipment(equipment, g, f) {
+  const nos = new Set(g.items.map((e) => e.CHSAssetNo))
+  const set = {
+    ...(f.loanTo ? { OnLoanTo: f.loanTo } : {}), ...(f.location ? { Location: f.location } : {}),
+    ...(f.startDate ? { LoanStartDate: f.startDate } : {}), ...(f.endDate ? { LoanEndDate: f.endDate } : {}),
+    ...(f.email ? { BorrowerEmail: f.email } : {}),
+  }
+  return equipment.map((e) => (e && nos.has(e.CHSAssetNo) ? { ...e, ...set } : e))
+}
+
+/** A booking with the edited details, blanks keeping what it had (old: the upcoming-loan edit). */
+export const editBooking = (u, f) => ({
+  ...u,
+  ...(f.loanTo ? { loanTo: f.loanTo } : {}), ...(f.location ? { location: f.location } : {}),
+  ...(f.startDate ? { startDate: f.startDate } : {}), ...(f.endDate ? { endDate: f.endDate } : {}),
+  ...(f.am ? { accountManager: f.am } : {}), ...(f.email ? { borrowerEmail: f.email } : {}),
+})
+
+/** Why the edited dates can't be saved, or ''. (The old one saved anything; an end before the start breaks every list.) */
+export function editProblem(g, f) {
+  const start = f.startDate || g.startDate, end = f.endDate || g.endDate
+  if (start && end && end < start) return 'The end date is before the start date.'
+  return ''
+}
+
+/**
+ * A loan deleted by an admin: its devices cleared as if returned, each with a
+ * Return entry saying so (old: _performDeleteLoan, deleteScheduledLoanByKey).
+ */
+export function deleteLoanEquipment(equipment, history, g, { ts = nzNow(), operator = '' } = {}) {
+  const ids = new Set(g.items.map((e) => e.id)), nos = new Set(g.items.map((e) => e.CHSAssetNo))
+  const note = g.kind === 'scheduled' ? 'Scheduled loan deleted by admin' : 'Loan deleted by admin'
+  const entries = []
+  const next = equipment.map((e) => {
+    if (!e || !(ids.has(e.id) || nos.has(e.CHSAssetNo))) return e
+    entries.push({ operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Return', loanTo: e.OnLoanTo, location: e.Location, notes: note })
+    return { ...e, OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '', _transferNote: null }
+  })
+  return { equipment: next, history: [...entries.reverse(), ...history] }
+}
