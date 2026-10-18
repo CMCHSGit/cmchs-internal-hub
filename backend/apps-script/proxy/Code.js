@@ -826,10 +826,13 @@ function sendPushToPerson_(am, title, body, url, force) {
 // A person is matched to their hub profile the way the hub's Admin matches
 // them (apps/admin/src/tracker.js findMember): by email, then by name.
 
-const HUB_DEMO_URL = 'https://internal.chsnz.co.nz/demo/';
+// The demo tracker in the hub. /equipment/ since the switch on 19 Oct 2026; it
+// reads the old links (?return=, ?extend=, ?reassign=). Phones still registered
+// on demo.chsnz.co.nz get TRACKER_URL links, which that site forwards here.
+const HUB_DEMO_URL = 'https://internal.chsnz.co.nz/equipment/';
 let hubUsers_ = null; // once per execution: a reminder run sends many pushes
 
-// The same link, on the hub's copy of the tracker.
+// The same link, on the hub's tracker.
 function hubDemoUrl_(url) {
   url = String(url || '');
   return url.indexOf(TRACKER_URL) === 0 ? HUB_DEMO_URL + url.slice(TRACKER_URL.length) : HUB_DEMO_URL;
