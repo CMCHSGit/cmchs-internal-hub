@@ -10,8 +10,13 @@
    one thing every open tracker watches. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { watchUser } from '../../../shared/session.js'
-import { read, watch, write } from './db.js'
-import { extendEquipment, fmtDate, loanDocKey, memberFor, newId, nzDate, nzNow, readinessKey, withReadiness } from './model.js'
+import { PROXY_URL } from '../../../shared/proxy.js'
+import { auth } from '../../schedule/src/firebase.js'
+import { isLocal, read, watch, write } from './db.js'
+import {
+  activateBookings, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
+} from './model.js'
 
 const Store = createContext(null)
 export const useStore = () => useContext(Store)
@@ -106,8 +111,8 @@ export function StoreProvider({ children }) {
   const operator = me?.name || user?.displayName || user?.email || ''
 
   /** An audit log entry, as the old writeAudit (source 'hub': the old log shows it as Desktop). */
-  const audit = useCallback(async (type, summary, detail) => {
-    const entry = { id: newId(), ts: nzNow(), type, summary, detail: detail || {}, operator, source: 'hub' }
+  const audit = useCallback(async (type, summary, detail, op = operator) => {
+    const entry = { id: newId(), ts: nzNow(), type, summary, detail: detail || {}, operator: op, source: 'hub' }
     try { await write('auditLog/' + enc(entry.id), entry) } catch (e) { console.warn('[equipment] audit entry not saved', e) }
   }, [operator])
 
@@ -156,9 +161,155 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, touch, updateData])
 
+  /** Tells Simpro, through the proxy, with the hub sign-in (old: proxyFetch). Not in test mode or the dev server. */
+  const simpro = useCallback(async (body) => {
+    if (isLocal || readTestMode()) { console.info('[equipment] Simpro not told here:', body.close ? 'close' : 'update', body.jobId); return false }
+    try {
+      const idToken = await auth?.currentUser?.getIdToken()
+      await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, mode: 'no-cors', body: JSON.stringify({ ...body, idToken }) })
+      return true
+    } catch (e) { console.warn('[equipment] Simpro not reached', e); return false }
+  }, [])
+
+  /**
+   * Closes a loan's Simpro job with a closing note (old: _closeSimproJobWithNote
+   * then closeSimproJob): the job's notes get the note added and its items
+   * set (none for a return, the devices for a long-term loan), then it's
+   * closed. Resolves to the job number, or null if it has none.
+   */
+  const closeJob = useCallback(async (key, loanTo, note, items = []) => {
+    let doc = null
+    try { doc = (await read('loanDocs/' + enc(key))).data } catch { /* none */ }
+    const jobId = jobNumber(doc?.simproJobId)
+    if (!jobId) return null
+    const s = latest.current
+    await simpro({
+      loanTo: loanTo || '', location: doc.location || '', notes: (doc.notesCell ? doc.notesCell + '\n\n' : '') + note,
+      shippingDetails: doc.authCell || '', startDate: toISO(doc.startDate || ''), endDate: toISO(doc.endDate || ''),
+      accountManager: loanAM({ batchId: key, loanTo, endDate: doc.endDate || '' }, { loanMeta: s.loanMeta, loanDocs: s.loanDocs }),
+      contactNumber: doc.contactNumber || '', jobType: doc.jobType || 'Demo',
+      items: items.map((e) => ({ CHSAssetNo: e.CHSAssetNo || '', Description: e.Description || e.Model || '', SerialNo: e.SerialNo || e.PartNo || '' })),
+      jobId, pdfKey: key,
+    })
+    if (await simpro({ jobId, close: true })) await audit('simpro_closed', `Simpro job #${jobId} closed${loanTo ? ' — ' + loanTo : ''}`, { loanTo: loanTo || '', jobId })
+    return jobId
+  }, [simpro, audit])
+
+  /** One loan's stored loanMeta entry changed, keeping whatever else is in it (as setReadiness). */
+  const patchMeta = useCallback(async (key, patch) => {
+    const path = 'loanMeta/' + enc(key)
+    const { data: stored } = await read(path)
+    const next = { ...(stored || latest.current.loanMeta?.[key] || {}), ...patch }
+    await write(path, next)
+    setState((s) => ({ ...s, loanMeta: { ...s.loanMeta, [key]: next } }))
+  }, [])
+
+  /**
+   * Return items (old: confirmBatchReturn). The devices are cleared in /data
+   * and any booking now able to start takes the ones it was waiting on, in
+   * the same save (activateBookings). Then: bookings updated, a loan with
+   * nothing left out has its Simpro job closed and its form removed, one with
+   * devices still out has the returned ones taken off its form.
+   */
+  const returnItems = useCallback(async (g, ids) => {
+    const today = nzDate(), ts = nzNow()
+    let res = null
+    await updateData((d) => {
+      const r = returnEquipment(d.equipment, d.history, ids, { today, ts, operator })
+      if (!r.returned.length) throw new Error('Those devices are already back.')
+      const a = activateBookings(r.equipment, r.history, latest.current.upcoming || [], { today, ts })
+      res = { r, a }
+      return { equipment: a.equipment, history: a.history }
+    })
+    const { r, a } = res
+    for (const c of a.changes) {
+      if (c.remove) await write('upcomingLoans/' + enc(c.id), null, { method: 'DELETE' })
+      else await write(`upcomingLoans/${enc(c.id)}/items`, c.items)
+    }
+    if (a.changes.length) {
+      setState((s) => ({ ...s, upcoming: s.upcoming.flatMap((u) => { const c = a.changes.find((x) => x.id === u.id); return !c ? [u] : c.remove ? [] : [{ ...u, items: c.items }] }) }))
+    }
+    const { close, prune } = returnFollowUps(r.equipment, r.returned)
+    for (const c of close) {
+      await closeJob(c.key, c.loanTo, `All items returned to office on ${fmtDate(today)}.`)
+      try { await write('loanDocs/' + enc(c.key), null, { method: 'DELETE' }) } catch { /* the old one doesn't mind either */ }
+    }
+    for (const p of prune) {
+      try {
+        const { data: doc } = await read('loanDocs/' + enc(p.key))
+        if (!doc) continue
+        const gone = new Set(p.assetNos.map((x) => String(x || '').trim().toLowerCase()))
+        const keep = (no) => !gone.has(String(no || '').trim().toLowerCase())
+        const patch = {}
+        if (Array.isArray(doc.savedRows)) patch.savedRows = doc.savedRows.filter((row) => keep(row[0]))
+        if (Array.isArray(doc.items)) patch.items = doc.items.filter((i) => keep(i.CHSAssetNo))
+        if (Object.keys(patch).length) await write('loanDocs/' + enc(p.key), patch, { method: 'PATCH' })
+      } catch { /* as the old one: the form is tidied next time */ }
+    }
+    if (close.length) setState((s) => { const docs = { ...s.loanDocs }; close.forEach((c) => delete docs[c.key]); return { ...s, loanDocs: docs } })
+    for (const [type, summary, detail, op] of a.audits) await audit(type, summary, detail, op)
+    const n = r.returned.length
+    await audit('items_returned', `${n} item${n !== 1 ? 's' : ''} returned${g.loanTo ? ' from ' + g.loanTo : ''}`, { loanTo: g.loanTo || '', items: r.returned.map((x) => x.CHSAssetNo) })
+    await touch()
+    return { returned: n, started: a.changes.length }
+  }, [audit, closeJob, operator, touch, updateData])
+
+  /**
+   * Make long-term (old: convertLoanToLongTerm). A loan from before BatchIDs
+   * gets one first (its form moved across, a Converted entry per device). Its
+   * Simpro job is closed with the devices still listed; loanMeta and the form
+   * say long term; the old due-soon reminder is cleared; the devices lose
+   * their end date.
+   */
+  const makeLongTerm = useCallback(async (g) => {
+    const today = nzDate(), ts = nzNow()
+    const adopt = !g.batchId
+    const batchId = g.batchId || newBatchId(readTestMode())
+    if (adopt) {
+      const from = legacyLoanDocKey(g.loanTo, g.endDate)
+      try {
+        const { data: doc } = await read('loanDocs/' + enc(from))
+        if (doc) { await write('loanDocs/' + enc(batchId), doc); await write('loanDocs/' + enc(from), null, { method: 'DELETE' }) }
+      } catch (e) { console.warn('[equipment] loan form not moved to its new BatchID', e) }
+    }
+    let closed = null
+    try {
+      closed = await closeJob(batchId, g.loanTo, `Converted to a long-term loan on ${fmtDate(today)} — equipment remains with ${g.am || g.loanTo}. Closing this job; no return date.`, g.items)
+    } catch (e) { console.warn('[equipment] Simpro job not closed', e) }
+    await patchMeta(batchId, { longTerm: true })
+    try {
+      await write('loanDocs/' + enc(batchId), { loanTo: g.loanTo, location: g.location || '', longTerm: true, endDate: '', ...(closed ? { simproClosedAt: nzNow() } : {}) }, { method: 'PATCH' })
+    } catch (e) { console.warn('[equipment] loan form not marked long term', e) }
+    if (g.endDate) { try { await write('returnDueSoonReminders/' + enc(g.loanTo + '|||' + g.endDate), null, { method: 'DELETE' }) } catch { /* best effort */ } }
+    const ids = new Set(g.items.map((e) => e.id))
+    await updateData((d) => ({
+      equipment: d.equipment.map((e) => (e && ids.has(e.id) ? { ...e, LoanEndDate: '', ...(adopt ? { BatchID: batchId } : {}) } : e)),
+      history: adopt
+        ? [...g.items.map((e) => ({ operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Converted', loanTo: g.loanTo, location: g.location || '', batchId,
+            notes: `${g.loanTo}’s loan adopted into BatchID tracking (predates it) as part of converting to long-term.` })).reverse(), ...d.history]
+        : d.history,
+    }))
+    setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [batchId]: { ...(s.loanDocs[batchId] || {}), longTerm: true, ...(closed ? { simproClosedAt: nzNow() } : {}) } } }))
+    const n = g.items.length
+    await audit('loan_longterm_on', `${g.loanTo}’s loan converted to long-term${n ? ` — ${n} item${n !== 1 ? 's' : ''}` : ''}`, { loanTo: g.loanTo, batchId, items: g.items.map((e) => e.CHSAssetNo) })
+    await touch()
+    return { batchId, closed }
+  }, [audit, closeJob, operator, patchMeta, touch, updateData])
+
+  /** Return to active (old: confirmLongTermToActive): an end date again; its closed Simpro job stays closed, on record. */
+  const returnToActive = useCallback(async (g, newDate) => {
+    if (!g.batchId) throw new Error('This loan has no BatchID, so it can’t be changed here. Use the current tracker.')
+    await patchMeta(g.batchId, { longTerm: false })
+    try { await write('loanDocs/' + enc(g.batchId), { longTerm: false, endDate: newDate }, { method: 'PATCH' }) } catch (e) { console.warn('[equipment] loan form not updated', e) }
+    await updateData((d) => ({ ...d, equipment: extendEquipment(d.equipment, g, newDate) }))
+    setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [g.batchId]: { ...(s.loanDocs[g.batchId] || {}), longTerm: false, endDate: newDate } } }))
+    await audit('loan_longterm_off', `${g.loanTo}’s long-term loan returned to Active, due ${fmtDate(newDate)}`, { loanTo: g.loanTo, batchId: g.batchId, newDate, items: g.items.map((e) => e.CHSAssetNo) })
+    await touch()
+  }, [audit, patchMeta, touch, updateData])
+
   const value = useMemo(() => ({
     ...state, today: nzDate(), testMode: readTestMode(), reload: load, user, me, operator,
-    updateData, setReadiness, extendLoan,
-  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan])
+    updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive,
+  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

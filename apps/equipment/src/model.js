@@ -438,3 +438,116 @@ export const extendEquipment = (equipment, g, newDate) => {
 
 /** Where a loan's form is kept for a given end date: its BatchID, else the old key, which has the end date in it. */
 export const loanDocKey = (g, endDate = g.endDate) => g.batchId || legacyKeys(g.loanTo, endDate)[0]
+
+/* ── Return, and the bookings it can start (old: confirmBatchReturn,
+   activateUpcomingLoans / _tryActivateUpcomingLoan) ── */
+
+/** A new BatchID, as the old newBatchId(): 'testbatch_' in test mode. */
+export const newBatchId = (testMode = false) => (testMode ? 'testbatch_' : 'batch_') + Date.now()
+
+/**
+ * Devices back in the office: each one's loan cleared and marked returned,
+ * with a Return entry in the history (newest first, as the old logHistory).
+ * Also says what each was on, for the follow-ups (returnFollowUps).
+ */
+export function returnEquipment(equipment, history, ids, { today = nzDate(), ts = nzNow(), operator = '' } = {}) {
+  const want = new Set(ids), returned = [], entries = []
+  const next = equipment.map((e) => {
+    if (!e || !want.has(e.id) || !isOut(e)) return e
+    returned.push({ id: e.id, CHSAssetNo: e.CHSAssetNo, batchId: e.BatchID || '', loanTo: e.OnLoanTo, endDate: e.LoanEndDate || '' })
+    entries.push({ operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Return', loanTo: e.OnLoanTo, location: e.Location, notes: 'Returned ' + fmtDate(today) })
+    return { ...e, OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '', _transferNote: null }
+  })
+  return { equipment: next, history: [...entries.reverse(), ...history], returned }
+}
+
+/**
+ * After a return: a loan with nothing left out has its Simpro job closed and
+ * its form removed; one with devices still out has the returned ones taken
+ * off its form. A loan from before BatchIDs (keyed by customer and end date)
+ * is only ever closed, as the old one does.
+ */
+export function returnFollowUps(equipmentAfter, returned) {
+  const close = [], prune = [], seen = new Set()
+  for (const r of returned) {
+    if (r.batchId) {
+      if (seen.has(r.batchId)) continue
+      seen.add(r.batchId)
+      const left = equipmentAfter.some((e) => e && e.BatchID === r.batchId && isOut(e))
+      if (left) prune.push({ key: r.batchId, assetNos: returned.filter((x) => x.batchId === r.batchId).map((x) => x.CHSAssetNo) })
+      else close.push({ key: r.batchId, loanTo: r.loanTo })
+    } else if (r.loanTo && !seen.has('|' + r.loanTo)) {
+      seen.add('|' + r.loanTo)
+      if (!equipmentAfter.some((e) => e && e.OnLoanTo === r.loanTo && e.Returned !== 'Yes')) close.push({ key: legacyKeys(r.loanTo, r.endDate)[0], loanTo: r.loanTo })
+    }
+  }
+  return { close, prune }
+}
+
+/**
+ * Bookings whose start has come get the devices that are free now, earliest
+ * booking first (old: activateUpcomingLoans). A device still out on someone
+ * else's loan stays waiting (no automatic transfer); a booking whose end has
+ * passed takes nothing. A device moved from another loan keeps a note, so it
+ * shows on that loan as transferred out. Returns the new equipment and
+ * history, the changes to make to /upcomingLoans ({ id, items } for what's
+ * still waiting, { id, remove: true } once all are out) and audit entries.
+ */
+export function activateBookings(equipment, history, upcoming, { today = nzDate(), ts = nzNow() } = {}) {
+  const eq = [...equipment], entries = [], changes = [], audits = []
+  const due = upcoming.filter((u) => u.startDate && u.startDate <= today).sort((a, b) => ((a.startDate || '') < (b.startDate || '') ? -1 : 1))
+  for (const u of due) {
+    const expired = !!u.endDate && u.endDate < today
+    const waiting = []
+    let took = false
+    for (const item of u.items || []) {
+      const idx = eq.findIndex((e) => e && (e.id === item.id || e.CHSAssetNo === item.CHSAssetNo))
+      if (idx < 0) continue
+      const prev = eq[idx]
+      const prevLoanTo = prev.OnLoanTo || ''
+      if (expired || (prevLoanTo && prevLoanTo !== u.loanTo && prev.Returned !== 'Yes')) { waiting.push(item); continue }
+      const moved = prevLoanTo && prevLoanTo !== u.loanTo
+      if (moved) {
+        entries.push({ id: newId(), ts, chsAssetNo: prev.CHSAssetNo, model: prev.Model, action: 'Transfer', loanTo: u.loanTo, location: u.location,
+          loanStart: u.startDate, loanEnd: u.endDate, batchId: u.id, operator: null,
+          notes: `Auto-transferred from ${prevLoanTo} (${prev.Location || ''}) to ${u.loanTo} (${u.location}) — upcoming loan started ${u.startDate}` })
+        audits.push(['items_transferred', `${prev.CHSAssetNo} auto-transferred from ${prevLoanTo} to ${u.loanTo} — upcoming loan started ${u.startDate}`,
+          { assetNo: prev.CHSAssetNo, fromLoanTo: prevLoanTo, toLoanTo: u.loanTo, items: [prev.CHSAssetNo] }, 'System (auto)'])
+      }
+      eq[idx] = { ...prev, OnLoanTo: u.loanTo, Location: u.location, LoanStartDate: u.startDate, LoanEndDate: u.endDate, Returned: 'No', BatchID: u.id,
+        BorrowerEmail: u.borrowerEmail || '', _upcomingLoanId: null,
+        _transferNote: moved ? { fromLoanTo: prevLoanTo, fromLocation: prev.Location || '', fromBatchId: prev.BatchID || '', fromEndDate: prev.LoanEndDate || '',
+          toLoanTo: u.loanTo, toStartDate: u.startDate, transferredOn: today } : (prev._transferNote || null) }
+      took = true
+    }
+    if (took) changes.push(waiting.length ? { id: u.id, items: waiting } : { id: u.id, remove: true })
+  }
+  // The old one logs each as it goes, newest first.
+  return { equipment: eq, history: [...entries.reverse(), ...history], changes, audits }
+}
+
+/* ── Long term (old: convertLoanToLongTerm, confirmLongTermToActive) ── */
+
+/** Why a long-term loan can't come back with this end date, or '' (old: confirmLongTermModal's checks). */
+export function returnToActiveProblem(g, newDate, today = nzDate()) {
+  if (!newDate) return 'Choose the new end date.'
+  if (newDate < today) return 'The end date can’t be in the past.'
+  if (g.startDate && newDate < g.startDate) return 'The end date can’t be before the loan started.'
+  return ''
+}
+
+/** The date offered for bringing one back: its start if that's still ahead, else today. */
+export const suggestedReturnDate = (g, today = nzDate()) => (g.startDate && g.startDate > today ? g.startDate : today)
+
+/** A loan from before BatchIDs: where its form is kept (customer and end date). */
+export const legacyLoanDocKey = (loanTo, endDate) => legacyKeys(loanTo, endDate)[0]
+
+/** A date as Simpro wants it (old: _simproPush's _toISO): YYYY-MM-DD from that or DD/MM/YYYY. */
+export function toISO(d) {
+  if (!d) return ''
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(d)
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : d
+}
+
+/** A Simpro job number that's real: not missing, not the "being made" placeholder. */
+export const jobNumber = (id) => (id != null && typeof id !== 'object' && id !== 'pending' && !Number.isNaN(Number(id)) ? Number(id) : null)

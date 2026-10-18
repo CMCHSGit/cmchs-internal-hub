@@ -179,8 +179,13 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       way: the new tracker now lays `/loanMeta` over `/data`'s copy as the old one does (it read
       only the copy, so could show stale account managers and testing); the old `+12:00`
       timestamps show at the clock time written (read as moments they're an hour late in summer).
-- [ ] Loans: the other loan actions (long term, edit, transfer and reassign, copy, add items,
-      return, delete)
+- [x] Return items and long term, 19 Oct (`returnEquipment`, `activateBookings`, `returnFollowUps`,
+      tested): devices cleared with a Return entry each; any booking whose start has come takes the
+      devices now free in the same save (as the old activateUpcomingLoans); an emptied loan has its
+      Simpro job closed with a note and its form removed, a part-returned one its form trimmed.
+      Make long-term (a BatchID adopted first if it has none, Simpro job closed with the devices
+      listed, loanMeta and form marked, end dates cleared) and Return to active.
+- [ ] Loans: the other loan actions (edit, transfer and reassign, copy, add items, delete)
 - [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode
