@@ -82,25 +82,34 @@ timestamps are NZ clock time marked `+12:00` all year (`nzNow`).
 
 ## 5B The tracker's data to Firestore
 
-Proposed shape (decide with Jonathan before building; ✱ = open question):
+The shape. Jonathan decided the open questions on 19 Oct: bookings are loans
+with a booked status; retired items keep their own list, exactly as now; test
+report files stay in the database (no Cloud Storage), downloaded from the app;
+cutover as soon as it's ready.
 
 - `equipment/{id}`: one document per item, the fields as now (`ITEM_FIELDS` in
-  `model.js`), plus `retired`, `retiredDate`, `retiredReason`, `retiredNotes` (✱ or a
-  `retiredEquipment` collection).
+  `model.js`).
+- `retiredEquipment/{id}`: the retired list, its own collection, the same fields
+  plus `RetiredDate`, `RetiredReason`, `RetiredNotes` (as `/retired` today).
 - `loans/{batchId}`: one per loan, `loanMeta` and `loanDocs` merged: customer,
   location, dates, account manager, long term, island, job and demo type,
   readiness (`tested`, `testedAt`, …), the form (`rows`, `notes`, `shipping`,
   `contactNumber`), `simproJobId`, `simproClosedAt`, and `status`
-  (`active` | `scheduled` | `booked` | `closed`). ✱ Bookings (`upcomingLoans`) as
-  loans with `status: 'booked'` and a `waitingFor` list, rather than their own collection.
-- `equipmentHistory/{id}` (or `equipment/{id}/history/{id}` ✱): one per entry, as now.
+  (`active` | `scheduled` | `booked` | `closed`). Bookings (`upcomingLoans` today)
+  are loans with `status: 'booked'` and a `waitingFor` list of the devices still
+  out elsewhere; a loan partly out and partly waiting has both its devices and
+  `waitingFor` (today's same-BatchID pairing of `/data` and `/upcomingLoans`).
+- `equipmentHistory/{id}`: one per entry, as now (a top-level collection, so History
+  can list and search across every device).
 - `equipmentAudit/{id}`, `equipmentKits/{id}`, `settings/equipment`
   (`simproConfig`, demo types).
-- Test report files to **Cloud Storage**, metadata in `loans/{id}/reports/{id}`
-  (✱ cost and the Storage rules; today they're base64 in the database).
+- Test reports stay in the database, no Cloud Storage: metadata in
+  `loans/{id}/reports/{id}`, the file in `loans/{id}/reports/{id}/chunks/{n}`. A
+  Firestore document holds at most 1 MiB, and a report can be up to 8 MB, so the
+  base64 is split into chunks of about 900 KB and joined again to download.
 
 Work:
-- [ ] The schema written down (this file), agreed with Jonathan.
+- [x] The schema agreed with Jonathan, 19 Oct (above).
 - [ ] Firestore rules for it, with emulator tests in `rules/tests/` (same
       pattern as `asks-rules.test.mjs`; on Windows set
       `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:/Users/<you>/.uds`).
