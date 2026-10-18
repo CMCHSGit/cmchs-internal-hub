@@ -33,7 +33,8 @@ export default function NewLoan({ s, params, go, onDone }) {
   const [f, setF] = useState(() => ({ ...blank(s.today), ...(params.loanTo ? { loanTo: params.loanTo } : {}), ...(params.location ? { location: params.location } : {}),
     ...(params.start ? { startDate: params.start } : {}), ...(params.end ? { endDate: params.end } : {}), ...(params.notes ? { notes: params.notes } : {}) }))
   const [picked, setPicked] = useState(() => {
-    if (!source) return []
+    // ?add=: the devices ticked on the Equipment tab ("New loan with these"; old: the basket).
+    if (!source) return [...new Set(String(params.add || '').split(',').filter(Boolean))]
     const nos = params.move ? String(params.nos || '').split(',').filter(Boolean) : source.items.map((e) => e.CHSAssetNo)
     return [...new Set(nos)]
   })

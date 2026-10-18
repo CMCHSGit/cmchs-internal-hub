@@ -14,9 +14,9 @@
      Manage     retired items, kits, import/export, Simpro, test mode */
 import { useEffect, useMemo, useState } from 'react'
 import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
-import { Alert, Badge, Dialog, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
+import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
-import { FIELDS, STATUSES, fmtDate, historyFor, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
+import { FIELDS, STATUSES, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal } from './db.js'
 import Loans from './Loans.jsx'
 import { AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
@@ -99,15 +99,20 @@ function Shell() {
         : route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} onDone={showToast} />
         : route.view === 'new' ? <NewLoan key={JSON.stringify(route.params)} s={s} params={route.params} go={go} onDone={showToast} />
         : route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} go={go} />
-        : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} onDone={showToast} />
+        : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} go={go} onDone={showToast} />
           : <Overview s={s} />}
       <Toast message={toast} />
     </div>
   )
 }
 
-function Equipment({ s, params, setParams, onDone }) {
+function Equipment({ s, params, setParams, go, onDone }) {
   const [q, setQ] = useState('')
+  // Ticked rows (old: the Database tab's tick boxes and selection bar): kept
+  // across filters and searches, as the old basket was.
+  const [sel, setSel] = useState(() => new Set())
+  const [busy, setBusy] = useState(false)
+  const [confirmDialog, confirm] = useConfirm()
   const filter = STATUSES.some((x) => x.key === params.show) ? params.show : 'all'
   const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1 })
   const [open, setOpen] = useState(null) // an item's id
@@ -135,6 +140,43 @@ function Equipment({ s, params, setParams, onDone }) {
 
   const pick = (k) => setParams({ ...params, show: k === 'all' ? '' : k })
   const item = open && (s.equipment || []).find((e) => e.id === open)
+
+  const ticked = (s.equipment || []).filter((e) => e && sel.has(e.id))
+  // A device on a loan that hasn't started is still on the shelf: it isn't
+  // returned, and counting it keeps it on that loan (the old count cleared it).
+  const notLeft = (e) => isOut(e) && !!e.LoanStartDate && e.LoanStartDate > s.today
+  const tickedOut = ticked.filter((e) => isOut(e) && !notLeft(e))
+  const toggle = (id) => setSel((t) => { const n = new Set(t); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const allShown = rows.length > 0 && rows.every((x) => sel.has(x.e.id))
+  const toggleShown = () => setSel((t) => { const n = new Set(t); rows.forEach((x) => (allShown ? n.delete(x.e.id) : n.add(x.e.id))); return n })
+  const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
+  async function act(fn) {
+    setBusy(true)
+    try { await fn() } catch (err) { onDone?.(err.message || String(err)) } finally { setBusy(false) }
+  }
+  // Return (old: returnFromSelection): the ticked ones that are out, from
+  // whichever loans, as Scan's return list does; bookings waiting on them start.
+  const returnTicked = () => act(async () => {
+    const longTerm = tickedOut.some((e) => isLoanLongTerm(e.BatchID, ctx))
+    const rest = ticked.length - tickedOut.length
+    if (!(await confirm({ title: `Return ${plural(tickedOut.length, 'device')}?`, confirmLabel: 'Return',
+      message: `${tickedOut.length === 1 ? 'It’s' : 'They’re'} marked as back in the office.`
+        + (rest ? ` The other ${plural(rest, 'ticked device')} ${rest === 1 ? 'isn’t' : 'aren’t'} out, so ${rest === 1 ? 'it’s' : 'they’re'} left as ${rest === 1 ? 'it is' : 'they are'}.` : '')
+        + (longTerm ? ' Some are on long-term loans: only return them if they’ve really come back.' : '') }))) return
+    const r = await s.returnItems({ loanTo: '' }, tickedOut.map((e) => e.id))
+    setSel(new Set())
+    onDone?.(`${plural(r.returned, 'device')} returned${r.started ? `; ${plural(r.started, 'booking')} waiting on them started` : ''}.`)
+  })
+  // Count (old: countFromSelection): counted today, and any out marked back, as Scan's "Count it, it's back".
+  const countTicked = () => act(async () => {
+    if (!(await confirm({ title: `Count ${plural(ticked.length, 'device')}?`, confirmLabel: 'Count',
+      message: `Each is marked as counted today${tickedOut.length ? `, and ${tickedOut.length === 1 ? 'the one on loan is' : `the ${tickedOut.length} on loan are`} marked as returned` : ''}.`
+        + (ticked.some(notLeft) ? ' Any booked for a loan that hasn’t started stay on it.' : '') }))) return
+    let back = 0
+    for (const e of ticked) { const r = await s.countItem(e.id, { keepOnLoan: notLeft(e) }); if (r?.was?.out && !notLeft(e)) back++ }
+    setSel(new Set())
+    onDone?.(`${plural(ticked.length, 'device')} counted${back ? `, ${back} marked as returned` : ''}.`)
+  })
   const COLUMNS = [['CHSAssetNo', 'Asset no.'], ['Model', 'Model'], ['SerialNo', 'Serial no.'], ['status', 'Status'], ['ShelfLocation', 'Shelf']]
 
   return (
@@ -153,10 +195,21 @@ function Equipment({ s, params, setParams, onDone }) {
         <p className="text-sm text-muted eq-grow">{rows.length} of {withStatus.length} {withStatus.length === 1 ? 'item' : 'items'}</p>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => show(null, 'add')}>Add equipment</button>
       </div>
+      {sel.size > 0 && (
+        <div className="eq-selbar" role="region" aria-label="Ticked equipment">
+          <span className="eq-strong eq-grow">{sel.size} ticked</span>
+          <Button size="sm" disabled={busy} onClick={() => go('new', { add: ticked.map((e) => e.CHSAssetNo).join(',') })}>New loan with these</Button>
+          <Button size="sm" variant="secondary" disabled={busy || !tickedOut.length} title={tickedOut.length ? '' : 'None of the ticked ones are out'} onClick={returnTicked}>Return{tickedOut.length ? ` ${tickedOut.length}` : ''}</Button>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={countTicked}>Count</Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(new Set())}>Clear</Button>
+        </div>
+      )}
 
       <div className="data-table-wrap">
         <table className="data-table eq-table">
-          <thead><tr>{COLUMNS.map(([k, label]) => (
+          <thead><tr>
+            <th className="eq-browse-tick"><input type="checkbox" checked={allShown} disabled={!rows.length} onChange={toggleShown} aria-label="Tick all shown" title="Tick all shown" /></th>
+            {COLUMNS.map(([k, label]) => (
             <th key={k} aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
               <button type="button" className="data-table-sort" onClick={() => setSort((x) => ({ key: k, dir: x.key === k ? -x.dir : 1 }))}>
                 {label}{sort.key === k && <span aria-hidden="true">{sort.dir > 0 ? '▲' : '▼'}</span>}
@@ -165,7 +218,10 @@ function Equipment({ s, params, setParams, onDone }) {
           ))}</tr></thead>
           <tbody>
             {rows.map(({ e, st }) => (
-              <tr key={e.id} className="data-table-row" tabIndex={0} onClick={() => show(e.id)} onKeyDown={(ev) => { if (ev.key === 'Enter') show(e.id) }}>
+              <tr key={e.id} className={`data-table-row${sel.has(e.id) ? ' eq-browse-on' : ''}`} tabIndex={0} onClick={() => show(e.id)} onKeyDown={(ev) => { if (ev.key === 'Enter') show(e.id) }}>
+                <td className="eq-browse-tick" data-label="Tick" onClick={(ev) => ev.stopPropagation()}>
+                  <input type="checkbox" checked={sel.has(e.id)} onChange={() => toggle(e.id)} onKeyDown={(ev) => ev.stopPropagation()} aria-label={`Tick ${e.CHSAssetNo}`} />
+                </td>
                 <td data-label="Asset no."><span className="eq-strong">{e.CHSAssetNo}</span></td>
                 <td data-label="Model"><div>{e.Model}{e.Description && <span className="eq-small">{e.Description}</span>}</div></td>
                 <td data-label="Serial no." className="eq-mono">{e.SerialNo}</td>
@@ -178,6 +234,7 @@ function Equipment({ s, params, setParams, onDone }) {
         {!rows.length && <p className="data-table-empty">Nothing matches that.</p>}
       </div>
 
+      {confirmDialog}
       {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} history={s.history} onClose={() => setOpen(null)} onAction={(m) => setMode(m)} />}
       {mode === 'add' && <ItemForm s={s} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
