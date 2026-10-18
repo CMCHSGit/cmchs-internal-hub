@@ -4,6 +4,70 @@ Written 19 Oct 2026 for Peter to pick up (Jonathan agreed step 4 finishes
 first, then all of step 5). Read `INTEGRATION-PLAN.md` first; this expands its
 step 5. Tick items here as they land, with the commit.
 
+## What's left (handover, 19 Oct evening)
+
+Built and pushed so far: roles in place of the admin password (5A), the cutover switch and the
+tracker on either database (5B), the proxy following the switch (@47, reminders open their loan,
+a personal demo reminders switch) and the nightly backup following it (`backup-fs.test.mjs`).
+Everything sits on the old database until the switch is moved. What's left, in order:
+
+### 1. Jonathan's steps (need access Claude doesn't have)
+- [ ] Publish `rules/firestore.rules` in the Firebase console (staff schedule project). It adds
+      `settings/equipmentCutover`, `trackerRole`/`trackerTester`, `notifications.demoReminders`.
+- [ ] Give the proxy's service account **Cloud Datastore User** in the staff schedule's Google Cloud
+      project (it only has read today). The backup's account already has Viewer, which is enough.
+- [ ] Migration dry run: `cd backend/tracker-migration && npm install`, then with `HUB_SA` and
+      `CHS_SA` pointing at the two keys, `node migrate.mjs --from live`. Look at the counts.
+- [ ] Set everyone's tracker role (and the testers) in Settings → People and access.
+
+### 2. The cutover (Jonathan and Peter, a quiet hour)
+- [ ] Manage → Data source: **Read-only on** (every open tracker shows the banner).
+- [ ] `node migrate.mjs --from live --write` (it checks itself after; `--check` re-runs only that).
+- [ ] **Firestore on**. Open a few loans and check them by hand (the migration's check did the counts); make a
+      test loan in test mode and return it; send yourself a test push from Settings.
+- [ ] **Read-only off**. Then set the old Realtime Database read-only (`rules/database.rules.json`:
+      `.write: false`, pasted in the console).
+- [ ] Next morning: the backup's log says "(from Firestore)" (`checkTrackerJsonBackup()` shows the
+      counts), the proxy's reminders ran (Apps Script executions), a new Simpro job number landed
+      on its loan.
+- Going back: Manage → "Back to the old database". Changes made on Firestore since are not in it.
+
+### 3. Code still to write (Peter's Claude)
+- [ ] **Tile locations.** `backend/tile-sync/tile_sync.py` writes `/tileLocations/{tileNo}` to the old
+      database. The old tracker showed them (tag `old-tracker-final` in chs-equipment, `index.html`
+      around lines 6155 and 11481); **the new tracker doesn't read them at all**. Rebuild that in
+      `apps/equipment` (an item's last seen place and time), reading Firestore `tileLocations/{tileNo}`;
+      make `tile_sync.py` write there once `settings/equipmentCutover` says `firestore` (it needs a
+      hub service-account secret beside `CHS_EQUIPMENT_SERVICE_ACCOUNT`: ask Jonathan); add the rules
+      (staff read, nobody writes from the browser) with tests in `rules/tests/`.
+- [ ] **5A, the team out of `accountManagers`:** the tracker (`store.jsx`'s team via `teamFrom`,
+      `memberFor`), the proxy (`Code.js` reminders, `sendTestPush_`, `pruneDeadTokens_`,
+      `SERVICE_TEAM_OPERATORS` ~410) and `apps/admin/src/tracker.js` read `users` only. Then
+      `Admin.jsx`'s `setTrackerRole` stops writing the old list, `model.js`'s `SERVICE_TEAM` fallback
+      goes, and 5D's `accountManagers.fcmTokens` fallback goes. Only once every role is set (step 1).
+- [ ] **Backup file names vs. the migration:** the backup saves report files as `<key>--<id>.txt` with
+      `\ / : * ? " < > |` turned into `_`; `migrate.mjs --reports` looks for the raw name. Make it try
+      both, so a restore from Drive finds every file.
+- [ ] **5C, once Firestore has run cleanly for a week, and only with Jonathan's yes:** a final JSON
+      export of the old database kept; delete `/config.adminPassword`; remove the `rtdbToken` proxy
+      action, `CHS_KEY` and the old-database paths from `db.js` (`readOld`, the `rtdb` side of the
+      switch), the backup's old-database reads and the proxy's (`fetchFirebaseJson` etc. become
+      Firestore only); archive the `chs-equipment` Firebase database. `chs-equipment/sw.js` stays
+      (old phones still get reminders through it) until no phone uses it.
+- [ ] Tick this file and `INTEGRATION-PLAN.md` step 5 as each lands; then `PROJECT-CONTEXT.md` and
+      `CLAUDE.md` (both repos) say where the tracker's data is.
+- Each change: `npm test` in every app, `npm run build`, the served page checked; Apps Script via
+  `backend/README.md` (push, then `deploy -i`, then the live `/exec`).
+
+### 4. Outside step 5 (INTEGRATION-PLAN.md)
+- [ ] The staff schedule's Excel sync job and scripts into this repo; after two Thursdays of its
+      reminder running from here (from 22 Oct), schedule.chsnz.co.nz off with a tombstone service worker.
+- [ ] "The demo tracker's source here with `git subtree`": no longer needed (it was rebuilt here);
+      untick or strike it.
+- [ ] Archive the `chs-equipment` and `cmchs-staff-schedule` repos once nothing deploys from them
+      (demo.chsnz.co.nz's forward page and `sw.js` still do).
+- [ ] Step 6: the duplicates listed there, the hourly timer in `deploy.yml` (no longer needed), docs.
+
 ## What done looks like
 
 - **One person record.** Everything about a person is on `users/{uid}` in the
@@ -175,7 +239,7 @@ Work:
       reminders and its Simpro write-back of `simproJobId` (`Code.js` ~226, ~1319) **(done 19 Oct, @46:
       the proxy follows the same switch; its reads of the tracker's data, the job-number write-back
       and the sent records go to Firestore once it says so; needs its write access granted first)**,
-      the backup, Tile sync, the project tracker's demo feed (`tracker.js`
+      the backup **(done 19 Oct, cb29a18)**, Tile sync (see What's left), the project tracker's demo feed **(done)** (`tracker.js`
       `readTracker`, `feed.js`). The proxy needs write access to Firestore
       first (see the 5D audit).
 
@@ -184,7 +248,7 @@ Work:
 - [ ] After 5B: the `chs-equipment` project's database archived (a final JSON
       export kept), its web app config and the `rtdbToken` proxy action removed,
       `CHS_KEY` gone from `db.js`.
-- [ ] The backup (`backend/apps-script/backup/Code.js`): the tracker's
+- [x] (19 Oct, cb29a18: both copies follow the switch, turned back into the old tree so migrate.mjs can restore them) The backup (`backend/apps-script/backup/Code.js`): the tracker's
       spreadsheet and JSON copies read Firestore instead (or a scheduled managed
       Firestore export to Cloud Storage), kept a year as now. Check with
       `checkTrackerJsonBackup()`'s successor.
