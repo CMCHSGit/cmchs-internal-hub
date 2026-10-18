@@ -43,7 +43,7 @@ export function Appearance() {
             </label>
           ))}
         </div>
-        <p className="st-note">The moon and sun in the header switch it too.</p>
+        <p className="st-note st-wide">The moon and sun in the header switch it too.</p>
       </section>
       <section className="card st-card">
         <h2 className="st-card-title">Open the hub on</h2>

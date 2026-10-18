@@ -738,7 +738,8 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 :root[data-theme="dark"] .badge-orange, :root[data-theme="dark"] .badge-green, :root[data-theme="dark"] .badge-purple { color: var(--text-strong); }
 
 /* Phones: the sections as a bottom tab bar (Header.jsx), as the staff
-   schedule has, so the header keeps just the logo, theme, settings and you. */
+   schedule has, so the header keeps just the logo, search and you. Four
+   tabs and More, which opens the rest (and Settings) above the bar. */
 .bottom-nav { display: none; }
 @media (max-width: 759px) {
   .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: flex;
@@ -749,6 +750,14 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
   .bottom-tab:hover { text-decoration: none; color: var(--text-strong); }
   .bottom-tab.on { color: var(--accent-fg); }
   .bottom-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button.bottom-tab { border: 0; background: transparent; padding: 0; cursor: pointer; }
+  .more-sheet { position: absolute; right: 8px; bottom: calc(100% + 8px); min-width: 210px; background: var(--surface-card);
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  .more-item { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 12px; border-radius: var(--radius-md);
+    color: var(--text-strong); font: 600 16px/1.2 var(--font-body); }
+  .more-item:hover { background: var(--chs-black-05); text-decoration: none; }
+  .more-item.on { background: var(--chs-purple-20); color: var(--accent-fg); }
+  .header-search-icon { margin-right: 0; }
 }
 
 /* A section that failed to load (App.jsx SectionBoundary). */

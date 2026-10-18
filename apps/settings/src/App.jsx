@@ -1,5 +1,6 @@
 /* The one app's Settings (INTEGRATION-PLAN.md step 2), at /settings/, from
-   the header's gear. Three groups down the side (along the top on a phone):
+   the header's gear (on a phone, More in the bottom tabs, and the account
+   menu). Three groups down the side:
 
      You       Appearance, Notifications: anyone, about themselves.
      Admin     People and access, Everyone's notifications: admins only, behind
@@ -9,10 +10,14 @@
 
    Pages are real paths (/settings/people…) through react-router, so a page's
    own tabs keep the #… part, as the schedule's always have
-   (/settings/schedule#excel). The screens are the sections' own, unchanged. */
-import { lazy, Suspense, useState } from 'react'
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom'
-import { Bell, CalendarDays, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
+   (/settings/schedule#excel). The screens are the sections' own, unchanged.
+
+   On a phone /settings/ is the list of pages instead, as a phone's own
+   settings are, and each page has a way back to it; Appearance is then at
+   /settings/appearance. */
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Bell, CalendarDays, ChevronLeft, ChevronRight, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import AdminLock, { isUnlocked } from '../../schedule/src/components/AdminLock'
 import { Loading } from '../../../shared/ui/index.jsx'
@@ -45,12 +50,46 @@ export default function App() {
   )
 }
 
+// The same width as the hub's bottom tabs (hub.css).
+const PHONE = '(max-width: 759px)'
+function usePhone() {
+  const [phone, setPhone] = useState(() => matchMedia(PHONE).matches)
+  useEffect(() => {
+    const m = matchMedia(PHONE), f = () => setPhone(m.matches)
+    m.addEventListener('change', f)
+    return () => m.removeEventListener('change', f)
+  }, [])
+  return phone
+}
+
 function Layout() {
   const { user, profile, profileReady } = useAuth()
+  const phone = usePhone()
+  const { pathname } = useLocation()
   if (user === undefined || (user && !profileReady)) return <div className="page"><Loading /></div>
   const admin = profile?.role === 'admin'
   const pages = PAGES.filter(p => admin || !p.admin)
   const groups = [...new Set(pages.map(p => p.group))]
+
+  if (phone && pathname === '/') return (
+    <div className="st-list">
+      <div className="st-head"><h1 className="st-title">Settings</h1></div>
+      {groups.map(g => (
+        <section key={g} className="st-list-group" aria-label={g}>
+          <span className="overline st-nav-head">{g}</span>
+          <div className="card st-list-card">
+            {pages.filter(p => p.group === g).map(p => (
+              <Link key={p.to} to={p.to === '/' ? '/appearance' : p.to} className="st-list-link">
+                <p.Icon size={20} aria-hidden="true" />
+                <span className="st-row-text"><span className="st-row-label">{p.label}</span><span className="st-note">{p.sub}</span></span>
+                <ChevronRight size={18} aria-hidden="true" className="st-list-chev" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
 
   return (
     <div className="st">
@@ -70,6 +109,7 @@ function Layout() {
         <Suspense fallback={<div className="page"><Loading /></div>}>
           <Routes>
             <Route path="/" element={<Page p={PAGES[0]}><Appearance /></Page>} />
+            <Route path="/appearance" element={phone ? <Page p={PAGES[0]}><Appearance /></Page> : <Navigate to="/" replace />} />
             <Route path="/you/notifications" element={<Page p={PAGES[1]}><MyNotifications /></Page>} />
             <Route path="/people" element={<Page p={PAGES[2]}><AdminOnly><div className="page admin-page"><UsersTab /></div></AdminOnly></Page>} />
             <Route path="/notifications" element={<Page p={PAGES[3]}><AdminOnly><div className="page admin-page"><NotificationsTab /></div></AdminOnly></Page>} />
@@ -89,6 +129,7 @@ function Page({ p, children }) {
   return (
     <>
       <div className="st-head">
+        <Link to="/" className="st-back"><ChevronLeft size={18} aria-hidden="true" />Settings</Link>
         <h1 className="st-title">{p.title}</h1>
         {p.sub && <p className="st-sub">{p.sub}</p>}
       </div>
