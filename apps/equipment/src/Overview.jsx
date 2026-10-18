@@ -29,7 +29,8 @@ export default function Overview({ s }) {
 
   const me = s.me // the sign-in's place on the tracker's team (store.jsx)
   const mine = me ? yoursOf(ov, me.name) : null
-  const showMine = mine && (roleOf(me) === 'am' || mine.active.length || mine.ahead.length || mine.stuck.length)
+  // A true/false, never a count: a bare 0 here would be drawn on the page.
+  const showMine = !!mine && (roleOf(me) === 'am' || mine.active.length > 0 || mine.ahead.length > 0 || mine.stuck.length > 0)
 
   return (
     <div className="eq-overview">
