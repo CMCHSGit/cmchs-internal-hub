@@ -5,12 +5,13 @@
    long-term loan, or booked next for someone. */
 import { useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
-import { assetStatus, findAsset, fmtDate, searchEquipment } from './model.js'
+import { assetStatus, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
 
 /** mode 'new' (a new loan: one still out is booked to follow) or 'add' (added to a loan: one whose dates clash is left out). */
 export default function AssetPicker({ s, picked, onChange, when = {}, skip = [], mode = 'new' }) {
   const [q, setQ] = useState('')
   const [miss, setMiss] = useState('')
+  const [kit, setKit] = useState(null) // a kit just started: { label, accessories, tick: Set }
   const box = useRef(null)
   const ctx = { ...when, testMode: s.testMode, loanMeta: s.loanMeta, loanDocs: s.loanDocs }
   const matches = useMemo(() => {
@@ -22,7 +23,11 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
     const e = findAsset(s.equipment, no)
     if (!e) { setMiss(`${String(no).trim()} isn’t in the equipment list.`); return }
     setMiss('')
-    if (!picked.includes(e.CHSAssetNo) && !skip.includes(e.CHSAssetNo)) onChange([...picked, e.CHSAssetNo])
+    const next = picked.includes(e.CHSAssetNo) || skip.includes(e.CHSAssetNo) ? picked : [...picked, e.CHSAssetNo]
+    if (next !== picked) onChange(next)
+    // A kit's trigger device offers its accessories (old: checkKitSuggestion).
+    const k = kitFor(s.kits, s.equipment, e.CHSAssetNo, [...next, ...skip])
+    if (k && k.accessories.some((a) => !a.picked)) setKit({ ...k, tick: new Set(k.accessories.filter((a) => a.free).map((a) => a.item.CHSAssetNo)) })
     setQ('')
     box.current?.focus()
   }
@@ -60,6 +65,23 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
         </label>
       </div>
       {miss && <p className="eq-note eq-problem">{miss}</p>}
+      {kit && (
+        <div className="card eq-kit-offer">
+          <span className="eq-strong">{kit.label}: it usually goes with these</span>
+          <ul className="eq-picklist">
+            {kit.accessories.filter((a) => !a.picked).map((a) => (
+              <li key={a.assetNo}><label className="eq-pick">
+                <input type="checkbox" disabled={!a.free} checked={kit.tick.has(a.item?.CHSAssetNo)} onChange={() => setKit((x) => { const t = new Set(x.tick); const n = a.item.CHSAssetNo; if (t.has(n)) t.delete(n); else t.add(n); return { ...x, tick: t } })} />
+                <span><span className="eq-strong">{a.item?.CHSAssetNo || a.assetNo}</span> {a.item?.Model || a.model}<span className="eq-small">{!a.item ? 'Not in the equipment list' : a.out ? `On loan to ${a.item.OnLoanTo}` : 'Free'}</span></span>
+              </label></li>
+            ))}
+          </ul>
+          <div className="eq-actions-row">
+            <button type="button" className="btn btn-primary btn-sm" disabled={!kit.tick.size} onClick={() => { onChange([...new Set([...picked, ...kit.tick])]); setKit(null) }}>Add {kit.tick.size || ''}</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setKit(null)}>Not these</button>
+          </div>
+        </div>
+      )}
       {matches.length > 0 && (
         <ul className="eq-matches" role="listbox" aria-label="Matching equipment">
           {matches.map((e) => (

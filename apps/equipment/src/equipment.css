@@ -197,3 +197,15 @@
 .eq-audit-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
 .eq-audit-what { font: var(--type-body-sm); color: var(--text-strong); }
 .eq-note-pop { position: fixed; inset: auto 16px 16px auto; z-index: 50; max-width: 420px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.eq-fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.eq-fieldset legend { margin-bottom: 6px; }
+.eq-fields-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 14px; }
+.eq-wide { grid-column: 1 / -1; }
+
+/* Manage (Manage.jsx) */
+.eq-manage { display: flex; flex-direction: column; gap: 12px; }
+.eq-kit { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.eq-kit .eq-h3 { margin: 0; }
+.eq-kit-list { display: flex; flex-direction: column; gap: 6px; }
+.eq-selbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; position: sticky; top: 8px; z-index: 3; }
+.eq-kit-offer { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--accent-fg); }

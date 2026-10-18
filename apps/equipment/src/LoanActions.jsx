@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
+import TestReports from './TestReports.jsx'
 import { canExtend, demoTypeOptions, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
@@ -14,7 +15,7 @@ const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no 
 export default function LoanActions({ g, s, all = [], go, onDone }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer'
+  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer' | 'reports'
   const [confirmDialog, confirm] = useConfirm()
   const rb = readinessButtons(g, { loanMeta: s.loanMeta, today: s.today })
 
@@ -48,6 +49,7 @@ export default function LoanActions({ g, s, all = [], go, onDone }) {
         {g.kind === 'loan' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
         {g.kind === 'loan' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>
         {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
         {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
@@ -86,6 +88,7 @@ export default function LoanActions({ g, s, all = [], go, onDone }) {
             onClose={() => setAsking(null)} onDone={(msg) => { setAsking(null); onDone?.(msg) }} />
         )
       })()}
+      {asking === 'reports' && <TestReports s={s} g={g} onClose={() => setAsking(null)} />}
       {asking === 'add' && (
         <AddDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.skipped.length ? `; ${plural(r.skipped.length, 'was', 'were')} left out (dates clash)` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />

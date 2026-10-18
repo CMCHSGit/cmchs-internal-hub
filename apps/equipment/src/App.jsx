@@ -13,21 +13,23 @@
    Which view, and its filters, live in the address (#/loans?am=…), so a
    link or Back lands on the same thing. */
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarDays, ExternalLink, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, Truck } from 'lucide-react'
+import { Boxes, CalendarDays, ExternalLink, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Dialog, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal } from './db.js'
 import Loans from './Loans.jsx'
+import { AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
 import Overview from './Overview.jsx'
 import NewLoan from './NewLoan.jsx'
 import Scan from './Scan.jsx'
 import Calendar from './Calendar.jsx'
 import History from './History.jsx'
+import Manage from './Manage.jsx'
 
 const TONE = Object.fromEntries(STATUSES.map((s) => [s.key, s.tone]))
 const LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]))
-const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['calendar', 'Calendar', CalendarDays], ['history', 'History', HistoryIcon]]
+const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['calendar', 'Calendar', CalendarDays], ['history', 'History', HistoryIcon], ['manage', 'Manage', SlidersHorizontal]]
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
@@ -60,6 +62,8 @@ function Shell() {
   // Another view, as a new history entry (Back returns).
   const go = (view, params = {}) => { location.hash = hashOf(view, params) }
   const [toast, showToast] = useToast()
+  // Test mode is only for the two who test the tracker; anyone else signed in here has it switched off (old: updateTestModeUI).
+  useEffect(() => { if (s.testMode && s.operator && !['Peter Lin', 'Jonathan Nasrun'].includes(s.operator)) s.setTestMode(false) }, [s.testMode, s.operator]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
   if (!s.ready) return <div className="eq-page"><Loading /></div>
@@ -81,23 +85,27 @@ function Shell() {
           </a>
         ))}
       </nav>
-      {route.view === 'calendar' ? <Calendar s={s} params={route.params} setParams={setParams} go={go} />
+      {route.view === 'manage' ? <Manage s={s} params={route.params} setParams={setParams} onDone={showToast} />
+        : route.view === 'calendar' ? <Calendar s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'history' ? <History s={s} params={route.params} setParams={setParams} />
         : route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} onDone={showToast} />
         : route.view === 'new' ? <NewLoan key={JSON.stringify(route.params)} s={s} params={route.params} go={go} onDone={showToast} />
         : route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} go={go} />
-        : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} />
+        : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} onDone={showToast} />
           : <Overview s={s} />}
       <Toast message={toast} />
     </div>
   )
 }
 
-function Equipment({ s, params, setParams }) {
+function Equipment({ s, params, setParams, onDone }) {
   const [q, setQ] = useState('')
   const filter = STATUSES.some((x) => x.key === params.show) ? params.show : 'all'
   const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1 })
   const [open, setOpen] = useState(null) // an item's id
+  const [mode, setMode] = useState('view') // what's open for it: view | edit | retire | delete; or 'add' with no item
+  const show = (id, m = 'view') => { setOpen(id); setMode(m) }
+  const done = (msg) => { setOpen(null); setMode('view'); onDone?.(msg) }
 
   const ctx = { today: s.today, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, testMode: s.testMode }
   const withStatus = useMemo(() => (s.equipment || []).map((e) => ({ e, st: statusOf(e, ctx) })),
@@ -133,7 +141,10 @@ function Equipment({ s, params, setParams }) {
       <label className="field eq-search"><span className="visually-hidden">Search equipment</span>
         <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Asset no., model, serial, hospital, shelf or notes" autoComplete="off" />
       </label>
-      <p className="text-sm text-muted eq-shown">{rows.length} of {withStatus.length} {withStatus.length === 1 ? 'item' : 'items'}</p>
+      <div className="eq-actions-row eq-shown">
+        <p className="text-sm text-muted eq-grow">{rows.length} of {withStatus.length} {withStatus.length === 1 ? 'item' : 'items'}</p>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => show(null, 'add')}>Add equipment</button>
+      </div>
 
       <div className="data-table-wrap">
         <table className="data-table eq-table">
@@ -146,7 +157,7 @@ function Equipment({ s, params, setParams }) {
           ))}</tr></thead>
           <tbody>
             {rows.map(({ e, st }) => (
-              <tr key={e.id} className="data-table-row" tabIndex={0} onClick={() => setOpen(e.id)} onKeyDown={(ev) => { if (ev.key === 'Enter') setOpen(e.id) }}>
+              <tr key={e.id} className="data-table-row" tabIndex={0} onClick={() => show(e.id)} onKeyDown={(ev) => { if (ev.key === 'Enter') show(e.id) }}>
                 <td data-label="Asset no."><span className="eq-strong">{e.CHSAssetNo}</span></td>
                 <td data-label="Model"><div>{e.Model}{e.Description && <span className="eq-small">{e.Description}</span>}</div></td>
                 <td data-label="Serial no." className="eq-mono">{e.SerialNo}</td>
@@ -159,7 +170,14 @@ function Equipment({ s, params, setParams }) {
         {!rows.length && <p className="data-table-empty">Nothing matches that.</p>}
       </div>
 
-      {item && <ItemDialog e={item} ctx={ctx} history={s.history} onClose={() => setOpen(null)} />}
+      {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} history={s.history} onClose={() => setOpen(null)} onAction={(m) => setMode(m)} />}
+      {mode === 'add' && <ItemForm s={s} onClose={() => setMode('view')} onDone={done} />}
+      {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
+      {item && mode === 'retire' && <RetireDialog s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
+      {item && mode === 'delete' && (
+        <AdminDialog s={s} title={`Delete ${item.CHSAssetNo} for good?`} message="It’s removed from the equipment list and can’t be brought back. To keep a record of it, retire it instead." confirmLabel="Delete it" danger
+          onClose={() => setMode('view')} onConfirm={async () => { await s.deleteItem(item.id); done(`${item.CHSAssetNo} deleted.`) }} />
+      )}
     </>
   )
 }
@@ -176,7 +194,7 @@ function Status({ st }) {
   )
 }
 
-function ItemDialog({ e, ctx, history, onClose }) {
+function ItemDialog({ e, ctx, history, onClose, onAction }) {
   const st = statusOf(e, ctx)
   const booking = upcomingFor(e, ctx.upcoming, ctx.testMode)
   const past = historyFor(e, history).slice(0, 20)
@@ -203,6 +221,11 @@ function ItemDialog({ e, ctx, history, onClose }) {
           ))}
         </ul>
       ) : <p className="eq-note">Nothing recorded yet.</p>}
+      <div className="dialog-actions">
+        <button type="button" className="btn btn-ghost btn-md eq-danger" onClick={() => onAction('delete')}>Delete</button>
+        <button type="button" className="btn btn-secondary btn-md" onClick={() => onAction('retire')}>Retire</button>
+        <button type="button" className="btn btn-primary btn-md" onClick={() => onAction('edit')}>Edit</button>
+      </div>
     </Dialog>
   )
 }

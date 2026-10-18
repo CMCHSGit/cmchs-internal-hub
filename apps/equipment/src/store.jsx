@@ -14,7 +14,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { auth } from '../../schedule/src/firebase.js'
 import { isLocal, read, watch, write } from './db.js'
 import {
-  activateBookings, addToBooking, countEquipment, oldDate, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, addToBooking, applyImport, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -723,6 +723,129 @@ export function StoreProvider({ children }) {
     return { item: c.equipment.find((e) => e && e.id === id), was: c.was, started: a.changes.length }
   }, [audit, closeJob, operator, touch, updateData])
 
+  /** An item added or edited (old: saveItem); refused if its asset number is already someone else's. */
+  const saveItem = useCallback(async (obj, editingId = null) => {
+    let r = null
+    await updateData((d) => {
+      const problem = itemProblem(d.equipment, obj, editingId)
+      if (problem) throw new Error(problem)
+      r = saveItemEquipment(d.equipment, d.history, obj, { editingId, ts: nzNow(), operator })
+      return { equipment: r.equipment, history: r.history }
+    })
+    const no = String(obj.CHSAssetNo).trim()
+    await audit(editingId ? 'asset_edited' : 'asset_added', `${no}${obj.Model ? ' — ' + obj.Model : ''} ${editingId ? 'updated in' : 'added to'} database`, { assetNo: no, model: obj.Model || '' })
+    await touch()
+  }, [audit, operator, touch, updateData])
+
+  /** An item deleted for good, after the admin password (old: deleteItem). */
+  const deleteItem = useCallback(async (id) => {
+    let item = null
+    await updateData((d) => { item = d.equipment.find((e) => e && e.id === id); if (!item) throw new Error('That item has already gone.'); return { ...d, equipment: d.equipment.filter((e) => e && e.id !== id) } })
+    await audit('asset_deleted', `${item.CHSAssetNo}${item.Model ? ' — ' + item.Model : ''} permanently deleted from database`, { assetNo: item.CHSAssetNo, model: item.Model || '' })
+    await touch()
+  }, [audit, touch, updateData])
+
+  /** The retired list changed: read fresh, changed, written whole (as the old saveRetiredAssets, which writes it whole). */
+  const changeRetired = useCallback(async (fn) => {
+    const { data } = await read('retired')
+    const next = fn(list(data))
+    await write('retired', next)
+    setState((s) => ({ ...s, retired: next }))
+  }, [])
+
+  /** Retire an item (old: confirmRetire): off the equipment list, onto the retired list with why. */
+  const retireItem = useCallback(async (id, { reason = '', notes = '' } = {}) => {
+    let r = null
+    await updateData((d) => { r = retireEquipment(d.equipment, id, { reason, notes, today: nzDate() }); return { ...d, equipment: r.equipment } })
+    await changeRetired((l) => [r.retired, ...l])
+    const it = r.retired
+    await audit('asset_retired', `${it.CHSAssetNo || 'Item'}${it.Model ? ' — ' + it.Model : ''} retired${reason ? ` (${reason})` : ''}`, { assetNo: it.CHSAssetNo, model: it.Model, reason, notes })
+    await touch()
+  }, [audit, changeRetired, touch, updateData])
+
+  /** Retired items back on the equipment list (old: restoreFromRetiredSelection). */
+  const restoreItems = useCallback(async (ids) => {
+    let back = []
+    await changeRetired((l) => { const r = restoreRetired(l, ids); back = r.back; return r.retired })
+    await updateData((d) => ({ ...d, equipment: [...back.filter((b) => !d.equipment.some((e) => e && e.id === b.id)), ...d.equipment] }))
+    await touch()
+    return back.length
+  }, [changeRetired, touch, updateData])
+
+  /** Retired items deleted for good, after the admin password (old: deleteFromRetiredSelection). */
+  const deleteRetired = useCallback(async (ids) => {
+    let gone = []
+    await changeRetired((l) => { gone = l.filter((r) => ids.includes(r.id)); return l.filter((r) => !ids.includes(r.id)) })
+    for (const r of gone) await audit('retired_asset_deleted', `${r.CHSAssetNo}${r.Model ? ' — ' + r.Model : ''} permanently deleted from Sold / Retired`, { assetNo: r.CHSAssetNo })
+    await touch()
+    return gone.length
+  }, [audit, changeRetired, touch])
+
+  /** A spreadsheet imported (old: confirmImport): known asset numbers updated, new ones added. */
+  const importItems = useCallback(async (rows) => {
+    let r = null
+    await updateData((d) => { r = applyImport(d.equipment, rows); if (!r.added && !r.updated) throw new Error('No rows with a CHS asset number were found.'); return { ...d, equipment: r.equipment } })
+    await audit('asset_added', `Import: ${r.added} added, ${r.updated} updated`, { added: r.added, updated: r.updated })
+    await touch()
+    return { added: r.added, updated: r.updated }
+  }, [audit, touch, updateData])
+
+  /** Kits changed: read fresh, changed, written whole (old: saveKitGroups). */
+  const changeKits = useCallback(async (fn, auditEntry) => {
+    const { data } = await read('kitGroups')
+    const next = fn(data && typeof data === 'object' ? data : {})
+    await write('kitGroups', next)
+    setState((s) => ({ ...s, kits: next }))
+    if (auditEntry) await audit(...auditEntry)
+    await touch()
+  }, [audit, touch])
+
+  /** Simpro job creation on or off (old: toggleSimproJobCreation), saying who and when. */
+  const setJobCreation = useCallback(async (on) => {
+    const { data: cfg } = await read('simproConfig')
+    const next = { ...(cfg || {}), createJobs: !!on, changedBy: operator || null, changedAt: new Date().toISOString() }
+    if (!on && !next.windDownFrom) next.windDownFrom = nzDate()
+    await write('simproConfig', next)
+    setState((s) => ({ ...s, simproConfig: next }))
+    await touch()
+    return next
+  }, [operator, touch])
+  const loadJobConfig = useCallback(async () => {
+    const { data } = await read('simproConfig')
+    const cfg = { createJobs: data?.createJobs === true, windDownFrom: data?.windDownFrom || null, changedBy: data?.changedBy || null, changedAt: data?.changedAt || null }
+    setState((s) => ({ ...s, simproConfig: cfg }))
+    return cfg
+  }, [])
+
+  /** Test mode on or off, for this browser (old: toggleTestMode; the same localStorage switch, so both trackers agree). */
+  const [testMode, setTestModeState] = useState(readTestMode)
+  const setTestMode = useCallback((on) => {
+    try { localStorage.setItem('testMode', on ? '1' : '0') } catch { /* private mode */ }
+    setTestModeState(!!on)
+  }, [])
+
+  /* Test reports: files kept with a loan, by its readiness key (old: the test reports modal). */
+  const listReports = useCallback(async (key) => {
+    const { data } = await read('testReports/' + enc(key))
+    return Object.entries(data || {}).map(([id, meta]) => ({ id, ...meta })).sort((a, b) => String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || '')))
+  }, [])
+  const uploadReport = useCallback(async (key, file, loanTo) => {
+    if (file.size > 8 * 1024 * 1024) throw new Error(`${file.name} is over 8 MB, the most a test report can be.`)
+    const dataUrl = await new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = () => reject(new Error('That file couldn’t be read.')); r.readAsDataURL(file) })
+    const id = newId()
+    await write(`testReports/${enc(key)}/${id}`, { filename: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, uploadedAt: nzNow(), uploadedBy: operator || '' })
+    await write(`testReportFiles/${enc(key)}/${id}`, dataUrl)
+    await audit('test_report_uploaded', `${file.name} uploaded — ${loanTo}`, { key, filename: file.name })
+    await touch()
+  }, [audit, operator, touch])
+  const reportFile = useCallback(async (key, id) => (await read(`testReportFiles/${enc(key)}/${id}`)).data, [])
+  const deleteReport = useCallback(async (key, report, loanTo) => {
+    await write(`testReports/${enc(key)}/${report.id}`, null, { method: 'DELETE' })
+    await write(`testReportFiles/${enc(key)}/${report.id}`, null, { method: 'DELETE' })
+    await audit('test_report_deleted', `${report.filename || 'Report'} deleted — ${loanTo}`, { key, filename: report.filename || '' })
+    await touch()
+  }, [audit, touch])
+
   /** The newest 300 audit entries, newest first (old: loadAudit); read when the log is opened. */
   const loadAudit = useCallback(async () => {
     const { data } = await read('auditLog', { params: { orderBy: '"$key"', limitToLast: 300 } })
@@ -730,10 +853,12 @@ export function StoreProvider({ children }) {
   }, [])
 
   const value = useMemo(() => ({
-    ...state, today: nzDate(), testMode: readTestMode(), reload: load, user, me, operator,
+    ...state, today: nzDate(), testMode, setTestMode, reload: load, user, me, operator,
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
+    saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
   }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
-    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit])
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
+    testMode, setTestMode, saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

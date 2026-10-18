@@ -165,7 +165,14 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       Found: 8 items with a space typed into On Loan To / start / end, counted as
       overdue to no one by both (100027, 100039, 100109, 100126, 100226, 100269,
       100289, 100307): a data fix in the old tracker, not a rule to change here.
-- [ ] Equipment edits (add, edit, retire, delete, kits) come with their features below
+- [x] Equipment records and Manage, 19 Oct (`Items.jsx`, `Manage.jsx`, `TestReports.jsx`; rules tested): add and
+      edit an item (a second item with the same asset number refused, which the old one allowed),
+      retire (why, notes) and bring back, delete (admin password); Sold / Retired with export; kits
+      (trigger devices offer their accessories when picked for a loan); import (CSV or Excel, admin
+      password) and export (CSV, Excel with history); Simpro job creation on/off and loans with no
+      job (make one); test mode (the old switch and people); a loan's test reports. The team is in
+      Settings, People and access. Not ported: orphaned-loan recovery (the new save is one guarded
+      write, so it can't leave a half-saved loan to recover).
 - [x] Loans, read-only, 17 Oct: the old Loans tab's sections and rules (`loanSections`, tested),
       search, account manager, overdue only and its sorts
 - [x] Overview, 17 Oct: the phone's Today and Overview in one responsive page (`Overview.jsx`,
@@ -208,8 +215,8 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       `filterAudit` tested): loans and bookings as bars across 4 to 26 weeks (coloured by state, not
       per loan as the old one), a bar opens its loan; device history searchable and by kind, a loan's
       entry opening its form; the audit log (newest 300), by kind and searchable.
-- [ ] Import / export
-- [ ] Retired, kits, test reports, account managers, settings, test mode
+- [x] Import / export (with Manage, above)
+- [x] Retired, kits, test reports, account managers (in Settings), settings, test mode (with Manage, above)
 - [ ] Links in (?newLoan from the project tracker, ?return / ?extend / ?reassign)
 - [ ] Parity check, then switch `/demo/` over
 

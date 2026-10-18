@@ -965,3 +965,164 @@ export function filterAudit(entries, { q = '', kind = '' } = {}) {
   return entries.filter((e) => e && (!types || types.includes(e.type)) &&
     (!s || [e.summary, e.operator, e.type, ...(e.detail?.items || [])].join(' ').toLowerCase().includes(s)))
 }
+
+/* ── Equipment records, retired items, import and export, kits, Simpro job
+   health (old: saveItem, deleteItem, confirmRetire, the retired tab,
+   processFile / confirmImport, exportCSV / downloadExcel, kit groups,
+   findLoansMissingSimproJob) ── */
+
+/** Every field an item can have, in the old edit form's order (old: MF). */
+export const ITEM_FIELDS = ['CHSAssetNo', 'Model', 'Description', 'SerialNo', 'BatterySerialNo', 'PartNo', 'MfgDate', 'PurchaseDate', 'USPrice', 'NZPrice', 'TileNo',
+  'OnLoanTo', 'Location', 'LoanStartDate', 'LoanEndDate', 'Returned', 'Counted', 'Notes', 'ShelfLocation', 'DeviceID', 'LanMAC', 'WlanMAC', 'OldCHS', 'TileType', 'TileUUID', 'BorrowerEmail']
+const LOAN_FIELDS = { OnLoanTo: 'On Loan To', Location: 'Location', LoanStartDate: 'Start date', LoanEndDate: 'Due date', Returned: 'Returned' }
+
+/** Why an item can't be saved, or ''. (The old one allowed a second item with the same asset number, which breaks every lookup.) */
+export function itemProblem(equipment, obj, editingId = null) {
+  const no = String(obj.CHSAssetNo || '').trim()
+  if (!no) return 'The CHS asset number is needed.'
+  const other = equipment.find((e) => e && e.id !== editingId && String(e.CHSAssetNo || '').trim().toLowerCase() === no.toLowerCase())
+  if (other) return `${no} is already in the list (${other.Model || 'another item'}).`
+  return ''
+}
+
+/**
+ * An item added or edited (old: saveItem). An edit that changes its loan
+ * fields leaves an Edited entry in its history saying what changed.
+ */
+export function saveItemEquipment(equipment, history, obj, { editingId = null, ts = nzNow(), operator = '' } = {}) {
+  const clean = Object.fromEntries(ITEM_FIELDS.filter((f) => f in obj).map((f) => [f, String(obj[f] ?? '').trim()]))
+  if (!editingId) return { equipment: [{ id: newId(), ...clean }, ...equipment], history, item: null }
+  const idx = equipment.findIndex((e) => e && e.id === editingId)
+  if (idx < 0) throw new Error('That item has gone: someone may have deleted it.')
+  const prev = equipment[idx]
+  const changed = Object.keys(LOAN_FIELDS).filter((f) => f in clean && (prev[f] || '') !== (clean[f] || ''))
+  const next = { ...prev, ...clean }
+  const eq = [...equipment]; eq[idx] = next
+  const entry = changed.length ? [{ operator, id: newId(), ts, chsAssetNo: next.CHSAssetNo, model: next.Model, action: 'Edited',
+    notes: changed.map((f) => `${LOAN_FIELDS[f]}: '${prev[f] || '—'}' → '${clean[f] || '—'}'`).join('; ') }] : []
+  return { equipment: eq, history: [...entry, ...history], item: next }
+}
+
+export const RETIRE_REASONS = ['Sold', 'Retired / End of life', 'Lost', 'Damaged / Written off', 'Returned to manufacturer']
+
+/** An item out of the equipment list and onto the retired list (old: confirmRetire). */
+export function retireEquipment(equipment, id, { reason = '', notes = '', today = nzDate() } = {}) {
+  const item = equipment.find((e) => e && e.id === id)
+  if (!item) throw new Error('That item has gone: someone may have deleted it.')
+  return { equipment: equipment.filter((e) => e && e.id !== id), retired: { ...item, RetiredDate: today, RetiredReason: reason, RetiredNotes: notes } }
+}
+
+/** Retired items back into the equipment list, without their retired details (old: restoreFromRetiredSelection). */
+export function restoreRetired(retired, ids) {
+  const want = new Set(ids)
+  const back = retired.filter((r) => want.has(r.id)).map(({ RetiredDate, RetiredReason, RetiredNotes, ...rest }) => rest)
+  return { retired: retired.filter((r) => !want.has(r.id)), back }
+}
+
+/** The retired list, searched across every field and sorted (old: renderRetired). */
+export function filterRetired(retired, { q = '', sort = 'RetiredDate', dir = -1 } = {}) {
+  const s = q.trim().toLowerCase()
+  return retired.filter((e) => e && (!s || Object.values(e).join(' ').toLowerCase().includes(s)))
+    .sort((a, b) => { const av = String(a[sort] || '').toLowerCase(), bv = String(b[sort] || '').toLowerCase(); return av < bv ? -dir : av > bv ? dir : 0 })
+}
+
+/* Import and export (old: COL_MAP, mapRow, confirmImport, exportCSV, downloadExcel) */
+
+export const EXPORT_COLUMNS = [['Model', 'Model'], ['Description', 'Description'], ['SerialNo', 'Serial Number'], ['MfgDate', 'Manufacture Date'], ['CHSAssetNo', 'CHS Asset Number'],
+  ['TileNo', 'TILE Number'], ['OnLoanTo', 'On Loan To'], ['Location', 'Location'], ['LoanStartDate', 'Loan Start Date'], ['LoanEndDate', 'Loan End Date'], ['Returned', 'Returned'],
+  ['Counted', 'Counted'], ['PartNo', 'Part Number'], ['PurchaseDate', 'Purchase date'], ['USPrice', 'US$ Price'], ['NZPrice', 'NZ$ Purchase Price'], ['ShelfLocation', 'Shelf Location'],
+  ['Notes', 'Notes'], ['DeviceID', 'Device ID'], ['LanMAC', 'LAN MAC'], ['WlanMAC', 'WLAN MAC'], ['OldCHS', 'Old CHS #'], ['TileType', 'Tile Type']]
+export const HISTORY_COLUMNS = [['ts', 'Date/Time'], ['chsAssetNo', 'CHS Asset No.'], ['model', 'Model'], ['action', 'Action'], ['loanTo', 'On Loan To'], ['location', 'Location'], ['loanStart', 'Loan Start'], ['loanEnd', 'Loan End'], ['notes', 'Notes']]
+export const RETIRED_COLUMNS = [['CHSAssetNo', 'CHS Asset No.'], ['Model', 'Model'], ['Description', 'Description'], ['SerialNo', 'Serial Number'], ['PartNo', 'Part Number'], ['NZPrice', 'NZ$ Price'],
+  ['RetiredDate', 'Retired Date'], ['RetiredReason', 'Reason'], ['RetiredNotes', 'Retired Notes'], ['Notes', 'Notes'], ['MfgDate', 'Manufacture Date'], ['PurchaseDate', 'Purchase Date'],
+  ['USPrice', 'US$ Price'], ['ShelfLocation', 'Shelf Location'], ['TileNo', 'Tile No.'], ['DeviceID', 'Device ID'], ['LanMAC', 'LAN MAC'], ['WlanMAC', 'WLAN MAC'], ['OldCHS', 'Old CHS #'], ['TileType', 'Tile Type']]
+
+/** Rows as CSV, every cell quoted (old: exportCSV). */
+export function toCsv(rows, columns) {
+  const cell = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"'
+  return [columns.map(([, h]) => h).join(','), ...rows.map((r) => columns.map(([k]) => cell(r[k])).join(','))].join('\n')
+}
+
+const COL_MAP = {
+  model: 'Model', description: 'Description', 'serial number': 'SerialNo', 'serial no': 'SerialNo', serial: 'SerialNo',
+  'battery serial number': 'BatterySerialNo', 'battery serial no': 'BatterySerialNo', 'battery serial': 'BatterySerialNo',
+  'manufacture date': 'MfgDate', 'manufacturing date': 'MfgDate', 'mfg date': 'MfgDate',
+  'chs asset number': 'CHSAssetNo', 'chs asset no': 'CHSAssetNo', 'chs asset': 'CHSAssetNo', 'asset number': 'CHSAssetNo', 'asset no': 'CHSAssetNo',
+  'tile number': 'TileNo', 'tile no': 'TileNo', tile: 'TileNo', 'on loan to': 'OnLoanTo', 'loaned to': 'OnLoanTo', location: 'Location',
+  'loan start date': 'LoanStartDate', 'loan start': 'LoanStartDate', 'loan end date': 'LoanEndDate', 'loan end': 'LoanEndDate',
+  returned: 'Returned', counted: 'Counted', 'part number': 'PartNo', 'part no': 'PartNo', 'purchase date': 'PurchaseDate',
+  'us$ price': 'USPrice', 'us price': 'USPrice', 'usd price': 'USPrice', 'us$': 'USPrice',
+  'nz$ purchase price': 'NZPrice', 'nz$ price': 'NZPrice', 'nz price': 'NZPrice', 'nzd price': 'NZPrice', 'nz$': 'NZPrice',
+  'shelf location': 'ShelfLocation', notes: 'Notes', 'device id': 'DeviceID', deviceid: 'DeviceID', 'lan mac': 'LanMAC', 'lan mac address': 'LanMAC',
+  'wlan mac': 'WlanMAC', 'wlan mac address': 'WlanMAC', 'wifi mac': 'WlanMAC', 'old chs #': 'OldCHS', 'old chs': 'OldCHS', 'old chs number': 'OldCHS', 'tile type': 'TileType',
+}
+/** A spreadsheet date as YYYY-MM-DD: already that, DD/MM/YYYY, or an Excel day number (old: normaliseDate). */
+export function importDate(v) {
+  const s = String(v ?? '').trim()
+  if (!s) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s)
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  const n = Number(s)
+  if (/^\d{4,6}$/.test(s) && n >= 1000 && n <= 99999) {
+    const d = new Date(Date.UTC(1900, 0, n - 1))
+    if (n >= 60) d.setUTCDate(d.getUTCDate() - 1)
+    return d.toISOString().slice(0, 10)
+  }
+  return s
+}
+/** A spreadsheet row as an item's fields, by its column names (old: mapRow). */
+export function importRow(row) {
+  const out = {}
+  for (const [k, v] of Object.entries(row || {})) {
+    const f = COL_MAP[String(k).toLowerCase().trim()]
+    if (f) out[f] = ['MfgDate', 'PurchaseDate', 'LoanStartDate', 'LoanEndDate'].includes(f) ? importDate(v) : v
+  }
+  return out
+}
+/** Imported rows applied (old: confirmImport): a known asset number is updated, a new one added. */
+export function applyImport(equipment, rows) {
+  const eq = [...equipment]
+  let added = 0, updated = 0
+  for (const row of rows) {
+    const m = importRow(row)
+    if (!m.CHSAssetNo) continue
+    m.CHSAssetNo = String(m.CHSAssetNo).trim()
+    const idx = eq.findIndex((e) => e && String(e.CHSAssetNo || '').toLowerCase() === m.CHSAssetNo.toLowerCase())
+    if (idx >= 0) { eq[idx] = { ...eq[idx], ...m }; updated++ } else { eq.unshift({ id: newId(), BatterySerialNo: '—', ...m }); added++ }
+  }
+  return { equipment: eq, added, updated }
+}
+
+/* Kits: a device that, when loaned, usually goes with accessories (old: kitGroups, checkKitSuggestion) */
+
+/** The kit a device starts, with each accessory's state: free, out, already picked, or not in the list. */
+export function kitFor(kits, equipment, assetNo, picked = []) {
+  const no = String(assetNo || '').trim()
+  const key = Object.keys(kits || {}).find((k) => (kits[k].triggers || []).map((t) => String(t).trim()).includes(no))
+  if (!key) return null
+  const kit = kits[key]
+  const accessories = (kit.accessories || []).map((a) => {
+    const e = equipment.find((x) => x && String(x.CHSAssetNo || '').trim() === String(a.assetNo || '').trim())
+    const isPicked = picked.includes(e?.CHSAssetNo || a.assetNo)
+    return { ...a, item: e || null, picked: isPicked, out: !!e && isOut(e), free: !!e && !isOut(e) && !isPicked }
+  })
+  return { key, label: kit.label || key, accessories }
+}
+
+/* Simpro job health (old: findLoansMissingSimproJob, _isPreWindDownLoan) */
+
+/** Loans out with no Simpro job: only ones started before job creation was switched off, unless it's on. */
+export function loansMissingJobs(sections, loanDocs = {}, cfg = {}, today = nzDate()) {
+  const before = (key, start) => {
+    if (cfg.createJobs || !cfg.windDownFrom) return true
+    const m = /^(?:test)?batch_(\d{10,})$/.exec(key || '')
+    if (m) return new Date(Number(m[1])).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' }) < cfg.windDownFrom
+    return !start || start < cfg.windDownFrom
+  }
+  return [...sections.needsReassign, ...sections.current, ...sections.upcoming.filter((g) => g.kind === 'scheduled')]
+    .filter((g) => g.loanTo && g.loanTo.trim() && !g.longTerm)
+    .map((g) => ({ ...g, docKey: loanDocKey(g) }))
+    .filter((g) => !loanDocs[g.docKey]?.simproJobId && before(g.docKey, g.startDate))
+    .map((g) => ({ ...g, type: g.startDate && g.startDate > today ? 'Scheduled' : 'Active' }))
+}
