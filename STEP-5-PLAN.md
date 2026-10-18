@@ -62,8 +62,10 @@ timestamps are NZ clock time marked `+12:00` all year (`nzNow`).
 
 ## 5A Roles in place of the admin password; the team into `users`
 
-- [ ] `users/{uid}` gains `trackerRole` (`'am'` | `'service'`) and `trackerNotify`
-      (bool). Settings → People and access already sets the tracker role
+- [ ] `users/{uid}` gains `trackerRole` (`'am'` | `'service'`), and each person's
+      demo reminders switch is `notifications.demoReminders` (bool, beside the
+      schedule's and Asks' switches, which people already set for themselves;
+      this was `trackerNotify`). Settings → People and access already sets the tracker role
       (`apps/admin/src/Admin.jsx`, `setTrackerRole`): make it write `users` too,
       and keep `accountManagers` in step (written from `users`) until nothing reads it.
 - [ ] One permission check (`can(user, 'equipment.admin')`, hub role `admin`),
@@ -76,7 +78,9 @@ timestamps are NZ clock time marked `+12:00` all year (`nzNow`).
 - [ ] Everything reading `accountManagers` reads `users` instead: the new tracker
       (`store.jsx` `managers`, `memberFor`), the proxy (`Code.js`: reminders around
       lines 339–1260, `sendTestPush_`, `pruneDeadTokens_`), `tracker.js`.
-- [ ] Firestore rules: only an admin sets `trackerRole`; tests in `rules/tests/`.
+- [x] Firestore rules: only an admin sets `trackerRole` (the person and HR can't);
+      people set their own `notifications.demoReminders`. Tested in
+      `rules/tests/equipment-rules.test.mjs`. Not yet published.
 - [ ] After the switch, and **only with Jonathan's yes**: delete `/config.adminPassword`
       (it's also in the nightly JSON backup in Drive; that folder must stay private).
 
@@ -110,9 +114,16 @@ cutover as soon as it's ready.
 
 Work:
 - [x] The schema agreed with Jonathan, 19 Oct (above).
-- [ ] Firestore rules for it, with emulator tests in `rules/tests/` (same
-      pattern as `asks-rules.test.mjs`; on Windows set
-      `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:/Users/<you>/.uds`).
+- [x] Firestore rules for it, with emulator tests in `rules/tests/equipment-rules.test.mjs`
+      (49 cases). Staff (a finished hub account) read and change it all, as
+      today; admins only: deleting an item, a loan or a retired item outright,
+      turning Simpro job creation on. Retire and restore may remove an item
+      only by moving it to the other list in the same write. History and the
+      audit log are never edited. Not yet published (nothing uses them; publish
+      before the cutover). On Windows set
+      `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:/Users/<you>/.uds`.
+      A write carries at most 10 MiB (the emulator: 4 MiB), so a report's
+      chunks go four to a batch, after the report document.
 - [ ] A Firestore data layer beside `db.js`, nothing using it yet. The new
       tracker's rules are already pure functions in `model.js` (`planNewLoan`,
       `returnEquipment`, `activateBookings`, `planTransfer`, `countEquipment`…)
@@ -152,7 +163,7 @@ Work:
 - [ ] Every notification opens the new tracker at the right place: `/equipment/#/loans?open=…`
       (step 4's links in add `?return=`, `?extend=`, `?reassign=`).
 - [ ] Each person's demo reminders on or off in Settings → Your notifications,
-      like the schedule's (`trackerNotify` from 5A).
+      like the schedule's (`notifications.demoReminders` from 5A).
 
 ## Working agreements (from `CLAUDE.md`)
 

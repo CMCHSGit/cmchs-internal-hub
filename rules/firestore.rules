@@ -82,9 +82,11 @@ service cloud.firestore {
 
     function isOwnNotifications(n) {
       return n is map
-        && n.keys().hasOnly(['scheduleReminder', 'asksSummary'])
+        && n.keys().hasOnly(['scheduleReminder', 'asksSummary', 'demoReminders'])
         && n.get('scheduleReminder', true) is bool
-        && n.get('asksSummary', true) is bool;
+        && n.get('asksSummary', true) is bool
+        // The demo tracker's due-soon and booking pushes (step 5D).
+        && n.get('demoReminders', true) is bool;
     }
 
     function isHRNewPerson() {
@@ -407,6 +409,91 @@ service cloud.firestore {
         'status': a.status, 'owner': a.owner, 'assignees': a.assignees, 'teams': a.teams, 'due': a.due,
         'urgent': a.urgent, 'createdBy': a.createdBy, 'createdAtMs': a.createdAtMs, 'doneAtMs': a.doneAtMs
       };
+    }
+
+    // The demo tracker (internal.chsnz.co.nz/equipment/), from step 5 of
+    // INTEGRATION-PLAN.md (STEP-5-PLAN.md 5B): its data moved here from the
+    // chs-equipment Realtime Database, one document per item and per loan.
+    // NOT USED YET: nothing reads or writes these until the cutover.
+    //
+    // As in the old database, everyone on staff reads and changes it all: a
+    // hub account that has finished signing in (the proxy's verifyStaff_,
+    // which gave the old database pass). What the old tracker kept behind the
+    // admin password is for hub admins here: deleting an item, a loan or a
+    // retired item for good, and turning Simpro job creation on. History and
+    // the audit log are never edited; only an admin removes history, and
+    // nobody removes the audit log.
+    function isStaff() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('pending', false) != true;
+    }
+    function isEquipmentItem(id) {
+      let d = request.resource.data;
+      return d.get('id', id) == id && d.CHSAssetNo is string && d.CHSAssetNo.size() > 0;
+    }
+    match /equipment/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff() && isEquipmentItem(id);
+      // Retiring moves an item onto the retired list in the same write.
+      allow delete: if isAdmin() || (isStaff() && existsAfter(/databases/$(database)/documents/retiredEquipment/$(id)));
+    }
+    match /retiredEquipment/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff() && isEquipmentItem(id) && request.resource.data.RetiredDate is string;
+      allow update: if isAdmin();
+      // Restoring moves it back onto the equipment list in the same write.
+      allow delete: if isAdmin() || (isStaff() && existsAfter(/databases/$(database)/documents/equipment/$(id)));
+    }
+    // A loan, keyed by its BatchID (or the loandoc_ key of one from before
+    // BatchIDs): what loanMeta and loanDocs held, and the bookings.
+    match /loans/{id} {
+      allow read: if isStaff();
+      allow create, update: if isStaff()
+        && request.resource.data.status in ['active', 'scheduled', 'booked', 'closed']
+        && request.resource.data.get('waitingFor', []) is list;
+      allow delete: if isAdmin();
+
+      // Test reports: the file split into chunks (a document holds at most 1 MiB).
+      match /reports/{rid} {
+        allow read: if isStaff();
+        allow create: if isStaff()
+          && request.resource.data.keys().hasOnly(['filename', 'mimeType', 'size', 'uploadedAt', 'uploadedBy', 'chunks'])
+          && isShortText(request.resource.data.filename, 1, 300)
+          && request.resource.data.size is int && request.resource.data.size <= 8 * 1024 * 1024
+          && request.resource.data.chunks is int && request.resource.data.chunks > 0 && request.resource.data.chunks <= 16;
+        allow delete: if isStaff();
+
+        match /chunks/{n} {
+          allow read: if isStaff();
+          allow create: if isStaff()
+            && existsAfter(/databases/$(database)/documents/loans/$(id)/reports/$(rid))
+            && request.resource.data.keys().hasOnly(['data'])
+            && request.resource.data.data is string && request.resource.data.data.size() <= 950000;
+          allow delete: if isStaff();
+        }
+      }
+    }
+    match /equipmentHistory/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.action is string && request.resource.data.ts is string;
+      allow delete: if isAdmin();
+    }
+    match /equipmentAudit/{id} {
+      allow read: if isStaff();
+      allow create: if isStaff() && request.resource.data.type is string && request.resource.data.summary is string;
+    }
+    match /equipmentKits/{id} {
+      allow read: if isStaff();
+      allow create, update, delete: if isStaff();
+    }
+    // settings/equipment: simproConfig and the added demo types. Anyone turns
+    // Simpro job creation off; only an admin turns it on.
+    match /settings/equipment {
+      allow read: if isStaff();
+      allow create, update: if isStaff() && (isAdmin() || !turnsJobsOn());
+    }
+    function turnsJobsOn() {
+      let was = resource == null ? false : resource.data.get('simproConfig', {}).get('createJobs', false);
+      return request.resource.data.get('simproConfig', {}).get('createJobs', false) == true && was != true;
     }
   }
 }
