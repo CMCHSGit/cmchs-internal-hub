@@ -3,7 +3,7 @@
    Extend, Return to active, Return items, Make long-term, the loan form,
    Add items, Transfer (to another loan, or a new one), Copy (a new loan
    with the same devices), Edit and Delete. */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
@@ -12,11 +12,18 @@ import { canExtend, demoTypeOptions, jobOf, loanDocKey, editProblem, extendProbl
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
-export default function LoanActions({ g, s, all = [], go, onDone }) {
+export default function LoanActions({ g, s, all = [], go, onDone, start = null, onStarted }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer' | 'reports'
   const [confirmDialog, confirm] = useConfirm()
+  // Opened from a link (?return=, ?extend=, ?reassign=): straight to that action, once.
+  const [preset, setPreset] = useState(null)
+  useEffect(() => {
+    if (!start?.act) return
+    if (['return', 'extend', 'transfer'].includes(start.act)) { setAsking(start.act); setPreset(start) }
+    onStarted?.()
+  }, [start?.act]) // eslint-disable-line react-hooks/exhaustive-deps
   const rb = readinessButtons(g, { loanMeta: s.loanMeta, today: s.today })
 
   // One change at a time; data-working holds off the app's update reload meanwhile.
@@ -94,7 +101,7 @@ export default function LoanActions({ g, s, all = [], go, onDone }) {
           onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.skipped.length ? `; ${plural(r.skipped.length, 'was', 'were')} left out (dates clash)` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />
       )}
       {asking === 'transfer' && (
-        <TransferDialog g={g} all={all} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+        <TransferDialog g={g} all={all} preset={preset} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onNew={(nos) => { setAsking(null); go?.('new', { move: g.kind + ':' + g.key, nos: nos.join(',') }) }}
           onSave={(nos, target) => run(() => s.transfer(g, nos, target), (r) => `${plural(r.moved, 'item', 'items')} moved to ${target.loanTo}.`)} />
       )}
@@ -348,9 +355,9 @@ function AddDialog({ g, s, busy, error, onClose, onSave }) {
  * Transfer (old: Transfer Items): which devices, and to which loan or
  * booking; or to a new loan, made in New loan with them filled in.
  */
-function TransferDialog({ g, all, busy, error, onClose, onSave, onNew }) {
-  const [picked, setPicked] = useState(() => new Set(g.items.map((e) => e.CHSAssetNo)))
-  const [to, setTo] = useState('')
+function TransferDialog({ g, all, preset = null, busy, error, onClose, onSave, onNew }) {
+  const [picked, setPicked] = useState(() => new Set(preset?.nos ? preset.nos.split(',').filter(Boolean) : g.items.map((e) => e.CHSAssetNo)))
+  const [to, setTo] = useState(preset?.to || '')
   const targets = all.filter((x) => !(x.kind === g.kind && x.key === g.key))
   const target = targets.find((x) => x.kind + ':' + x.key === to)
   const nos = [...picked]

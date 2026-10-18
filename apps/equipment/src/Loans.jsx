@@ -67,7 +67,7 @@ export default function Loans({ s, params, setParams, go }) {
         <section key={id} id={'loans-' + id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
           <h2 className="eq-section-title">{title} <span className="eq-count">{list.length}</span></h2>
           {hint && <p className="eq-note">{hint}</p>}
-          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} all={all} go={go} onDone={showToast} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
+          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} all={all} go={go} onDone={showToast} start={params.open === k && params.act ? { act: params.act, to: params.to, nos: params.nos } : null} onStarted={() => setParams({ ...params, act: undefined, to: undefined, nos: undefined })} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
         </section>
       ))}
       {lists.every(([, , , l]) => !l.length) && <p className="data-table-empty">{all.length ? 'No loans match that.' : 'No active loans.'}</p>}
@@ -76,7 +76,7 @@ export default function Loans({ s, params, setParams, go }) {
   )
 }
 
-function LoanCard({ g, s, all, go, open, onToggle, onDone }) {
+function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
   const count = g.items.length
   const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
   const days = upcomingKind ? daysBetween(s.today, g.startDate) : 0
@@ -143,7 +143,7 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone }) {
               </li>
             ))}
           </ul>
-          <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} />
+          <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
         </div>
       )}
     </article>

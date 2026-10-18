@@ -7,7 +7,13 @@
    Filled in from the address:
      ?copy=kind:key        Copy: the same devices as that loan, for someone new
      ?move=kind:key&nos=…  Transfer's "move to a new loan": those devices,
-                           taken off the loan they're on once this one's made */
+                           taken off the loan they're on once this one's made
+     ?ref=…&loanTo=…&location=…&start=…&end=…&notes=…
+                           the project tracker's "Create loan form" (it opens the
+                           tracker in a pop-up): filled in from the job, and once
+                           made, the loan is posted back to the page that opened
+                           it ({ type: 'chs-demo-loan-created', ref, batchId, … },
+                           this site only), as the old notifyProjectTrackerOfLoan */
 import { useMemo, useState } from 'react'
 import { Alert, Button, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
@@ -24,7 +30,8 @@ export default function NewLoan({ s, params, go, onDone }) {
     const all = Object.values(loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })).flat()
     return all.find((g) => g.kind + ':' + g.key === ref) || null
   }, [params.copy, params.move]) // eslint-disable-line react-hooks/exhaustive-deps
-  const [f, setF] = useState(() => blank(s.today))
+  const [f, setF] = useState(() => ({ ...blank(s.today), ...(params.loanTo ? { loanTo: params.loanTo } : {}), ...(params.location ? { location: params.location } : {}),
+    ...(params.start ? { startDate: params.start } : {}), ...(params.end ? { endDate: params.end } : {}), ...(params.notes ? { notes: params.notes } : {}) }))
   const [picked, setPicked] = useState(() => {
     if (!source) return []
     const nos = params.move ? String(params.nos || '').split(',').filter(Boolean) : source.items.map((e) => e.CHSAssetNo)
@@ -55,6 +62,11 @@ export default function NewLoan({ s, params, go, onDone }) {
     try {
       const r = await s.createLoan({ ...f, endDate: f.longTerm ? '' : f.endDate }, picked, params.move && source ? { from: { key: source.batchId || source.key, loanTo: source.loanTo, items: source.items } } : {})
       setMade(r)
+      if (params.ref) {
+        const msg = { type: 'chs-demo-loan-created', ref: params.ref, batchId: r.batchId, loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate,
+          items: r.loaned.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Model: e.Model || '' })) }
+        for (const w of [window.parent !== window ? window.parent : null, window.opener]) { try { w?.postMessage(msg, location.origin) } catch { /* closed */ } }
+      }
     } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) }
   }
 
@@ -73,6 +85,7 @@ export default function NewLoan({ s, params, go, onDone }) {
 
   return (
     <form className="eq-newloan" onSubmit={submit}>
+      {params.ref && <Alert tone="info" title="A loan for the project tracker">Filled in from the job. Pick the devices, then make the loan: the project tracker hears about it.</Alert>}
       {source && (
         <Alert tone="info" title={params.move ? `Moving ${picked.length} from ${source.loanTo} to a new loan` : `Copying ${source.loanTo}’s devices`}>
           {params.move ? 'Once this loan is made, they come off that loan’s form and Simpro job.' : 'A separate loan for someone new: the original isn’t touched. Fill in who it’s for.'}

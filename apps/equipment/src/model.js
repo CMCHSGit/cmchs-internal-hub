@@ -1126,3 +1126,48 @@ export function loansMissingJobs(sections, loanDocs = {}, cfg = {}, today = nzDa
     .filter((g) => !loanDocs[g.docKey]?.simproJobId && before(g.docKey, g.startDate))
     .map((g) => ({ ...g, type: g.startDate && g.startDate > today ? 'Scheduled' : 'Active' }))
 }
+
+/* ── Links in (old: handleReturnLink, openLoanFromProjectTracker, openStuckLoanReassign) ── */
+
+/** A loan's return / extend token, as the old one makes them for its emails: base64 of "customer|||endDate". */
+export const loanToken = (loanTo, endDate) => btoa(encodeURIComponent(loanTo + '|||' + (endDate || ''))).replace(/=/g, '')
+
+/**
+ * Where an address from outside lands, from its query (old links, kept
+ * working): ?tab=…; ?newLoan=1&ref=…&loanTo=…&location=…&start=…&end=…&notes=…
+ * (the project tracker); ?return= / ?extend= (a loan's token: that loan, its
+ * Return or Extend open); ?reassign=<booking> (a booking waiting on devices:
+ * the loan they're on, Transfer open with them ticked and the booking chosen).
+ * Returns { view, params, note } or null for nothing to do.
+ */
+export function linkTarget(search, sections, upcoming = [], equipment = []) {
+  const p = new URLSearchParams(search || '')
+  const all = [...sections.needsReassign, ...sections.current, ...sections.longTerm, ...sections.upcoming]
+  const tabs = { loans: 'loans', database: 'equipment', scan: 'scan', calendar: 'calendar', history: 'history', retired: 'manage' }
+  if (p.get('newLoan') === '1') {
+    const params = { ref: p.get('ref') || '', loanTo: p.get('loanTo') || '', location: p.get('location') || '', start: p.get('start') || '', end: p.get('end') || '', notes: p.get('notes') || '' }
+    return { view: 'new', params: Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
+  }
+  const reassign = p.get('reassign')
+  if (reassign) {
+    const u = upcoming.find((x) => x.id === reassign)
+    if (!u) return { view: 'loans', params: {}, note: 'That booking has gone: it may already be sorted.' }
+    const blocked = (u.items || []).map((i) => equipment.find((e) => e && (e.id === i.id || e.CHSAssetNo === i.CHSAssetNo))).filter((e) => e && isOut(e) && e.OnLoanTo !== u.loanTo)
+    const from = blocked.length && all.find((g) => g.kind !== 'booking' && g.items.some((e) => e.id === blocked[0].id))
+    const to = all.find((g) => g.batchId === u.id)
+    if (!from || !to) return { view: 'loans', params: to ? { open: to.kind + ':' + to.key } : {}, note: `Nothing is holding up ${u.loanTo}’s booking any more.` }
+    return { view: 'loans', params: { open: from.kind + ':' + from.key, act: 'transfer', to: to.kind + ':' + to.key, nos: blocked.filter((e) => from.items.some((x) => x.id === e.id)).map((e) => e.CHSAssetNo).join(',') } }
+  }
+  const token = p.get('return') || p.get('extend')
+  if (token) {
+    let loanTo = '', endDate = ''
+    try { [loanTo, endDate] = decodeURIComponent(atob(token)).split('|||') } catch { return { view: 'loans', params: {}, note: 'That link couldn’t be read.' } }
+    const loans = all.filter((g) => g.kind === 'loan' && g.loanTo === loanTo)
+    const g = loans.find((x) => (x.endDate || '') === (endDate || '')) || loans[0]
+    if (!g) return { view: 'loans', params: {}, note: `${loanTo}’s loan isn’t out any more: it may already be back.` }
+    return { view: 'loans', params: { open: g.kind + ':' + g.key, act: p.get('return') ? 'return' : (g.longTerm ? '' : 'extend') } }
+  }
+  const tab = p.get('tab')
+  if (tab) return { view: tabs[tab] || 'overview', params: {} }
+  return null
+}

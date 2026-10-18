@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Boxes, CalendarDays, ExternalLink, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Dialog, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
-import { FIELDS, STATUSES, fmtDate, historyFor, searchEquipment, statusOf, upcomingFor } from './model.js'
+import { FIELDS, STATUSES, fmtDate, historyFor, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal } from './db.js'
 import Loans from './Loans.jsx'
 import { AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
@@ -62,6 +62,14 @@ function Shell() {
   // Another view, as a new history entry (Back returns).
   const go = (view, params = {}) => { location.hash = hashOf(view, params) }
   const [toast, showToast] = useToast()
+  // An old-style link (?newLoan=, ?return=, ?extend=, ?reassign=, ?tab=), once the data is in: to its view, the query dropped.
+  useEffect(() => {
+    if (!s.ready || !location.search) return
+    const sections = loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })
+    const t = linkTarget(location.search, sections, s.upcoming, s.equipment)
+    history.replaceState(null, '', location.pathname + (t ? hashOf(t.view, t.params) : location.hash))
+    if (t) { setRoute({ view: t.view, params: t.params }); if (t.note) showToast(t.note) }
+  }, [s.ready]) // eslint-disable-line react-hooks/exhaustive-deps
   // Test mode is only for the two who test the tracker; anyone else signed in here has it switched off (old: updateTestModeUI).
   useEffect(() => { if (s.testMode && s.operator && !['Peter Lin', 'Jonathan Nasrun'].includes(s.operator)) s.setTestMode(false) }, [s.testMode, s.operator]) // eslint-disable-line react-hooks/exhaustive-deps
 

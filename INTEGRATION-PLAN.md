@@ -217,7 +217,10 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       entry opening its form; the audit log (newest 300), by kind and searchable.
 - [x] Import / export (with Manage, above)
 - [x] Retired, kits, test reports, account managers (in Settings), settings, test mode (with Manage, above)
-- [ ] Links in (?newLoan from the project tracker, ?return / ?extend / ?reassign)
+- [x] Links in, 19 Oct (`linkTarget`, tested): the old addresses work on /equipment/: ?newLoan (the project
+      tracker's form filled in, the loan posted back to it), ?return / ?extend (that loan, the action open),
+      ?reassign (the loan holding a booking's devices, Transfer ready), ?tab. The project tracker's button
+      and the notification links move to /equipment/ at the switch.
 - [ ] Parity check, then switch `/demo/` over
 
 ### 5. One identity and data platform
