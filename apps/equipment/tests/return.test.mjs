@@ -53,6 +53,38 @@ test('bookings: a device moved from another loan is logged as a transfer and kee
   assert.equal(a.audits[0][3], 'System (auto)')
 })
 
+test('bookings: a device pencilled in for a later loan that has not started, dates not clashing, is taken; that loan keeps it booked', () => {
+  // 19 Oct: a 19–20 Oct booking waiting on devices on a 29 Oct – 9 Nov loan, which has its own booking already.
+  const later = { OnLoanTo: 'North Shore', Location: 'Theatre', LoanStartDate: '2026-10-29', LoanEndDate: '2026-11-09', BatchID: 'bNS' }
+  const eq = [out('1', later), out('2', later), out('3', { ...later, LoanStartDate: '2026-10-20' })] // 3's later loan starts on the booking's last day: clashes
+  const upcoming = [
+    { id: 'bH', loanTo: 'Hamilton', location: 'ICU', startDate: '2026-10-19', endDate: '2026-10-20', items: [{ id: '1', CHSAssetNo: 'A1' }, { id: '2', CHSAssetNo: 'A2' }, { id: '3', CHSAssetNo: 'A3' }] },
+    { id: 'bNS', loanTo: 'North Shore', location: 'Theatre', startDate: '2026-10-29', endDate: '2026-11-09', items: [{ id: '9', CHSAssetNo: 'A9' }] },
+  ]
+  const a = activateBookings(eq, [], upcoming, { today: '2026-10-19', ts })
+  assert.deepEqual(a.equipment.map((e) => [e.OnLoanTo, e.BatchID]), [['Hamilton', 'bH'], ['Hamilton', 'bH'], ['North Shore', 'bNS']])
+  assert.equal(a.equipment[0]._transferNote, null, 'not a transfer out of a loan that never left')
+  assert.deepEqual(a.changes, [
+    { id: 'bH', items: [{ id: '3', CHSAssetNo: 'A3' }] },
+    { id: 'bNS', items: [{ id: '9', CHSAssetNo: 'A9' }, { id: '1', CHSAssetNo: 'A1', Model: 'M', SerialNo: undefined }, { id: '2', CHSAssetNo: 'A2', Model: 'M', SerialNo: undefined }] },
+  ], 'the later loan\'s existing booking is added to, not replaced')
+  assert.deepEqual(a.history.map((h) => [h.action, h.loanTo, h.batchId]), [['Converted', 'North Shore', 'bNS'], ['Converted', 'North Shore', 'bNS']])
+  assert.equal(a.audits.length, 2)
+})
+
+test('bookings: a later loan with no booking of its own gets one made, whole; `only` starts just the one booking', () => {
+  const later = { OnLoanTo: 'North Shore', Location: 'Theatre', LoanStartDate: '2026-10-29', LoanEndDate: '2026-11-09', BatchID: 'bNS', BorrowerEmail: 'am@example.com' }
+  const upcoming = [
+    { id: 'bH', loanTo: 'Hamilton', location: 'ICU', startDate: '2026-10-19', endDate: '2026-10-20', items: [{ id: '1' }] },
+    { id: 'bX', loanTo: 'Other', location: 'ED', startDate: '2026-10-18', endDate: '2026-10-25', items: [{ id: '2' }] },
+  ]
+  const a = activateBookings([out('1', later), shelf('2')], [], upcoming, { today: '2026-10-19', ts, only: 'bH', loanMeta: { bNS: { accountManager: 'Sam Lee' } } })
+  assert.equal(a.equipment[1].OnLoanTo, '', 'bX not started: only bH was asked for')
+  const made = a.changes.find((c) => c.id === 'bNS')
+  assert.deepEqual([made.entry.loanTo, made.entry.startDate, made.entry.endDate, made.entry.accountManager, made.entry.items.map((i) => i.id)], ['North Shore', '2026-10-29', '2026-11-09', 'Sam Lee', ['1']])
+  assert.deepEqual(a.changes.find((c) => c.id === 'bH'), { id: 'bH', remove: true })
+})
+
 test('long term back to active: the date checks, the date offered; Simpro dates and job numbers', () => {
   const g = { startDate: '2026-10-01' }
   assert.equal(returnToActiveProblem(g, '', today), 'Choose the new end date.')

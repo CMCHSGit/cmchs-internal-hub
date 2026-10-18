@@ -491,11 +491,23 @@ export function returnFollowUps(equipmentAfter, returned) {
  * passed takes nothing. A device moved from another loan keeps a note, so it
  * shows on that loan as transferred out. Returns the new equipment and
  * history, the changes to make to /upcomingLoans ({ id, items } for what's
- * still waiting, { id, remove: true } once all are out) and audit entries.
+ * still waiting, { id, remove: true } once all are out, and { id, items,
+ * entry } for a booking that has to be made) and audit entries.
+ *
+ * A device "out" on a loan that hasn't started yet, with dates that don't
+ * clash, isn't really out: the booking takes it, and that loan keeps its
+ * claim as a booking (deferToIncumbent), as planNewLoan does. Without this
+ * such a booking waited forever, since nothing ever comes back from a loan
+ * that never left (19 Oct: a 19–20 Oct booking stuck behind five devices
+ * pencilled in for a 29 Oct – 9 Nov loan). `only` starts just that booking;
+ * `upcoming` should still be all of them, so a loan keeping its claim is
+ * added to its existing booking rather than a new one replacing it.
  */
-export function activateBookings(equipment, history, upcoming, { today = nzDate(), ts = nzNow() } = {}) {
+export function activateBookings(equipment, history, upcoming, { today = nzDate(), ts = nzNow(), only = null, loanMeta = {} } = {}) {
   const eq = [...equipment], entries = [], changes = [], audits = []
-  const due = upcoming.filter((u) => u.startDate && u.startDate <= today).sort((a, b) => ((a.startDate || '') < (b.startDate || '') ? -1 : 1))
+  let list = [...upcoming]
+  const deferred = new Set(), had = new Set(upcoming.map((u) => u.id))
+  const due = upcoming.filter((u) => (!only || u.id === only) && u.startDate && u.startDate <= today).sort((a, b) => ((a.startDate || '') < (b.startDate || '') ? -1 : 1))
   for (const u of due) {
     const expired = !!u.endDate && u.endDate < today
     const waiting = []
@@ -505,8 +517,14 @@ export function activateBookings(equipment, history, upcoming, { today = nzDate(
       if (idx < 0) continue
       const prev = eq[idx]
       const prevLoanTo = prev.OnLoanTo || ''
-      if (expired || (prevLoanTo && prevLoanTo !== u.loanTo && prev.Returned !== 'Yes')) { waiting.push(item); continue }
-      const moved = prevLoanTo && prevLoanTo !== u.loanTo
+      const out = !!prevLoanTo && prevLoanTo !== u.loanTo && prev.Returned !== 'Yes'
+      const later = out && !!prev.LoanStartDate && prev.LoanStartDate > today && !datesOverlap(prev.LoanStartDate, prev.LoanEndDate || '', u.startDate, u.endDate || '')
+      if (expired || (out && !later)) { waiting.push(item); continue }
+      if (later) {
+        const d = deferToIncumbent(list, loanMeta, prev, u.loanTo, u.startDate, u.endDate, { ts, operator: null })
+        list = d.upcoming; entries.push(d.entry); deferred.add(d.changedId)
+      }
+      const moved = prevLoanTo && prevLoanTo !== u.loanTo && !later
       if (moved) {
         entries.push({ id: newId(), ts, chsAssetNo: prev.CHSAssetNo, model: prev.Model, action: 'Transfer', loanTo: u.loanTo, location: u.location,
           loanStart: u.startDate, loanEnd: u.endDate, batchId: u.id, operator: null,
@@ -514,13 +532,21 @@ export function activateBookings(equipment, history, upcoming, { today = nzDate(
         audits.push(['items_transferred', `${prev.CHSAssetNo} auto-transferred from ${prevLoanTo} to ${u.loanTo} — upcoming loan started ${u.startDate}`,
           { assetNo: prev.CHSAssetNo, fromLoanTo: prevLoanTo, toLoanTo: u.loanTo, items: [prev.CHSAssetNo] }, 'System (auto)'])
       }
-      eq[idx] = { ...prev, OnLoanTo: u.loanTo, Location: u.location, LoanStartDate: u.startDate, LoanEndDate: u.endDate, Returned: 'No', BatchID: u.id,
+      if (later) {
+        audits.push(['items_transferred', `${prev.CHSAssetNo} to ${u.loanTo} (starts ${oldDate(u.startDate)}) first; ${prevLoanTo}'s later loan (starts ${oldDate(prev.LoanStartDate)}) keeps it booked`,
+          { assetNo: prev.CHSAssetNo, fromLoanTo: prevLoanTo, toLoanTo: u.loanTo, items: [prev.CHSAssetNo] }, 'System (auto)'])
+      }
+      eq[idx] ={ ...prev, OnLoanTo: u.loanTo, Location: u.location, LoanStartDate: u.startDate, LoanEndDate: u.endDate, Returned: 'No', BatchID: u.id,
         BorrowerEmail: u.borrowerEmail || '', _upcomingLoanId: null,
         _transferNote: moved ? { fromLoanTo: prevLoanTo, fromLocation: prev.Location || '', fromBatchId: prev.BatchID || '', fromEndDate: prev.LoanEndDate || '',
           toLoanTo: u.loanTo, toStartDate: u.startDate, transferredOn: today } : (prev._transferNote || null) }
       took = true
     }
     if (took) changes.push(waiting.length ? { id: u.id, items: waiting } : { id: u.id, remove: true })
+  }
+  for (const id of deferred) {
+    const x = list.find((y) => y.id === id)
+    changes.push(had.has(id) ? { id, items: x.items } : { id, items: x.items, entry: x })
   }
   // The old one logs each as it goes, newest first.
   return { equipment: eq, history: [...entries.reverse(), ...history], changes, audits }

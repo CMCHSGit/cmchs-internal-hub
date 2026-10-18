@@ -119,6 +119,43 @@ export function StoreProvider({ children }) {
     try { await write('auditLog/' + enc(entry.id), entry) } catch (e) { console.warn('[equipment] audit entry not saved', e) }
   }, [operator])
 
+  /** activateBookings' changes, saved to /upcomingLoans and shown. */
+  const applyBookingChanges = useCallback(async (changes) => {
+    for (const c of changes) {
+      if (c.remove) await write('upcomingLoans/' + enc(c.id), null, { method: 'DELETE' })
+      else if (c.entry) await write('upcomingLoans/' + enc(c.id), c.entry)
+      else await write(`upcomingLoans/${enc(c.id)}/items`, c.items)
+    }
+    if (!changes.length) return
+    setState((s) => {
+      const up = s.upcoming.flatMap((u) => { const c = changes.find((x) => x.id === u.id); return !c ? [u] : c.remove ? [] : [{ ...u, items: c.items }] })
+      for (const c of changes) if (c.entry && !up.some((u) => u.id === c.id)) up.push(c.entry)
+      return { ...s, upcoming: up }
+    })
+  }, [])
+
+  // Bookings whose start has come try to start whenever the data loads, as
+  // the old tracker's loadData did (activateUpcomingLoans). Otherwise they
+  // only got the chance when something was returned, counted or edited, and
+  // one waiting on devices that never left (a loan not started yet) never
+  // did. Tried on the copy in hand first, so an ordinary load writes nothing.
+  const starting = useRef(false)
+  useEffect(() => {
+    const s = latest.current
+    if (!s.ready || !user || starting.current) return
+    const today = nzDate()
+    if (!activateBookings(s.equipment || [], [], s.upcoming || [], { today, loanMeta: s.loanMeta || {} }).changes.length) return
+    starting.current = true
+    ;(async () => {
+      const ts = nzNow()
+      let a = null
+      await updateData((d) => { a = activateBookings(d.equipment, d.history, latest.current.upcoming || [], { today, ts, loanMeta: latest.current.loanMeta || {} }); return { equipment: a.equipment, history: a.history } })
+      await applyBookingChanges(a.changes)
+      for (const [type, summary, detail, op] of a.audits) await audit(type, summary, detail, op)
+      await touch()
+    })().catch((e) => console.warn('[equipment] due bookings not started', e)).finally(() => { starting.current = false })
+  }, [state.loadedAt, state.ready, user, updateData, applyBookingChanges, audit, touch])
+
   /** Tested / dispatched / no test required, on or off (old: toggleReadiness, confirmReadinessDate). */
   const setReadiness = useCallback(async (g, field, on, at) => {
     const key = readinessKey(g)
@@ -220,18 +257,12 @@ export function StoreProvider({ children }) {
     await updateData((d) => {
       const r = returnEquipment(d.equipment, d.history, ids, { today, ts, operator })
       if (!r.returned.length) throw new Error('Those devices are already back.')
-      const a = activateBookings(r.equipment, r.history, latest.current.upcoming || [], { today, ts })
+      const a = activateBookings(r.equipment, r.history, latest.current.upcoming || [], { today, ts, loanMeta: latest.current.loanMeta })
       res = { r, a }
       return { equipment: a.equipment, history: a.history }
     })
     const { r, a } = res
-    for (const c of a.changes) {
-      if (c.remove) await write('upcomingLoans/' + enc(c.id), null, { method: 'DELETE' })
-      else await write(`upcomingLoans/${enc(c.id)}/items`, c.items)
-    }
-    if (a.changes.length) {
-      setState((s) => ({ ...s, upcoming: s.upcoming.flatMap((u) => { const c = a.changes.find((x) => x.id === u.id); return !c ? [u] : c.remove ? [] : [{ ...u, items: c.items }] }) }))
-    }
+    await applyBookingChanges(a.changes)
     const { close, prune } = returnFollowUps(r.equipment, r.returned)
     for (const c of close) {
       await closeJob(c.key, c.loanTo, `All items returned to office on ${oldDate(today)}.`)
@@ -349,14 +380,14 @@ export function StoreProvider({ children }) {
       setState((s) => ({ ...s, upcoming: s.upcoming.map((x) => (x.id === u.id ? next : x)) }))
       if (next.startDate && next.startDate <= today) {
         let a = null
-        await updateData((d) => { a = activateBookings(d.equipment, d.history, [next], { today, ts }); return { equipment: a.equipment, history: a.history } })
-        for (const c of a.changes) {
-          if (c.remove) await write('upcomingLoans/' + enc(c.id), null, { method: 'DELETE' })
-          else await write(`upcomingLoans/${enc(c.id)}/items`, c.items)
-        }
-        if (a.changes.length) setState((s) => ({ ...s, upcoming: s.upcoming.flatMap((x) => { const c = a.changes.find((y) => y.id === x.id); return !c ? [x] : c.remove ? [] : [{ ...x, items: c.items }] }) }))
+        // All the bookings, not just this one: a loan it takes a device from
+        // keeps its claim on its own booking, which has to be found to be kept.
+        const all = latest.current.upcoming.map((x) => (x.id === u.id ? next : x))
+        await updateData((d) => { a = activateBookings(d.equipment, d.history, all, { today, ts, only: u.id, loanMeta: latest.current.loanMeta }); return { equipment: a.equipment, history: a.history } })
+        await applyBookingChanges(a.changes)
         for (const [type, summary, detail, op] of a.audits) await audit(type, summary, detail, op)
-        started = a.changes[0] ? (a.changes[0].remove ? 'all' : 'some') : 'none'
+        const own = a.changes.find((c) => c.id === u.id)
+        started = own ? (own.remove ? 'all' : 'some') : 'none'
       }
     } else {
       await updateData((d) => ({ ...d, equipment: editEquipment(d.equipment, g, f) }))
@@ -694,16 +725,12 @@ export function StoreProvider({ children }) {
     await updateData((d) => {
       const c = countEquipment(d.equipment, d.history, id, { keepOnLoan, today, ts, operator })
       if (!c) throw new Error('That item isn’t in the equipment list any more.')
-      const a = keepOnLoan ? { equipment: c.equipment, history: c.history, changes: [], audits: [] } : activateBookings(c.equipment, c.history, latest.current.upcoming || [], { today, ts })
+      const a = keepOnLoan ? { equipment: c.equipment, history: c.history, changes: [], audits: [] } : activateBookings(c.equipment, c.history, latest.current.upcoming || [], { today, ts, loanMeta: latest.current.loanMeta })
       res = { c, a }
       return { equipment: a.equipment, history: a.history }
     })
     const { c, a } = res
-    for (const ch of a.changes) {
-      if (ch.remove) await write('upcomingLoans/' + enc(ch.id), null, { method: 'DELETE' })
-      else await write(`upcomingLoans/${enc(ch.id)}/items`, ch.items)
-    }
-    if (a.changes.length) setState((s) => ({ ...s, upcoming: s.upcoming.flatMap((u) => { const ch = a.changes.find((x) => x.id === u.id); return !ch ? [u] : ch.remove ? [] : [{ ...u, items: ch.items }] }) }))
+    await applyBookingChanges(a.changes)
     for (const [type, summary, detail, op] of a.audits) await audit(type, summary, detail, op)
     if (!keepOnLoan && c.was.out) {
       const { close, prune } = returnFollowUps(c.equipment, [c.was])
