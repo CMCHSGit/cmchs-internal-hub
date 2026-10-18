@@ -107,7 +107,13 @@ export function interceptLinks() {
     if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return
     const url = new URL(a.getAttribute('href'), location.href)
     if (url.origin !== location.origin || !(sectionOf(url.pathname) || movedTo(url.pathname, url.hash))) return
-    if (url.pathname === location.pathname && url.search === location.search) return // same page: let #… work as it always has
+    if (url.pathname === location.pathname && url.search === location.search) {
+      // The page that's open, exactly (Settings from More, then from the
+      // account menu): back to its top, not a page load, which would show
+      // whatever copy is cached and, just after a deploy, the old one.
+      if (url.hash === location.hash) { e.preventDefault(); window.scrollTo(0, 0) }
+      return // only the #… part differs: let it work as it always has
+    }
     e.preventDefault()
     navigate(url.href)
   }
