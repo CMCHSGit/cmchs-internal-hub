@@ -14,7 +14,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { auth } from '../../schedule/src/firebase.js'
 import { isLocal, read, watch, write } from './db.js'
 import {
-  activateBookings, deleteLoanEquipment, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, addToBooking, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -23,6 +23,8 @@ export const useStore = () => useContext(Store)
 
 const list = (v) => (Array.isArray(v) ? v.filter(Boolean) : v && typeof v === 'object' ? Object.values(v).filter(Boolean) : [])
 const enc = encodeURIComponent
+// The old tracker's EmailJS account for the loan confirmation email (public: it's in that page too).
+const EMAILJS = { service: 'service_ig1n6ut', template: 'template_24se0ve', key: 'vMgCBjvQgk-oWs34f' }
 // The old tracker's test mode switch, shared through this origin's storage.
 const readTestMode = () => { try { return localStorage.getItem('testMode') === '1' } catch { return false } }
 
@@ -400,9 +402,290 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, operator, touch, updateData])
 
+  /** Bookings changed by a plan written back, and the list here updated. */
+  const saveBookings = useCallback(async (nextList, ids) => {
+    for (const id of ids) {
+      const u = nextList.find((x) => x.id === id)
+      await write('upcomingLoans/' + enc(id), u && (u.items || []).length ? u : null, u && (u.items || []).length ? {} : { method: 'DELETE' })
+    }
+    if (ids.length) setState((s) => ({ ...s, upcoming: nextList.filter((u) => (u.items || []).length) }))
+  }, [])
+
+  /**
+   * A loan's Simpro job made or brought up to date (old: _submitSimproJob).
+   * One being made already (the "pending" marker the old one leaves) is left
+   * alone. A new one is made only while job creation is on (Settings, its
+   * /simproConfig switch) unless allowCreate. In test mode and the dev server
+   * the job number is made up (TEST-…), as the old one does. A new job's
+   * number is written to the form by the proxy; this watches for it.
+   */
+  const submitJob = useCallback(async (key, data, { allowCreate = false } = {}) => {
+    let jobId = null
+    try { jobId = (await read(`loanDocs/${enc(key)}/simproJobId`)).data } catch { /* none */ }
+    if (jobId === 'pending' || (jobId && typeof jobId === 'object')) return { skipped: 'being made' }
+    const isNew = !jobId
+    if (isNew && !allowCreate) {
+      const { data: cfg } = await read('simproConfig')
+      if (!(cfg && cfg.createJobs === true)) return { skipped: 'creation off' }
+    }
+    const label = data.loanTo || ''
+    if (isLocal || readTestMode()) {
+      // A made-up number for a new job only. (The old one also put one over a
+      // real job's number on an update in test mode, losing the real one.)
+      const fake = isNew ? 'TEST-' + (100000 + Math.floor(Math.random() * 900000)) : jobId
+      if (isNew) {
+        await write(`loanDocs/${enc(key)}/simproJobId`, fake)
+        setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: { ...(s.loanDocs[key] || {}), simproJobId: fake } } }))
+      }
+      await audit(isNew ? 'simpro_created' : 'simpro_updated', `Simpro job ${fake} ${isNew ? 'created' : 'updated'} (TEST MODE) — ${label}`, { loanTo: label, jobId: fake, pdfKey: key })
+      return { jobId: fake, created: isNew, test: true }
+    }
+    if (isNew) await write(`loanDocs/${enc(key)}/simproJobId`, { status: 'pending', ts: Date.now() })
+    await simpro({
+      loanTo: data.loanTo || '', location: data.location || '', notes: data.notes || '', shippingDetails: data.shippingDetails || '',
+      startDate: toISO(data.startDate || ''), endDate: toISO(data.endDate || ''), accountManager: data.accountManager || '', contactNumber: data.contactNumber || '',
+      jobType: data.jobType || 'Demo', items: data.items || [], jobId: isNew ? null : jobNumber(jobId), pdfKey: key, allowCreate,
+    })
+    if (!isNew) {
+      await audit('simpro_updated', `Simpro job #${jobNumber(jobId)} updated — ${label}`, { loanTo: label, jobId: jobNumber(jobId), pdfKey: key })
+      return { jobId: jobNumber(jobId), created: false }
+    }
+    // The proxy writes the new number to the form: look for it for 15 seconds, as the old one does.
+    ;(async () => {
+      for (let i = 0; i < 5; i++) {
+        await new Promise((r) => setTimeout(r, 3000))
+        try {
+          const n = jobNumber((await read(`loanDocs/${enc(key)}/simproJobId`)).data)
+          if (n) {
+            setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: { ...(s.loanDocs[key] || {}), simproJobId: n } } }))
+            await audit('simpro_created', `Simpro job #${n} created — ${label}`, { loanTo: label, jobId: n, pdfKey: key })
+            return
+          }
+        } catch { /* try again */ }
+      }
+      await audit('simpro_created', `Simpro job created — ${label} (ID pending)`, { loanTo: label, pdfKey: key })
+    })()
+    return { created: true, pending: true }
+  }, [audit, simpro])
+
+  /**
+   * The loan form saved (old: saveLoanDocChanges): the whole form document,
+   * keeping what the form doesn't show (formDoc); the devices still on this
+   * loan get any changed customer, place or dates; a changed account manager
+   * goes in loanMeta; a booking's own details follow. Then, unless told not
+   * to, its Simpro job is brought up to date (or made, if creation is on),
+   * never for a long-term loan.
+   */
+  const saveForm = useCallback(async (key, form, info = {}, { simproToo = true } = {}) => {
+    const { data: stored } = await read('loanDocs/' + enc(key))
+    const doc = formDoc(form, stored || {}, info)
+    await write('loanDocs/' + enc(key), doc)
+    setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: doc } }))
+    const mine = (e) => e && (form.items || []).some((i) => i.id === e.id || i.CHSAssetNo === e.CHSAssetNo) && (!e.BatchID || e.BatchID === key)
+    const set = {
+      ...(form.loanTo ? { OnLoanTo: form.loanTo } : {}), ...(form.location ? { Location: form.location } : {}),
+      ...(form.startDate ? { LoanStartDate: toISO(form.startDate) } : {}), ...(form.endDate && !doc.longTerm ? { LoanEndDate: toISO(form.endDate) } : {}),
+    }
+    const differs = (latest.current.equipment || []).some((e) => mine(e) && Object.entries(set).some(([k, v]) => e[k] !== v))
+    if (differs) await updateData((d) => ({ ...d, equipment: d.equipment.map((e) => (mine(e) ? { ...e, ...set } : e)) }))
+    const batch = form.items?.[0]?.BatchID || (latest.current.equipment || []).find(mine)?.BatchID
+    if (form.accountManager && batch && latest.current.loanMeta?.[batch]?.accountManager !== form.accountManager) await patchMeta(batch, { accountManager: form.accountManager })
+    const u = (latest.current.upcoming || []).find((x) => x.id === key)
+    if (u) {
+      const patch = { loanTo: form.loanTo || u.loanTo, location: form.location || u.location, startDate: toISO(form.startDate) || u.startDate, endDate: toISO(form.endDate) || u.endDate, accountManager: form.accountManager || u.accountManager }
+      await write('upcomingLoans/' + enc(key), patch, { method: 'PATCH' })
+      setState((s) => ({ ...s, upcoming: s.upcoming.map((x) => (x.id === key ? { ...x, ...patch } : x)) }))
+    }
+    let job = null
+    if (simproToo && !doc.longTerm) {
+      try {
+        job = await submitJob(key, { ...doc, notes: doc.notesCell, shippingDetails: doc.authCell, items: doc.savedRows.map((r) => ({ CHSAssetNo: r[0], Model: r[1], Description: r[2], SerialNo: r[3] })) })
+      } catch (e) { console.warn('[equipment] Simpro not updated', e) }
+    }
+    await touch()
+    return { doc, job }
+  }, [patchMeta, submitJob, touch, updateData])
+
+  /**
+   * The loan form emailed to the account manager (old: sendLoanDocEmail and
+   * sendLoanConfirmationEmail), through EmailJS with the old tracker's
+   * template and public key. Not sent in test mode or the dev server.
+   */
+  const emailForm = useCallback(async (form, to, name) => {
+    if (!to) throw new Error('There’s no email address to send it to.')
+    if (isLocal || readTestMode()) { console.info('[equipment] loan form email not sent here (test mode or dev):', to); return { simulated: true } }
+    const token = btoa(encodeURIComponent(form.loanTo + '|||' + (form.endDate || ''))).replace(/=/g, '')
+    const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: EMAILJS.service, template_id: EMAILJS.template, user_id: EMAILJS.key,
+        template_params: {
+          to_email: to, to_name: name || to, customer_name: form.loanTo || '', customer_location: form.location || '',
+          loan_start: fmtDate(form.startDate || nzDate()), loan_end: form.longTerm ? 'Long term — no end date' : fmtDate(form.endDate || ''),
+          loan_form_html: loanFormHtml(form),
+          manage_link: 'https://internal.chsnz.co.nz/equipment/#/loans',
+          return_link: 'https://internal.chsnz.co.nz/demo/?return=' + token,
+          extend_link: 'https://internal.chsnz.co.nz/demo/?extend=' + token,
+        },
+      }),
+    })
+    if (!res.ok) throw new Error('The email didn’t go: ' + ((await res.text()) || res.status))
+    return { sent: true }
+  }, [])
+
+  /**
+   * A new loan (old: submitBatchLoan / doLoan). Refused if one to the same
+   * customer, place and end date exists (add to that instead). Devices go on
+   * it or are booked on it (planNewLoan); its account manager and long term
+   * go in loanMeta; its loan form is written. If it took devices from
+   * another loan ("move to a new loan"), that loan's form and Simpro job lose
+   * them. The form is then opened to finish it (LoanForm.jsx): saving it,
+   * the email and the Simpro job happen there, as in the old one.
+   */
+  const createLoan = useCallback(async (f, assetNos, { from = null } = {}) => {
+    const today = nzDate(), ts = nzNow(), testMode = readTestMode()
+    if (!f.longTerm) {
+      const [eqd, upd] = await Promise.all([read('data/equipment'), read('upcomingLoans')])
+      if (existingLoanMatch(list(eqd.data), list(upd.data), f, testMode)) {
+        throw new Error(`A loan to ${f.loanTo} at ${f.location}, ending ${fmtDate(f.endDate)}, already exists. Open it in Loans and use Add items instead: a second loan with the same details would mix up their forms.`)
+      }
+    }
+    const batchId = newBatchId(testMode)
+    let plan = null
+    await updateData((d) => {
+      plan = planNewLoan({ equipment: d.equipment, history: d.history, upcoming: latest.current.upcoming || [], loanMeta: latest.current.loanMeta || {} }, f, assetNos, { batchId, today, ts, operator })
+      if (!plan.loaned.length) throw new Error(plan.skipped.length ? 'Every one of those devices is out on a loan whose dates clash.' : 'None of those asset numbers were found.')
+      return { equipment: plan.equipment, history: plan.history }
+    })
+    await saveBookings(plan.upcoming, plan.changed)
+    await patchMeta(batchId, { accountManager: f.am, longTerm: !!f.longTerm })
+    const items = plan.loaned.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Model: e.Model, Description: e.Description, SerialNo: e.SerialNo }))
+    const doc = { loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate, accountManager: f.am, contactNumber: f.contact || '',
+      jobType: f.jobType || 'Demo', demoType: f.demoType || '', island: f.island || '', longTerm: !!f.longTerm, notes: f.notes || '', notesCell: f.notes || '', authCell: f.shipping || '', items }
+    try { await write('loanDocs/' + enc(batchId), doc); setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [batchId]: doc } })) } catch (e) { console.warn('[equipment] loan form not saved', e) }
+    if (f.demoType) await addDemoType(f.demoType)
+    const n = plan.loaned.length
+    await audit('loan_created', `${n} item${n !== 1 ? 's' : ''} loaned to ${f.loanTo}${f.location ? ' — ' + f.location : ''}`,
+      { loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate, batchId, items: plan.loaned.map((e) => e.CHSAssetNo) })
+    if (from) {
+      const taken = new Set(plan.loaned.map((e) => e.CHSAssetNo))
+      try {
+        const { data: src } = await read('loanDocs/' + enc(from.key))
+        if (src?.savedRows) await write(`loanDocs/${enc(from.key)}/savedRows`, rowsWithout(src.savedRows, taken))
+        const jobId = jobNumber(src?.simproJobId)
+        const remaining = (from.items || []).filter((e) => !taken.has(e.CHSAssetNo))
+        if (jobId && remaining.length) {
+          const s = latest.current
+          await simpro({ loanTo: from.loanTo, location: src.location || '', startDate: toISO(src.startDate || ''), endDate: toISO(src.endDate || ''),
+            accountManager: loanAM({ batchId: from.key, loanTo: from.loanTo, endDate: src.endDate || '' }, { loanMeta: s.loanMeta, loanDocs: s.loanDocs }),
+            notes: src.notesCell || '', shippingDetails: src.authCell || '', contactNumber: src.contactNumber || '', jobType: src.jobType || 'Demo',
+            items: remaining.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Description: e.Description || e.Model || '', SerialNo: e.SerialNo || '' })), jobId, pdfKey: from.key })
+          await audit('simpro_updated', `Simpro job #${jobId} updated — items split to new loan for ${f.loanTo}`, { loanTo: from.loanTo, jobId, pdfKey: from.key })
+        }
+      } catch (e) { console.warn('[equipment] the loan they came from wasn’t tidied', e) }
+    }
+    await touch()
+    return { batchId, loaned: plan.loaned, booked: plan.booked, skipped: plan.skipped, reclaimed: plan.reclaimed, doc }
+  }, [addDemoType, audit, operator, patchMeta, saveBookings, simpro, touch, updateData])
+
+  /**
+   * Add items (old: _doAddItemsToLoan, _doAddItemsToUpcoming). To a booking:
+   * on its waiting list. To a loan: planAddItems, then its loan form gets the
+   * new devices (at the bottom of its rows, if it has rows) and is saved,
+   * which brings its Simpro job up to date.
+   */
+  const addItems = useCallback(async (g, assetNos) => {
+    const today = nzDate(), ts = nzNow()
+    if (g.kind === 'booking') {
+      const u = (latest.current.upcoming || []).find((x) => x.id === g.batchId)
+      if (!u) throw new Error('That booking has gone. Reload and try again.')
+      let r = null
+      await updateData((d) => { r = addToBooking(d.equipment, u, assetNos); if (!r.added.length) throw new Error('Nothing new to add: they’re not found or already on it.'); return { ...d, equipment: r.equipment } })
+      await write('upcomingLoans/' + enc(u.id), r.booking)
+      setState((s) => ({ ...s, upcoming: s.upcoming.map((x) => (x.id === u.id ? r.booking : x)) }))
+      const n = r.added.length
+      await audit('items_added', `${n} item${n !== 1 ? 's' : ''} added to upcoming loan — ${g.loanTo}`, { loanTo: g.loanTo, batchId: u.id, items: r.added.map((e) => e.CHSAssetNo) })
+      await touch()
+      return { added: r.added, skipped: [], reclaimed: [], batchId: u.id }
+    }
+    const batchId = g.batchId || newBatchId(readTestMode())
+    let plan = null
+    await updateData((d) => {
+      plan = planAddItems({ equipment: d.equipment, history: d.history, upcoming: latest.current.upcoming || [], loanMeta: latest.current.loanMeta || {} }, g, assetNos, { batchId, today, ts, operator })
+      if (!plan.added.length) throw new Error(plan.skipped.length ? 'Those devices are out on loans whose dates clash with this one.' : 'Nothing new to add: they’re not found or already on it.')
+      return { equipment: plan.equipment, history: plan.history }
+    })
+    await saveBookings(plan.upcoming, plan.changed)
+    const n = plan.added.length
+    await audit('items_added', `${n} item${n !== 1 ? 's' : ''} added to loan — ${g.loanTo}`, { loanTo: g.loanTo, location: g.location, batchId, items: plan.added.map((e) => e.CHSAssetNo) })
+    // Its form: the devices now on it, the added ones at the bottom of its rows.
+    const { data: doc } = await read('loanDocs/' + enc(batchId))
+    const onIt = plan.equipment.filter((e) => e && e.BatchID === batchId && e.Returned !== 'Yes')
+    const items = [...onIt.filter((e) => !plan.added.includes(e)), ...plan.added]
+    const form = { loanTo: g.loanTo, location: g.location, startDate: g.startDate || today, endDate: g.endDate || '', accountManager: g.am || '', contactNumber: doc?.contactNumber || '',
+      items, rows: rowsWithAdded(doc, plan.added) || formRows(null, items).filter((r) => r.some(Boolean)), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '' }
+    try { await saveForm(batchId, form, { loanTo: g.loanTo, location: g.location, startDate: g.startDate || today, endDate: g.endDate || '', accountManager: g.am || '' }, { simproToo: !g.longTerm }) } catch (e) { console.warn('[equipment] loan form not updated', e) }
+    await touch()
+    return { added: plan.added, skipped: plan.skipped, reclaimed: plan.reclaimed, batchId }
+  }, [audit, operator, saveBookings, saveForm, touch, updateData])
+
+  /**
+   * Transfer devices to another loan or booking (old: confirmReassignAM,
+   * move). Each side's Simpro job gets a note saying what moved where and its
+   * new device list; a loan left with nothing has its job closed. The source
+   * form loses the moved rows.
+   */
+  const transfer = useCallback(async (g, nos, target) => {
+    const ts = nzNow(), today = nzDate()
+    const targetBatchId = target.kind === 'booking' ? target.batchId : (target.batchId || newBatchId(readTestMode()))
+    const srcKey = loanDocKey(g)
+    const [srcDoc, tgtDoc] = await Promise.all([read('loanDocs/' + enc(srcKey)).then((r) => r.data).catch(() => null), read('loanDocs/' + enc(targetBatchId)).then((r) => r.data).catch(() => null)])
+    let plan = null
+    await updateData((d) => {
+      plan = planTransfer({ equipment: d.equipment, history: d.history }, g, nos, target, { targetBatchId, ts, operator })
+      if (!plan.moved.length) throw new Error('Choose at least one device to move.')
+      return { equipment: plan.equipment, history: plan.history }
+    })
+    const { moved, remaining } = plan
+    const list = moved.map((e) => e.CHSAssetNo).join(', ')
+    const n = moved.length, nItems = `${n} item${n !== 1 ? 's' : ''}`
+    const add = (existing, note) => (existing ? existing + '\n\n' : '') + note
+    const s = latest.current
+    const srcJob = jobNumber(srcDoc?.simproJobId)
+    if (srcJob) {
+      await simpro({ loanTo: g.loanTo, location: g.location || '', startDate: toISO(g.startDate || ''), endDate: toISO(g.endDate || ''), accountManager: g.am || '',
+        notes: add(srcDoc?.notesCell, `Transferred ${nItems} (${list}) to ${target.loanTo} on ${fmtDate(today)}.`), shippingDetails: srcDoc?.authCell || '', contactNumber: srcDoc?.contactNumber || '',
+        jobType: srcDoc?.jobType || 'Demo', items: remaining.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Description: e.Description || e.Model || '', SerialNo: e.SerialNo || '' })), jobId: srcJob, pdfKey: srcKey })
+      if (remaining.length) await audit('simpro_updated', `Simpro job #${srcJob} updated — items reassigned out`, { loanTo: g.loanTo, jobId: srcJob, pdfKey: srcKey })
+      else if (await simpro({ jobId: srcJob, close: true })) await audit('simpro_closed', `Simpro job #${srcJob} closed — ${g.loanTo}`, { loanTo: g.loanTo, jobId: srcJob })
+    }
+    const tgtJob = jobNumber(tgtDoc?.simproJobId)
+    if (tgtJob) {
+      const tgtItems = [...(target.kind === 'booking' ? target.pending : target.items), ...moved]
+      await simpro({ loanTo: target.loanTo, location: target.location || '', startDate: toISO(target.startDate || ''), endDate: toISO(target.endDate || ''),
+        accountManager: target.am || loanAM(target, { loanMeta: s.loanMeta, loanDocs: s.loanDocs }), notes: add(tgtDoc?.notesCell, `Received ${nItems} (${list}) from ${g.loanTo} on ${fmtDate(today)}.`),
+        shippingDetails: tgtDoc?.authCell || '', contactNumber: tgtDoc?.contactNumber || '', jobType: 'Demo',
+        items: tgtItems.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Description: e.Description || e.Model || '', SerialNo: e.SerialNo || '' })), jobId: tgtJob, pdfKey: targetBatchId })
+      await audit('simpro_updated', `Simpro job #${tgtJob} updated — items moved in from ${g.loanTo}`, { loanTo: target.loanTo, jobId: tgtJob, pdfKey: targetBatchId })
+    }
+    if (target.kind === 'booking') {
+      const u = (s.upcoming || []).find((x) => x.id === target.batchId)
+      if (u) {
+        const left = rowsWithout((u.items || []).map((i) => [i.CHSAssetNo, i]), moved.map((e) => e.CHSAssetNo)).map((r) => r[1])
+        await saveBookings(s.upcoming.map((x) => (x.id === u.id ? { ...u, items: left } : x)), [u.id])
+      }
+    }
+    if (srcDoc?.savedRows) { try { await write(`loanDocs/${enc(srcKey)}/savedRows`, rowsWithout(srcDoc.savedRows, moved.map((e) => e.CHSAssetNo))) } catch { /* as the old one */ } }
+    await audit('loan_reassigned', `${nItems} moved from ${g.loanTo} to ${target.loanTo}`, { from: g.loanTo, to: target.loanTo, items: moved.map((e) => e.CHSAssetNo) })
+    await touch()
+    return { moved: n }
+  }, [audit, operator, saveBookings, simpro, touch, updateData])
+
   const value = useMemo(() => ({
     ...state, today: nzDate(), testMode: readTestMode(), reload: load, user, me, operator,
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
-  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin])
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer,
+  }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

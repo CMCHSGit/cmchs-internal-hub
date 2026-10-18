@@ -606,3 +606,265 @@ export function deleteLoanEquipment(equipment, history, g, { ts = nzNow(), opera
   })
   return { equipment: next, history: [...entries.reverse(), ...history] }
 }
+
+/* ── New loan, add items, transfer (old: submitBatchLoan and its doLoan,
+   _doAddItemsToLoan, _doAddItemsToUpcoming, confirmReassignAM's move
+   branch, _deferToIncumbentUpcoming) ── */
+
+export const JOB_TYPES = ['Demo', 'PMV - On site', 'PMV - Back to base', 'Repair', 'Install/EquipChk', 'AED']
+export const ISLANDS = ['North', 'South']
+
+/** An item by its asset number, however it was typed or scanned. */
+export function findAsset(equipment, no) {
+  const n = String(no || '').trim().toLowerCase()
+  return n ? equipment.find((e) => e && e.CHSAssetNo && e.CHSAssetNo.trim().toLowerCase() === n) : undefined
+}
+
+/** Two loans' dates overlap (an open end overlaps everything after the start). */
+export const datesOverlap = (aStart, aEnd, bStart, bEnd) => (!aEnd || aEnd >= bStart) && (!bEnd || bEnd >= aStart)
+
+/** Why a new loan can't be made yet, or '' (old: submitBatchLoan's checks, in its order). */
+export function newLoanProblem(f) {
+  if (!String(f.loanTo || '').trim() || !String(f.location || '').trim()) return 'Fill in who it’s on loan to and where.'
+  if (!f.startDate) return 'Choose the start date.'
+  if (!f.longTerm) {
+    if (!f.endDate) return 'Choose the end date.'
+    if (f.endDate < f.startDate) return 'The end date is before the start date.'
+  }
+  if (!f.am) return 'Choose the account manager.'
+  if (!f.email || !f.email.includes('@')) return 'Enter the account manager’s email.'
+  if (!f.longTerm) {
+    if ((f.jobType || 'Demo') === 'Demo' && !f.demoType) return 'Choose the demo type.'
+    if (!f.island) return 'Choose the shipping island: it sets how much notice shipping needs.'
+  }
+  return ''
+}
+
+/** A loan to the same customer, place and end date already exists (old: _findExistingLoanMatch): add to that one instead. */
+export function existingLoanMatch(equipment, upcoming, f, testMode = false) {
+  const lt = String(f.loanTo || '').trim().toLowerCase(), loc = String(f.location || '').trim().toLowerCase()
+  return equipment.some((e) => e && isOut(e) && e.OnLoanTo.trim().toLowerCase() === lt && (e.Location || '').trim().toLowerCase() === loc && e.LoanEndDate === f.endDate) ||
+    upcoming.some((u) => u && (testMode || !isTestBatch(u.id)) && (u.loanTo || '').trim().toLowerCase() === lt && (u.location || '').trim().toLowerCase() === loc && u.endDate === f.endDate)
+}
+
+/**
+ * What an asset number would do on a new loan or added to one, for the line
+ * under it: not found, free, out on another loan (and whether the dates
+ * clash), or booked next for someone.
+ */
+export function assetStatus(equipment, upcoming, no, { startDate = '', endDate = '', loanTo = '', testMode = false, loanMeta = {}, loanDocs = {}, today = nzDate() } = {}) {
+  const e = findAsset(equipment, no)
+  if (!e) return { found: false }
+  const out = isOut(e) && e.OnLoanTo !== loanTo
+  const clash = out && datesOverlap(e.LoanStartDate || '', e.LoanEndDate || '', startDate, endDate)
+  const notStarted = out && !!e.LoanStartDate && e.LoanStartDate > today
+  // What planNewLoan does with it: on the loan now; booked to follow (still out); or on it now with the later booking keeping its claim.
+  const will = !out ? 'now' : notStarted && !clash ? 'reclaim' : 'follow'
+  const next = upcomingFor(e, upcoming, testMode)
+  return { found: true, item: e, out, clash, will, longTerm: out && isLoanLongTerm(e.BatchID, { loanMeta, loanDocs }), next: next && next.loanTo !== loanTo ? next : null }
+}
+
+/**
+ * A later loan claims an item that a booking not yet started had first, with
+ * dates that don't clash: that booking keeps its claim as a waiting booking
+ * instead of losing it (old: _deferToIncumbentUpcoming).
+ */
+function deferToIncumbent(upcoming, loanMeta, item, newLoanTo, newStart, newEnd, { ts, operator }) {
+  const id = item.BatchID || legacyKeys(item.OnLoanTo, item.LoanEndDate || '')[0]
+  let list = upcoming
+  let u = list.find((x) => x.id === id)
+  if (!u) {
+    u = { id, loanTo: item.OnLoanTo, location: item.Location || '', startDate: item.LoanStartDate || '', endDate: item.LoanEndDate || '',
+      accountManager: loanMeta[id]?.accountManager || '', borrowerEmail: item.BorrowerEmail || '', items: [] }
+    list = [...list, u]
+  }
+  if (!(u.items || []).some((i) => i.CHSAssetNo === item.CHSAssetNo)) {
+    const next = { ...u, items: [...(u.items || []), { id: item.id, CHSAssetNo: item.CHSAssetNo, Model: item.Model, SerialNo: item.SerialNo }] }
+    list = list.map((x) => (x.id === id ? next : x))
+  }
+  const entry = { operator, id: newId(), ts, chsAssetNo: item.CHSAssetNo, model: item.Model, action: 'Converted', loanTo: item.OnLoanTo, location: item.Location, batchId: id,
+    notes: `Deferred to upcoming — ${newLoanTo}'s earlier, non-overlapping booking (${fmtDate(newStart)}${newEnd ? ' – ' + fmtDate(newEnd) : ''}) claimed this item first.` }
+  return { upcoming: list, entry, changedId: id }
+}
+
+/**
+ * A new loan (old: doLoan). Each device that's free, or out on a loan whose
+ * dates don't clash, goes straight on it; one still out with a clash is
+ * booked on it, waiting (the loan's /upcomingLoans entry, under the same
+ * BatchID). A device on a loan not started yet but with no clash keeps that
+ * loan's claim as a booking. Returns the new equipment, history and
+ * bookings, which bookings changed, and what went on it.
+ */
+export function planNewLoan({ equipment, history, upcoming, loanMeta = {} }, f, assetNos, { batchId, today = nzDate(), ts = nzNow(), operator = '' } = {}) {
+  const eq = [...equipment]
+  let list = [...upcoming]
+  const entries = [], changed = new Set(), skipped = [], reclaimed = []
+  const seen = new Set()
+  const picked = assetNos.map((no) => findAsset(eq, no)).filter((e) => e && !seen.has(e.id) && seen.add(e.id))
+  const direct = [], booked = []
+  for (const item of picked) {
+    let out = isOut(item) && item.OnLoanTo !== f.loanTo
+    if (out && item.LoanStartDate && item.LoanStartDate > today && !datesOverlap(item.LoanStartDate, item.LoanEndDate || '', f.startDate, f.endDate)) out = false
+    ;(out ? booked : direct).push(item)
+  }
+  const loaned = []
+  for (const item of direct) {
+    const idx = eq.findIndex((e) => e && e.id === item.id)
+    const cur = eq[idx]
+    if (isOut(cur) && cur.BatchID && cur.BatchID !== batchId) {
+      if (datesOverlap(cur.LoanStartDate || '', cur.LoanEndDate || '', f.startDate, f.endDate)) { skipped.push(cur); continue }
+      if (cur.LoanStartDate && cur.LoanStartDate > today) {
+        reclaimed.push(cur.OnLoanTo)
+        const d = deferToIncumbent(list, loanMeta, cur, f.loanTo, f.startDate, f.endDate, { ts, operator })
+        list = d.upcoming; entries.push(d.entry); changed.add(d.changedId)
+      }
+    }
+    eq[idx] = { ...cur, OnLoanTo: f.loanTo, Location: f.location, LoanStartDate: f.startDate, LoanEndDate: f.longTerm ? '' : f.endDate, Returned: 'No', BatchID: batchId, BorrowerEmail: f.email }
+    entries.push({ operator, id: newId(), ts, chsAssetNo: cur.CHSAssetNo, model: cur.Model, action: 'Loan', loanTo: f.loanTo, location: f.location,
+      loanStart: f.startDate, loanEnd: f.longTerm ? '' : f.endDate, notes: f.notes || '', batchId, _pdfKey: batchId })
+    loaned.push(eq[idx])
+  }
+  if (booked.length) {
+    list = [...list, { id: batchId, loanTo: f.loanTo, location: f.location, startDate: f.startDate || '', endDate: f.longTerm ? '' : (f.endDate || ''),
+      accountManager: f.am, borrowerEmail: f.email, items: booked.map((e) => ({ id: e.id, CHSAssetNo: e.CHSAssetNo, Model: e.Model, SerialNo: e.SerialNo })) }]
+    changed.add(batchId)
+    for (const item of booked) {
+      entries.push({ operator, id: newId(), ts, chsAssetNo: item.CHSAssetNo, model: item.Model, action: 'Loan', loanTo: f.loanTo, location: f.location,
+        loanStart: f.startDate, loanEnd: f.longTerm ? '' : f.endDate, notes: (f.notes ? f.notes + ' — ' : '') + `Booked as upcoming (currently on loan to ${item.OnLoanTo})`, batchId, _pdfKey: batchId })
+    }
+  }
+  return { equipment: eq, history: [...entries.reverse(), ...history], upcoming: list, changed: [...changed], loaned: [...loaned, ...booked], booked, skipped, reclaimed }
+}
+
+/**
+ * Devices added to a loan (old: _doAddItemsToLoan). One out on another loan
+ * with clashing dates is left out; one on a loan not started yet, without a
+ * clash, keeps that claim as a booking.
+ */
+export function planAddItems({ equipment, history, upcoming, loanMeta = {} }, g, assetNos, { batchId, today = nzDate(), ts = nzNow(), operator = '' } = {}) {
+  const eq = [...equipment]
+  let list = [...upcoming]
+  const entries = [], changed = new Set(), added = [], skipped = [], reclaimed = []
+  const start = g.startDate || today, end = g.endDate || ''
+  for (const no of assetNos) {
+    const idx = eq.findIndex((e) => e && e.CHSAssetNo && e.CHSAssetNo.trim().toLowerCase() === String(no).trim().toLowerCase())
+    if (idx < 0) continue
+    const cur = eq[idx]
+    if (isOut(cur) && cur.BatchID === batchId) continue // already on it
+    if (isOut(cur) && cur.BatchID && cur.BatchID !== batchId) {
+      if (datesOverlap(cur.LoanStartDate || '', cur.LoanEndDate || '', start, end)) { skipped.push(cur); continue }
+      if (cur.LoanStartDate && cur.LoanStartDate > today) {
+        reclaimed.push(cur.OnLoanTo)
+        const d = deferToIncumbent(list, loanMeta, cur, g.loanTo, start, end, { ts, operator })
+        list = d.upcoming; entries.push(d.entry); changed.add(d.changedId)
+      }
+    }
+    eq[idx] = { ...cur, OnLoanTo: g.loanTo, Location: g.location, LoanStartDate: start, LoanEndDate: end, Returned: 'No', BatchID: batchId, BorrowerEmail: g.items[0]?.BorrowerEmail || '' }
+    entries.push({ operator, id: newId(), ts, chsAssetNo: cur.CHSAssetNo, model: cur.Model, action: 'Loan', loanTo: g.loanTo, location: g.location, loanStart: g.startDate, loanEnd: g.endDate, notes: 'Added to existing loan', batchId })
+    added.push(eq[idx])
+  }
+  return { equipment: eq, history: [...entries.reverse(), ...history], upcoming: list, changed: [...changed], added, skipped, reclaimed }
+}
+
+/** Devices added to a booking (old: _doAddItemsToUpcoming): on its list, marked as reserved for it. */
+export function addToBooking(equipment, u, assetNos) {
+  const items = [...(u.items || [])], added = []
+  for (const no of assetNos) {
+    const e = findAsset(equipment, no)
+    if (!e || items.some((i) => i.CHSAssetNo === e.CHSAssetNo)) continue
+    items.push({ id: e.id, CHSAssetNo: e.CHSAssetNo }); added.push(e)
+  }
+  const ids = new Set(added.map((e) => e.id))
+  return { booking: { ...u, items }, added, equipment: equipment.map((e) => (e && ids.has(e.id) ? { ...e, _upcomingLoanId: u.id } : e)) }
+}
+
+/**
+ * Devices moved from one loan to another (old: confirmReassignAM, move to an
+ * existing loan). The target is a loan (it gets a BatchID if it had none) or
+ * a booking (the moved ones come off its waiting list). Each gets a Transfer
+ * entry and the target's details.
+ */
+export function planTransfer({ equipment, history }, g, nos, target, { targetBatchId, ts = nzNow(), operator = '' } = {}) {
+  const move = new Set(nos)
+  const moved = g.items.filter((e) => move.has(e.CHSAssetNo)), remaining = g.items.filter((e) => !move.has(e.CHSAssetNo))
+  const backfill = target.kind !== 'booking' && !target.batchId ? new Set(target.items.map((e) => e.CHSAssetNo)) : new Set()
+  const entries = []
+  const eq = equipment.map((e) => {
+    if (!e) return e
+    if (backfill.has(e.CHSAssetNo)) return { ...e, BatchID: targetBatchId }
+    if (!move.has(e.CHSAssetNo) || !moved.some((m) => m.id === e.id)) return e
+    entries.push({ operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Transfer', loanTo: target.loanTo, location: target.location,
+      loanStart: target.startDate, loanEnd: target.endDate, batchId: targetBatchId,
+      notes: `Reassigned from ${g.loanTo} (${g.location || ''}) to ${target.loanTo} (${target.location})` })
+    return { ...e, OnLoanTo: target.loanTo, Location: target.location, LoanStartDate: target.startDate, LoanEndDate: target.endDate, BatchID: targetBatchId }
+  })
+  return { equipment: eq, history: [...entries.reverse(), ...history], moved, remaining }
+}
+
+/* ── The loan form (old: generateLoanDoc, saveLoanDocChanges) ── */
+
+/** A loan form's device rows: [asset, model, description, serial, notes]. Its saved rows if it has them, else from the devices with 3 spare. */
+export function formRows(doc, items = []) {
+  const saved = Array.isArray(doc?.savedRows) ? doc.savedRows.filter((r) => Array.isArray(r) && r.some(Boolean)) : []
+  if (saved.length) return saved.map((r) => [0, 1, 2, 3, 4].map((i) => String(r[i] ?? '')))
+  return [...items.map((e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || e.PartNo || '', e._pendingNote || '']), ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']]
+}
+
+/** Added devices go at the bottom of a form's saved rows, if it has any (old: _doAddItemsToLoan's _mergedSavedRows). */
+export function rowsWithAdded(doc, added) {
+  if (!Array.isArray(doc?.savedRows) || !doc.savedRows.length) return null
+  return [...doc.savedRows, ...added.map((e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || e.PartNo || '', ''])]
+}
+
+/** Rows without the ones whose asset number is in `nos` (a device that left). */
+export const rowsWithout = (rows, nos) => {
+  const gone = new Set([...nos].map((n) => String(n || '').trim().toLowerCase()))
+  return (rows || []).filter((r) => !gone.has(String(r[0] || '').trim().toLowerCase()))
+}
+
+/**
+ * The loan form saved (old: saveLoanDocChanges): the whole document, with
+ * what the form doesn't show carried over from what's stored (Simpro job,
+ * job and demo type, island, long term), so a save never wipes them.
+ */
+export function formDoc(form, stored = {}, info = {}) {
+  const job = jobNumber(stored?.simproJobId) ?? (typeof stored?.simproJobId === 'string' && stored.simproJobId.startsWith('TEST-') ? stored.simproJobId : null)
+  const doc = {
+    loanTo: form.loanTo || info.loanTo || '', location: form.location || info.location || '',
+    startDate: toISO(form.startDate) || info.startDate || '', endDate: toISO(form.endDate) || info.endDate || '',
+    accountManager: form.accountManager || info.accountManager || '', contactNumber: form.contactNumber || info.contactNumber || '',
+    jobType: info.jobType || stored?.jobType || '', demoType: info.demoType || stored?.demoType || '', island: info.island || stored?.island || '',
+    longTerm: typeof info.longTerm === 'boolean' ? info.longTerm : !!stored?.longTerm,
+    items: (form.items || []).map((e) => ({ CHSAssetNo: e.CHSAssetNo || '', Model: e.Model || '', Description: e.Description || '', SerialNo: e.SerialNo || '' })),
+    savedRows: (form.rows || []).filter((r) => r.some((c) => String(c || '').trim())).map((r) => r.map((c) => String(c || '').trim())),
+    notesCell: form.notes || '', authCell: form.shipping || '',
+  }
+  if (job != null) doc.simproJobId = job
+  if (stored?.simproClosedAt) doc.simproClosedAt = stored.simproClosedAt
+  return doc
+}
+
+const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/** The loan form as plain HTML for the email and for printing (old: _getLoanFormHtml / printLoanDoc). */
+export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/logo-full-colour.png' } = {}) {
+  const td = (v, extra = '') => `<td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;${extra}">${escHtml(v)}</td>`
+  const th = (v, extra = '') => `<th style="border:1px solid #ccc;padding:2px 6px;font-size:11px;text-align:left;background:#f5f5f5;${extra}">${escHtml(v)}</th>`
+  const box = '<td style="border:1px solid #ccc;text-align:center"><div style="width:12px;height:12px;border:1.5px solid #333;margin:0 auto"></div></td>'
+  const rows = (doc.rows || []).map((r) => `<tr>${r.map((c) => td(c)).join('')}${box}</tr>`).join('')
+  const pre = (v) => escHtml(v).replace(/\n/g, '<br>')
+  return `<div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#1a1917">
+<table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>
+<td style="font-size:26px;font-weight:700;line-height:1.1">CMCHS Demo Equipment Loan Form</td>
+<td style="text-align:right;width:260px"><img src="${escHtml(logo)}" alt="Connected Healthcare Systems" height="64" style="height:64px;width:auto"></td></tr></table>
+<div style="border-top:2px solid #333;border-bottom:1px solid #ccc"></div>
+<table style="width:100%;border-collapse:collapse"><tr>${th('Event and/or Customer Name')}${th('Customer Address')}${th('Loan Date')}${th('Loan Ends Date' + (doc.longTerm ? ' — long term' : ''))}${th('Account Manager')}${th('Contact Number')}</tr>
+<tr>${td(doc.loanTo)}${td(doc.location)}${td(fmtDate(doc.startDate))}${td(doc.longTerm ? '' : fmtDate(doc.endDate))}${td(doc.accountManager)}${td(doc.contactNumber)}</tr></table>
+<table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>${th('CHS Asset #')}${th('Model')}${th('Description')}${th('Serial/Part #')}${th('Notes/Additional Info')}${th('Data cleared on return', 'text-align:center')}</tr>${rows}</table>
+<table style="width:100%;border-collapse:collapse"><tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;width:14%;text-align:right">Notes:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.notes)}</td></tr>
+<tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;text-align:right">Shipping Details:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.shipping)}</td></tr></table>
+<table style="width:100%;border-collapse:collapse"><tr>
+<td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Loan authorised by:</b><br><br>Name (print):<br><br>Signature:<br><br>Date:</td>
+<td style="border:1px solid #ccc;padding:8px 12px;text-align:center;font-size:12px"><b style="color:#554596">Please ensure this form accompanies<br>demo stock throughout trial and<br>is returned to Connected Healthcare</b><br><b style="color:#dc2626;font-size:11px">Check all units have current ESC</b></td>
+<td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Return checked by:</b><br><br>Signed:<br><br>Name (print):<br><br>Date:</td></tr></table></div>`
+}

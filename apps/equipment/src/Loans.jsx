@@ -12,7 +12,7 @@ import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readin
 
 const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Due back'], ['recent', 'Most recent start'], ['alpha', 'Customer A–Z'], ['manager', 'Account manager']]
 
-export default function Loans({ s, params, setParams }) {
+export default function Loans({ s, params, setParams, go }) {
   // ?open=kind:key opens one loan (Overview's rows); ?at= scrolls to a section.
   const [openKey, setOpenKey] = useState(params.open || null)
   const [toast, showToast] = useToast()
@@ -67,7 +67,7 @@ export default function Loans({ s, params, setParams }) {
         <section key={id} id={'loans-' + id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
           <h2 className="eq-section-title">{title} <span className="eq-count">{list.length}</span></h2>
           {hint && <p className="eq-note">{hint}</p>}
-          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} onDone={showToast} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
+          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} all={all} go={go} onDone={showToast} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
         </section>
       ))}
       {lists.every(([, , , l]) => !l.length) && <p className="data-table-empty">{all.length ? 'No loans match that.' : 'No active loans.'}</p>}
@@ -76,7 +76,7 @@ export default function Loans({ s, params, setParams }) {
   )
 }
 
-function LoanCard({ g, s, open, onToggle, onDone }) {
+function LoanCard({ g, s, all, go, open, onToggle, onDone }) {
   const count = g.items.length
   const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
   const days = upcomingKind ? daysBetween(s.today, g.startDate) : 0
@@ -143,7 +143,7 @@ function LoanCard({ g, s, open, onToggle, onDone }) {
               </li>
             ))}
           </ul>
-          <LoanActions g={g} s={s} onDone={onDone} />
+          <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} />
         </div>
       )}
     </article>

@@ -190,7 +190,14 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       shipping and demo type to its form, a new demo type added to the list; a booking whose start
       has come takes its free devices. Delete after the admin password (kept until step 5): devices
       cleared as returned with a Return entry each, the form removed; a booking cancelled.
-- [ ] Loans: transfer and reassign, copy, add items
+- [x] New loan, the loan form, add items, transfer, copy, 19 Oct (`NewLoan.jsx`, `LoanForm.jsx`,
+      `AssetPicker.jsx`; `planNewLoan`, `planAddItems`, `planTransfer`, `formDoc` tested): the old form's
+      fields and checks (a duplicate loan refused); free devices go on, ones still out are booked to
+      follow, a later non-clashing booking keeps its claim; the loan form (editable, print, email
+      through the old EmailJS template) finishes a new loan with the email and the Simpro job (made
+      only while /simproConfig.createJobs is on, as the old). Add items (to a loan or a booking),
+      Transfer (to a loan or booking, notes on both Simpro jobs, or to a new loan), Copy. One
+      deliberate fix: test mode no longer puts a made-up job number over a real one.
 - [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode

@@ -1,19 +1,20 @@
-/* What can be done to a loan, under its devices on an open loan card: so
-   far testing and dispatch (old: buildReadinessButtons), Extend (old:
-   openExtendLoan), Return items (old: openBatchReturn) and long term either
-   way (old: openLongTermModal). The rest of the old card's buttons (edit,
-   transfer, copy, add items, delete) come next; until then they're in the
-   old tracker. */
+/* What can be done to a loan, under its devices on an open loan card, as
+   the old card's buttons: testing and dispatch (buildReadinessButtons),
+   Extend, Return to active, Return items, Make long-term, the loan form,
+   Add items, Transfer (to another loan, or a new one), Copy (a new loan
+   with the same devices), Edit and Delete. */
 import { useState } from 'react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
-import { canExtend, demoTypeOptions, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import AssetPicker from './AssetPicker.jsx'
+import LoanForm from './LoanForm.jsx'
+import { canExtend, demoTypeOptions, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
-export default function LoanActions({ g, s, onDone }) {
+export default function LoanActions({ g, s, all = [], go, onDone }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete'
+  const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer'
   const [confirmDialog, confirm] = useConfirm()
   const rb = readinessButtons(g, { loanMeta: s.loanMeta, today: s.today })
 
@@ -46,9 +47,12 @@ export default function LoanActions({ g, s, onDone }) {
         {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
         {g.kind === 'loan' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
         {g.kind === 'loan' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>
+        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
+        {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
         <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>
-        <span className="eq-note">Other changes: <a href="/demo/">the current tracker</a>.</span>
       </div>
       {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
 
@@ -71,6 +75,25 @@ export default function LoanActions({ g, s, onDone }) {
       {asking === 'active' && (
         <ActiveDialog g={g} today={s.today} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onSave={(d) => run(() => s.returnToActive(g, d), `${g.loanTo} is back on active loans, due ${fmtDate(d)}.`)} />
+      )}
+      {asking === 'form' && (() => {
+        const key = g.kind === 'booking' ? g.batchId : loanDocKey(g)
+        const doc = s.loanDocs?.[key] || g.doc || null
+        const email = (s.managers || []).find((m) => m.name === g.am)?.email || g.items[0]?.BorrowerEmail || ''
+        return (
+          <LoanForm s={s} docKey={key} doc={doc} items={g.kind === 'booking' ? g.pending : g.items}
+            info={{ loanTo: g.loanTo, location: g.location, startDate: g.startDate, endDate: g.endDate, accountManager: g.am, longTerm: !!g.longTerm, email, jobType: doc?.jobType, demoType: doc?.demoType, island: doc?.island, contactNumber: doc?.contactNumber }}
+            onClose={() => setAsking(null)} onDone={(msg) => { setAsking(null); onDone?.(msg) }} />
+        )
+      })()}
+      {asking === 'add' && (
+        <AddDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.skipped.length ? `; ${plural(r.skipped.length, 'was', 'were')} left out (dates clash)` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />
+      )}
+      {asking === 'transfer' && (
+        <TransferDialog g={g} all={all} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onNew={(nos) => { setAsking(null); go?.('new', { move: g.kind + ':' + g.key, nos: nos.join(',') }) }}
+          onSave={(nos, target) => run(() => s.transfer(g, nos, target), (r) => `${plural(r.moved, 'item', 'items')} moved to ${target.loanTo}.`)} />
       )}
       {asking === 'edit' && (
         <EditDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
@@ -293,6 +316,65 @@ function DeleteDialog({ g, busy, error, onClose, onSave }) {
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Keep it</Button>
           <Button type="submit" variant="danger" disabled={busy || !pw}>{busy ? 'Working…' : booking ? 'Cancel booking' : 'Delete loan'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/** Add items (old: Add items to loan / to an upcoming loan): devices chosen as for a new loan. */
+function AddDialog({ g, s, busy, error, onClose, onSave }) {
+  const [picked, setPicked] = useState([])
+  const on = (g.kind === 'booking' ? g.pending : g.items).map((e) => e.CHSAssetNo)
+  return (
+    <Dialog title={`Add items: ${g.loanTo}`} description={g.kind === 'booking' ? 'They join the booking’s list, and go out with it.' : `They go on this loan${g.endDate ? `, due back ${fmtDate(g.endDate)}` : ''}, and onto its loan form.`} onClose={onClose} width={640}>
+      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (picked.length) onSave(picked) }}>
+        <AssetPicker s={s} picked={picked} onChange={setPicked} skip={on} mode={g.kind === 'booking' ? 'new' : 'add'}
+          when={{ startDate: g.startDate || s.today, endDate: g.endDate || '', loanTo: g.loanTo, today: s.today }} />
+        {error && <Alert tone="critical" title="Not added">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy || !picked.length}>{busy ? 'Adding…' : `Add ${plural(picked.length, 'item', 'items')}`}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/**
+ * Transfer (old: Transfer Items): which devices, and to which loan or
+ * booking; or to a new loan, made in New loan with them filled in.
+ */
+function TransferDialog({ g, all, busy, error, onClose, onSave, onNew }) {
+  const [picked, setPicked] = useState(() => new Set(g.items.map((e) => e.CHSAssetNo)))
+  const [to, setTo] = useState('')
+  const targets = all.filter((x) => !(x.kind === g.kind && x.key === g.key))
+  const target = targets.find((x) => x.kind + ':' + x.key === to)
+  const nos = [...picked]
+  const label = (x) => `${x.kind === 'booking' ? 'Booking' : x.kind === 'scheduled' ? 'Scheduled' : 'Active'}: ${x.loanTo} (${x.kind === 'loan' ? (x.endDate ? 'due ' + fmtDate(x.endDate) : 'no end date') : 'starts ' + fmtDate(x.startDate)})${jobOf(x.doc) && !jobOf(x.doc).pending ? ' · ' + jobOf(x.doc).label : ''}`
+  const toggle = (no) => setPicked((p) => { const n = new Set(p); if (n.has(no)) n.delete(no); else n.add(no); return n })
+  return (
+    <Dialog title={`Transfer from ${g.loanTo}`} description="Each loan’s Simpro job gets a note of what moved where." onClose={onClose} width={560}>
+      <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (nos.length && target) onSave(nos, target) }}>
+        <ul className="eq-picklist">
+          {g.items.map((e) => (
+            <li key={e.id}><label className="eq-pick">
+              <input type="checkbox" checked={picked.has(e.CHSAssetNo)} onChange={() => toggle(e.CHSAssetNo)} />
+              <span><span className="eq-strong">{e.CHSAssetNo}</span> {e.Model || e.Description}</span>
+            </label></li>
+          ))}
+        </ul>
+        <label className="field"><span className="field-label">Move them to</span>
+          <select value={to} onChange={(e) => setTo(e.target.value)}>
+            <option value="">Choose a loan…</option>
+            {targets.map((x) => <option key={x.kind + x.key} value={x.kind + ':' + x.key}>{label(x)}</option>)}
+          </select>
+        </label>
+        {error && <Alert tone="critical" title="Not moved">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" disabled={busy || !nos.length} onClick={() => onNew(nos)}>Move to a new loan…</Button>
+          <Button type="submit" disabled={busy || !nos.length || !target}>{busy ? 'Moving…' : `Move ${plural(nos.length, 'item', 'items')}`}</Button>
         </div>
       </form>
     </Dialog>

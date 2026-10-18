@@ -13,17 +13,18 @@
    Which view, and its filters, live in the address (#/loans?am=…), so a
    link or Back lands on the same thing. */
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, ExternalLink, LayoutDashboard, Truck } from 'lucide-react'
-import { Alert, Badge, Dialog, Loading } from '../../../shared/ui/index.jsx'
+import { Boxes, ExternalLink, LayoutDashboard, PlusCircle, Truck } from 'lucide-react'
+import { Alert, Badge, Dialog, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal } from './db.js'
 import Loans from './Loans.jsx'
 import Overview from './Overview.jsx'
+import NewLoan from './NewLoan.jsx'
 
 const TONE = Object.fromEntries(STATUSES.map((s) => [s.key, s.tone]))
 const LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]))
-const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck]]
+const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle]]
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
@@ -53,6 +54,9 @@ function Shell() {
   }, [])
   // Filters change the address without a new history entry for every key typed.
   const setParams = (params) => { history.replaceState(null, '', hashOf(route.view, params)); setRoute({ view: route.view, params }) }
+  // Another view, as a new history entry (Back returns).
+  const go = (view, params = {}) => { location.hash = hashOf(view, params) }
+  const [toast, showToast] = useToast()
 
   if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
   if (!s.ready) return <div className="eq-page"><Loading /></div>
@@ -74,9 +78,11 @@ function Shell() {
           </a>
         ))}
       </nav>
-      {route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} />
+      {route.view === 'new' ? <NewLoan key={JSON.stringify(route.params)} s={s} params={route.params} go={go} onDone={showToast} />
+        : route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} />
           : <Overview s={s} />}
+      <Toast message={toast} />
     </div>
   )
 }
