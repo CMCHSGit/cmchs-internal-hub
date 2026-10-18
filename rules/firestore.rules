@@ -231,9 +231,46 @@ service cloud.firestore {
     match /announcements/{id} {
       allow read:   if isSignedIn();
       allow create: if canEditProjects() && request.resource.data.authorUid == request.auth.uid && isAnnouncement();
-      allow update: if (resource.data.authorUid == request.auth.uid || isAdmin() || isHR())
-        && request.resource.data.authorUid == resource.data.authorUid && isAnnouncement();
+      // The author, an admin or HR edits it; anyone signed in sets or takes
+      // back their own reaction, or moves the comment count by one as they
+      // add or delete a comment.
+      allow update: if ((resource.data.authorUid == request.auth.uid || isAdmin() || isHR())
+          && request.resource.data.authorUid == resource.data.authorUid && isAnnouncement()
+          && request.resource.data.get('reactions', {}) == resource.data.get('reactions', {}))
+        || (isSignedIn() && isOwnReaction())
+        || (isSignedIn() && isCommentCountStep());
       allow delete: if resource.data.authorUid == request.auth.uid || isAdmin() || isHR();
+
+      // Comments: signed by their author, who edits the text; the author, the
+      // post's author, an admin or HR deletes one.
+      match /comments/{cid} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && exists(/databases/$(database)/documents/announcements/$(id))
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'atMs'])
+          && request.resource.data.uid == request.auth.uid
+          && isShortText(request.resource.data.name, 0, 120)
+          && isShortText(request.resource.data.text, 1, 2000)
+          && request.resource.data.atMs is int;
+        allow update: if isSignedIn() && resource.data.uid == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAtMs'])
+          && isShortText(request.resource.data.text, 1, 2000);
+        allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin() || isHR()
+          || get(/databases/$(database)/documents/announcements/$(id)).data.authorUid == request.auth.uid);
+      }
+    }
+    // reactions: { <uid>: 'like' | 'love' | … } — only the caller's own entry changes.
+    function isOwnReaction() {
+      let after = request.resource.data.get('reactions', {});
+      let before = resource.data.get('reactions', {});
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        && after is map && after.diff(before).affectedKeys().hasOnly([request.auth.uid])
+        && (!(request.auth.uid in after) || after[request.auth.uid] in ['like', 'love', 'celebrate', 'laugh', 'clap', 'wow']);
+    }
+    function isCommentCountStep() {
+      let n = request.resource.data.get('commentCount', 0);
+      let was = resource.data.get('commentCount', 0);
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentCount'])
+        && n is int && n >= 0 && (n == was + 1 || n == was - 1);
     }
     function isAnnouncement() {
       let d = request.resource.data;

@@ -11,8 +11,10 @@ import AsksPanel from './AsksPanel.jsx'
 import { asksSummary, readSeen, watchMyAsks } from './asks.js'
 import Icon from './Icon.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
-import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, loadPhotos, mergeNews, photoCountOf, teamNews } from './news.js'
-import { Dialog, Linked } from './ui.jsx'
+import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, mergeNews, photoCountOf, teamNews } from './news.js'
+import { ReactionBar, postUrl } from './NewsPost.jsx'
+import { reactionSummary } from './social.js'
+import { Linked } from './ui.jsx'
 import {
   hostOf, markUsed, newsImage,
   openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
@@ -178,51 +180,40 @@ function Glance({ today }) {
 // ── News ──────────────────────────────────────────────────────────────────
 // Posted from Manage (news.js); the old announcements.json shows until it's moved across.
 
-function NewsCard({ a }) {
-  const [more, setMore] = useState(false)
+// The whole card opens the post (NewsPost.jsx); links in the text and the
+// reaction bar keep their own clicks.
+function NewsCard({ a, uid }) {
   const [photo, setPhoto] = useState('')
-  const [gallery, setGallery] = useState(null)
   const count = photoCountOf(a)
   useEffect(() => { if (count) loadPhoto(a.id).then(setPhoto) }, [a.id, count])
   const cat = categoryOf(a)
   const img = photo || newsImage(a)
   const long = (a.body || '').length > 220
-  const openGallery = () => { setGallery([]); loadPhotos(a).then(setGallery) }
+  const open = (comment = false) => navigate(postUrl(a.id) + (comment ? '?c=1' : ''))
   return (
-    <article className="card news-card">
+    <article className="card news-card news-card-link" onClick={e => { if (!e.target.closest('a, button')) open() }}>
       <div className={img ? "news-photo" : "news-photo news-photo-empty"}>
-        {img && (count > 1
-          ? <button type="button" className="news-photo-btn" onClick={openGallery} aria-label={`See all ${count} photos`}>
-              <img src={img} alt="" loading="lazy" />
-              <span className="badge news-photo-more"><Icon name="camera" size={14} /> +{count - 1}</span>
-            </button>
-          : <img src={img} alt="" loading="lazy" />)}
+        {img && <img src={img} alt="" loading="lazy" />}
+        {count > 1 && <span className="badge news-photo-more"><Icon name="camera" size={14} /> +{count - 1}</span>}
         {a.pinned && <span className="badge badge-orange-solid news-pin">Pinned</span>}
       </div>
-      {gallery && (
-        <Dialog title={a.title} onClose={() => setGallery(null)} wide>
-          <div className="news-gallery">
-            {gallery.length ? gallery.map((p, i) => <img key={i} src={p} alt="" />) : <span className="caption">Loading photos…</span>}
-          </div>
-          <div className="pp-section-foot"><button className="btn btn-secondary" onClick={() => setGallery(null)}>Close</button></div>
-        </Dialog>
-      )}
       <div className="news-body">
         <div className="news-meta">
           <span className={`badge badge-${TONE[cat]}`}>{cat}</span>
           <span className="caption">{[newsDate(a.date), a.author].filter(Boolean).join(' · ')}</span>
         </div>
-        <span className="news-title">{a.title}</span>
-        <p className={`news-text ${long && !more ? 'clamped' : ''}`}><Linked text={a.body} /></p>
-        {long && <button className="link-btn" onClick={() => setMore(m => !m)}>{more ? 'Show less' : 'Read more'}</button>}
+        <a className="news-title" href={postUrl(a.id)}>{a.title}</a>
+        <p className={`news-text ${long ? 'clamped' : ''}`}><Linked text={a.body} /></p>
+        {long && <a className="link-btn" href={postUrl(a.id)}>Read more</a>}
       </div>
+      <ReactionBar post={a} uid={uid} compact onComment={() => open(true)} />
     </article>
   )
 }
 
 const FEATURE_CATEGORIES = CATEGORIES.filter(c => c !== 'Team news')
 
-function News({ news }) {
+function News({ news, uid }) {
   const [tab, setTab] = useState('All')
   const [all, setAll] = useState(false)
   const list = news.filter(a => categoryOf(a) !== 'Team news' && (tab === 'All' || categoryOf(a) === tab))
@@ -238,7 +229,7 @@ function News({ news }) {
         </div>
       </SectionHead>
       {shown.length > 0
-        ? <div className="news-grid">{shown.map(a => <NewsCard key={a.id} a={a} />)}</div>
+        ? <div className="news-grid">{shown.map(a => <NewsCard key={a.id} a={a} uid={uid} />)}</div>
         : <span className="body-sm muted">Nothing posted in this category yet.</span>}
       {list.length > 3 && (
         <button className="btn-ghost-sm self-start" onClick={() => setAll(v => !v)}>
@@ -246,6 +237,19 @@ function News({ news }) {
         </button>
       )}
     </section>
+  )
+}
+
+// A team news line's reactions and comments, or a faint "react" hint on hover.
+function TeamItemCounts({ a }) {
+  const s = reactionSummary(a.reactions)
+  const c = a.commentCount || 0
+  return (
+    <a className={`team-rx ${s.total || c ? 'has' : ''}`} href={postUrl(a.id)} aria-label={`Open “${a.title}” to react or comment`}>
+      {s.total > 0 && <span>{s.top.slice(0, 2).map(r => r.emoji).join('')} {s.total}</span>}
+      {c > 0 && <span><Icon name="message-circle" size={13} /> {c}</span>}
+      {!s.total && !c && <Icon name="smile" size={14} />}
+    </a>
   )
 }
 
@@ -260,8 +264,9 @@ function TeamNews({ news }) {
       <span className={`team-col-head team-${tone}`}>{label}</span>
       {pick(xs).length
         ? <ul className="team-list">{pick(xs).map(a => (
-            <li key={a.id}>
+            <li key={a.id} className={a.legacy ? '' : 'team-item'} onClick={e => { if (!a.legacy && !e.target.closest('a, button')) navigate(postUrl(a.id)) }}>
               <span><Linked text={a.title} />{a.body ? <span className="muted"> – <Linked text={a.body} /></span> : null}</span>
+              {!a.legacy && <TeamItemCounts a={a} />}
               {(a.regions || []).length > 0 && <span className="team-regions">{a.regions.map(r => <span key={r} className="mg-region">{r}</span>)}</span>}
             </li>
           ))}</ul>
@@ -442,7 +447,7 @@ export default function Home({ user }) {
       <div className="home-page">
         {today !== null && <Glance today={today} />}
         {asksNow && <AsksPanel summary={asksNow} SectionHead={SectionHead} />}
-        <News news={news} />
+        <News news={news} uid={user.uid} />
         <TeamNews news={news} />
         <div className={today ? 'mid-cols' : 'mid-cols mid-cols-single'}>
           {today && <Directory today={today} />}

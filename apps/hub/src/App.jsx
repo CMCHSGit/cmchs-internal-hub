@@ -9,6 +9,7 @@ import { sectionOf, useAddress } from './router.js'
 import Header from './Header.jsx'
 import Home from './Home.jsx'
 import Manage from './Manage.jsx'
+import NewsPost from './NewsPost.jsx'
 import Palette from './Palette.jsx'
 import People from './People.jsx'
 import PushPrompt from './PushPrompt.jsx'
@@ -55,12 +56,14 @@ class SectionBoundary extends Component {
   }
 }
 
-// The hub's own pages still route on #/: #/people, #/people/<uid>, #/manage, #/manage/<tab>
+// The hub's own pages still route on #/: #/people, #/people/<uid>, #/manage, #/manage/<tab>, #/news/<id>
 function hubRouteOf() {
   const m = location.hash.match(/^#\/people(?:\/([^/?#]+))?/)
   if (m) return { page: 'people', uid: m[1] ? decodeURIComponent(m[1]) : null }
   const g = location.hash.match(/^#\/manage(?:\/([^/?#]+))?/)
   if (g) return { page: 'manage', tab: g[1] || 'news' }
+  const n = location.hash.match(/^#\/news\/([^/?#]+)/)
+  if (n) return { page: 'news', id: decodeURIComponent(n[1]) }
   return { page: 'home' }
 }
 
@@ -85,7 +88,7 @@ export default function App() {
     return () => ro.disconnect()
   }, [user])
   // A new hub page starts at the top, as a new page load would.
-  useEffect(() => { window.scrollTo(0, 0) }, [page, route?.uid, route?.tab])
+  useEffect(() => { window.scrollTo(0, 0) }, [page, route?.uid, route?.tab, route?.id])
 
   // Sent here by a tool's sign-in check (/?next=/maintenance/): go back once signed in
   const next = nextPath()
@@ -108,6 +111,7 @@ export default function App() {
         <div className="hub-page">
           {route.page === 'people' ? <People user={user} route={route} />
             : route.page === 'manage' ? <Manage user={user} route={route} />
+            : route.page === 'news' ? <NewsPost user={user} id={route.id} />
             : <Home user={user} />}
         </div>
       ) : (

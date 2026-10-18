@@ -180,6 +180,9 @@ function handlePayload(payload) {
   // The hub's Asks: tell the people an ask's latest change concerns.
   if (payload.action === 'notifyAsk') return notifyAsk_(payload);
 
+  // The hub's company news: a new post to everyone, a comment to the thread.
+  if (payload.action === 'notifyNews') return notifyNews_(payload);
+
   // SimproSync (schedule.chsnz.co.nz/simprosync/) relaying Simpro calls
   // through this proxy instead of holding the Simpro key itself — see
   // simproSyncProxy_() below.
@@ -1163,6 +1166,121 @@ function notifyAsk_(payload) {
     (emailOn ? emailed + ' sent' : 'off (Resend not set up)') + '; ' + unreached + ' not reached.');
   // Counts only, for the "Notified 2 people on 3 phones" line in Asks.
   return respond({ success: true, people: to.length, pushed: pushed, failed: failed, emailed: emailed, unreached: unreached });
+}
+
+// ── Hub company news ─────────────────────────────────────────────────────
+// internal.chsnz.co.nz: a new post ticked "Notify everyone" goes to every
+// phone on the hub (a pasted team email as one "Team update" push for the
+// lot); a comment goes to the post's author and everyone else who has
+// commented. The browser sends only ids. This reads the post (and comment)
+// back from the staff schedule's Firestore and acts only if the caller wrote
+// it, in the last ten minutes, and it hasn't been sent already — so nobody
+// can use the proxy to push their own text to anyone. Logs counts only.
+const HUB_URL = 'https://internal.chsnz.co.nz/';
+
+// Who hears about a comment: the post's author and earlier commenters, never
+// the commenter. Pure (tested in apps/hub/tests/social.test.mjs).
+function newsCommentRecipients_(post, commenterUids, byUid) {
+  const out = {};
+  if (post.authorUid) out[post.authorUid] = true;
+  (commenterUids || []).forEach(function(u) { if (u) out[u] = true; });
+  delete out[byUid];
+  return Object.keys(out);
+}
+
+// What the push says. Pure, like newsCommentRecipients_.
+function newsMessage_(kind, post, actor, extra) {
+  const who = String(actor || 'Someone').split(/\s+/)[0];
+  const title = String(post.title || '').slice(0, 100);
+  if (kind === 'comment') {
+    return { title: who + ' commented on “' + title.slice(0, 60) + '”', body: String((extra && extra.text) || '').slice(0, 160) };
+  }
+  if (kind === 'batch') {
+    const n = (extra && extra.count) || 1;
+    return { title: 'Team update from ' + who, body: n + ' new item' + (n === 1 ? '' : 's') + ': ' + title + (n > 1 ? ' and more' : '') };
+  }
+  const icon = { Announcements: '📣 ', Events: '📅 ', 'Tool updates': '🛠️ ', 'Team news': '🗺️ ' }[post.category] || '📣 ';
+  const body = String(post.body || '').replace(/\s+/g, ' ').trim();
+  return { title: icon + title, body: who + (body ? ': ' + body.slice(0, 140) : ' posted in ' + (post.category || 'Announcements')) };
+}
+
+function notifyNews_(payload) {
+  const caller = tryVerifyStaff_(payload.idToken);
+  if (!caller) return respond({ success: false, error: 'Sign in to use this.' });
+  const id = String(payload.id || '');
+  const cid = payload.cid ? String(payload.cid) : '';
+  if (!/^[A-Za-z0-9_-]{6,60}$/.test(id) || (cid && !/^[A-Za-z0-9]{10,40}$/.test(cid))) return respond({ success: false, error: 'Bad post id' });
+  const token = hubAccessToken_();
+  if (!token) return respond({ success: false, error: 'Hub push is not set up' });
+  const get = function(path) {
+    const r = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/' + path,
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    return r.getResponseCode() === 200 ? JSON.parse(r.getContentText()) : null;
+  };
+  const doc = get('announcements/' + id);
+  if (!doc) return respond({ success: false, error: 'Post not found' });
+  const post = fsFields_(doc.fields);
+  const tenMin = 10 * 60 * 1000;
+  const cache = CacheService.getScriptCache();
+
+  let users;
+  try { users = loadAskUsers_(token); }
+  catch (err) { Logger.log('notifyNews_: could not read users: ' + err.message); return respond({ success: false, error: 'Could not read the people list' }); }
+  const byUid = {};
+  users.forEach(function(u) { byUid[u.uid] = u; });
+  const actor = (byUid[caller.uid] && byUid[caller.uid].name) || caller.name;
+
+  let to, msg, url, kind;
+  if (cid) {
+    const c = get('announcements/' + id + '/comments/' + cid);
+    const comment = c ? fsFields_(c.fields) : null;
+    if (!comment || comment.uid !== caller.uid || !comment.atMs || Math.abs(Date.now() - comment.atMs) > tenMin) {
+      Logger.log('notifyNews_: refused comment (not the caller’s, or not new).');
+      return respond({ success: false, error: 'Not a new comment of yours' });
+    }
+    if (cache.get('newsc:' + cid)) return respond({ success: true, already: true });
+    cache.put('newsc:' + cid, '1', 21600);
+    const list = get('announcements/' + id + '/comments?pageSize=300&mask.fieldPaths=uid');
+    const commenters = ((list && list.documents) || []).map(function(d) { return fsFields_(d.fields).uid; });
+    kind = 'comment';
+    to = newsCommentRecipients_(post, commenters, caller.uid);
+    msg = newsMessage_('comment', post, actor, comment);
+    url = HUB_URL + '#/news/' + encodeURIComponent(id) + '?c=1';
+  } else {
+    const created = post.createdAt || 0;
+    if (post.authorUid !== caller.uid || post.notifyTeam !== true || !created || Date.now() - created > tenMin) {
+      Logger.log('notifyNews_: refused post (not the caller’s, not ticked to notify, or not new).');
+      return respond({ success: false, error: 'Not a new post of yours to notify' });
+    }
+    const batchId = /^email-/.test(String(post.batchId || '')) ? String(post.batchId) : '';
+    const key = batchId ? 'newsb:' + batchId : 'newsp:' + id;
+    if (cache.get(key)) return respond({ success: true, already: true });
+    cache.put(key, '1', 21600);
+    let count = 1;
+    if (batchId) {
+      const q = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents:runQuery', {
+        method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token },
+        payload: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'announcements' }],
+          where: { fieldFilter: { field: { fieldPath: 'batchId' }, op: 'EQUAL', value: { stringValue: batchId } } },
+          select: { fields: [{ fieldPath: 'batchId' }] } } })
+      });
+      if (q.getResponseCode() === 200) count = JSON.parse(q.getContentText()).filter(function(r) { return r.document; }).length || 1;
+    }
+    kind = batchId ? 'batch' : 'post';
+    to = users.filter(function(u) { return !u.pending && u.uid !== caller.uid; }).map(function(u) { return u.uid; });
+    msg = newsMessage_(kind, post, actor, { count: count });
+    url = batchId ? HUB_URL : HUB_URL + '#/news/' + encodeURIComponent(id);
+  }
+
+  let pushed = 0, failed = 0, phones = 0;
+  to.forEach(function(uid) {
+    const u = byUid[uid];
+    if (!u || u.pending || !u.tokens.length) return;
+    phones++;
+    sendHubPush_(u.tokens, msg.title, msg.body, url).forEach(function(r) { if (r.ok) pushed++; else failed++; });
+  });
+  Logger.log('notifyNews_: ' + kind + ', ' + to.length + ' to tell, ' + phones + ' with phones; push ' + pushed + ' sent/' + failed + ' failed.');
+  return respond({ success: true, people: to.length, pushed: pushed, failed: failed });
 }
 
 // Run from the editor after the IAM roles are granted. Sends nothing to

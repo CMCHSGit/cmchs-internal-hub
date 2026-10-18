@@ -4,7 +4,7 @@
 import {
   ArrowRight, Bell, Building, Calculator, Camera, CalendarDays, CalendarX, ChartLine, ChevronDown, ChevronLeft,
   ChevronRight, ClipboardList, ClipboardPaste, Merge, Plus, Split, ThumbsUp, Trash2, ExternalLink, FileCheck, FileText, FolderKanban, GraduationCap, Headset, Inbox, Laptop,
-  Link, Lock, LogOut, Mail, MapPin, MessageSquare, Package, Pencil, Phone, RefreshCw, Search, Settings, Stethoscope, User, UserPlus, Users,
+  Link, Lock, LogOut, Mail, MapPin, MessageCircle, MessageSquare, SendHorizontal, Share2, Smile, Package, Pencil, Phone, RefreshCw, Search, Settings, Stethoscope, User, UserPlus, Users,
   Wrench,
 } from 'lucide-react'
 
@@ -42,7 +42,11 @@ const ICONS = {
   'link': Link,
   'log-out': LogOut,
   'mail': Mail,
+  'message-circle': MessageCircle,
   'message-square': MessageSquare,
+  'send': SendHorizontal,
+  'share': Share2,
+  'smile': Smile,
   'package': Package,
   'phone': Phone,
   'refresh-cw': RefreshCw,

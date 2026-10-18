@@ -15,6 +15,7 @@ import { loadDirectory } from './people.js'
 import { tools } from './tools.js'
 import { splitEmail } from './emailSplit.js'
 import { loadProjectSuggestions } from './suggest.js'
+import { notifyNews } from './social.js'
 import {
   CATEGORIES, REGIONS, SECTIONS, TONE, buildEmail, canEdit, canPost, categoryOf, deleteAnnouncement, findSimilar, isoToday,
   MAX_NEWS_PHOTOS, loadNews, loadPhoto, loadPhotos, mondayOf, moveLegacy, newsPhotoFromFile, photoCountOf, postDrafts, saveAnnouncement, shortDate, addDays,
@@ -22,6 +23,9 @@ import {
 import {
   STATUSES, URGENCY, deleteRequest, feedbackSummary, isEngineering, loadRequests, respond, sendRequest, statusOf, toggleVote,
 } from './requests.js'
+
+// New posts in these categories notify everyone's phones unless unticked.
+const NOTIFY_BY_DEFAULT = ['Announcements', 'Events']
 
 const TABS = [['news', 'News'], ['requests', 'Tool requests'], ['feedback', 'Feedback']]
 const TOOL_NAMES = { hub: 'The Internal Hub overall', ...Object.fromEntries(tools.map(t => [t.id, t.name])) }
@@ -169,6 +173,9 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
   const set = k => v => setA(x => ({ ...x, [k]: v }))
   useEffect(() => { if (photos === null) loadPhotos(initial).then(setPhotos) }, [])
   const setList = fn => { setPhotos(p => fn(p || [])); setChanged(true) }
+  // A new post: tell everyone's phones? On by default for Announcements and Events, until touched.
+  const [notify, setNotify] = useState(null)
+  const notifyOn = notify ?? NOTIFY_BY_DEFAULT.includes(categoryOf(a))
 
   async function pick(e) {
     const files = [...(e.target.files || [])]
@@ -187,8 +194,10 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
     if (photos === null) return
     setBusy(true); setError('')
     try {
-      await saveAnnouncement(ctx.me, a, changed ? photos : undefined)
-      ctx.showToast(initial.id ? 'Saved.' : 'Posted. It’s on the home page now.')
+      const notifyTeam = !initial.id && notifyOn
+      const saved = await saveAnnouncement(ctx.me, { ...a, notifyTeam }, changed ? photos : undefined)
+      if (notifyTeam) notifyNews({ id: saved.id })
+      ctx.showToast(initial.id ? 'Saved.' : notifyTeam ? 'Posted, and on its way to everyone’s phones.' : 'Posted. It’s on the home page now.')
       onSaved()
     } catch (err) { console.error(err); setError(failMsg(err)); setBusy(false) }
   }
@@ -245,6 +254,9 @@ function AnnouncementEditor({ ctx, initial, onClose, onSaved }) {
           )}
         </div>
         <label className="mg-check"><input type="checkbox" checked={!!a.pinned} onChange={e => set('pinned')(e.target.checked)} /> Pin to the top of the home page</label>
+        {!initial.id && (
+          <label className="mg-check"><input type="checkbox" checked={notifyOn} onChange={e => setNotify(e.target.checked)} /> <Icon name="bell" size={16} /> Notify everyone’s phones</label>
+        )}
         {!initial.id && (
           <div className="mg-suggest-box">
             <button type="button" className="btn-ghost-sm" onClick={() => setSuggesting(s => !s)}><Icon name="folder-kanban" size={16} /> {suggesting ? 'Hide' : 'Suggestions from the project tracker'}</button>
@@ -304,6 +316,7 @@ function PasteEmail({ ctx, list, onDone }) {
   const [paste, setPaste] = useState({ html: '', text: '' })
   const [drafts, setDrafts] = useState(null)
   const [date, setDate] = useState(isoToday())
+  const [notify, setNotify] = useState(true) // one "Team update" push for everything posted
   const [busy, setBusy] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [added, setAdded] = useState([])
@@ -339,7 +352,9 @@ function PasteEmail({ ctx, list, onDone }) {
   async function post() {
     setBusy(true)
     try {
-      const n = fresh.length ? await postDrafts(ctx.me, fresh, { date, weekOf: mondayOf(date) }) : 0
+      const res = fresh.length ? await postDrafts(ctx.me, fresh, { date, weekOf: mondayOf(date), notifyTeam: notify }) : { count: 0 }
+      const n = res.count
+      if (notify && res.firstId) notifyNews({ id: res.firstId })
       for (const d of updates) {
         const m = d.match
         await saveAnnouncement(ctx.me, {
@@ -383,6 +398,7 @@ function PasteEmail({ ctx, list, onDone }) {
           <span className="caption">Untick anything you don’t want, fix titles, merge or split, and set regions. Only ticked ones are posted.</span>
         </div>
         <label className="pp-label mg-date">Email date<input className="pp-input" type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+        <label className="mg-check"><input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} /> <Icon name="bell" size={16} /> One notification to everyone’s phones</label>
         <button className="btn btn-secondary" onClick={() => setSuggesting(s => !s)}><Icon name="folder-kanban" size={16} /> {suggesting ? 'Hide project tracker' : 'Add from project tracker'}</button>
       </div>
       {suggesting && (

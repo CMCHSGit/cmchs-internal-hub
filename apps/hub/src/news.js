@@ -216,6 +216,14 @@ export async function fs() {
   return fsPromise
 }
 const local = { news: new Map(), photos: new Map() }
+// `npm run dev` without a .env: one post with reactions and comments, to see them (comments: social.js).
+if (devMode) {
+  local.news.set('dev-sample', {
+    title: 'StepUp4ICU: week two done', category: 'Events', date: isoToday(), author: 'Dev User', authorUid: 'dev', pinned: false,
+    body: 'Two weeks down! Theresa is still out in front, with Jack closing in.\nThere’s still time to join: https://example.org/stepup',
+    reactions: { a: 'love', b: 'love', c: 'clap', d: 'like', e: 'celebrate' }, commentCount: 2, regions: [], people: [],
+  })
+}
 const photoCache = new Map()
 
 /** Everything, newest first. Falls back to the JSON alone if Firestore can't be read (rules not published, offline). */
@@ -311,7 +319,8 @@ export async function saveAnnouncement(me, a, photos) {
   const ref = a.id ? f.doc(db, 'announcements', a.id) : f.doc(f.collection(db, 'announcements'))
   const rec = record({ ...a, photoCount }, me)
   const batch = f.writeBatch(db)
-  batch.set(ref, { ...rec, updatedAt: f.serverTimestamp(), ...(a.id && !a.legacy ? {} : { createdAt: f.serverTimestamp() }) }, { merge: true })
+  // notifyTeam: ticked "Notify everyone" when posting; the proxy only sends for a post that says so (social.js).
+  batch.set(ref, { ...rec, updatedAt: f.serverTimestamp(), ...(a.id && !a.legacy ? {} : { createdAt: f.serverTimestamp() }), ...(a.id ? {} : { notifyTeam: !!a.notifyTeam }) }, { merge: true })
   const touched = []
   if (list) {
     for (let i = 0; i < Math.max(before, list.length); i++) {
@@ -327,18 +336,27 @@ export async function saveAnnouncement(me, a, photos) {
   return { id: ref.id, ...rec }
 }
 
-/** Posts the ticked drafts of a pasted email together, keeping their order. */
-export async function postDrafts(me, drafts, { date, weekOf }) {
+/**
+ * Posts the ticked drafts of a pasted email together, keeping their order.
+ * Returns { count, firstId }; the first one's id is what the proxy is given
+ * to send the one "Team update" push for the lot.
+ */
+export async function postDrafts(me, drafts, { date, weekOf, notifyTeam = false }) {
   const batchId = `email-${date}-${Math.random().toString(36).slice(2, 7)}`
   const recs = drafts.map((d, i) => record({ ...d, date, weekOf, order: i, batchId, author: undefined, authorUid: undefined }, me))
-  if (devMode) { recs.forEach(r => local.news.set(Math.random().toString(36).slice(2), r)); return recs.length }
+  if (devMode) { recs.forEach(r => local.news.set(Math.random().toString(36).slice(2), r)); return { count: recs.length, firstId: null } }
   const { f, db } = await fs()
+  let firstId = null
   for (let i = 0; i < recs.length; i += 400) {
     const batch = f.writeBatch(db)
-    for (const r of recs.slice(i, i + 400)) batch.set(f.doc(f.collection(db, 'announcements')), { ...r, createdAt: f.serverTimestamp() })
+    for (const r of recs.slice(i, i + 400)) {
+      const ref = f.doc(f.collection(db, 'announcements'))
+      firstId = firstId || ref.id
+      batch.set(ref, { ...r, notifyTeam, createdAt: f.serverTimestamp() })
+    }
     await batch.commit()
   }
-  return recs.length
+  return { count: recs.length, firstId }
 }
 
 export async function deleteAnnouncement(a) {
@@ -347,6 +365,13 @@ export async function deleteAnnouncement(a) {
   const photoKeys = Array.from({ length: photoCountOf(a) }, (_, i) => photoDoc(a.id, i))
   if (devMode) { inJson ? local.news.set(a.id, { ...local.news.get(a.id), deleted: true }) : local.news.delete(a.id); photoKeys.forEach(k => local.photos.delete(k)); return }
   const { f, db } = await fs()
+  // Comments first: a subcollection outlives its document.
+  const comments = await f.getDocs(f.collection(db, 'announcements', a.id, 'comments')).catch(() => ({ docs: [] }))
+  for (let i = 0; i < comments.docs.length; i += 400) {
+    const b = f.writeBatch(db)
+    comments.docs.slice(i, i + 400).forEach(d => b.delete(d.ref))
+    await b.commit()
+  }
   const batch = f.writeBatch(db)
   const ref = f.doc(db, 'announcements', a.id)
   if (inJson) batch.set(ref, { deleted: true, pinned: false, photoCount: 0, hasPhoto: false, updatedAt: f.serverTimestamp() }, { merge: true })
