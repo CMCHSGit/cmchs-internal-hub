@@ -55,6 +55,14 @@
  *   Same signed reads as the spreadsheet; checkTrackerJsonBackup() says
  *   whether it can read. Independent of the others.
  *
+ * AFTER STEP 5'S CUTOVER (2026-10-19):
+ *   Once settings/equipmentCutover in the hub's Firestore says 'firestore',
+ *   the spreadsheet and the JSON file read the tracker from there, turned back
+ *   into the old tree (so both look the same, and migrate.mjs can put a JSON
+ *   file back into Firestore: --from <file> --reports <folder>). The team list
+ *   and config still come from the old database. See "After step 5's cutover"
+ *   below; it needs the Cloud Datastore Viewer grant the project backup has.
+ *
  * THE PROJECT TRACKER TOO (2026-10-15):
  *   The same nightly run also backs up the project tracker
  *   (internal.chsnz.co.nz/projects/), whose data is in the STAFF SCHEDULE's
@@ -146,12 +154,14 @@ function equipmentBackup_() {
   try {
     // 1. Fetch from Firebase — /data.json (equipment + history + loanMeta,
     // one document) plus the two separate top-level nodes it doesn't cover.
-    const data        = JSON.parse(firebaseGet_('/data.json').getContentText()) || {};
+    // After step 5's cutover, the same from the hub's Firestore (see below).
+    const fsTree      = trackerOnFirestore_() ? trackerTreeFromFirestore_() : null;
+    const data        = fsTree ? fsTree.data : (JSON.parse(firebaseGet_('/data.json').getContentText()) || {});
     const equipment   = Array.isArray(data.equipment) ? data.equipment : [];
     const history     = Array.isArray(data.history)   ? data.history   : [];
     const loanMeta    = (data.loanMeta && typeof data.loanMeta === 'object') ? data.loanMeta : {};
-    const loanDocsRaw = JSON.parse(firebaseGet_('/loanDocs.json').getContentText()) || {};
-    const upcomingRaw = JSON.parse(firebaseGet_('/upcomingLoans.json').getContentText()) || {};
+    const loanDocsRaw = fsTree ? fsTree.loanDocs : (JSON.parse(firebaseGet_('/loanDocs.json').getContentText()) || {});
+    const upcomingRaw = fsTree ? fsTree.upcomingLoans : (JSON.parse(firebaseGet_('/upcomingLoans.json').getContentText()) || {});
 
     // 2. Find or create backup folder in Google Drive
     const folders = DriveApp.getFoldersByName(BACKUP_FOLDER_NAME);
@@ -250,7 +260,7 @@ function equipmentBackup_() {
       if (f.getDateCreated() < cutoff) f.setTrashed(true);
     }
 
-    console.log('Backup complete: ' + fileName + ' (' + equipment.length + ' items, ' + history.length +
+    console.log('Backup complete' + (fsTree ? ' (from Firestore)' : '') + ': ' + fileName + ' (' + equipment.length + ' items, ' + history.length +
       ' history records, ' + currentLoanItems.length + ' on-loan items, ' + upcomingList.length + ' upcoming loans)');
 
   } catch (err) {
@@ -295,8 +305,11 @@ function trackerJsonBackup_() {
 
     // 1. Every path, read one at a time (each read and the file stay well
     //    under Apps Script's 50 MB limits), written as the database's own tree.
-    const tree = {};
-    const paths = trackerPaths_().filter(function(p) { return p !== TEST_REPORT_FILES; });
+    //    After step 5's cutover: the tracker's part from Firestore, as the same
+    //    tree, and what stays in the old database (the team list, config) from there.
+    const onFs = trackerOnFirestore_();
+    const tree = onFs ? trackerTreeFromFirestore_() : {};
+    const paths = trackerPaths_().filter(function(p) { return p !== TEST_REPORT_FILES && !(p in tree); });
     paths.forEach(function(p) { tree[p] = trackerRead_(p); });
     folder.createFile(Utilities.newBlob(JSON.stringify(tree), 'application/json', name));
 
@@ -308,8 +321,21 @@ function trackerJsonBackup_() {
     const existing = reportFolder.getFiles();
     while (existing.hasNext()) have[existing.next().getName()] = true;
     let reports = 0, newReports = 0;
-    const listed = firebaseGet_('/' + TEST_REPORT_FILES + '.json?shallow=true');
-    const keys = listed.getResponseCode() === 200 ? Object.keys(JSON.parse(listed.getContentText()) || {}) : [];
+    if (onFs) {
+      Object.keys(tree.testReports || {}).forEach(function(key) {
+        Object.keys(tree.testReports[key]).forEach(function(id) {
+          reports++;
+          const fileName = (key + '--' + id).replace(/[\\/:*?"<>|]/g, '_') + '.txt';
+          if (have[fileName]) return;
+          const body = trackerFsReportFile_(key, id);
+          if (typeof body !== 'string') return;
+          reportFolder.createFile(Utilities.newBlob(body, 'text/plain', fileName));
+          newReports++;
+        });
+      });
+    }
+    const listed = onFs ? null : firebaseGet_('/' + TEST_REPORT_FILES + '.json?shallow=true');
+    const keys = listed && listed.getResponseCode() === 200 ? Object.keys(JSON.parse(listed.getContentText()) || {}) : [];
     keys.forEach(function(key) {
       const ids = firebaseGet_('/' + TEST_REPORT_FILES + '/' + encodeURIComponent(key) + '.json?shallow=true');
       Object.keys(JSON.parse(ids.getContentText()) || {}).forEach(function(id) {
@@ -333,7 +359,7 @@ function trackerJsonBackup_() {
       if (f.getName().indexOf(TRACKER_JSON_PREFIX) === 0 && f.getDateCreated() < cutoff) f.setTrashed(true);
     }
 
-    console.log('Demo tracker JSON backup complete: ' + name + ' (' + paths.length + ' paths, ' +
+    console.log('Demo tracker JSON backup complete' + (onFs ? ' (from Firestore)' : '') + ': ' + name + ' (' + Object.keys(tree).length + ' paths, ' +
       reports + ' test report files, ' + newReports + ' new)');
   } catch (err) {
     console.error('Demo tracker JSON backup failed:', err.toString());
@@ -349,6 +375,11 @@ function trackerJsonBackup_() {
 function checkTrackerJsonBackup() {
   CacheService.getScriptCache().remove('rtdbAccessToken');
   try {
+    if (trackerOnFirestore_()) {
+      const t = trackerTreeFromFirestore_();
+      Logger.log('READY — the tracker is on Firestore (the cutover is done) and the backup can read it: ' + t.data.equipment.length + ' items, ' +
+        Object.keys(t.loanDocs).length + ' loan forms, ' + Object.keys(t.testReports).length + ' loans with test reports.');
+    }
     const paths = trackerPaths_();
     Logger.log('READY — the JSON backup can read the tracker database: ' + paths.length + ' top-level paths (' + paths.join(', ') + ').');
   } catch (err) {
@@ -359,6 +390,118 @@ function checkTrackerJsonBackup() {
 // Run from the editor to take the JSON backup now.
 function trackerJsonBackupNow() {
   trackerJsonBackup_();
+}
+
+// ── After step 5's cutover: the tracker's data from Firestore ───────────────
+// settings/equipmentCutover in the hub's Firestore says where the tracker's
+// data is (the same switch the tracker and the proxy follow). Until it says
+// 'firestore', both backups above read the old database as they always have.
+// After, they read the hub's Firestore (the shapes are cmchs-internal-hub
+// apps/equipment/src/fs-shape.js's) and turn it back into the old database's
+// tree, so the spreadsheet is the same and the JSON file is one
+// backend/tracker-migration/migrate.mjs can put back (--from <file> --reports
+// <folder>). Same service account and IAM grant as the project tracker's backup.
+
+const DATASTORE_SCOPE = 'https://www.googleapis.com/auth/datastore';
+let trackerOnFs_ = null; // once per run
+
+function trackerOnFirestore_() {
+  if (trackerOnFs_ !== null) return trackerOnFs_;
+  const token = serviceAccountToken_(DATASTORE_SCOPE, 'firestoreAccessToken');
+  if (!token) { trackerOnFs_ = false; return false; } // no key: only the old database can be read anyway
+  const resp = UrlFetchApp.fetch(trackerFsBase_() + 'settings/equipmentCutover', { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  const code = resp.getResponseCode();
+  // A switch that can't be read stops the backup (it emails) rather than quietly copying a database that's no longer used.
+  if (code !== 200 && code !== 404) throw new Error('Could not read the tracker\'s cutover switch (' + code + ')');
+  trackerOnFs_ = code === 200 && fsFields_(JSON.parse(resp.getContentText()).fields).source === 'firestore';
+  return trackerOnFs_;
+}
+
+function trackerFsBase_() { return 'https://firestore.googleapis.com/v1/projects/' + scheduleProjectId_() + '/databases/(default)/documents/'; }
+
+// Arrays inside arrays are kept as { _a: [...] } (Firestore can't nest them).
+function fsUnpack_(v) {
+  if (Array.isArray(v)) return v.map(function(x) { return (x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length === 1 && Array.isArray(x._a)) ? fsUnpack_(x._a) : fsUnpack_(x); });
+  if (v && typeof v === 'object') { const o = {}; Object.keys(v).forEach(function(k) { o[k] = fsUnpack_(v[k]); }); return o; }
+  return v;
+}
+
+// A list kept one document per entry, back in its order (_pos), without _pos.
+function trackerList_(docs) {
+  return Object.keys(docs).map(function(id) { return fsUnpack_(docs[id]); })
+    .sort(function(a, b) { return (a._pos || 0) - (b._pos || 0); })
+    .map(function(e) { delete e._pos; return e; });
+}
+
+/**
+ * The tracker's data from Firestore, as the old database's tree: data
+ * (equipment, history, loanMeta), loanDocs, upcomingLoans, retired, kitGroups,
+ * customDemoTypes, simproConfig, auditLog, testReports (each report's details;
+ * the files are read one at a time by trackerFsReportFile_).
+ */
+function trackerTreeFromFirestore_() {
+  const token = serviceAccountToken_(DATASTORE_SCOPE, 'firestoreAccessToken');
+  if (!token) throw new Error('No service account token: set FIREBASE_SERVICE_ACCOUNT_KEY.');
+  const loans = readCollection_(token, 'loans');
+  const loanMeta = {}, loanDocs = {}, upcomingLoans = {};
+  Object.keys(loans).sort().forEach(function(key) {
+    const l = fsUnpack_(loans[key]);
+    if (l.meta) loanMeta[key] = l.meta;
+    if (l.form) loanDocs[key] = l.form;
+    if (l.booking) upcomingLoans[l.booking.id || key] = l.booking;
+  });
+  const kits = readCollection_(token, 'equipmentKits');
+  Object.keys(kits).forEach(function(k) { kits[k] = fsUnpack_(kits[k]); });
+  const settingsResp = UrlFetchApp.fetch(trackerFsBase_() + 'settings/equipment', { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (settingsResp.getResponseCode() !== 200 && settingsResp.getResponseCode() !== 404) throw new Error('Firestore refused to read the tracker\'s settings (' + settingsResp.getResponseCode() + ')');
+  const settings = settingsResp.getResponseCode() === 200 ? fsUnpack_(fsFields_(JSON.parse(settingsResp.getContentText()).fields)) : {};
+  const audit = readCollection_(token, 'equipmentAudit');
+  Object.keys(audit).forEach(function(k) { audit[k] = fsUnpack_(audit[k]); });
+
+  // Every loan's test reports' details: one query over all of them.
+  const testReports = {};
+  const resp = UrlFetchApp.fetch(trackerFsBase_().replace(/\/$/, '') + ':runQuery', {
+    method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true,
+    payload: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'reports', allDescendants: true }] } })
+  });
+  if (resp.getResponseCode() !== 200) throw new Error('Firestore refused to list the test reports (' + resp.getResponseCode() + ')');
+  JSON.parse(resp.getContentText()).forEach(function(r) {
+    if (!r.document) return;
+    const m = r.document.name.match(/\/documents\/loans\/([^/]+)\/reports\/([^/]+)$/);
+    if (!m) return; // another tool's "reports"
+    const meta = fsFields_(r.document.fields);
+    delete meta.chunks;
+    (testReports[m[1]] = testReports[m[1]] || {})[m[2]] = meta;
+  });
+
+  return {
+    data: { equipment: trackerList_(readCollection_(token, 'equipment')), history: trackerList_(readCollection_(token, 'equipmentHistory')), loanMeta: loanMeta },
+    loanDocs: loanDocs, upcomingLoans: upcomingLoans,
+    retired: trackerList_(readCollection_(token, 'retiredEquipment')),
+    kitGroups: kits, customDemoTypes: settings.demoTypes || [], simproConfig: settings.simproConfig || {},
+    auditLog: audit, testReports: testReports
+  };
+}
+
+/** One test report's file (the data: URL it was uploaded as) from its chunks, or null if it didn't finish uploading. */
+function trackerFsReportFile_(key, id) {
+  const token = serviceAccountToken_(DATASTORE_SCOPE, 'firestoreAccessToken');
+  const path = 'loans/' + encodeURIComponent(key) + '/reports/' + encodeURIComponent(id);
+  const metaResp = UrlFetchApp.fetch(trackerFsBase_() + path, { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (metaResp.getResponseCode() !== 200) return null;
+  const want = fsFields_(JSON.parse(metaResp.getContentText()).fields).chunks;
+  const parts = [];
+  let pageToken = '';
+  do {
+    const resp = UrlFetchApp.fetch(trackerFsBase_() + path + '/chunks?pageSize=20' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''),
+      { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) throw new Error('Firestore refused to read a test report (' + resp.getResponseCode() + ')');
+    const json = JSON.parse(resp.getContentText());
+    (json.documents || []).forEach(function(d) { parts.push([Number(d.name.split('/').pop()), fsFields_(d.fields).data]); });
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  if (parts.length !== want) return null;
+  return parts.sort(function(a, b) { return a[0] - b[0]; }).map(function(p) { return p[1]; }).join('');
 }
 
 // Shared by all four sheets above — sets values (skipping when a sheet has

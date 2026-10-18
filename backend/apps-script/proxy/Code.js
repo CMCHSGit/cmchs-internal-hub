@@ -1920,7 +1920,7 @@ function fsList_(collection, fields) {
       { headers: fsAuth_(), muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) throw new Error('Firestore read refused (' + resp.getResponseCode() + ') for ' + collection);
     const json = JSON.parse(resp.getContentText());
-    (json.documents || []).forEach(function(d) { const o = fsUnpack_(fsFields_(d.fields)); o.__id = decodeURIComponent(d.name.split('/').pop()); out.push(o); });
+    (json.documents || []).forEach(function(d) { const o = fsUnpack_(fsFields_(d.fields)); o.__id = d.name.split('/').pop(); /* names come back as stored, not encoded */ out.push(o); });
     pageToken = json.nextPageToken || '';
   } while (pageToken);
   return out;
