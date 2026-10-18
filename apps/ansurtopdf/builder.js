@@ -179,7 +179,16 @@ export function mountBuilder() {
       status: txt(path(rec, 'TestData/Status')) || 'Unknown',
       date: parseDate(path(rec, 'TestData/Date')),
       dut, dutMap,
-      serial: dutMap['Serial Number'] || '',
+      serial: dutPick(dutMap, ['serial number', 'serial no', 'serial #']),
+      // Who tested it is captioned differently by template too: "Testing
+      // Engineer" in most, "Testing Person" or "Servicing Person" in others.
+      // The loose match deliberately skips anything about the customer.
+      engineer: dutPick(dutMap,
+        ['testing engineer', 'testing person', 'servicing person', 'servicing engineer', 'service engineer',
+          'test engineer', 'tested by', 'tester', 'technician', 'engineer'],
+        k => !k.includes('customer') && /engineer|technician|tester|tested by|(testing|servicing) person/.test(k)),
+      // ...and one template spells it "Testiong Company".
+      company: dutPick(dutMap, ['testing company', 'testiong company', 'servicing company', 'service company']),
       model: dutMap['Model'] || '',
       assetNo: dutPick(dutMap,
         ['chs/cass id', 'cass id', 'chs id', 'chs asset number', 'chs asset no', 'asset number', 'asset no'],
@@ -197,7 +206,7 @@ export function mountBuilder() {
   async function renderPdf(m, so = {}) {
     const pdf = await PDFDocument.create();
     const base = m.fileName.replace(/\.mtr$/i, '');
-    pdf.setTitle(base); pdf.setAuthor(m.dutMap['Testing Engineer'] || ''); pdf.setSubject('AS/NZS 3551 PVT report');
+    pdf.setTitle(base); pdf.setAuthor(m.engineer || ''); pdf.setSubject('AS/NZS 3551 PVT report');
     pdf.setCreator('Ansur PVT Report Builder'); pdf.setProducer('Ansur PVT Report Builder');
     const FR = await pdf.embedFont(StandardFonts.Helvetica), FB = await pdf.embedFont(StandardFonts.HelveticaBold);
     // Helvetica has no Greek, so characters like Ω are drawn in the Symbol font instead.
@@ -309,7 +318,7 @@ export function mountBuilder() {
       const d = m.date && !isNaN(m.date) ? `${pad2(m.date.getDate())}.${pad2(m.date.getMonth() + 1)}.${m.date.getFullYear()}` : '';
       if (d) draw(d, rx + (colW - W(d, FR, 10)) / 2, lineY + 3, FR, 10, COL.ink);
       [lx, rx].forEach(x => page.drawLine({ start: { x, y: lineY }, end: { x: x + colW, y: lineY }, thickness: 0.7, color: COL.ink }));
-      const eng = m.dutMap['Testing Engineer'];
+      const eng = m.engineer;
       const capL = eng ? `Tested by: ${eng}` : 'Tested by', capR = 'Date';
       draw(capL, lx + (colW - W(clean(capL), FR, 7.5)) / 2, lineY - 10, FR, 7.5, COL.muted);
       draw(capR, rx + (colW - W(capR, FR, 7.5)) / 2, lineY - 10, FR, 7.5, COL.muted);
@@ -343,7 +352,7 @@ export function mountBuilder() {
     });
 
     // Footers
-    const eng = m.dutMap['Testing Engineer'], co = m.dutMap['Testing Company'];
+    const eng = m.engineer, co = m.company;
     let left = `${m.fileName}  ·  Fluke Ansur record${eng ? `  ·  Tested by ${eng}${co ? ', ' + co : ''}` : ''}`;
     pages.forEach((p, i) => {
       const right = `Page ${i + 1} of ${pages.length}`;
@@ -388,11 +397,11 @@ export function mountBuilder() {
   const $ = (s) => document.querySelector(s);
   const state = { items: [], dir: null, sigs: {} };
   let onRendered = null;
-  // One signature per engineer, matched to the record's Testing Engineer field.
+  // One signature per engineer, matched to the record's tester (Testing Engineer, Testing Person, ...).
   // Kept in this browser (localStorage) so they survive closing the page.
   const SIGS_KEY = 'ansurPvt.signatures', SIG_ON_KEY = 'ansurPvt.signatureOn', OLD_SIG_KEY = 'ansurPvt.signature';
   const normName = (n) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
-  const engOf = (m) => (m && m.dutMap && m.dutMap['Testing Engineer']) || '';
+  const engOf = (m) => (m && m.engineer) || '';
   const sigFor = (m) => state.sigs[normName(engOf(m))] || null;
   // Default signature: the engineer's name drawn in a handwriting font installed on this PC,
   // rasterised to PNG in the browser (so nothing needs embedding and it works offline).
@@ -598,7 +607,7 @@ export function mountBuilder() {
       const noEng = state.items.filter(it => it.model && !engOf(it.model).trim()).length;
       const fam = pickScriptFont();
       $('#sigNote').textContent = !$('#optSig').checked ? 'Signature block is off.'
-        : `Reports are signed with the Testing Engineer's name in ${fam ? fam : 'italic serif (no handwriting font found on this PC)'}${list.length ? ', or their signature image where one is loaded below' : ''}.`
+        : `Reports are signed with the tester's name from the record in ${fam ? fam : 'italic serif (no handwriting font found on this PC)'}${list.length ? ', or their signature image where one is loaded below' : ''}.`
         + (noEng ? ` ${noEng} record${noEng === 1 ? ' has' : 's have'} no engineer and get${noEng === 1 ? 's' : ''} a blank line.` : '');
     };
     try {
