@@ -68,13 +68,19 @@ timestamps are NZ clock time marked `+12:00` all year (`nzNow`).
       this was `trackerNotify`). Settings → People and access already sets the tracker role
       (`apps/admin/src/Admin.jsx`, `setTrackerRole`): make it write `users` too,
       and keep `accountManagers` in step (written from `users`) until nothing reads it.
-- [ ] One permission check (`can(user, 'equipment.admin')`, hub role `admin`),
+- [ ] One permission check (`can(user, 'equipment.admin')`, hub role `admin`):
+      written, `shared/can.js` (tests: `apps/hub/tests/can.test.mjs`), not used yet;
       used where the new tracker asks for the admin password today: `checkAdmin`
       in `store.jsx`, called from `AdminDialog` (`Items.jsx`), `DeleteDialog`
       (`LoanActions.jsx`), Scan's stocktake, Manage (import, Simpro on, test
       mode, retired delete). An admin just confirms; anyone else doesn't see the button.
 - [ ] Test mode's two people (`Peter Lin`, `Jonathan Nasrun`, hard-coded in
       `App.jsx`, `Manage.jsx` and `model.js`'s `SERVICE_TEAM`) become a role or setting.
+      Decided: `users.trackerTester` (admins set it; the rules already stop
+      anyone else, tested), checked by `can(profile, 'equipment.testMode')`.
+      `SERVICE_TEAM` is the fallback role for whoever has none: it goes once
+      everyone's `trackerRole` is set (the proxy has the same list,
+      `SERVICE_TEAM_OPERATORS`).
 - [ ] Everything reading `accountManagers` reads `users` instead: the new tracker
       (`store.jsx` `managers`, `memberFor`), the proxy (`Code.js`: reminders around
       lines 339–1260, `sendTestPush_`, `pruneDeadTokens_`), `tracker.js`.
@@ -159,7 +165,8 @@ Work:
 - [ ] Everything else moved to Firestore at the same cutover: the proxy's
       reminders and its Simpro write-back of `simproJobId` (`Code.js` ~226, ~1319),
       the backup, Tile sync, the project tracker's demo feed (`tracker.js`
-      `readTracker`, `feed.js`).
+      `readTracker`, `feed.js`). The proxy needs write access to Firestore
+      first (see the 5D audit).
 
 ## 5C One Firebase project, one backup
 
@@ -174,11 +181,38 @@ Work:
 
 ## 5D Notifications from one place
 
+**Audit, 19 Oct** (`backend/apps-script/proxy/Code.js`). Every demo push goes
+through `sendPushToPerson_(am, …)`: to the person's hub phones (`users.fcmTokens`,
+found by `accountManagers` email, else name), else their old `accountManagers`
+phones; skipped if an admin switched them off (`accountManagers.notify === false`).
+Links are written for demo.chsnz.co.nz and turned into `/demo/…` (`hubDemoUrl_`,
+`HUB_DEMO_URL`), the old tracker.
+
+| Push | Timer | To | Opens now | Should open |
+|---|---|---|---|---|
+| Upcoming demo / starting today (`sendDemoReminders`) | daily | Service & Projects (`accountManagers` role, else the two hard-coded names) | `/demo/?mobile=1` (the list) | that loan |
+| Stuck booking (`sendStuckLoanReminders`) | every few hours | the booking's AM (by name) | `/demo/?reassign=<booking>` | `/equipment/?reassign=` (step 4 reads it) |
+| Due back soon, AM (`sendReturnDueSoonReminder_`) | daily | the loan's AM | `/demo/?return=<token>` | `/equipment/?return=` (step 4 reads it) |
+| Due back soon, service team | daily | Service & Projects | `/demo/?mobile=1` | that loan |
+| Test push (`sendTestPush_`) | by hand | one person | `/demo/` | `/equipment/` |
+
+The proxy also writes to the tracker's database: its sent markers
+(`demoReminders`, `stuckLoanReminders`, `returnDueSoonReminders`), Simpro's
+`loanDocs/{key}/simproJobId`, and dead tokens pruned from `accountManagers`.
+**Its service account can only read the hub's Firestore** (a note at
+`sendHubPush_`): at 5B's cutover it needs write access there (or the job
+number goes back through the tracker, which has the caller's sign-in), and
+the markers need a home (e.g. `settings/equipmentReminders` or a small
+collection). A permissions change: Jonathan's call.
+
 - [ ] Demo reminders (due soon, stuck bookings) already go to hub phones
       (`users.fcmTokens`) with `accountManagers.fcmTokens` as a fallback: drop the
       fallback once 5A is done.
 - [ ] Every notification opens the new tracker at the right place: `/equipment/#/loans?open=…`
-      (step 4's links in add `?return=`, `?extend=`, `?reassign=`).
+      (step 4's links in add `?return=`, `?extend=`, `?reassign=`). The first
+      step is one line once step 4 switches: `HUB_DEMO_URL` to `/equipment/`.
+      The two service-team pushes then need a link to their loan, which the
+      new tracker would have to read (a `?open=<key>`, not there yet).
 - [ ] Each person's demo reminders on or off in Settings → Your notifications,
       like the schedule's (`notifications.demoReminders` from 5A).
 

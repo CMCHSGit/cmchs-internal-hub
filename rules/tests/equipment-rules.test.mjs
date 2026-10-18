@@ -132,6 +132,7 @@ await check('Sam turns it off again', true, () => updateDoc(doc(as('sam'), 'sett
 await check('an admin deletes a history entry', true, () => deleteDoc(doc(as('admin1'), 'equipmentHistory/h4')))
 
 console.log('\nThe team on users (step 5A) — must work')
+await check('an admin makes Kiri a test-mode tester', true, () => updateDoc(doc(as('admin1'), 'users/kiri'), { trackerTester: true }))
 await check('an admin sets Kiri\'s tracker role', true, () => updateDoc(doc(as('admin1'), 'users/kiri'), { trackerRole: 'service' }))
 await check('Sam turns his own demo reminders off', true, () => updateDoc(doc(as('sam'), 'users/sam'), { notifications: { scheduleReminder: true, demoReminders: false } }))
 
@@ -160,6 +161,8 @@ await check('a chunk too big for a document', false, () => batch(as('sam'), (b, 
 }))
 await check('a chunk with no report', false, () => setDoc(doc(as('sam'), 'loans/batch_1/reports/none/chunks/0'), { data: 'AAAA' }))
 await check('a placeholder account (not signed in yet) reads the list', false, () => getDocs(collection(as('placeholder'), 'equipment')))
+await check('Sam makes himself a test-mode tester', false, () => updateDoc(doc(as('sam'), 'users/sam'), { trackerTester: true }))
+await check('HR makes someone a tester', false, () => updateDoc(doc(as('hr1'), 'users/sam'), { trackerTester: true }))
 await check('HR changes someone\'s tracker role', false, () => updateDoc(doc(as('hr1'), 'users/kiri'), { trackerRole: 'am' }))
 await check('Sam turns his demo reminders on with something that isn\'t on or off', false, () => updateDoc(doc(as('sam'), 'users/sam'), { notifications: { demoReminders: 'yes' } }))
 await check('Sam gives himself a tracker role', false, () => updateDoc(doc(as('sam'), 'users/sam'), { trackerRole: 'service' }))

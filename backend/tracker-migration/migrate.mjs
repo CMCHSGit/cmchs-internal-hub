@@ -20,7 +20,8 @@
 // retired, kitGroups, customDemoTypes, simproConfig, auditLog, and test
 // reports (testReports + testReportFiles). What doesn't: config (the admin
 // password is not copied anywhere), accountManagers (the team goes into users,
-// step 5A), returnDueSoonReminders (the proxy's, until it moves), _v.
+// step 5A), the proxy's sent-reminder markers (returnDueSoonReminders,
+// demoReminders, stuckLoanReminders: they stay with it until it moves), _v.
 import { readFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -39,7 +40,8 @@ if (!from) { console.error('Say where from: --from live, or --from <Demo-Tracker
 
 const RTDB_URL = 'https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app'
 const MOVED = ['data', 'loanDocs', 'upcomingLoans', 'retired', 'kitGroups', 'customDemoTypes', 'simproConfig', 'auditLog', 'testReports', 'testReportFiles']
-const LEFT = ['config', 'accountManagers', 'returnDueSoonReminders']
+// The proxy's sent-reminder markers stay with it until its reminders move (5B).
+const LEFT = ['config', 'accountManagers', 'returnDueSoonReminders', 'demoReminders', 'stuckLoanReminders']
 const list = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []).filter((x) => x && typeof x === 'object')
 
 /* ── Firestore (the hub's project, or the emulator) ── */
