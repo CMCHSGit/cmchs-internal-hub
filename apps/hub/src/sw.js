@@ -67,6 +67,42 @@ registerRoute(
 // are handled in the schedule's src/utils/push.js via onMessage(), since the
 // browser suppresses OS notifications while the tab has focus.
 //
+// Every sender (Asks, news, the schedule's and demo tracker's reminders) sends
+// a `notification` block, and for those the Firebase SDK shows the
+// notification itself. It still calls onBackgroundMessage afterwards, so
+// showing it there too gave everyone two of each (until 19 Oct 2026).
+//
+// The SDK also claims clicks on the notifications it shows (a click listener
+// that stops the others) and opens nothing, as we send no fcmOptions link. So
+// this one is registered before firebase.messaging() and gets there first.
+// The link is in data.url either way: on ours directly, on the SDK's inside
+// the original message (data.FCM_MSG).
+self.addEventListener('notificationclick', (event) => {
+  event.stopImmediatePropagation()
+  event.notification.close()
+  const d = event.notification.data || {}
+  const target = new URL(d.url || d.FCM_MSG?.data?.url || '/schedule/', self.location.origin)
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    // A window already open on what the notification is about, which then
+    // moves to that screen: one in the same section or tool first; failing
+    // that, for the one app (the schedule, Asks…), any window of it. For a
+    // separate tool (/demo/) only a window inside that tool: matching any
+    // window on the origin would navigate whatever other tool happened to be
+    // open away from someone's half-finished work.
+    const tool = '/' + target.pathname.split('/')[1] + '/'
+    const existing = windows.find(w => new URL(w.url).pathname.startsWith(tool))
+      || (inApp(target.pathname) ? windows.find(w => inApp(new URL(w.url).pathname)) : undefined)
+    if (existing) {
+      await existing.focus()
+      if ('navigate' in existing) await existing.navigate(target.href).catch(() => {})
+      return
+    }
+    await self.clients.openWindow(target.href)
+  })())
+})
+
+//
 // importScripts is why this worker has to be a classic script — see
 // apps/hub/vite.sw.config.js.
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js')
@@ -89,7 +125,9 @@ try {
   // Two senders use this: the staff schedule's reminders, and the demo
   // tracker's (sent by the Simpro proxy, with a link into /equipment/; /demo/ before 19 Oct 2026).
   firebase.messaging().onBackgroundMessage((payload) => {
-    const { title, body } = payload.notification || {}
+    // Already shown by the SDK (see above). Only a data-only message needs one.
+    if (payload.notification) return
+    const { title, body } = payload.data || {}
     const url = payload.data?.url || '/schedule/'
     const demo = /^\/(demo|equipment)\//.test(new URL(url, self.location.origin).pathname)
     // The one app's icon for both: the schedule's own calendar icon went with
@@ -104,26 +142,3 @@ try {
 } catch (err) {
   console.warn('[sw] background push unavailable', err)
 }
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close()
-  const target = new URL(event.notification.data?.url || '/schedule/', self.location.origin)
-  event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    // A window already open on what the notification is about, which then
-    // moves to that screen: one in the same section or tool first; failing
-    // that, for the one app (the schedule, Asks…), any window of it. For a
-    // separate tool (/demo/) only a window inside that tool: matching any
-    // window on the origin would navigate whatever other tool happened to be
-    // open away from someone's half-finished work.
-    const tool = '/' + target.pathname.split('/')[1] + '/'
-    const existing = windows.find(w => new URL(w.url).pathname.startsWith(tool))
-      || (inApp(target.pathname) ? windows.find(w => inApp(new URL(w.url).pathname)) : undefined)
-    if (existing) {
-      await existing.focus()
-      if ('navigate' in existing) await existing.navigate(target.href).catch(() => {})
-      return
-    }
-    await self.clients.openWindow(target.href)
-  })())
-})
