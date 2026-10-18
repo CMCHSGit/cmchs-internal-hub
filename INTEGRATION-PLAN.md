@@ -172,8 +172,15 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       `overviewOf` tested). Yours when the sign-in matches someone on the tracker's team, then
       everyone's; the new tracker's landing view. Overdue is the Loans tab's rule (never a long-term
       loan), where the old phone counted a long-term loan past its end date as overdue.
-- [ ] Loans: the loan actions (extend, add items, reassign and transfer, long term, readiness,
-      copy, delete)
+- [x] First writes, 19 Oct (`LoanActions.jsx`, `store.jsx`, rules tested): testing and
+      dispatch (Skip / Tested / Dispatched, with when, and undo) to `/loanMeta`; Extend for a
+      loan (devices in `/data` by its ETag, a form under the old key moved, the due-soon
+      reminder cleared) and for a booking; an audit entry each (`source: 'hub'`). Fixed on the
+      way: the new tracker now lays `/loanMeta` over `/data`'s copy as the old one does (it read
+      only the copy, so could show stale account managers and testing); the old `+12:00`
+      timestamps show at the clock time written (read as moments they're an hour late in summer).
+- [ ] Loans: the other loan actions (long term, edit, transfer and reassign, copy, add items,
+      return, delete)
 - [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode

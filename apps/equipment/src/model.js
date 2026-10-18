@@ -299,9 +299,16 @@ export function readinessOf(g, { loanMeta = {}, today = nzDate() } = {}) {
   }
 }
 
-/** "15 Oct, 17:40" (old: _fmtReadinessTs). */
+/**
+ * "15 Oct, 17:40" (old: _fmtReadinessTs). The old tracker's own timestamps
+ * are NZ clock time marked +12:00 all year (nzNow), so in daylight saving,
+ * read as a moment, they come out an hour late (the old one shows them so).
+ * Those show the clock time as written; anything else is converted to NZ time.
+ */
 export function fmtWhen(ts) {
   if (!ts || ts === true) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?\+12:00$/.exec(String(ts))
+  if (m) return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}, ${m[4]}:${m[5]}`
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return String(ts).slice(0, 10)
   return d.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
@@ -382,3 +389,52 @@ export function yoursOf(ov, name) {
     stuck: ov.stuck.filter((u) => u.accountManager === name),
   }
 }
+
+/* ── Changes (the loan actions). The old tracker's ways of recording them,
+   kept so both trackers read each other's changes. ── */
+
+/** A timestamp as the old tracker writes them: NZ wall-clock time marked +12:00 all year (old: nzNow, kept for now). */
+export const nzNow = (d = new Date()) => d.toLocaleString('sv-SE', { timeZone: 'Pacific/Auckland' }).replace(' ', 'T') + '+12:00'
+
+/** A new record id, as the old tracker's uid(): starts with the time, so ids sort by when. */
+export const newId = () => 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2)
+
+/**
+ * Which testing and dispatch buttons a loan card offers (old: buildReadinessButtons).
+ * Upcoming loans always offer them; a started loan only in its first 7 days.
+ * One already set always shows, with when, so it can be undone. Skip
+ * ("no test required") is offered only while nothing's decided.
+ */
+export function readinessButtons(g, { loanMeta = {}, today = nzDate() } = {}) {
+  const r = loanMeta[readinessKey(g)] || {}
+  const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
+  const open = upcomingKind || (!!g.startDate && g.startDate <= today && daysBetween(g.startDate, today) <= 7)
+  return {
+    noTestRequired: !!r.noTestRequired ? { on: true, at: r.noTestRequiredAt || '' } : null,
+    skip: open && !r.tested && !r.noTestRequired,
+    tested: !r.noTestRequired && (open || r.tested) ? { on: !!r.tested, at: r.testedAt || '' } : null,
+    dispatched: open || r.dispatched ? { on: !!r.dispatched, at: r.dispatchedAt || '' } : null,
+  }
+}
+
+/** A readiness entry with one field set or cleared (old: toggleReadiness / confirmReadinessDate). */
+export const withReadiness = (r = {}, field, on, at) => ({ ...r, [field]: on, [field + 'At']: on ? (at || nzNow()) : '' })
+
+/** Whether a loan offers Extend: not long term (that one is "Return to active"), and has items or a booking. */
+export const canExtend = (g) => !g.longTerm && (g.kind === 'booking' || g.items.length > 0)
+
+/** Why a new end date can't be used, or '' (old: confirmExtendLoan's checks). */
+export function extendProblem(g, newDate) {
+  if (!newDate) return 'Choose the new end date.'
+  if (g.endDate && newDate <= g.endDate) return 'The new date must be after the current end date.'
+  return ''
+}
+
+/** The equipment with this loan's devices due back on the new date. */
+export const extendEquipment = (equipment, g, newDate) => {
+  const ids = new Set(g.items.map((e) => e.id))
+  return equipment.map((e) => (e && ids.has(e.id) ? { ...e, LoanEndDate: newDate } : e))
+}
+
+/** Where a loan's form is kept for a given end date: its BatchID, else the old key, which has the end date in it. */
+export const loanDocKey = (g, endDate = g.endDate) => g.batchId || legacyKeys(g.loanTo, endDate)[0]

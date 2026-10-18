@@ -67,7 +67,8 @@ function persist() {
   watchers.forEach((w) => w())
 }
 
-const parts = (path) => path.split('/').filter(Boolean)
+// Each part of the address decoded, as the real database does.
+const parts = (path) => path.split('/').filter(Boolean).map(decodeURIComponent)
 function get(path) { db ??= load(); return parts(path).reduce((o, k) => (o == null ? undefined : o[k]), db) ?? null }
 function set(path, value) {
   db ??= load()

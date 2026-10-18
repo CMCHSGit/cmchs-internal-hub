@@ -5,11 +5,10 @@
    manager. "Everyone" is the Service & Projects overview: how much is out,
    what's waiting on a transfer, overdue, or still to be tested, and each
    account manager's loans. Every row opens that loan in Loans. */
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Badge } from '../../../shared/ui/index.jsx'
-import { watchUser } from '../../../shared/session.js'
-import { fmtDate, loanSections, memberFor, overviewOf, roleOf, yoursOf } from './model.js'
+import { fmtDate, loanSections, overviewOf, roleOf, yoursOf } from './model.js'
 
 /** Loans, opened at one loan (Loans.jsx reads ?open=). */
 export const loanLink = (g) => '#/loans?open=' + encodeURIComponent(g.kind + ':' + g.key)
@@ -17,8 +16,6 @@ const loansLink = (params = {}) => { const q = new URLSearchParams(params).toStr
 const devices = (n) => `${n} ${n === 1 ? 'device' : 'devices'}`
 
 export default function Overview({ s }) {
-  const [user, setUser] = useState(null)
-  useEffect(() => watchUser(setUser), [])
   const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
     [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
   const ov = useMemo(() => overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, today: s.today, testMode: s.testMode }),
@@ -30,7 +27,7 @@ export default function Overview({ s }) {
   // …which is under Needs reassigning once some of it has gone out, else still under Upcoming.
   const stuckAt = ov.stuck.length && all.find((g) => g.batchId === ov.stuck[0].id)?.kind === 'loan' ? 'needsReassign' : 'upcoming'
 
-  const me = memberFor(user, s.managers)
+  const me = s.me // the sign-in's place on the tracker's team (store.jsx)
   const mine = me ? yoursOf(ov, me.name) : null
   const showMine = mine && (roleOf(me) === 'am' || mine.active.length || mine.ahead.length || mine.stuck.length)
 

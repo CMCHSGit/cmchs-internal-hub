@@ -1,12 +1,13 @@
-/* Loans, read-only (the old Loans tab, and the phone's Loans list): the same
+/* Loans (the old Loans tab, and the phone's Loans list): the same
    sections in the same order, from the same rules (loanSections in
    model.js). Needs reassign, then Upcoming (scheduled loans and bookings),
    Current (overdue ones marked), then Long term. A loan opens to show its
    devices, what it's still waiting on, and anything since moved to another
-   loan. Changes are still made in the old tracker. */
+   loan, and what can be done to it so far (LoanActions.jsx). */
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { Badge } from '../../../shared/ui/index.jsx'
+import { Badge, Toast, useToast } from '../../../shared/ui/index.jsx'
+import LoanActions from './LoanActions.jsx'
 import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readinessOf } from './model.js'
 
 const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Due back'], ['recent', 'Most recent start'], ['alpha', 'Customer A–Z'], ['manager', 'Account manager']]
@@ -14,7 +15,9 @@ const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Du
 export default function Loans({ s, params, setParams }) {
   // ?open=kind:key opens one loan (Overview's rows); ?at= scrolls to a section.
   const [openKey, setOpenKey] = useState(params.open || null)
+  const [toast, showToast] = useToast()
   useEffect(() => {
+    if (params.open) setOpenKey(params.open)
     const el = params.open ? document.querySelector(`[data-loan="${CSS.escape(params.open)}"]`) : params.at && document.getElementById('loans-' + params.at)
     el?.scrollIntoView({ block: params.open ? 'center' : 'start' })
   }, [params.open, params.at])
@@ -64,15 +67,16 @@ export default function Loans({ s, params, setParams }) {
         <section key={id} id={'loans-' + id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
           <h2 className="eq-section-title">{title} <span className="eq-count">{list.length}</span></h2>
           {hint && <p className="eq-note">{hint}</p>}
-          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
+          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} onDone={showToast} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
         </section>
       ))}
       {lists.every(([, , , l]) => !l.length) && <p className="data-table-empty">{all.length ? 'No loans match that.' : 'No active loans.'}</p>}
+      <Toast message={toast} />
     </>
   )
 }
 
-function LoanCard({ g, s, open, onToggle }) {
+function LoanCard({ g, s, open, onToggle, onDone }) {
   const count = g.items.length
   const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
   const days = upcomingKind ? daysBetween(s.today, g.startDate) : 0
@@ -139,6 +143,7 @@ function LoanCard({ g, s, open, onToggle }) {
               </li>
             ))}
           </ul>
+          <LoanActions g={g} s={s} onDone={onDone} />
         </div>
       )}
     </article>

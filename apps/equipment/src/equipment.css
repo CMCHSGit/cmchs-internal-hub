@@ -103,3 +103,13 @@
 .eq-ov-n { color: var(--text-muted); }
 .eq-date-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: var(--radius-md); background: var(--surface-accent-tint); color: var(--accent-fg); font: var(--weight-semibold) 11px/1.1 var(--font-body); text-transform: uppercase; }
 .eq-date-chip span:last-child { font-size: 17px; }
+
+/* A loan's actions (LoanActions.jsx) */
+.eq-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
+.eq-actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.eq-done { color: var(--text-strong); }
+.eq-when { margin-left: 6px; font-weight: 400; color: var(--text-muted); }
+.eq-form { display: flex; flex-direction: column; gap: 14px; }
+.eq-form-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.eq-form-row .field { flex: 1 1 140px; }
+.eq-problem { color: var(--status-critical); }
