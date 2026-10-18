@@ -1,0 +1,9 @@
+{
+  "name": "tracker-migration",
+  "private": true,
+  "type": "module",
+  "description": "The demo tracker's data from its Realtime Database into Firestore (STEP-5-PLAN.md 5B). Run by hand.",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
+}

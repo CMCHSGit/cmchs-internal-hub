@@ -142,10 +142,17 @@ Work:
       transaction, instead of `store.jsx`'s whole-document `updateData`.
       Live updates by `onSnapshot` replace the `data/_v` watch. `db-local.js`
       (the dev stand-in) gets the same shape (done in db-firestore.js, seeded from db-local.js).
-- [ ] A migration script (Node, service account, from the live database or the
-      nightly JSON backup): idempotent, a dry run that prints counts only (no
-      names), and a check that counts match after (today about 427 items; the
-      Equipment view's five counts must match exactly).
+- [x] A migration script: `backend/tracker-migration/migrate.mjs` (see its
+      top for how to run it). From the live database (`CHS_SA`) or a nightly
+      `Demo-Tracker-*.json` with its report files; into Firestore (`HUB_SA`,
+      or the emulator). A dry run unless `--write`; counts only; writes only
+      what differs, so a second run writes nothing; then reads it all back and
+      checks the lists, every item, form, meta and booking, history's order,
+      reports, the audit log and the Equipment view's five counts. Doesn't
+      copy `config` (the admin password), `accountManagers` (5A) or
+      `returnDueSoonReminders`, and names any top-level path it doesn't know.
+      Tried on the emulator with the dev sample; **not yet run on the real
+      data** (needs the two keys, and a look at the dry run's counts).
 - [ ] The cutover, planned with Jonathan for a quiet hour: a read-only banner on
       the tracker, final migration, the data layer switched, the counts and a
       few loans checked by hand, the Realtime Database rules set read-only.

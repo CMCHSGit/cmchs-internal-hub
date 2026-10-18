@@ -54,3 +54,11 @@ Runs daily at 07:00 NZST once the repository variable `TILE_SYNC_HERE` is
 `TILE_EMAIL`, `TILE_PASSWORD` and `CHS_EQUIPMENT_SERVICE_ACCOUNT` (the
 chs-equipment project's service-account JSON, not the staff schedule's
 `FIREBASE_*` one). Logs give counts only.
+
+## `tracker-migration/`: the demo tracker into Firestore
+
+Step 5B of `STEP-5-PLAN.md`: copies the tracker's Realtime Database into the
+hub's Firestore, run by hand (`node migrate.mjs`, a dry run unless `--write`).
+It needs service-account keys for both projects, given as paths in `HUB_SA`
+and `CHS_SA`; keep the key files outside the repo and delete them after. It
+prints counts only.
