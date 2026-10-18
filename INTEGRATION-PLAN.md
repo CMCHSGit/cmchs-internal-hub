@@ -221,6 +221,7 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
 - [ ] Parity check, then switch `/demo/` over
 
 ### 5. One identity and data platform
+The detailed plan, for Peter: `STEP-5-PLAN.md`.
 - [x] Demo tracker reminders go to phones turned on at internal.chsnz.co.nz
       (`chs-equipment ce95adb`)
 - [ ] The tracker's `accountManagers` folded into `users`; admin password
