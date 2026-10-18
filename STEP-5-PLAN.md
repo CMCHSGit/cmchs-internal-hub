@@ -124,14 +124,24 @@ Work:
       `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=C:/Users/<you>/.uds`.
       A write carries at most 10 MiB (the emulator: 4 MiB), so a report's
       chunks go four to a batch, after the report document.
-- [ ] A Firestore data layer beside `db.js`, nothing using it yet. The new
+- [x] A Firestore data layer beside `db.js`, nothing using it yet:
+      `apps/equipment/src/db-firestore.js` (watchTracker, commit, the audit
+      log, reports), with the documents' shape in `fs-shape.js`. A loan's
+      document keeps loanMeta, loanDocs and the booking whole as `meta`, `form`
+      and `booking` (they overlap, and model.js reads all three), with the
+      fields above worked out beside them; a loan emptied of all three is
+      kept as `closed`, not deleted. Tested: `tests/fs-shape.test.mjs` (the
+      state comes back exactly; a change writes only what it touches), and
+      `rules/tests/equipment-layer.test.mjs` (the layer against the real
+      rules on the emulator, a clash with someone else's change included).
+      Moving store.jsx onto it is part of the cutover. The brief: the new
       tracker's rules are already pure functions in `model.js` (`planNewLoan`,
       `returnEquipment`, `activateBookings`, `planTransfer`, `countEquipment`…)
       that take the item list and return the new one: the new layer diffs
       before and after and writes only the changed items and loans in one
       transaction, instead of `store.jsx`'s whole-document `updateData`.
       Live updates by `onSnapshot` replace the `data/_v` watch. `db-local.js`
-      (the dev stand-in) gets the same shape.
+      (the dev stand-in) gets the same shape (done in db-firestore.js, seeded from db-local.js).
 - [ ] A migration script (Node, service account, from the live database or the
       nightly JSON backup): idempotent, a dry run that prints counts only (no
       names), and a check that counts match after (today about 427 items; the
