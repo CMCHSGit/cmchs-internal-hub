@@ -426,7 +426,8 @@ function sendDemoReminderPush(g, loanDoc, serviceTeam, startsToday) {
   const body = (startsToday ? 'Starts today' : 'Starts ' + fmtDate(g.startDate)) + islandNote +
     (loanDoc.location ? ' — ' + loanDoc.location : '') + ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : '');
   serviceTeam.forEach(function(am) {
-    try { sendPushToPerson_(am, title, body, TRACKER_URL + '?mobile=1'); }
+    // Opens that loan in the tracker (?open=<BatchID>; the list for a loan from before BatchIDs).
+    try { sendPushToPerson_(am, title, body, TRACKER_URL + (g.batchId ? '?open=' + encodeURIComponent(g.batchId) : '?mobile=1')); }
     catch (err) { Logger.log('Demo reminder push failed for ' + am.name + ': ' + err); }
   });
 }
@@ -606,7 +607,7 @@ function sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key) 
     try {
       sendPushToPerson_(svcAm, 'Return due soon: ' + g.loanTo,
         'Due ' + fmtDate(g.endDate) + islandNote + (loanDoc.location ? ' — ' + loanDoc.location : '') + ' — ' + g.items.length + ' item' + (g.items.length !== 1 ? 's' : ''),
-        TRACKER_URL + '?mobile=1');
+        TRACKER_URL + (g.batchId ? '?open=' + encodeURIComponent(g.batchId) : '?mobile=1'));
     } catch (err) { Logger.log('Return-due-soon push failed for ' + svcAm.name + ': ' + err); }
   });
   putFirebaseJson(dedupPath, { sentAt: new Date().toISOString() });
@@ -758,6 +759,7 @@ function checkDatabaseAuth() {
 function sendPushToPerson_(am, title, body, url, force) {
   if (!am) return [];
   if (am.notify === false && !force) { Logger.log('Push skipped for ' + am.name + ': reminders switched off in Admin'); return []; }
+  if (!force && hubDemoOff_(am)) { Logger.log('Push skipped: someone switched their demo reminders off in Settings'); return []; }
   const auth = getFcmAccessToken_();
   if (!auth) return [];
 
@@ -856,7 +858,7 @@ function loadHubUsers_() {
   const token = hubAccessToken_();
   if (!token) throw new Error('no service account token');
   const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/users' +
-    '?pageSize=300&mask.fieldPaths=email&mask.fieldPaths=displayName&mask.fieldPaths=fcmTokens&mask.fieldPaths=pending';
+    '?pageSize=300&mask.fieldPaths=email&mask.fieldPaths=displayName&mask.fieldPaths=fcmTokens&mask.fieldPaths=pending&mask.fieldPaths=notifications';
   const users = [];
   let pageToken = '';
   do {
@@ -874,7 +876,10 @@ function loadHubUsers_() {
       users.push({
         email: ((f.email && f.email.stringValue) || '').trim().toLowerCase(),
         name: ((f.displayName && f.displayName.stringValue) || '').trim().toLowerCase(),
-        tokens: tokens
+        tokens: tokens,
+        // Settings → Your notifications: their own demo reminders switch (step 5D). Missing means on.
+        demoOff: !!(f.notifications && f.notifications.mapValue && f.notifications.mapValue.fields && f.notifications.mapValue.fields.demoReminders &&
+          f.notifications.mapValue.fields.demoReminders.booleanValue === false)
       });
     });
     pageToken = json.nextPageToken || '';
@@ -883,6 +888,14 @@ function loadHubUsers_() {
 }
 
 // This person's hub phones, or [] (none, no match, or hub push not set up yet).
+// Whether this person switched their demo reminders off themselves (Settings → Your notifications).
+function hubDemoOff_(am) {
+  hubTokensFor_(am); // loads hubUsers_ once
+  const email = String(am.email || '').trim().toLowerCase(), name = String(am.name || '').trim().toLowerCase();
+  const u = (email && hubUsers_.find(function(x) { return x.email === email; })) || (name && hubUsers_.find(function(x) { return x.name === name; }));
+  return !!(u && u.demoOff);
+}
+
 function hubTokensFor_(am) {
   if (hubUsers_ === null) {
     try { hubUsers_ = loadHubUsers_(); }
@@ -1417,6 +1430,8 @@ function isStartingSoonBusinessDays(todayStr, startDateStr, island) {
 
 function fetchFirebaseJson(path) {
   try {
+    // After the cutover, the tracker's data is read from the hub's Firestore (below).
+    if (trackerOnFirestore_()) { const r = trackerFsRead_(path); if (r.handled) return r.value; }
     const resp = firebaseFetch_(path);
     if (resp.getResponseCode() >= 300) return null;
     return JSON.parse(resp.getContentText());
@@ -1427,6 +1442,9 @@ function fetchFirebaseJson(path) {
 }
 
 function putFirebaseJson(path, obj) {
+  if (trackerOnFirestore_()) {
+    try { if (trackerFsWrite_(path, obj)) return; } catch (err) { Logger.log('Firestore write failed for ' + String(path).split('/')[1] + ': ' + err.message); return; }
+  }
   firebaseFetch_(path, {
     method: 'put',
     headers: { 'Content-Type': 'application/json' },
@@ -1437,6 +1455,11 @@ function putFirebaseJson(path, obj) {
 // ── Write job ID back to Firebase so the tracker can reference it ─────────────
 function writeJobIdToFirebase(pdfKey, jobId) {
   try {
+    if (trackerOnFirestore_()) {
+      trackerFsWrite_('/loanDocs/' + encodeURIComponent(pdfKey) + '/simproJobId.json', jobId);
+      Logger.log('Firestore write: a loan job number');
+      return;
+    }
     firebaseFetch_('/loanDocs/' + encodeURIComponent(pdfKey) + '/simproJobId.json', {
       method: 'put',
       headers: { 'Content-Type': 'application/json' },
@@ -1826,4 +1849,139 @@ function fmtDate(d) {
 
 function today() {
   return Utilities.formatDate(new Date(), 'Pacific/Auckland', 'yyyy-MM-dd');
+}
+
+// ── The demo tracker's data in Firestore (step 5B's cutover) ─────────────────
+// settings/equipmentCutover in the hub's Firestore says where the tracker's
+// data is ({ source: 'rtdb' | 'firestore' }), the same switch the tracker
+// follows (apps/equipment/src/db.js). Until it says 'firestore', nothing here
+// changes. After, fetchFirebaseJson / putFirebaseJson / writeJobIdToFirebase
+// answer the same paths from the hub's Firestore (the shapes are
+// apps/equipment/src/fs-shape.js's): equipment, the bookings, a loan's form
+// and Simpro settings are read there; a job number is written to the loan's
+// document; the "already sent" records go in equipmentReminders. The team
+// list (accountManagers) stays in the old database, still readable, until
+// step 5A moves it. Writing to Firestore needs this script's service account
+// given write access in the staff schedule's project (Cloud Datastore User).
+
+let trackerSource_ = null; // once per run
+function trackerOnFirestore_() {
+  if (trackerSource_ === null) {
+    trackerSource_ = 'rtdb';
+    try {
+      const d = fsGetDoc_('settings/equipmentCutover');
+      if (d && d.source === 'firestore') trackerSource_ = 'firestore';
+    } catch (err) { Logger.log('Cutover switch not read (' + err.message + '): using the old database.'); }
+  }
+  return trackerSource_ === 'firestore';
+}
+
+function fsBase_() { return 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/'; }
+function fsAuth_() {
+  const token = hubAccessToken_();
+  if (!token) throw new Error('no service account token');
+  return { Authorization: 'Bearer ' + token };
+}
+// A document path's parts, each encoded (a loan key can hold '%', '|' and spaces).
+function fsPath_(p) { return p.split('/').map(encodeURIComponent).join('/'); }
+
+// Arrays inside arrays are kept as { _a: [...] } (Firestore can't nest them).
+function fsUnpack_(v) {
+  if (Array.isArray(v)) return v.map(function(x) { return (x && typeof x === 'object' && !Array.isArray(x) && Object.keys(x).length === 1 && Array.isArray(x._a)) ? fsUnpack_(x._a) : fsUnpack_(x); });
+  if (v && typeof v === 'object') { const o = {}; Object.keys(v).forEach(function(k) { o[k] = fsUnpack_(v[k]); }); return o; }
+  return v;
+}
+// A plain value as a Firestore REST value.
+function fsValue_(v) {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === 'string') return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(fsValue_) } };
+  const fields = {};
+  Object.keys(v).forEach(function(k) { fields[k] = fsValue_(v[k]); });
+  return { mapValue: { fields: fields } };
+}
+
+/** One document's fields as plain values, or null if it isn't there. */
+function fsGetDoc_(path) {
+  const resp = UrlFetchApp.fetch(fsBase_() + fsPath_(path), { headers: fsAuth_(), muteHttpExceptions: true });
+  if (resp.getResponseCode() === 404) return null;
+  if (resp.getResponseCode() !== 200) throw new Error('Firestore read refused (' + resp.getResponseCode() + ') for ' + path.split('/')[0]);
+  return fsUnpack_(fsFields_(JSON.parse(resp.getContentText()).fields));
+}
+/** Every document in a collection: [{ id, ...fields }]. */
+function fsList_(collection, fields) {
+  const mask = (fields || []).map(function(f) { return '&mask.fieldPaths=' + encodeURIComponent(f); }).join('');
+  const out = [];
+  let pageToken = '';
+  do {
+    const resp = UrlFetchApp.fetch(fsBase_() + collection + '?pageSize=300' + mask + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''),
+      { headers: fsAuth_(), muteHttpExceptions: true });
+    if (resp.getResponseCode() !== 200) throw new Error('Firestore read refused (' + resp.getResponseCode() + ') for ' + collection);
+    const json = JSON.parse(resp.getContentText());
+    (json.documents || []).forEach(function(d) { const o = fsUnpack_(fsFields_(d.fields)); o.__id = decodeURIComponent(d.name.split('/').pop()); out.push(o); });
+    pageToken = json.nextPageToken || '';
+  } while (pageToken);
+  return out;
+}
+/** Some fields of a document set (a.b for one inside a map); with mustExist, only if it's there already. */
+function fsPatch_(path, values, mustExist) {
+  const fields = {}, masks = [];
+  Object.keys(values).forEach(function(k) {
+    masks.push('updateMask.fieldPaths=' + encodeURIComponent(k));
+    const parts = k.split('.');
+    let o = fields;
+    for (let i = 0; i < parts.length - 1; i++) { o[parts[i]] = o[parts[i]] || { mapValue: { fields: {} } }; o = o[parts[i]].mapValue.fields; }
+    o[parts[parts.length - 1]] = fsValue_(values[k]);
+  });
+  const resp = UrlFetchApp.fetch(fsBase_() + fsPath_(path) + '?' + masks.join('&') + (mustExist ? '&currentDocument.exists=true' : ''), {
+    method: 'patch', contentType: 'application/json', headers: fsAuth_(), muteHttpExceptions: true,
+    payload: JSON.stringify({ fields: fields })
+  });
+  if (resp.getResponseCode() >= 300) throw new Error('Firestore write refused (' + resp.getResponseCode() + ') for ' + path.split('/')[0]);
+}
+
+// Which Firestore place an old database path is (pure: apps/equipment/tests checks it).
+//   { kind: 'equipment' | 'bookings' | 'form' | 'jobId' | 'simproConfig' | 'marker' | 'old', key, mark }
+function trackerFsPlace_(path) {
+  const parts = String(path).replace(/^\//, '').replace(/\.json$/, '').split('/').map(decodeURIComponent);
+  const top = parts[0];
+  if (top === 'data' && parts[1] === 'equipment') return { kind: 'equipment' };
+  if (top === 'upcomingLoans' && parts.length === 1) return { kind: 'bookings' };
+  if (top === 'loanDocs' && parts.length === 2) return { kind: 'form', key: parts[1] };
+  if (top === 'loanDocs' && parts.length === 3 && parts[2] === 'simproJobId') return { kind: 'jobId', key: parts[1] };
+  if (top === 'simproConfig') return { kind: 'simproConfig' };
+  if (['demoReminders', 'stuckLoanReminders', 'returnDueSoonReminders'].indexOf(top) >= 0 && parts.length === 2) return { kind: 'marker', mark: top, key: parts[1] };
+  return { kind: 'old' };
+}
+// A reminder record's document id: which reminder, and its key (encoded: a key can hold '/').
+function trackerMarkerId_(mark, key) { return mark + '__' + encodeURIComponent(key); }
+
+/** An old database path, read from Firestore. { handled: false } for one that stays in the old database. */
+function trackerFsRead_(path) {
+  const p = trackerFsPlace_(path);
+  if (p.kind === 'equipment') {
+    return { handled: true, value: fsList_('equipment').sort(function(a, b) { return (a._pos || 0) - (b._pos || 0); })
+      .map(function(e) { delete e._pos; delete e.__id; return e; }) };
+  }
+  if (p.kind === 'bookings') {
+    const out = {};
+    fsList_('loans', ['booking']).forEach(function(l) { if (l.booking && l.booking.id) out[l.booking.id] = l.booking; });
+    return { handled: true, value: out };
+  }
+  if (p.kind === 'form') { const l = fsGetDoc_('loans/' + p.key); return { handled: true, value: l && l.form ? l.form : null }; }
+  if (p.kind === 'jobId') { const l = fsGetDoc_('loans/' + p.key); return { handled: true, value: l && l.form ? (l.form.simproJobId == null ? null : l.form.simproJobId) : null }; }
+  if (p.kind === 'simproConfig') { const s = fsGetDoc_('settings/equipment'); return { handled: true, value: s ? (s.simproConfig || {}) : null }; }
+  if (p.kind === 'marker') { return { handled: true, value: fsGetDoc_('equipmentReminders/' + trackerMarkerId_(p.mark, p.key)) }; }
+  return { handled: false };
+}
+
+/** An old database path, written to Firestore. False for one that stays in the old database. */
+function trackerFsWrite_(path, value) {
+  const p = trackerFsPlace_(path);
+  if (p.kind === 'jobId') { fsPatch_('loans/' + p.key, { 'form.simproJobId': value, simproJobId: value }, true); return true; }
+  if (p.kind === 'marker') { fsPatch_('equipmentReminders/' + trackerMarkerId_(p.mark, p.key), value || {}, false); return true; }
+  if (p.kind !== 'old') throw new Error('The proxy doesn\'t write ' + p.kind + ' to the tracker\'s Firestore data');
+  return false;
 }

@@ -172,7 +172,9 @@ Work:
       extend, return with a booking starting, new loan and its form, test reports, retire/restore,
       count, the audit log). The project tracker's feed (`tracker.js readTracker`) follows it.
 - [ ] Everything else moved to Firestore at the same cutover: the proxy's
-      reminders and its Simpro write-back of `simproJobId` (`Code.js` ~226, ~1319),
+      reminders and its Simpro write-back of `simproJobId` (`Code.js` ~226, ~1319) **(done 19 Oct, @46:
+      the proxy follows the same switch; its reads of the tracker's data, the job-number write-back
+      and the sent records go to Firestore once it says so; needs its write access granted first)**,
       the backup, Tile sync, the project tracker's demo feed (`tracker.js`
       `readTracker`, `feed.js`). The proxy needs write access to Firestore
       first (see the 5D audit).
@@ -217,12 +219,14 @@ collection). A permissions change: Jonathan's call.
 - [ ] Demo reminders (due soon, stuck bookings) already go to hub phones
       (`users.fcmTokens`) with `accountManagers.fcmTokens` as a fallback: drop the
       fallback once 5A is done.
-- [ ] Every notification opens the new tracker at the right place: `/equipment/#/loans?open=…`
+- [x] (19 Oct: `/equipment/` since the switch; the two service-team pushes open their loan with
+      `?open=<BatchID>`, which the tracker reads) Every notification opens the new tracker at the right place: `/equipment/#/loans?open=…`
       (step 4's links in add `?return=`, `?extend=`, `?reassign=`). The first
       step is one line once step 4 switches: `HUB_DEMO_URL` to `/equipment/`.
       The two service-team pushes then need a link to their loan, which the
       new tracker would have to read (a `?open=<key>`, not there yet).
-- [ ] Each person's demo reminders on or off in Settings → Your notifications,
+- [x] (19 Oct: the switch in Settings → Your notifications; the proxy skips anyone who turned it off,
+      except an admin's test push) Each person's demo reminders on or off in Settings → Your notifications,
       like the schedule's (`notifications.demoReminders` from 5A).
 
 ## Working agreements (from `CLAUDE.md`)

@@ -22,6 +22,12 @@ test('reassign opens the loan holding the booking’s devices, Transfer ready', 
   assert.match(linkTarget('?reassign=nope', sections, upcoming, equipment).note, /gone/)
 })
 
+test('a reminder’s ?open=<BatchID> opens that loan', () => {
+  assert.deepEqual(linkTarget('?open=b1', sections, upcoming, equipment), { view: 'loans', params: { open: 'loan:b1' } })
+  assert.deepEqual(linkTarget('?open=u1', sections, upcoming, equipment).params, { open: 'booking:u1' })
+  assert.match(linkTarget('?open=gone', sections, upcoming, equipment).note, /isn’t out/)
+})
+
 test('the project tracker’s new loan, and tabs', () => {
   assert.deepEqual(linkTarget('?newLoan=1&ref=job7&loanTo=Waikato&start=2026-10-20&end=', sections), { view: 'new', params: { ref: 'job7', loanTo: 'Waikato', start: '2026-10-20' } })
   assert.deepEqual(linkTarget('?tab=loans', sections), { view: 'loans', params: {} })

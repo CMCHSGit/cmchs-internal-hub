@@ -1163,7 +1163,8 @@ export const loanToken = (loanTo, endDate) => btoa(encodeURIComponent(loanTo + '
  * working): ?tab=…; ?newLoan=1&ref=…&loanTo=…&location=…&start=…&end=…&notes=…
  * (the project tracker); ?return= / ?extend= (a loan's token: that loan, its
  * Return or Extend open); ?reassign=<booking> (a booking waiting on devices:
- * the loan they're on, Transfer open with them ticked and the booking chosen).
+ * the loan they're on, Transfer open with them ticked and the booking chosen);
+ * ?open=<BatchID> (a reminder about one loan: that loan, open).
  * Returns { view, params, note } or null for nothing to do.
  */
 export function linkTarget(search, sections, upcoming = [], equipment = []) {
@@ -1183,6 +1184,11 @@ export function linkTarget(search, sections, upcoming = [], equipment = []) {
     const to = all.find((g) => g.batchId === u.id)
     if (!from || !to) return { view: 'loans', params: to ? { open: to.kind + ':' + to.key } : {}, note: `Nothing is holding up ${u.loanTo}’s booking any more.` }
     return { view: 'loans', params: { open: from.kind + ':' + from.key, act: 'transfer', to: to.kind + ':' + to.key, nos: blocked.filter((e) => from.items.some((x) => x.id === e.id)).map((e) => e.CHSAssetNo).join(',') } }
+  }
+  const open = p.get('open')
+  if (open) {
+    const g = all.find((x) => x.batchId === open || x.key === open)
+    return g ? { view: 'loans', params: { open: g.kind + ':' + g.key } } : { view: 'loans', params: {}, note: 'That loan isn’t out any more: it may already be back.' }
   }
   const token = p.get('return') || p.get('extend')
   if (token) {

@@ -70,6 +70,8 @@ const STATUS_TEXT = {
 const MINE = [
   ['scheduleReminder', 'Staff schedule reminder', 'Thursday’s reminder to fill in next week, if you haven’t yet.'],
   ['asksSummary', 'Asks morning summary', 'At 8:30 on weekdays, if you have asks waiting. Pushes about a single ask always come.'],
+  // Step 5D: the demo tracker's reminders (due back soon, a booking waiting on a transfer, a demo starting), sent by the Simpro proxy.
+  ['demoReminders', 'Demo tracker reminders', 'Loans due back soon, bookings waiting on a transfer, and (for Service & Projects) demos starting.'],
 ]
 
 export function MyNotifications() {
