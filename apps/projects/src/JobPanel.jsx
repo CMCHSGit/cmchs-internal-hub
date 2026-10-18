@@ -410,17 +410,16 @@ function EquipmentNeeded({ job, readOnly }) {
 }
 
 /**
- * The demo tracker, in a pop-up, making the loan for this job: the hub's copy
- * of it (/demo/, same site) opened at its loan form, filled in with the job's
- * customer, site and dates (chs-equipment index.html
- * openLoanFromProjectTracker). When the loan is confirmed there, it posts the
+ * The demo tracker, in a pop-up, making the loan for this job: /equipment/
+ * (same site) opened at New loan, filled in with the job's customer, site and
+ * dates (apps/equipment/src/NewLoan.jsx, from ?newLoan=1&ref=…). When the loan is confirmed there, it posts the
  * new loan back; this links the job's matching equipment lines to it.
  */
 function LoanFormDialog({ job, onClose }) {
   const s = useStore()
   const ui = useUi()
   const need = linesNeedingLoan(job)
-  const base = import.meta.env.DEV ? 'https://internal.chsnz.co.nz/demo/' : '/demo/'
+  const base = import.meta.env.DEV ? 'https://internal.chsnz.co.nz/equipment/' : '/equipment/'
   const src = base + '?' + new URLSearchParams({
     newLoan: '1', ref: job.id,
     loanTo: job.customer || job.name, location: job.region || '',

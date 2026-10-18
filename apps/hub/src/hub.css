@@ -438,16 +438,25 @@ a.news-title:hover { color: var(--text-accent); }
 /* The header's tabs need the room on a laptop or tablet: the name beside the
    avatar (also in its menu) and the words beside the logo go first, then the
    tool search (Home has its own). Phones use the bottom tab bar instead. */
-@media (min-width: 760px) and (max-width: 1439px) {
+@media (min-width: 760px) and (max-width: 1499px) {
   .header .account-text, .header .brand-name, .header .brand-divider { display: none !important; }
   .header .search { width: 240px; }
 }
 @media (min-width: 760px) and (max-width: 1279px) {
   .header .search { width: 190px; }
 }
+@media (min-width: 760px) and (max-width: 1199px) {
+  .header .search { width: 150px; }
+  .header .search-kbd { display: none; }
+}
 @media (min-width: 760px) and (max-width: 1023px) {
   .header .header-search { display: none !important; }
   .header .nav-tab { padding: 0 8px; }
+}
+/* Seven tabs since the demo tracker joined (19 Oct 2026): a little tighter still at tablet width. */
+@media (min-width: 760px) and (max-width: 899px) {
+  .header .nav-tabs { gap: 0; margin-left: 4px; }
+  .header .nav-tab { padding: 0 7px; font-size: 14px; }
 }
 
 /* "Turn on notifications?" (PushPrompt.jsx) — a card pinned to the bottom. */

@@ -1,19 +1,19 @@
-/* The rebuilt demo tracker (INTEGRATION-PLAN.md step 4), at /equipment/ while
-   it's built. The old one carries on at /demo/ and demo.chsnz.co.nz, on the
-   same data, until this one does everything it does.
+/* The demo tracker (INTEGRATION-PLAN.md step 4), rebuilt as a section of the
+   one app at /equipment/. It replaced the old one on 19 Oct 2026: /demo/ and
+   demo.chsnz.co.nz forward here, and the old addresses still work (linkTarget).
+   It runs on the old one's Realtime Database until step 5 (STEP-5-PLAN.md).
 
-   So far (other changes are still made in the old tracker):
-     Overview   the phone's Today and Overview in one (Overview.jsx): your
-                loans if you're an account manager, then everyone's.
-     Equipment  the old Database tab and the phone's Equipment screen in one:
-                search, a status filter with counts, the list (cards on a
-                phone), and an item's record with its loan, bookings and history.
-     Loans      the old Loans tab (Loans.jsx), with testing, dispatch and
-                Extend on a loan (LoanActions.jsx).
-   Which view, and its filters, live in the address (#/loans?am=…), so a
-   link or Back lands on the same thing. */
+   Views (which one, and its filters, live in the address: #/loans?am=…):
+     Overview   your loans if you're an account manager, then everyone's
+     Equipment  the list, search, status filters, an item's record and changes
+     Loans      every loan and booking, and what can be done to each (LoanActions)
+     New loan   (NewLoan), finished on its loan form (LoanForm)
+     Scan       return, count, stocktake, by keyboard, scanner or camera
+     Calendar   loans across the weeks
+     History    devices' history and the audit log
+     Manage     retired items, kits, import/export, Simpro, test mode */
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarDays, ExternalLink, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
+import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Dialog, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
@@ -80,9 +80,8 @@ function Shell() {
       <div className="eq-head">
         <div>
           <h1 className="eq-title">Demo equipment</h1>
-          <p className="eq-sub">The new demo tracker, being built. It works on the same equipment and loans as the current one, so a change in either shows in both.</p>
+          <p className="eq-sub">Demo equipment, loans and bookings.</p>
         </div>
-        <a className="eq-old" href="/demo/">Make changes in the current tracker <ExternalLink size={14} aria-hidden="true" /></a>
       </div>
       {isLocal && <Alert tone="info" title="Made-up equipment">This is the dev server without a .env: the equipment here is made up, and kept in this browser.</Alert>}
       {s.error && <Alert tone="warning" title="Couldn’t refresh">{s.error}</Alert>}

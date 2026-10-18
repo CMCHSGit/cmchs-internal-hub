@@ -2,8 +2,8 @@
 // at internal.chsnz.co.nz. Each app lands at its own path:
 //
 //   apps/hub            (Vite)    -> /             the one app (+ /shared/gate.js)
-//   apps/demo           (fetched) -> /demo/        read-only copy of demo.chsnz.co.nz,
-//                                                  built from the chs-equipment repo
+//   apps/demo                     -> /demo/        forwards to /equipment/ (the demo tracker
+//                                                  moved into the app on 19 Oct 2026)
 //
 // No build of their own, because they are sections of the hub's one app
 // (apps/hub/src/router.js, INTEGRATION-PLAN.md steps 2 and 3): apps/schedule

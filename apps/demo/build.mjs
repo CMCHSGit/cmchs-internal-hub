@@ -1,72 +1,34 @@
-// Builds /demo/: the real demo tracker (chs-equipment repo, the page served
-// at demo.chsnz.co.nz) running inside the hub, adapted by apps/demo/embed.js.
+// Builds /demo/: since 19 Oct 2026 just a page that forwards to the demo
+// tracker's new home in the app, /equipment/, keeping the address's query and
+// hash. The tracker there reads the old addresses (?return=, ?extend=,
+// ?reassign=, ?newLoan=, ?tab=: apps/equipment/src/model.js linkTarget), so
+// bookmarks, emails and notifications sent before the switch still land in
+// the right place.
 //
-// Nothing of the tracker is kept in this repo. Every build takes the current
-// index.html from GitHub, so /demo/ follows the tracker's changes on the next
-// hub deploy (deploy.yml also runs on a timer for this). Both addresses use the
-// same live database.
-//
-// Set DEMO_SRC to a local chs-equipment folder to build from that instead.
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+// It used to fetch the old tracker's index.html from the chs-equipment repo
+// and run it here (with embed.js). To put that back, restore this file and
+// embed.js from git history (before the commit that added this note) and
+// the old index.html in chs-equipment (tag old-tracker-final).
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const HERE = fileURLToPath(new URL('.', import.meta.url))
-const OUT = join(HERE, 'dist')
-const RAW = 'https://raw.githubusercontent.com/CMCHSGit/chs-equipment/main/'
-const FILES = ['index.html', 'icon-180.png', 'icon-192.png', 'icon-512.png']
-
-// embed.js's own switch decides read-only vs two-way; the title follows it.
-const READ_ONLY = /var READ_ONLY = true/.test(readFileSync(join(HERE, 'embed.js'), 'utf8'))
-
-async function source(name) {
-  if (process.env.DEMO_SRC) return readFileSync(join(process.env.DEMO_SRC, name))
-  const res = await fetch(RAW + name)
-  if (!res.ok) throw new Error(`Couldn't fetch ${RAW + name}: HTTP ${res.status}`)
-  return Buffer.from(await res.arrayBuffer())
-}
-
+const OUT = join(fileURLToPath(new URL('.', import.meta.url)), 'dist')
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
-
-let html = (await source('index.html')).toString('utf8')
-
-// embed.js must run before ANY of the tracker's scripts, so it goes straight
-// after <head>. Then the hub's sign-in check (same two lines as every tool).
-const INJECT = `
-<!-- Added by cmchs-internal-hub apps/demo/build.mjs: demo.chsnz.co.nz inside the hub -->
-<script src="/demo/embed.js"></script>
-<script>document.documentElement.style.visibility='hidden'</script>
-<script type="module" src="/shared/gate.js"></script>
-`
-const head = html.search(/<head[^>]*>/i)
-if (head < 0) throw new Error('Tracker index.html has no <head>; refusing to build /demo/')
-const headEnd = html.indexOf('>', head) + 1
-html = html.slice(0, headEnd) + INJECT + html.slice(headEnd)
-
-// The hub's manifest is the site's only one; a second would be a second app.
-html = html.replace(/<link[^>]+rel=["']manifest["'][^>]*>\s*/gi, '')
-// The same tab icon as every other tool in the hub, not the tracker's own.
-// (It's a static copy, so a root path reaches the hub's icons as written.)
-html = html.replace(/<link[^>]+rel=["'](?:shortcut )?icon["'][^>]*>\s*/gi, '')
-html = html.replace(/<link[^>]+rel=["']apple-touch-icon["'][^>]*>\s*/gi, '')
-html = html.replace(/<\/head>/i, '<link rel="icon" type="image/png" href="/brand/logo-mark.png">\n<link rel="apple-touch-icon" href="/icons/icon-192.png">\n</head>')
-html = html.replace(/<title>[^<]*<\/title>/i,
-  `<title>Demo tracker${READ_ONLY ? ' (read-only)' : ''} · CMCHS Internal Hub</title>`)
-
-// embed.js must be the first script on the page. It's what keeps the tracker
-// from registering its own service worker and push against the hub's (and, in
-// read-only mode, what blocks writes). If the tracker's markup ever changes so
-// this doesn't hold, the build fails rather than publishing a broken /demo/.
-const firstScript = html.search(/<script\b/i)
-if (html.indexOf('<script src="/demo/embed.js"></script>') !== firstScript) {
-  throw new Error('embed.js is not the first script in /demo/; refusing to build')
-}
-if (/rel=["']manifest["']/i.test(html)) throw new Error('A manifest link survived; refusing to build /demo/')
-
-writeFileSync(join(OUT, 'index.html'), html)
-copyFileSync(join(HERE, 'embed.js'), join(OUT, 'embed.js'))
-for (const name of FILES.slice(1)) {
-  try { writeFileSync(join(OUT, name), await source(name)) } catch (e) { console.warn('  demo: ' + e.message) }
-}
-console.log(`  demo: tracker ${process.env.DEMO_SRC ? 'from ' + process.env.DEMO_SRC : 'from GitHub main'}, ${(html.length / 1024).toFixed(0)} KB, ${READ_ONLY ? 'READ-ONLY' : 'two-way'}`)
+writeFileSync(join(OUT, 'index.html'), `<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo tracker · CMCHS Internal Hub</title>
+<link rel="icon" type="image/png" href="/brand/logo-mark.png">
+<script>location.replace('/equipment/' + location.search + location.hash)</script>
+<meta http-equiv="refresh" content="0; url=/equipment/">
+</head>
+<body style="font-family:'Source Sans 3',system-ui,sans-serif;padding:24px">
+<p>The demo tracker has moved into the hub: <a href="/equipment/">internal.chsnz.co.nz/equipment/</a>.</p>
+</body>
+</html>
+`)
+console.log('  demo: forwards to /equipment/')

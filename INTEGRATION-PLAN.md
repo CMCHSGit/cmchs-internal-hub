@@ -221,7 +221,11 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       tracker's form filled in, the loan posted back to it), ?return / ?extend (that loan, the action open),
       ?reassign (the loan holding a booking's devices, Transfer ready), ?tab. The project tracker's button
       and the notification links move to /equipment/ at the switch.
-- [ ] Parity check, then switch `/demo/` over
+- [x] Parity check (Jonathan, on live data) and the switch, 19 Oct: `/demo/` forwards to `/equipment/`, which
+      is "Demo" in the header; the project tracker's button, the loan email's links and the proxy's notification
+      links point at `/equipment/`; demo.chsnz.co.nz forwards to the hub (its service worker kept, so phones
+      registered there still get reminders, which open the hub). The old tracker's last version is tagged
+      `old-tracker-final` in chs-equipment.
 
 ### 5. One identity and data platform
 The detailed plan, for Peter: `STEP-5-PLAN.md`.

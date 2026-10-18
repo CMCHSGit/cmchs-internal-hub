@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CalendarDays, ClipboardList, FolderKanban, Home as HomeIcon, Inbox, Moon, Sun, Users } from 'lucide-react'
+import { Boxes, CalendarDays, ClipboardList, FolderKanban, Home as HomeIcon, Inbox, Moon, Sun, Users } from 'lucide-react'
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
@@ -72,7 +72,7 @@ function ThemeButton() {
 // Ctrl+K still opens the one search).
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
-const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['manage', 'Manage', '/#/manage', ClipboardList]]
+const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['equipment', 'Demo', '/equipment/', Boxes], ['manage', 'Manage', '/#/manage', ClipboardList]]
 
 export default function Header({ user, search = true, page = 'home' }) {
   return (

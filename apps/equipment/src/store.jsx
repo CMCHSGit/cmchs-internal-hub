@@ -524,8 +524,8 @@ export function StoreProvider({ children }) {
           loan_start: oldDate(form.startDate || nzDate()), loan_end: form.longTerm ? 'Long term — no end date' : oldDate(form.endDate || ''),
           loan_form_html: loanFormHtml(form),
           manage_link: 'https://internal.chsnz.co.nz/equipment/#/loans',
-          return_link: 'https://internal.chsnz.co.nz/demo/?return=' + token,
-          extend_link: 'https://internal.chsnz.co.nz/demo/?extend=' + token,
+          return_link: 'https://internal.chsnz.co.nz/equipment/?return=' + token,
+          extend_link: 'https://internal.chsnz.co.nz/equipment/?extend=' + token,
         },
       }),
     })

@@ -87,11 +87,11 @@ try {
   })
 
   // Two senders use this: the staff schedule's reminders, and the demo
-  // tracker's (sent by the Simpro proxy, with a link into /demo/).
+  // tracker's (sent by the Simpro proxy, with a link into /equipment/; /demo/ before 19 Oct 2026).
   firebase.messaging().onBackgroundMessage((payload) => {
     const { title, body } = payload.notification || {}
     const url = payload.data?.url || '/schedule/'
-    const demo = new URL(url, self.location.origin).pathname.startsWith('/demo/')
+    const demo = /^\/(demo|equipment)\//.test(new URL(url, self.location.origin).pathname)
     // The one app's icon for both: the schedule's own calendar icon went with
     // its separate page.
     self.registration.showNotification(title || (demo ? 'Demo tracker' : 'CMCHS Staff Schedule'), {
