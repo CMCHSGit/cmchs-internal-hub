@@ -22,13 +22,12 @@ import Loans from './Loans.jsx'
 import { AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
 import Overview from './Overview.jsx'
 import NewLoan from './NewLoan.jsx'
+import { Status } from './BrowseEquipment.jsx'
 import Scan from './Scan.jsx'
 import Calendar from './Calendar.jsx'
 import History from './History.jsx'
 import Manage from './Manage.jsx'
 
-const TONE = Object.fromEntries(STATUSES.map((s) => [s.key, s.tone]))
-const LABEL = Object.fromEntries(STATUSES.map((s) => [s.key, s.label]))
 const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['calendar', 'Calendar', CalendarDays], ['history', 'History', HistoryIcon], ['manage', 'Manage', SlidersHorizontal]]
 
 function routeOf() {
@@ -188,18 +187,6 @@ function Equipment({ s, params, setParams, onDone }) {
           onClose={() => setMode('view')} onConfirm={async () => { await s.deleteItem(item.id); done(`${item.CHSAssetNo} deleted.`) }} />
       )}
     </>
-  )
-}
-
-/** The status badge, and the who / when line under it. */
-function Status({ st }) {
-  const when = st.key === 'booked' ? (st.startDate && `from ${fmtDate(st.startDate)}`)
-    : st.key === 'longterm' ? 'no end date' : st.endDate ? `due back ${fmtDate(st.endDate)}` : ''
-  return (
-    <div>
-      <Badge tone={TONE[st.key]}>{LABEL[st.key]}</Badge>
-      {st.loanTo && <span className="eq-small">{[st.loanTo, when].filter(Boolean).join(' · ')}</span>}
-    </div>
   )
 }
 

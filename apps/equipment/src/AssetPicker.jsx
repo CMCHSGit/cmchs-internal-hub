@@ -6,12 +6,14 @@
 import { useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { assetStatus, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
+import BrowseEquipment from './BrowseEquipment.jsx'
 
 /** mode 'new' (a new loan: one still out is booked to follow) or 'add' (added to a loan: one whose dates clash is left out). */
 export default function AssetPicker({ s, picked, onChange, when = {}, skip = [], mode = 'new' }) {
   const [q, setQ] = useState('')
   const [miss, setMiss] = useState('')
   const [kit, setKit] = useState(null) // a kit just started: { label, accessories, tick: Set }
+  const [browsing, setBrowsing] = useState(false)
   const box = useRef(null)
   const ctx = { ...when, testMode: s.testMode, loanMeta: s.loanMeta, loanDocs: s.loanDocs }
   const matches = useMemo(() => {
@@ -30,6 +32,18 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
     if (k && k.accessories.some((a) => !a.picked)) setKit({ ...k, tick: new Set(k.accessories.filter((a) => a.free).map((a) => a.item.CHSAssetNo)) })
     setQ('')
     box.current?.focus()
+  }
+
+  // Several ticked in Browse equipment: added in one go, and the first kit
+  // among them with accessories still to pick offers them, as one typed in does.
+  const addMany = (nos) => {
+    setBrowsing(false)
+    const next = [...new Set([...picked, ...nos.filter((no) => !skip.includes(no))])]
+    if (next.length !== picked.length) onChange(next)
+    for (const no of nos) {
+      const k = kitFor(s.kits, s.equipment, no, [...next, ...skip])
+      if (k && k.accessories.some((a) => !a.picked)) { setKit({ ...k, tick: new Set(k.accessories.filter((a) => a.free).map((a) => a.item.CHSAssetNo)) }); break }
+    }
   }
 
   return (
@@ -63,7 +77,9 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
           <input ref={box} className="input" value={q} onChange={(e) => { setQ(e.target.value); setMiss('') }} placeholder="Asset number (type or scan, then Enter), or search model or serial"
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (matches.length === 1 && !findAsset(s.equipment, q)) add(matches[0].CHSAssetNo); else if (q.trim()) add(q) } }} autoComplete="off" />
         </label>
+        <button type="button" className="btn btn-secondary" onClick={() => setBrowsing(true)}>Browse equipment</button>
       </div>
+      {browsing && <BrowseEquipment s={s} taken={[...picked, ...skip]} onAdd={addMany} onClose={() => setBrowsing(false)} />}
       {miss && <p className="eq-note eq-problem">{miss}</p>}
       {kit && (
         <div className="card eq-kit-offer">

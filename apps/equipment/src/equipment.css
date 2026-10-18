@@ -127,7 +127,17 @@
 .eq-st-ok { color: var(--status-ok); }
 .eq-st-warn { color: #a85800; }
 .eq-st-bad { color: var(--status-critical); }
-.eq-picker-add { display: flex; gap: 8px; align-items: flex-end; }
+.eq-picker-add { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+@media (max-width: 519px) { .eq-picker-add .btn { width: 100%; } }
+
+/* Browse equipment (BrowseEquipment.jsx) */
+.eq-browse { display: flex; flex-direction: column; gap: 12px; }
+.eq-browse-table { max-height: min(56vh, 560px); overflow-y: auto; }
+.eq-browse-table .data-table-row { cursor: pointer; }
+.eq-browse-on { background: var(--surface-accent-tint); }
+.eq-browse-tick { width: 36px; }
+.eq-browse-tick input { width: 18px; height: 18px; accent-color: var(--accent-fg); cursor: pointer; }
+.eq-browse-foot { align-items: center; }
 .eq-grow { flex: 1; }
 .eq-matches { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); max-height: 260px; overflow-y: auto; }
 .eq-matches li + li { border-top: 1px solid var(--border-subtle); }
