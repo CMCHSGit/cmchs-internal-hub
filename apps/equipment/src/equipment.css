@@ -150,3 +150,16 @@
 .eq-lf-table td { padding: 3px 4px; }
 .eq-lf-table td:last-child { width: 32px; }
 .eq-lf-actions { flex-wrap: wrap; }
+
+/* Scan (Scan.jsx, Scanner.jsx) */
+.eq-scan { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.eq-scan-input { font-family: var(--font-mono); font-size: 18px; }
+.eq-scanner { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.eq-scanner-video { width: 100%; max-width: 480px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-md); background: #000; }
+.eq-scan-list, .eq-scan-item, .eq-count, .eq-unlock { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.eq-newloan { display: flex; flex-direction: column; gap: 14px; max-width: 960px; }
+.eq-newloan-part { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.eq-newloan-part .eq-section-title { margin: 0; }
+.eq-views { overflow-x: auto; scrollbar-width: none; }
+.eq-view { white-space: nowrap; }
+@media (max-width: 759px) { .eq-views { gap: 18px; } }

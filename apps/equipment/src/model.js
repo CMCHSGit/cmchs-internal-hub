@@ -455,7 +455,7 @@ export function returnEquipment(equipment, history, ids, { today = nzDate(), ts 
   const next = equipment.map((e) => {
     if (!e || !want.has(e.id) || !isOut(e)) return e
     returned.push({ id: e.id, CHSAssetNo: e.CHSAssetNo, batchId: e.BatchID || '', loanTo: e.OnLoanTo, endDate: e.LoanEndDate || '' })
-    entries.push({ operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Return', loanTo: e.OnLoanTo, location: e.Location, notes: 'Returned ' + fmtDate(today) })
+    entries.push({ operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Return', loanTo: e.OnLoanTo, location: e.Location, notes: 'Returned ' + oldDate(today) })
     return { ...e, OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '', _transferNote: null }
   })
   return { equipment: next, history: [...entries.reverse(), ...history], returned }
@@ -683,7 +683,7 @@ function deferToIncumbent(upcoming, loanMeta, item, newLoanTo, newStart, newEnd,
     list = list.map((x) => (x.id === id ? next : x))
   }
   const entry = { operator, id: newId(), ts, chsAssetNo: item.CHSAssetNo, model: item.Model, action: 'Converted', loanTo: item.OnLoanTo, location: item.Location, batchId: id,
-    notes: `Deferred to upcoming — ${newLoanTo}'s earlier, non-overlapping booking (${fmtDate(newStart)}${newEnd ? ' – ' + fmtDate(newEnd) : ''}) claimed this item first.` }
+    notes: `Deferred to upcoming — ${newLoanTo}'s earlier, non-overlapping booking (${oldDate(newStart)}${newEnd ? ' – ' + oldDate(newEnd) : ''}) claimed this item first.` }
   return { upcoming: list, entry, changedId: id }
 }
 
@@ -859,7 +859,7 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
 <td style="text-align:right;width:260px"><img src="${escHtml(logo)}" alt="Connected Healthcare Systems" height="64" style="height:64px;width:auto"></td></tr></table>
 <div style="border-top:2px solid #333;border-bottom:1px solid #ccc"></div>
 <table style="width:100%;border-collapse:collapse"><tr>${th('Event and/or Customer Name')}${th('Customer Address')}${th('Loan Date')}${th('Loan Ends Date' + (doc.longTerm ? ' — long term' : ''))}${th('Account Manager')}${th('Contact Number')}</tr>
-<tr>${td(doc.loanTo)}${td(doc.location)}${td(fmtDate(doc.startDate))}${td(doc.longTerm ? '' : fmtDate(doc.endDate))}${td(doc.accountManager)}${td(doc.contactNumber)}</tr></table>
+<tr>${td(doc.loanTo)}${td(doc.location)}${td(oldDate(doc.startDate))}${td(doc.longTerm ? '' : oldDate(doc.endDate))}${td(doc.accountManager)}${td(doc.contactNumber)}</tr></table>
 <table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>${th('CHS Asset #')}${th('Model')}${th('Description')}${th('Serial/Part #')}${th('Notes/Additional Info')}${th('Data cleared on return', 'text-align:center')}</tr>${rows}</table>
 <table style="width:100%;border-collapse:collapse"><tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;width:14%;text-align:right">Notes:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.notes)}</td></tr>
 <tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;text-align:right">Shipping Details:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.shipping)}</td></tr></table>
@@ -867,4 +867,43 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
 <td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Loan authorised by:</b><br><br>Name (print):<br><br>Signature:<br><br>Date:</td>
 <td style="border:1px solid #ccc;padding:8px 12px;text-align:center;font-size:12px"><b style="color:#554596">Please ensure this form accompanies<br>demo stock throughout trial and<br>is returned to Connected Healthcare</b><br><b style="color:#dc2626;font-size:11px">Check all units have current ESC</b></td>
 <td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Return checked by:</b><br><br>Signed:<br><br>Name (print):<br><br>Date:</td></tr></table></div>`
+}
+
+/**
+ * A date as the old tracker writes it into stored text (history notes,
+ * Counted, audit summaries, Simpro notes, the printed form): DD/MM/YYYY (old:
+ * formatDisplayDate). The screens here show 16-Oct-2026 (fmtDate); stored
+ * text keeps the old way so both trackers' records read alike, and the old
+ * count overview still recognises "Counted DD/MM/YYYY".
+ */
+export function oldDate(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''))
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(s || '')
+}
+
+/* ── Counting (old: getCountCategory, submitCount, submitCountKeepLoan) ── */
+
+/** never counted, counted here ("Counted DD/MM/YYYY": 'new'), or counted under the old spreadsheet ('old'). */
+export function countCategory(e) {
+  const c = String(e?.Counted || '').trim()
+  if (!c || c === 'No') return 'never'
+  return /^Counted\s+\d{2}\/\d{2}\/\d{4}/.test(c) ? 'new' : 'old'
+}
+
+/**
+ * An item counted. As the old Count: counted and back in the office (its
+ * loan cleared, as a return); or, with keepOnLoan, counted where it is.
+ * A Count entry in its history either way.
+ */
+export function countEquipment(equipment, history, id, { keepOnLoan = false, today = nzDate(), ts = nzNow(), operator = '' } = {}) {
+  const idx = equipment.findIndex((e) => e && e.id === id)
+  if (idx < 0) return null
+  const e = equipment[idx]
+  const counted = 'Counted ' + oldDate(today)
+  const was = { id: e.id, CHSAssetNo: e.CHSAssetNo, batchId: e.BatchID || '', loanTo: e.OnLoanTo || '', endDate: e.LoanEndDate || '', out: isOut(e) }
+  const next = keepOnLoan ? { ...e, Counted: counted }
+    : { ...e, Counted: counted, OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '', _transferNote: null }
+  const entry = { operator, id: newId(), ts, chsAssetNo: e.CHSAssetNo, model: e.Model, action: 'Count', loanTo: e.OnLoanTo, location: e.Location, notes: counted + (keepOnLoan ? ' (kept on loan)' : '') }
+  const eq = [...equipment]; eq[idx] = next
+  return { equipment: eq, history: [entry, ...history], was }
 }

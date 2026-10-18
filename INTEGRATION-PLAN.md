@@ -198,7 +198,12 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       only while /simproConfig.createJobs is on, as the old). Add items (to a loan or a booking),
       Transfer (to a loan or booking, notes on both Simpro jobs, or to a new loan), Copy. One
       deliberate fix: test mode no longer puts a made-up job number over a real one.
-- [ ] Scan / loan: new loan (and the loan form, email, Simpro job), return, count, stocktake, QR
+- [x] Scan, 19 Oct (`Scan.jsx`, `Scanner.jsx`; `countEquipment` tested): Return (scanned devices returned
+      together, as Return items), Count (counted and back, or counted where it is; the count overview),
+      Stocktake (each scan counted and returned, behind the admin password); typed, a scanner gun, or
+      the camera (BarcodeDetector, else jsQR). New loan is its own view (above). Stored text (history
+      notes, Counted, audit, Simpro notes, the printed form) uses the old DD/MM/YYYY (`oldDate`), so
+      both trackers' records match and the old count overview still reads Counted.
 - [ ] Calendar  - [ ] History (and audit log)  - [ ] Import / export
 - [ ] Retired, kits, test reports, account managers, settings, test mode
 - [ ] Links in (?newLoan from the project tracker, ?return / ?extend / ?reassign)

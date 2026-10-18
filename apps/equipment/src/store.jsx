@@ -14,7 +14,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { auth } from '../../schedule/src/firebase.js'
 import { isLocal, read, watch, write } from './db.js'
 import {
-  activateBookings, addToBooking, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, addToBooking, countEquipment, oldDate, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -159,7 +159,7 @@ export function StoreProvider({ children }) {
       try { await write('returnDueSoonReminders/' + enc(g.loanTo + '|||' + oldDate), null, { method: 'DELETE' }) } catch { /* best effort, as the old one */ }
     }
     const items = (g.kind === 'booking' ? g.pending : g.items).map((e) => e.CHSAssetNo)
-    await audit('loan_extended', `${g.kind === 'booking' ? 'Upcoming loan' : 'Loan'} for ${g.loanTo} extended from ${fmtDate(oldDate)} to ${fmtDate(newDate)}`,
+    await audit('loan_extended', `${g.kind === 'booking' ? 'Upcoming loan' : 'Loan'} for ${g.loanTo} extended from ${oldDate(oldDate)} to ${oldDate(newDate)}`,
       { loanTo: g.loanTo, oldDate, newDate, items })
     await touch()
   }, [audit, touch, updateData])
@@ -234,7 +234,7 @@ export function StoreProvider({ children }) {
     }
     const { close, prune } = returnFollowUps(r.equipment, r.returned)
     for (const c of close) {
-      await closeJob(c.key, c.loanTo, `All items returned to office on ${fmtDate(today)}.`)
+      await closeJob(c.key, c.loanTo, `All items returned to office on ${oldDate(today)}.`)
       try { await write('loanDocs/' + enc(c.key), null, { method: 'DELETE' }) } catch { /* the old one doesn't mind either */ }
     }
     for (const p of prune) {
@@ -277,7 +277,7 @@ export function StoreProvider({ children }) {
     }
     let closed = null
     try {
-      closed = await closeJob(batchId, g.loanTo, `Converted to a long-term loan on ${fmtDate(today)} — equipment remains with ${g.am || g.loanTo}. Closing this job; no return date.`, g.items)
+      closed = await closeJob(batchId, g.loanTo, `Converted to a long-term loan on ${oldDate(today)} — equipment remains with ${g.am || g.loanTo}. Closing this job; no return date.`, g.items)
     } catch (e) { console.warn('[equipment] Simpro job not closed', e) }
     await patchMeta(batchId, { longTerm: true })
     try {
@@ -306,7 +306,7 @@ export function StoreProvider({ children }) {
     try { await write('loanDocs/' + enc(g.batchId), { longTerm: false, endDate: newDate }, { method: 'PATCH' }) } catch (e) { console.warn('[equipment] loan form not updated', e) }
     await updateData((d) => ({ ...d, equipment: extendEquipment(d.equipment, g, newDate) }))
     setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [g.batchId]: { ...(s.loanDocs[g.batchId] || {}), longTerm: false, endDate: newDate } } }))
-    await audit('loan_longterm_off', `${g.loanTo}’s long-term loan returned to Active, due ${fmtDate(newDate)}`, { loanTo: g.loanTo, batchId: g.batchId, newDate, items: g.items.map((e) => e.CHSAssetNo) })
+    await audit('loan_longterm_off', `${g.loanTo}’s long-term loan returned to Active, due ${oldDate(newDate)}`, { loanTo: g.loanTo, batchId: g.batchId, newDate, items: g.items.map((e) => e.CHSAssetNo) })
     await touch()
   }, [audit, patchMeta, touch, updateData])
 
@@ -521,7 +521,7 @@ export function StoreProvider({ children }) {
         service_id: EMAILJS.service, template_id: EMAILJS.template, user_id: EMAILJS.key,
         template_params: {
           to_email: to, to_name: name || to, customer_name: form.loanTo || '', customer_location: form.location || '',
-          loan_start: fmtDate(form.startDate || nzDate()), loan_end: form.longTerm ? 'Long term — no end date' : fmtDate(form.endDate || ''),
+          loan_start: oldDate(form.startDate || nzDate()), loan_end: form.longTerm ? 'Long term — no end date' : oldDate(form.endDate || ''),
           loan_form_html: loanFormHtml(form),
           manage_link: 'https://internal.chsnz.co.nz/equipment/#/loans',
           return_link: 'https://internal.chsnz.co.nz/demo/?return=' + token,
@@ -654,7 +654,7 @@ export function StoreProvider({ children }) {
     const srcJob = jobNumber(srcDoc?.simproJobId)
     if (srcJob) {
       await simpro({ loanTo: g.loanTo, location: g.location || '', startDate: toISO(g.startDate || ''), endDate: toISO(g.endDate || ''), accountManager: g.am || '',
-        notes: add(srcDoc?.notesCell, `Transferred ${nItems} (${list}) to ${target.loanTo} on ${fmtDate(today)}.`), shippingDetails: srcDoc?.authCell || '', contactNumber: srcDoc?.contactNumber || '',
+        notes: add(srcDoc?.notesCell, `Transferred ${nItems} (${list}) to ${target.loanTo} on ${oldDate(today)}.`), shippingDetails: srcDoc?.authCell || '', contactNumber: srcDoc?.contactNumber || '',
         jobType: srcDoc?.jobType || 'Demo', items: remaining.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Description: e.Description || e.Model || '', SerialNo: e.SerialNo || '' })), jobId: srcJob, pdfKey: srcKey })
       if (remaining.length) await audit('simpro_updated', `Simpro job #${srcJob} updated — items reassigned out`, { loanTo: g.loanTo, jobId: srcJob, pdfKey: srcKey })
       else if (await simpro({ jobId: srcJob, close: true })) await audit('simpro_closed', `Simpro job #${srcJob} closed — ${g.loanTo}`, { loanTo: g.loanTo, jobId: srcJob })
@@ -663,7 +663,7 @@ export function StoreProvider({ children }) {
     if (tgtJob) {
       const tgtItems = [...(target.kind === 'booking' ? target.pending : target.items), ...moved]
       await simpro({ loanTo: target.loanTo, location: target.location || '', startDate: toISO(target.startDate || ''), endDate: toISO(target.endDate || ''),
-        accountManager: target.am || loanAM(target, { loanMeta: s.loanMeta, loanDocs: s.loanDocs }), notes: add(tgtDoc?.notesCell, `Received ${nItems} (${list}) from ${g.loanTo} on ${fmtDate(today)}.`),
+        accountManager: target.am || loanAM(target, { loanMeta: s.loanMeta, loanDocs: s.loanDocs }), notes: add(tgtDoc?.notesCell, `Received ${nItems} (${list}) from ${g.loanTo} on ${oldDate(today)}.`),
         shippingDetails: tgtDoc?.authCell || '', contactNumber: tgtDoc?.contactNumber || '', jobType: 'Demo',
         items: tgtItems.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Description: e.Description || e.Model || '', SerialNo: e.SerialNo || '' })), jobId: tgtJob, pdfKey: targetBatchId })
       await audit('simpro_updated', `Simpro job #${tgtJob} updated — items moved in from ${g.loanTo}`, { loanTo: target.loanTo, jobId: tgtJob, pdfKey: targetBatchId })
@@ -681,11 +681,53 @@ export function StoreProvider({ children }) {
     return { moved: n }
   }, [audit, operator, saveBookings, simpro, touch, updateData])
 
+  /**
+   * Count an item (old: submitCount, submitCountKeepLoan). Counted and
+   * returned: its loan cleared, any booking now able to start takes it (in
+   * the same save), and a loan left with nothing out has its Simpro job
+   * closed (its form kept, as the old count does); one with devices still out
+   * has it taken off its form. Or counted where it is, kept on its loan.
+   */
+  const countItem = useCallback(async (id, { keepOnLoan = false } = {}) => {
+    const today = nzDate(), ts = nzNow()
+    let res = null
+    await updateData((d) => {
+      const c = countEquipment(d.equipment, d.history, id, { keepOnLoan, today, ts, operator })
+      if (!c) throw new Error('That item isn’t in the equipment list any more.')
+      const a = keepOnLoan ? { equipment: c.equipment, history: c.history, changes: [], audits: [] } : activateBookings(c.equipment, c.history, latest.current.upcoming || [], { today, ts })
+      res = { c, a }
+      return { equipment: a.equipment, history: a.history }
+    })
+    const { c, a } = res
+    for (const ch of a.changes) {
+      if (ch.remove) await write('upcomingLoans/' + enc(ch.id), null, { method: 'DELETE' })
+      else await write(`upcomingLoans/${enc(ch.id)}/items`, ch.items)
+    }
+    if (a.changes.length) setState((s) => ({ ...s, upcoming: s.upcoming.flatMap((u) => { const ch = a.changes.find((x) => x.id === u.id); return !ch ? [u] : ch.remove ? [] : [{ ...u, items: ch.items }] }) }))
+    for (const [type, summary, detail, op] of a.audits) await audit(type, summary, detail, op)
+    if (!keepOnLoan && c.was.out) {
+      const { close, prune } = returnFollowUps(c.equipment, [c.was])
+      for (const x of close) await closeJob(x.key, x.loanTo, `All items counted and returned to office on ${oldDate(today)}.`)
+      for (const p of prune) {
+        try {
+          const { data: doc } = await read('loanDocs/' + enc(p.key))
+          if (!doc) continue
+          const patch = {}
+          if (Array.isArray(doc.savedRows)) patch.savedRows = rowsWithout(doc.savedRows, p.assetNos)
+          if (Array.isArray(doc.items)) patch.items = doc.items.filter((i) => !p.assetNos.some((n) => String(n).trim().toLowerCase() === String(i.CHSAssetNo || '').trim().toLowerCase()))
+          if (Object.keys(patch).length) await write('loanDocs/' + enc(p.key), patch, { method: 'PATCH' })
+        } catch { /* tidied next time */ }
+      }
+    }
+    await touch()
+    return { item: c.equipment.find((e) => e && e.id === id), was: c.was, started: a.changes.length }
+  }, [audit, closeJob, operator, touch, updateData])
+
   const value = useMemo(() => ({
     ...state, today: nzDate(), testMode: readTestMode(), reload: load, user, me, operator,
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
-    createLoan, saveForm, submitJob, emailForm, addItems, transfer,
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem,
   }), [state, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan, checkAdmin,
-    createLoan, saveForm, submitJob, emailForm, addItems, transfer])
+    createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

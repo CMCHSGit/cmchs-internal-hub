@@ -13,7 +13,7 @@ test('return: the loan cleared, marked returned, a Return entry each, newest fir
   assert.deepEqual(r.equipment.slice(0, 2).map((e) => [e.OnLoanTo, e.Returned, e.BatchID, e.LoanEndDate, e._transferNote]), [['', 'Yes', '', '', null], ['', 'Yes', '', '', null]])
   assert.equal(r.equipment[2].OnLoanTo, 'Waikato')
   assert.deepEqual(r.history.map((h) => h.chsAssetNo || h.id), ['A2', 'A1', 'old'])
-  assert.deepEqual([r.history[0].action, r.history[0].loanTo, r.history[0].notes, r.history[0].operator], ['Return', 'Waikato', 'Returned 16-Oct-2026', 'Sam Lee'])
+  assert.deepEqual([r.history[0].action, r.history[0].loanTo, r.history[0].notes, r.history[0].operator], ['Return', 'Waikato', 'Returned 16/10/2026', 'Sam Lee'])
   assert.deepEqual(r.returned.map((x) => [x.id, x.batchId]), [['1', 'b1'], ['2', 'b1']])
   assert.equal(returnEquipment([shelf('9')], [], ['9']).returned.length, 0, 'already back')
 })
