@@ -32,7 +32,7 @@ npx clasp deploy -i AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqD
 ```
 
 `-i` keeps the same `/exec` address (`shared/proxy.js`). The proxy is at
-deployment **@43**. Then check what is actually live:
+deployment **@44**. Then check what is actually live:
 
 ```bash
 PROXY="https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec"

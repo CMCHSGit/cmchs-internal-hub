@@ -267,7 +267,7 @@ while moving things:
   Asks on the home page.
 - Notification links: `/demo/` (with `?reassign=` etc., parsed by the tracker's
   `handleReturnLink()`), `/asks/`.
-- The proxy's actions: `rtdbToken`, `testPush`, `notifyHubRequest`, `notifyAsk`,
+- The proxy's actions: `rtdbToken`, `testPush`, `notifyHubRequest`, `notifyAsk`, `notifyNews`,
   `simproSync`, and Simpro job create/update/close for the tracker.
 
 ## Working while everything moves

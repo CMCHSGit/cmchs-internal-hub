@@ -3,7 +3,7 @@
    It holds the keys the browser must never see (Simpro, the chs-equipment
    service account) and does the jobs a static site can't: the demo tracker's
    database pass (rtdbToken), Simpro calls (simproSync and the tracker's job
-   create/update/close), and pushes (notifyHubRequest, notifyAsk, testPush).
+   create/update/close), and pushes (notifyHubRequest, notifyAsk, notifyNews, testPush).
    The browser sends the person's Firebase ID token; the proxy checks it.
 
    A new deployment keeps this address (`clasp deploy -i <id>`), so this only
