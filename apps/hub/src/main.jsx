@@ -20,9 +20,9 @@ normaliseSectionPath()
 // Links between sections move within the app instead of loading a new page.
 interceptLinks()
 
-// Take a new deploy without anyone refreshing, but never while they're typing
-// or have a dialog open: everything saves as it goes, so a reload then is safe.
-registerServiceWorker({ reloadOnUpdate: 'idle' })
+// A new deploy: a "new version is ready" banner with Update now / Later, or a
+// quiet reload if the app is in the background (shared/register-sw.js).
+registerServiceWorker()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
