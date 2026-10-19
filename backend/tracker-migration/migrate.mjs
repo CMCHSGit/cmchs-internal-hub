@@ -63,9 +63,16 @@ async function readSource() {
     return { tree, top, files: (k, id) => tree.testReportFiles?.[k]?.[id] ?? null }
   }
   const tree = JSON.parse(readFileSync(from, 'utf8'))
+  // The backup saves each file as <key>--<id>.txt with \ / : * ? " < > | turned
+  // into _ (backup/Code.js); try that name, and the raw one for older copies.
   const files = (k, id) => {
-    const f = reportsDir && join(reportsDir, `${k}--${id}.txt`)
-    return f && existsSync(f) ? readFileSync(f, 'utf8') : null
+    if (!reportsDir) return null
+    const raw = `${k}--${id}`
+    for (const name of new Set([raw.replace(/[\\/:*?"<>|]/g, '_'), raw])) {
+      const f = join(reportsDir, `${name}.txt`)
+      if (existsSync(f)) return readFileSync(f, 'utf8')
+    }
+    return null
   }
   return { tree, top: Object.keys(tree), files }
 }

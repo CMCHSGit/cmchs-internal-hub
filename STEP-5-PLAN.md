@@ -45,7 +45,7 @@ Everything sits on the old database until the switch is moved. What's left, in o
       `SERVICE_TEAM_OPERATORS` ~410) and `apps/admin/src/tracker.js` read `users` only. Then
       `Admin.jsx`'s `setTrackerRole` stops writing the old list, `model.js`'s `SERVICE_TEAM` fallback
       goes, and 5D's `accountManagers.fcmTokens` fallback goes. Only once every role is set (step 1).
-- [ ] **Backup file names vs. the migration:** the backup saves report files as `<key>--<id>.txt` with
+- [x] **Backup file names vs. the migration:** the backup saves report files as `<key>--<id>.txt` with
       `\ / : * ? " < > |` turned into `_`; `migrate.mjs --reports` looks for the raw name. Make it try
       both, so a restore from Drive finds every file.
 - [ ] **5C, once Firestore has run cleanly for a week, and only with Jonathan's yes:** a final JSON
