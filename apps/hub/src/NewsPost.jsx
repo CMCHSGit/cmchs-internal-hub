@@ -18,14 +18,38 @@ export const postUrl = id => `#/news/${encodeURIComponent(id)}`
 /**
  * The bar under a post: who reacted (emoji and count), how many comments, and
  * React / Comment / Share. Tapping React likes it (or takes yours back); the
- * smile, or holding the pointer over React, opens all six.
+ * smile, resting the mouse on React, or holding a finger on it opens all six.
  */
 export function ReactionBar({ post, uid, onComment, compact = false }) {
   const [reactions, setReactions] = useState(post.reactions || {})
   const [picker, setPicker] = useState(false)
   const [error, setError] = useState('')
   const hover = useRef(null)
+  const press = useRef({ timer: null, opened: false })
+  const box = useRef(null)
   useEffect(() => { setReactions(post.reactions || {}) }, [post.reactions])
+  // Open, the picker stays until a reaction is picked, a tap or click lands
+  // elsewhere, Escape, or (mouse only) the pointer has been away for a second.
+  useEffect(() => {
+    if (!picker) { press.current.opened = false; return }
+    const outside = e => { if (!box.current?.contains(e.target)) setPicker(false) }
+    const esc = e => { if (e.key === 'Escape') setPicker(false) }
+    document.addEventListener('pointerdown', outside)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', esc) }
+  }, [picker])
+  useEffect(() => () => { clearTimeout(hover.current); clearTimeout(press.current.timer) }, [])
+  const mouseAway = e => { if (e.pointerType === 'mouse') { clearTimeout(hover.current); hover.current = setTimeout(() => setPicker(false), 1000) } }
+  const mouseBack = () => clearTimeout(hover.current)
+  // Touch: holding Like for a moment opens the picker (as on Facebook), and
+  // the tap that ends the hold doesn't also like the post.
+  const holdStart = e => {
+    if (e.pointerType === 'mouse') { clearTimeout(hover.current); hover.current = setTimeout(() => setPicker(true), 350); return }
+    press.current.opened = false
+    clearTimeout(press.current.timer)
+    press.current.timer = setTimeout(() => { press.current.opened = true; setPicker(true); navigator.vibrate?.(10) }, 400)
+  }
+  const holdEnd = () => clearTimeout(press.current.timer)
   const s = reactionSummary(reactions, uid)
   const mine = REACTIONS.find(r => r.id === s.mine)
   const comments = post.commentCount || 0
@@ -60,9 +84,7 @@ export function ReactionBar({ post, uid, onComment, compact = false }) {
           {comments > 0 && <button type="button" className="rx-count-link" onClick={onComment}>{comments} comment{comments === 1 ? '' : 's'}</button>}
         </div>
       )}
-      <div className="rx-actions"
-        onPointerLeave={() => { clearTimeout(hover.current); hover.current = setTimeout(() => setPicker(false), 350) }}
-        onPointerEnter={() => clearTimeout(hover.current)}>
+      <div className="rx-actions" ref={box} onPointerLeave={mouseAway} onPointerEnter={mouseBack}>
         {picker && (
           <div className="rx-picker" role="menu" aria-label="Choose a reaction">
             {REACTIONS.map((r, i) => (
@@ -74,9 +96,12 @@ export function ReactionBar({ post, uid, onComment, compact = false }) {
           </div>
         )}
         <button type="button" className={`rx-btn ${mine ? 'on' : ''}`} aria-pressed={!!mine}
-          onClick={() => react(s.mine || 'like')}
-          onPointerEnter={e => { if (e.pointerType === 'mouse') { clearTimeout(hover.current); hover.current = setTimeout(() => setPicker(true), 450) } }}
-          onContextMenu={e => { e.preventDefault(); setPicker(true) }}>
+          onClick={() => { if (press.current.opened) { press.current.opened = false; return } react(s.mine || 'like') }}
+          onPointerEnter={e => { if (e.pointerType === 'mouse') holdStart(e) }}
+          onPointerDown={e => { if (e.pointerType !== 'mouse') holdStart(e) }}
+          onPointerUp={holdEnd} onPointerCancel={holdEnd}
+          onPointerLeave={e => { if (e.pointerType === 'mouse') clearTimeout(hover.current); else holdEnd() }}
+          onContextMenu={e => { e.preventDefault(); press.current.opened = true; setPicker(true) }}>
           {mine ? <span className="rx-btn-emoji">{mine.emoji}</span> : <Icon name="thumbs-up" size={18} />}
           <span>{mine ? mine.label : 'Like'}</span>
         </button>

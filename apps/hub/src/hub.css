@@ -244,6 +244,9 @@ a.news-title:hover { color: var(--text-accent); }
 .rx-btn-emoji { font-size: 18px; line-height: 1; animation: rx-pop var(--duration-base) var(--ease-out); }
 .rx-picker { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: flex; gap: 2px; padding: 6px; border-radius: var(--radius-pill);
   background: var(--surface-card); box-shadow: var(--shadow-overlay); animation: rx-rise var(--duration-fast) var(--ease-out); }
+/* Bridges the gap down to the buttons, so moving the mouse up to the picker doesn't count as leaving */
+.rx-picker::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 12px; }
+.rx-btn { touch-action: manipulation; }
 .rx-pick { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: var(--radius-circle); background: none; cursor: pointer;
   font-size: 26px; line-height: 1; animation: rx-rise var(--duration-base) var(--ease-out) both; transition: transform var(--duration-fast) var(--ease-out); }
 .rx-pick:hover, .rx-pick:focus-visible { transform: translateY(-6px) scale(1.25); }
