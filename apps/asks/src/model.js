@@ -54,10 +54,11 @@ const isoDays = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / DAY)
 export const isOutstanding = (a) => a.status !== 'done'
 export const isOverdue = (a, today) => !!a.due && a.status !== 'done' && a.due < today
 
-/** Who can see it: the same test as canSeeAsk() in firestore.rules. */
+/** Who can see it: only the people involved, and the teams it was sent to.
+    Not admins as such (they used to see every ask). Same test as canSeeAsk() in rules/firestore.rules. */
 export function canSee(a, me) {
   if (!me) return false
-  return me.role === 'admin' || (a.people || []).includes(me.uid) || (!!me.team && (a.teams || []).includes(me.team))
+  return (a.people || []).includes(me.uid) || (!!me.team && (a.teams || []).includes(me.team))
 }
 
 /** Was it sent to me, by name or through my team? */

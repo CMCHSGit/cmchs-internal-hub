@@ -59,12 +59,10 @@ export default {
       .map((u) => ({ uid: u.uid, name: u.displayName || u.email || 'Someone', team: u.team || '', role: u.role || 'user', hasPush: (u.fcmTokens || []).length > 0 }))), onError)
   },
 
-  /** Admins see every ask; everyone else the ones naming them, plus their team's. */
+  /** The asks naming this person, plus those sent to their whole team. Admins too: nobody sees every ask. */
   watchAsks(me, cb, onError) {
     const col = collection(db, 'asks')
-    const qs = me.role === 'admin'
-      ? [col]
-      : [query(col, where('people', 'array-contains', me.uid)), ...(me.team ? [query(col, where('teams', 'array-contains', me.team))] : [])]
+    const qs = [query(col, where('people', 'array-contains', me.uid)), ...(me.team ? [query(col, where('teams', 'array-contains', me.team))] : [])]
     return watchMerged(qs, cb, onError)
   },
 

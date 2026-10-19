@@ -13,12 +13,13 @@ const user = (id) => SAMPLE_USERS.find((u) => u.uid === id)
 const aroha = user('u-aroha'), mike = user('u-mike'), sam = user('u-sam'), jess = user('u-jess'), lee = user('u-lee')
 const byId = (id) => asks.find((a) => a.id === id)
 
-test('who can see an ask: the people named, their teams, and admins', () => {
+test('who can see an ask: the people named and their teams, nobody else', () => {
   const s1 = byId('s1') // Lee to the Engineers team
   assert.equal(canSee(s1, lee), true)
   assert.equal(canSee(s1, mike), true, 'on the team it was sent to')
   assert.equal(canSee(s1, jess), false, 'Sales, not involved')
-  assert.equal(canSee(s1, aroha), true, 'admin')
+  assert.equal(canSee(s1, aroha), false, 'an admin who is not involved')
+  assert.equal(canSee(byId('s5'), aroha), true, 'an admin who asked')
   assert.equal(canSee(byId('s3'), sam), false, 'Mike to Jess: another engineer cannot see it')
 })
 

@@ -85,7 +85,7 @@ await check('Lee raises an ask to the Engineers team, with its stats and a photo
 await check('Mike reads an ask sent to his team', true, () => getDoc(doc(as('mike'), 'asks/a1')))
 await check('Mike lists his team\'s asks (teams array-contains)', true, () => getDocs(query(collection(as('mike'), 'asks'), where('teams', 'array-contains', 'Engineers'))))
 await check('Jess lists asks naming her (people array-contains)', true, () => getDocs(query(collection(as('jess'), 'asks'), where('people', 'array-contains', 'jess'))))
-await check('an admin lists every ask', true, () => getDocs(collection(as('admin1'), 'asks')))
+await check('an admin lists the asks naming them', true, () => getDocs(query(collection(as('admin1'), 'asks'), where('people', 'array-contains', 'admin1'))))
 await check('anyone signed in reads the company counts', true, () => getDocs(query(collection(as('jess'), 'askStats'), where('status', 'in', ['open', 'picked', 'waiting']))))
 await check('Mike picks up the team ask', true, () => change(as('mike'), 'a1', A1, { owner: 'mike', ownerName: 'Mike', status: 'picked', people: ['lee', 'mike'] }))
 const A1m = { ...A1, owner: 'mike', ownerName: 'Mike', status: 'picked', people: ['lee', 'mike'] }
@@ -144,6 +144,14 @@ await check('signed out: an ask', false, () => getDoc(doc(anon, 'asks/a1')))
 await check('copying in someone who isn\'t on people (so couldn\'t see it)', false, () => setDoc(doc(as('jess'), 'asks/cc2'), ask({ createdBy: 'jess', assignees: ['mike'], cc: ['lee'], people: ['jess', 'mike'] })))
 await check('cc that isn\'t a list', false, () => setDoc(doc(as('jess'), 'asks/cc3'), ask({ createdBy: 'jess', assignees: ['mike'], cc: 'lee', people: ['jess', 'mike', 'lee'] })))
 await check('Sam (not on it) reads an ask Lee is copied in on', false, () => getDoc(doc(as('sam'), 'asks/cc1')))
+
+console.log('\nAdmins see only the asks they\'re part of (since 20 Oct 2026)')
+await check('an admin reads an ask they aren\'t part of', false, () => getDoc(doc(as('admin1'), 'asks/a1')))
+await check('an admin lists every ask', false, () => getDocs(collection(as('admin1'), 'asks')))
+await check('an admin reads the comments of an ask they aren\'t part of', false, () => getDocs(collection(as('admin1'), 'asks/a1/comments')))
+await check('an admin changes an ask they aren\'t part of', false, () => updateDoc(doc(as('admin1'), 'asks/a1'), { title: 'Changed' }))
+await check('an admin deletes an ask they aren\'t part of', false, () => deleteDoc(doc(as('admin1'), 'asks/a1')))
+await check('an admin still reads the company counts', true, () => getDocs(query(collection(as('admin1'), 'askStats'), where('status', 'in', ['open', 'picked', 'waiting']))))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 await env.cleanup()

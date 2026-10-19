@@ -44,7 +44,7 @@ const as = new URLSearchParams(location.search).get('as') || 'aroha'
 const ME = SAMPLE_USERS.find((u) => u.name.toLowerCase().startsWith(as.toLowerCase())) || SAMPLE_USERS[0]
 const later = (fn) => Promise.resolve().then(fn)
 const sub = (fire) => { listeners.add(fire); later(fire); return () => listeners.delete(fire) }
-const canSee = (a) => ME.role === 'admin' || a.people.includes(ME.uid) || (ME.team && a.teams.includes(ME.team))
+const canSee = (a) => a.people.includes(ME.uid) || (ME.team && a.teams.includes(ME.team))
 
 export default {
   kind: 'local',

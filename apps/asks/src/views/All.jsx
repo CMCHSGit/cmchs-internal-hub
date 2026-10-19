@@ -1,4 +1,4 @@
-/* Every ask this person can see (admins: every ask), with filters. A link
+/* Every ask this person is part of, with filters. A link
    from the Company page arrives here filtered to one person or team. */
 
 import { useMemo } from 'react'
@@ -49,7 +49,7 @@ export default function All() {
         </select>
       </div>
       <p className="ak-sub">
-        {s.me.role === 'admin' ? 'As an admin you see every ask.' : 'Asks you’re part of, and ones sent to your team.'} {list.length} shown.
+        Asks you’re part of, and ones sent to your team. Nobody else can see them. {list.length} shown.
       </p>
       <AskList asks={list} showClaim empty="No asks match." />
     </div>

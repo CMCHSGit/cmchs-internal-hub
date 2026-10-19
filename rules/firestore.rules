@@ -322,16 +322,17 @@ service cloud.firestore {
     // Asks (internal.chsnz.co.nz/asks/) — quick requests between staff,
     // picked up by whoever can do them. An ask is seen only by the people
     // involved: whoever asked, the people and whole teams it was sent to,
-    // whoever picked it up, was @mentioned or copied in (cc) (all named in `people`), plus
-    // admins. Anyone involved may change it — pick it up, hand it back, mark
-    // it done, comment — but only for themselves: taking an ask someone else
-    // has is for its owner, the asker or an admin. The asker or an admin
-    // deletes. askStats mirrors the counting fields with no text at all, so
+    // whoever picked it up, was @mentioned or copied in (cc) (all named in
+    // `people`). Nobody else — since 20 Oct 2026 not even admins, who used to
+    // see every ask. Anyone involved may change it — pick it up, hand it back,
+    // mark it done, comment — but only for themselves: taking an ask someone
+    // else has is for its owner, the asker or an admin who is involved. The
+    // asker (or an involved admin) deletes. askStats mirrors the counting fields with no text at all, so
     // the Company page can show everyone's load to everyone; its rule checks
     // it matches the ask exactly, so it can't be used to say anything else.
     function myTeam() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('team', ''); }
     function canSeeAsk(a) {
-      return isSignedIn() && (request.auth.uid in a.people || (myTeam() is string && myTeam() in a.teams) || isAdmin());
+      return isSignedIn() && (request.auth.uid in a.people || (myTeam() is string && myTeam() in a.teams));
     }
     function isAsk(d) {
       return d.keys().hasOnly(['title', 'details', 'createdBy', 'createdByName', 'createdAtMs', 'updatedAtMs',
@@ -370,7 +371,7 @@ service cloud.firestore {
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAtMs == resource.data.createdAtMs
         && isFairOwnerChange();
-      allow delete: if isSignedIn() && (resource.data.createdBy == request.auth.uid || isAdmin());
+      allow delete: if canSeeAsk(resource.data) && (resource.data.createdBy == request.auth.uid || isAdmin());
 
       // The conversation: signed by its author, never edited. The author, the
       // asker or an admin deletes one; an admin can re-add anyone's (restoring

@@ -69,7 +69,7 @@ export default function Company() {
           </ul>
         )}
       </section>
-      <p className="ak-sub">Counts cover everyone. Opening a name shows only the asks you’re part of{s.me.role === 'admin' ? ' (as an admin, all of them)' : ''}.</p>
+      <p className="ak-sub">Counts cover everyone. Opening a name shows only the asks you’re part of.</p>
     </div>
   )
 }
