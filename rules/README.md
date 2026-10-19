@@ -21,6 +21,11 @@ console: Firestore → Rules, or Realtime Database → Rules, then Publish.
 - **Ask before publishing a change people would notice** (anything that can
   stop someone reading or saving).
 
+`database.rules.json` was first published on 20 Oct 2026; until then the
+Realtime Database was open to anyone. Before publishing it, `checkDatabaseAuth()`
+(proxy) and `checkBackupDatabaseAuth()` (backup) both said READY, and Tile sync's
+`CHS_EQUIPMENT_SERVICE_ACCOUNT` secret was set. An unsigned read now gets 401.
+
 ## Testing
 
 `tests/` runs the real rules engine (the Firestore emulator), not a mock. It
