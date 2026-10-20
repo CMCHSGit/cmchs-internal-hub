@@ -60,5 +60,11 @@ export function goToSignIn() {
 /** The ?next= target after sign-in, if it's a safe same-site path. */
 export function nextPath() {
   const next = new URLSearchParams(location.search).get('next')
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : null
+  if (!next || !next.startsWith('/')) return null
+  // Parsed the way the browser will go there: "/\evil.com" and "/<tab>/evil.com"
+  // both mean //evil.com, which a startsWith('//') check lets through.
+  try {
+    const u = new URL(next, location.origin)
+    return u.origin === location.origin ? u.pathname + u.search + u.hash : null
+  } catch { return null }
 }

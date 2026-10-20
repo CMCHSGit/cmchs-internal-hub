@@ -26,8 +26,7 @@
  *   isStartingSoon() so a Monday start notifies Wednesday (North) or the
  *   preceding Monday (South), not mid-weekend. (The matching email and .ics
  *   calendar invite were removed 2026-10-05 along with every other email
- *   this project sent — cassserverroom@gmail.com, the account this script
- *   runs as, was quarantined under company IT security policy, and mobile
+ *   this project sent — the Gmail account this script runs as was quarantined under company IT security policy, and mobile
  *   push had already fully replaced email as the real notification channel.)
  *
  * STUCK-LOAN REMINDER SETUP (one-off, run manually from the Apps Script editor):
