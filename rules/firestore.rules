@@ -108,7 +108,7 @@ service cloud.firestore {
       allow create, update: if (isMyEmail(email) || isHR())
         && request.resource.data.keys().hasOnly(['photo', 'updatedAt'])
         && request.resource.data.photo is string
-        && request.resource.data.photo.matches('data:image/jpeg;base64,.*')
+        && request.resource.data.photo.matches('data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}')
         && request.resource.data.photo.size() < 200000;
       allow delete: if isMyEmail(email) || isHR();
     }
@@ -284,7 +284,7 @@ service cloud.firestore {
       allow create, update: if canEditProjects()
         && request.resource.data.keys().hasOnly(['photo'])
         && request.resource.data.photo is string
-        && request.resource.data.photo.matches('data:image/jpeg;base64,.*')
+        && request.resource.data.photo.matches('data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}')
         && request.resource.data.photo.size() < 600000;
       allow delete: if canEditProjects() || isHR();
     }
@@ -394,7 +394,7 @@ service cloud.firestore {
           && (request.resource.data.uid == request.auth.uid || isAdmin())
           && request.resource.data.keys().hasOnly(['uid', 'data', 'w', 'h', 'atMs', 'commentId'])
           && request.resource.data.data is string
-          && request.resource.data.data.matches('data:image/jpeg;base64,.*')
+          && request.resource.data.data.matches('data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}')
           && request.resource.data.data.size() < 500000;
         allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin()
           || get(/databases/$(database)/documents/asks/$(id)).data.createdBy == request.auth.uid);

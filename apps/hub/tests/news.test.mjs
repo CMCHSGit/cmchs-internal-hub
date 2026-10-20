@@ -78,11 +78,18 @@ test('the email: features first, then the two lists; everything escaped', () => 
 })
 
 test('the email takes one photo or several per post; older posts count their one photo', () => {
-  const { html } = buildEmail([item('f', { category: 'Events' }), item('g', { category: 'Events' })], { photos: { f: ['data:1', 'data:2'], g: 'data:3' } })
+  const { html } = buildEmail([item('f', { category: 'Events' }), item('g', { category: 'Events' })], { photos: { f: ['data:image/jpeg;base64,QQ==', 'data:image/jpeg;base64,Qg=='], g: 'data:image/jpeg;base64,Qw==' } })
   assert.equal(html.match(/<img /g).length, 3)
   assert.equal(photoCountOf({ hasPhoto: true }), 1)
   assert.equal(photoCountOf({ hasPhoto: true, photoCount: 4 }), 4)
   assert.equal(photoCountOf({}), 0)
+})
+
+test('the email only takes real JPEG photos: anything else is left out, never put in the HTML', () => {
+  const bad = 'data:image/jpeg;base64,AAAA" onerror="alert(1)'
+  const { html } = buildEmail([item('f', { category: 'Events' })], { photos: { f: [bad, 'javascript:alert(1)', 'data:image/jpeg;base64,QUJD'] } })
+  assert.equal(html.match(/<img /g).length, 1)
+  assert.doesNotMatch(html, /onerror|javascript:/)
 })
 
 test('the email grouped by region: one region each, "On the road" for several, next week marked', () => {

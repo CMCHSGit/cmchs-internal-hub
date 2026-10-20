@@ -133,7 +133,8 @@ export function buildEmail(items, { groupBy = 'section', greeting = 'Hi All,', s
   for (const a of features) {
     html.push(`<p style="${H('#554596')}">${esc(a.title)}</p>`)
     if (a.body) html.push(`<p style="${FONT};margin:0 0 8px">${htmlText(a.body)}</p>`)
-    for (const p of [photos[a.id] || []].flat()) html.push(`<p style="margin:0 0 8px"><img src="${p}" alt="" width="480" style="max-width:480px;border-radius:6px"></p>`)
+    // Only a real JPEG data URL, and escaped anyway: this HTML is shown in the page and pasted into Outlook.
+    for (const p of [photos[a.id] || []].flat().filter(isPhotoData)) html.push(`<p style="margin:0 0 8px"><img src="${esc(p)}" alt="" width="480" style="max-width:480px;border-radius:6px"></p>`)
     text.push(a.title.toUpperCase(), ...(a.body ? [a.body] : []), '')
   }
 
@@ -175,6 +176,9 @@ export function buildEmail(items, { groupBy = 'section', greeting = 'Hi All,', s
 // ── Pictures ──────────────────────────────────────────────────────────────
 
 export const NEWS_PHOTO_MAX_CHARS = 600000
+
+/** A stored photo is a JPEG data URL and nothing else (firestore.rules checks the same). */
+export const isPhotoData = p => typeof p === 'string' && p.length < NEWS_PHOTO_MAX_CHARS && /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(p)
 
 /** A picked image -> a JPEG data URL at most 1000px wide, small enough for a Firestore document. */
 export async function newsPhotoFromFile(file) {
@@ -253,7 +257,7 @@ export async function loadPhoto(id) {
     try {
       const { f, db } = await fs()
       const s = await f.getDoc(f.doc(db, 'announcementPhotos', id))
-      photo = s.exists() ? s.data().photo : ''
+      photo = s.exists() && isPhotoData(s.data().photo) ? s.data().photo : ''
     } catch { photo = '' }
   }
   photoCache.set(id, photo)

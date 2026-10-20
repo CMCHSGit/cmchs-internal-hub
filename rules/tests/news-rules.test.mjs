@@ -89,6 +89,12 @@ await check('an admin deletes it', true, del('admin1'))
 await check('someone else can\'t', false, () => deleteDoc(doc(as('bob'), 'announcements/p1/comments/c1')))
 await check('signed out can\'t read them', false, () => import('firebase/firestore').then(f => f.getDoc(doc(anon, 'announcements/p1/comments/c1'))))
 
+console.log('\nPhotos')
+await check('a real JPEG photo', true, () => setDoc(doc(as('pat'), 'announcementPhotos/p1'), { photo: 'data:image/jpeg;base64,/9j/4AAQSkZJRg==' }))
+await check('not one with HTML tucked in after the picture', false, () =>
+  setDoc(doc(as('pat'), 'announcementPhotos/p1'), { photo: 'data:image/jpeg;base64,AAAA" onerror="alert(1)' }))
+await check('not anything else', false, () => setDoc(doc(as('pat'), 'announcementPhotos/p1'), { photo: 'javascript:alert(1)' }))
+
 await env.cleanup()
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
