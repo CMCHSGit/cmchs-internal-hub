@@ -226,6 +226,18 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       links point at `/equipment/`; demo.chsnz.co.nz forwards to the hub (its service worker kept, so phones
       registered there still get reminders, which open the hub). The old tracker's last version is tagged
       `old-tracker-final` in chs-equipment.
+- [x] Second parity pass, line by line against `old-tracker-final`, 21 Oct (hub `698765c`…): the tabs in the
+      old order (Overview, New loan, Scan, Equipment, History, Loans, Calendar, Manage; Manage's parts as the
+      old Import, Sold / Retired, Settings), and what the first pass missed: Add items as the old basket
+      (moves across or books to follow, nothing refused; a booking's free devices claimed), Return items
+      unticked, the loan form (later devices, waiting ones, old rows, finishes when left, saves on close, RTF),
+      an item's record (its loan's actions, Tile location, Find on Tile), Sold / Retired records, edit and
+      import, test notifications, scan session log and phone camera, each loan's updates, the count list, the
+      test-mode banner, and the smaller ones (`tests/parity.test.mjs`). Found on the way: Extend saved, then
+      failed on its audit entry (a local `oldDate` hid the date function), so no entry and an error shown.
+      Not brought back, on purpose or for later: orphaned-loan recovery, the multi-item Add form (one at a
+      time, kits from ticked items), the app-icon badge, ZXing on iPhones (jsQR, with a photo fallback),
+      account managers' names and emails edited in the tracker (step 5A: Settings, People and access).
 
 ### 5. One identity and data platform
 The detailed plan, for Peter: `STEP-5-PLAN.md`.

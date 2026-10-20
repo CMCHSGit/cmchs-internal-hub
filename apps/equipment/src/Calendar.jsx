@@ -10,12 +10,13 @@ import { Button } from '../../../shared/ui/index.jsx'
 import { calendarRows, dayList, fmtDate, loanSections } from './model.js'
 
 const DAY = 28
-const SORTS = [['start-asc', 'Start, soonest'], ['start-desc', 'Start, latest'], ['end-asc', 'Due back, soonest'], ['end-desc', 'Due back, latest'], ['dur-desc', 'Longest'], ['dur-asc', 'Shortest'], ['name-asc', 'Customer A–Z'], ['name-desc', 'Customer Z–A']]
+// Due back soonest first, as the old calendar opened (old: Expiry, soonest first).
+const SORTS = [['end-asc', 'Due back, soonest'], ['start-asc', 'Start, soonest'], ['start-desc', 'Start, latest'], ['end-desc', 'Due back, latest'], ['dur-desc', 'Longest'], ['dur-asc', 'Shortest'], ['name-asc', 'Customer A–Z'], ['name-desc', 'Customer Z–A']]
 const STATE = { active: 'On loan', overdue: 'Overdue', scheduled: 'Scheduled', booking: 'Booked' }
 
 export default function Calendar({ s, params, setParams, go }) {
   const weeks = [4, 8, 12, 26].includes(Number(params.weeks)) ? Number(params.weeks) : 8
-  const sort = SORTS.some(([v]) => v === params.sort) ? params.sort : 'start-asc'
+  const sort = SORTS.some(([v]) => v === params.sort) ? params.sort : 'end-asc'
   const [start, setStart] = useState(s.today)
   const days = useMemo(() => dayList(start, weeks * 7), [start, weeks])
   const from = days[0], to = days[days.length - 1]
@@ -50,7 +51,7 @@ export default function Calendar({ s, params, setParams, go }) {
           <select value={weeks} onChange={(e) => setParams({ ...params, weeks: e.target.value === '8' ? undefined : e.target.value })}>{[4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}</select>
         </label>
         <label className="field"><span className="field-label">Sort</span>
-          <select value={sort} onChange={(e) => setParams({ ...params, sort: e.target.value === 'start-asc' ? undefined : e.target.value })}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <select value={sort} onChange={(e) => setParams({ ...params, sort: e.target.value === 'end-asc' ? undefined : e.target.value })}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </label>
         <div className="eq-util-key eq-cal-key">{Object.entries(STATE).map(([k, l]) => <span key={k}><i className={`eq-cal-${k}`} />{l}</span>)}</div>
       </div>

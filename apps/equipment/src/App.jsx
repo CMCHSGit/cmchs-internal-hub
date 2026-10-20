@@ -88,6 +88,8 @@ function Shell() {
       {isLocal && <Alert tone="info" title="Made-up equipment">This is the dev server without a .env: the equipment here is made up, and kept in this browser.</Alert>}
       {s.cutover?.readOnly && <Alert tone="warning" title="Read-only for a few minutes">The tracker’s data is moving to its new home. Everything shows as usual, but changes wait until it’s done.</Alert>}
       {s.error && <Alert tone="warning" title="Couldn’t refresh">{s.error}</Alert>}
+      {/* Always in view while it's on (old: the orange "Test Mode" button in the header), so no one makes test loans by mistake. */}
+      {s.testMode && <Alert tone="warning" title="Test mode is on in this browser">New loans are test loans (only seen with test mode on), and Simpro jobs and emails are pretended. <a href={hashOf('manage', { part: 'test' })}>Turn it off</a></Alert>}
       <nav className="eq-views" aria-label="Demo equipment">
         {VIEWS.map(([id, label, Icon]) => (
           <a key={id} href={hashOf(id)} className={`eq-view${route.view === id ? ' on' : ''}`} aria-current={route.view === id ? 'page' : undefined}>

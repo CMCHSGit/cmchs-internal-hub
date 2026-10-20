@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { importRetiredRows, linkTarget, loanFormRtf, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
+import { auditTone, filterAudit, importRetiredRows, linkTarget, loanFormRtf, loanUpdates, relTime, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
 
 const today = '2026-10-21'
 const shelf = (id, o = {}) => ({ id, CHSAssetNo: 'A' + id, Model: 'M' + id, Returned: 'Yes', OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', BatchID: '', ...o })
@@ -64,4 +64,17 @@ test('the loan form as RTF (old: Export RTF): bold labels, the rows, escaped tex
   assert.match(rtf, /21\/10\/2026/)
   assert.match(rtf, /100201 {6}  A9 /, 'the asset number padded to 12, then two spaces')
   assert.equal((rtf.match(/Line (one|two)/g) || []).length, 2)
+})
+test('audit: an asset number finds its equipment entries; colours by kind; a loan’s own updates; how long ago', () => {
+  const audit = [
+    { id: '1', type: 'asset_edited', summary: 'Edited', detail: { assetNo: '100201' } },
+    { id: '2', type: 'loan_extended', summary: 'Extended', detail: { batchId: 'b1', loanTo: 'Hutt' } },
+    { id: '3', type: 'loan_reassigned', summary: 'Moved', detail: { from: 'Nelson', to: 'Hutt' } },
+    { id: '4', type: 'asset_added', summary: 'Added', detail: { loanTo: 'Hutt' } },
+  ]
+  assert.deepEqual(filterAudit(audit, { q: '100201' }).map((e) => e.id), ['1'])
+  assert.deepEqual(['loan_created', 'asset_deleted', 'item_removed', 'loan_extended', 'loan_longterm_on'].map(auditTone), ['green', 'critical', 'orange', 'purple', 'neutral'])
+  assert.deepEqual(loanUpdates(audit, { batchId: 'b1', loanTo: 'Hutt' }).map((e) => e.id), ['2', '3'], 'not an equipment entry')
+  const now = Date.parse('2026-10-21T10:00:00Z')
+  assert.deepEqual(['2026-10-21T09:59:40Z', '2026-10-21T09:55:00Z', '2026-10-21T07:00:00Z', '2026-10-19T10:00:00Z'].map((t) => relTime(t, now)), ['just now', '5m ago', '3h ago', '2d ago'])
 })

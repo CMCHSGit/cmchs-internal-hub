@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Badge, Loading } from '../../../shared/ui/index.jsx'
 import LoanForm from './LoanForm.jsx'
 import { AdminDialog } from './Items.jsx'
-import { AUDIT_LABELS, filterAudit, filterHistory, fmtDate } from './model.js'
+import { AUDIT_LABELS, auditTone, filterAudit, filterHistory, fmtDate } from './model.js'
 
 const ACTIONS = [['', 'Everything'], ['Loan', 'Loaned out'], ['Return', 'Returned'], ['Count', 'Counted'], ['Transfer', 'Transferred'], ['Converted', 'Converted'], ['Edited', 'Edited']]
 const TONE = { Loan: 'orange', Return: 'green', Count: 'green', Transfer: 'purple' }
@@ -132,7 +132,7 @@ function Audit({ s }) {
       <ul className="card eq-audit">
         {rows.map((e) => (
           <li key={e.id}>
-            <div className="eq-audit-top"><Badge tone="neutral">{AUDIT_LABELS[e.type] || e.type}</Badge><span className="eq-small">{when(e.ts)}</span></div>
+            <div className="eq-audit-top"><Badge tone={auditTone(e.type)}>{AUDIT_LABELS[e.type] || e.type}</Badge><span className="eq-small">{when(e.ts)}</span></div>
             <div className="eq-audit-what">{e.summary}</div>
             {e.detail?.items?.length > 0 && <div className="eq-small eq-mono">{e.detail.items.join(', ')}</div>}
             {(e.operator || e.source) && <div className="eq-small">{e.operator ? `by ${e.operator}` : ''}{e.source ? `${e.operator ? ' · ' : ''}${e.source === 'mobile' ? 'phone' : e.source === 'hub' ? 'new tracker' : 'desktop'}` : ''}</div>}

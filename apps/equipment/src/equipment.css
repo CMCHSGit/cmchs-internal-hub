@@ -235,3 +235,8 @@
 /* A loan's device rows: later bookings, and the waiting devices' heading (old: buildLoanDeviceRow). */
 .eq-next { color: var(--text-muted); }
 .eq-device-head { list-style: none; font: var(--type-body-sm); color: var(--text-muted); padding: 6px 0 2px; }
+
+/* A loan's "updated … ago", a dot when there are changes not yet looked at (old: the Loan updates badge). */
+.eq-updated { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); white-space: nowrap; }
+.eq-updated.new { color: var(--text-strong); }
+.eq-updated i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-fg); }

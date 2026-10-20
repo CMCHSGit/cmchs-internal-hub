@@ -14,7 +14,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import Scanner from './Scanner.jsx'
-import { countCategory, findAsset, fmtDate, isLoanLongTerm, isOut } from './model.js'
+import { countCategory, findAsset, fmtDate, isLoanLongTerm, isOut, statusOf } from './model.js'
+import { Status } from './BrowseEquipment.jsx'
 
 const MODES = [['return', 'Return'], ['count', 'Count'], ['stocktake', 'Stocktake']]
 
@@ -164,6 +165,7 @@ export default function Scan({ s, params, setParams, onDone }) {
               </div>
               <div className="eq-util-key"><span><i className="ok" />Counted here {counts.new}</span><span><i className="today" />Counted before (old spreadsheet) {counts.old}</span><span><i />Never {counts.never}</span></div>
             </section>
+            <CountList s={s} counts={counts} />
           </>
         )
       })()}
@@ -195,5 +197,43 @@ export default function Scan({ s, params, setParams, onDone }) {
         </section>
       )}
     </div>
+  )
+}
+
+/** Every item by how it's been counted (old: the count overview's four cards and its table): pick one to list them. */
+function CountList({ s, counts }) {
+  const [show, setShow] = useState('')
+  const KINDS = [['', 'Total', counts.total], ['new', 'This system', counts.new], ['old', 'Old system', counts.old], ['never', 'Never counted', counts.never]]
+  const LABEL = { new: 'Counted here', old: 'Counted before', never: 'Never counted' }
+  const ctx = { today: s.today, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, testMode: s.testMode }
+  const [open, setOpen] = useState(false)
+  const rows = useMemo(() => (open ? s.equipment.filter((e) => e && (!show || countCategory(e) === show))
+    .sort((a, b) => String(a.CHSAssetNo || '').localeCompare(String(b.CHSAssetNo || ''), undefined, { numeric: true })) : []), [open, show, s.equipment])
+  return (
+    <section className="card eq-scan-list" aria-label="Count overview">
+      <nav className="eq-filters" aria-label="Which items">
+        {KINDS.map(([k, label, n]) => (
+          <button key={k || 'all'} type="button" className={`tag${open && show === k ? ' tag-selected' : ''}`} aria-pressed={open && show === k}
+            onClick={() => { if (open && show === k) setOpen(false); else { setShow(k); setOpen(true) } }}>{label} <span className="eq-count">{n}</span></button>
+        ))}
+      </nav>
+      {open && (
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>Asset</th><th>Model</th><th>Status</th><th>Count</th><th>Last counted</th></tr></thead>
+            <tbody>{rows.map((e) => { const st = statusOf(e, ctx), k = countCategory(e); return (
+              <tr key={e.id} className="data-table-row">
+                <td data-label="Asset"><a className="eq-strong" href={'#/equipment?item=' + encodeURIComponent(e.id)}>{e.CHSAssetNo}</a></td>
+                <td data-label="Model">{e.Model}</td>
+                <td data-label="Status"><Status st={st} /></td>
+                <td data-label="Count"><Badge tone={k === 'new' ? 'green' : k === 'old' ? 'orange' : 'neutral'}>{LABEL[k]}</Badge></td>
+                <td data-label="Last counted">{k === 'never' ? '—' : e.Counted}</td>
+              </tr>
+            ) })}</tbody>
+          </table>
+          <p className="eq-note">{rows.length} {rows.length === 1 ? 'item' : 'items'}</p>
+        </div>
+      )}
+    </section>
   )
 }

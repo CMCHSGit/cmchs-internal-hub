@@ -213,12 +213,12 @@ export function StoreProvider({ children }) {
    * and the due-soon reminder already sent for the old date is cleared.
    */
   const extendLoan = useCallback(async (g, newDate) => {
-    const oldDate = g.endDate
+    const was = g.endDate // not "oldDate": that's the date function the audit line below needs
     if (g.kind === 'booking') {
       await write(`upcomingLoans/${enc(g.batchId)}/endDate`, newDate)
       setState((s) => ({ ...s, upcoming: s.upcoming.map((u) => (u.id === g.batchId ? { ...u, endDate: newDate } : u)) }))
     } else {
-      const from = loanDocKey(g, oldDate), to = loanDocKey(g, newDate)
+      const from = loanDocKey(g, was), to = loanDocKey(g, newDate)
       if (from !== to) {
         try {
           const { data: doc } = await read('loanDocs/' + enc(from))
@@ -230,11 +230,11 @@ export function StoreProvider({ children }) {
         } catch (e) { console.warn('[equipment] loan form not moved to the new end date', e) }
       }
       await updateData((d) => ({ ...d, equipment: extendEquipment(d.equipment, g, newDate) }))
-      try { await write('returnDueSoonReminders/' + enc(g.loanTo + '|||' + oldDate), null, { method: 'DELETE' }) } catch { /* best effort, as the old one */ }
+      try { await write('returnDueSoonReminders/' + enc(g.loanTo + '|||' + was), null, { method: 'DELETE' }) } catch { /* best effort, as the old one */ }
     }
     const items = (g.kind === 'booking' ? g.pending : g.items).map((e) => e.CHSAssetNo)
-    await audit('loan_extended', `${g.kind === 'booking' ? 'Upcoming loan' : 'Loan'} for ${g.loanTo} extended from ${oldDate(oldDate)} to ${oldDate(newDate)}`,
-      { loanTo: g.loanTo, oldDate, newDate, items })
+    await audit('loan_extended', `${g.kind === 'booking' ? 'Upcoming loan' : 'Loan'} for ${g.loanTo} extended from ${oldDate(was)} to ${oldDate(newDate)}`,
+      { loanTo: g.loanTo, oldDate: was, newDate, items })
     await touch()
   }, [audit, touch, updateData])
 

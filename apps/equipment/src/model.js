@@ -1067,8 +1067,34 @@ export const AUDIT_KINDS = {
 }
 export function filterAudit(entries, { q = '', kind = '' } = {}) {
   const s = q.trim().toLowerCase(), types = kind ? AUDIT_KINDS[kind] : null
+  // An equipment entry's asset number too (old: detail.assetNo), so searching a number finds it being added, edited, retired.
   return entries.filter((e) => e && (!types || types.includes(e.type)) &&
-    (!s || [e.summary, e.operator, e.type, ...(e.detail?.items || [])].join(' ').toLowerCase().includes(s)))
+    (!s || [e.summary, e.operator, e.type, e.detail?.assetNo, ...(e.detail?.items || [])].join(' ').toLowerCase().includes(s)))
+}
+
+/** A loan's own changes, newest first (old: getLoanAuditHistory): by its BatchID, else its customer. The new tracker's transfers are loan_reassigned. */
+const LOAN_UPDATE_TYPES = ['items_added', 'item_removed', 'items_returned', 'loan_extended', 'loan_longterm_on', 'loan_longterm_off', 'items_transferred', 'loan_reassigned', 'simpro_created', 'simpro_updated', 'simpro_closed']
+export function loanUpdates(audit = [], g) {
+  return audit.filter((e) => e && LOAN_UPDATE_TYPES.includes(e.type) && ((g.batchId && e.detail?.batchId === g.batchId) || e.detail?.loanTo === g.loanTo
+    || (e.type === 'loan_reassigned' && (e.detail?.from === g.loanTo || e.detail?.to === g.loanTo))))
+}
+
+/** "just now", "5m ago", "3h ago", "2d ago" (old: _relativeTime). */
+export function relTime(ts, now = Date.now()) {
+  const t = new Date(ts).getTime()
+  if (!ts || Number.isNaN(t)) return ''
+  const mins = Math.floor((now - t) / 60000)
+  return mins < 1 ? 'just now' : mins < 60 ? mins + 'm ago' : mins < 1440 ? Math.floor(mins / 60) + 'h ago' : Math.floor(mins / 1440) + 'd ago'
+}
+
+/** Each kind of audit entry's colour, as the old badges (old: _auditBadge): made / back green, gone red, changed purple, taken off orange. */
+export function auditTone(type) {
+  const t = String(type || '')
+  if (/^(loan_created|items_returned|simpro_created|asset_added|test_report_uploaded)$/.test(t)) return 'green'
+  if (/deleted$|^am_removed$/.test(t)) return 'critical'
+  if (/^(item_removed|upcoming_item_removed|orphan_recovered|kit_accessory_removed)$/.test(t)) return 'orange'
+  if (/^(loan_extended|items_added|items_transferred|loan_reassigned|simpro_updated|asset_edited|asset_retired)$/.test(t)) return 'purple'
+  return 'neutral'
 }
 
 /* ── Equipment records, retired items, import and export, kits, Simpro job

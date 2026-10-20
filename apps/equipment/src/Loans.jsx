@@ -6,10 +6,10 @@
    loan, and what can be done to it so far (LoanActions.jsx). */
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { Badge, Toast, useToast } from '../../../shared/ui/index.jsx'
+import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
 import { AdminDialog } from './Items.jsx'
-import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readinessOf } from './model.js'
+import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, loanUpdates, readinessOf, relTime } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -18,6 +18,9 @@ export default function Loans({ s, params, setParams, go }) {
   // ?open=kind:key opens one loan (Overview's rows); ?at= scrolls to a section.
   const [openKey, setOpenKey] = useState(params.open || null)
   const [toast, showToast] = useToast()
+  // The newest audit entries, for each loan's "updated … ago" (old: auditLog, loaded with the data), again after each change.
+  const [audit, setAudit] = useState([])
+  useEffect(() => { s.loadAudit().then(setAudit, () => setAudit([])) }, [s.loadedAt]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (params.open) setOpenKey(params.open)
     const el = params.open ? document.querySelector(`[data-loan="${CSS.escape(params.open)}"]`) : params.at && document.getElementById('loans-' + params.at)
@@ -69,7 +72,7 @@ export default function Loans({ s, params, setParams, go }) {
         <section key={id} id={'loans-' + id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
           <h2 className="eq-section-title">{title} <span className="eq-count">{list.length}</span></h2>
           {hint && <p className="eq-note">{hint}</p>}
-          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} all={all} go={go} onDone={showToast} start={params.open === k && params.act ? { act: params.act, to: params.to, nos: params.nos } : null} onStarted={() => setParams({ ...params, act: undefined, to: undefined, nos: undefined })} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
+          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} audit={audit} all={all} go={go} onDone={showToast} start={params.open === k && params.act ? { act: params.act, to: params.to, nos: params.nos } : null} onStarted={() => setParams({ ...params, act: undefined, to: undefined, nos: undefined })} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
         </section>
       ))}
       {lists.every(([, , , l]) => !l.length) && <p className="data-table-empty">{all.length ? 'No loans match that.' : 'No active loans.'}</p>}
@@ -78,7 +81,7 @@ export default function Loans({ s, params, setParams, go }) {
   )
 }
 
-function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
+function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, onStarted }) {
   const [removing, setRemoving] = useState(null) // { e } a device on the loan, or { p } one on its booking list
   const count = g.items.length
   const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
@@ -100,6 +103,18 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
   const waiting = g.kind === 'booking' ? 0 : g.pending.filter((p) => { const e = byId(p.id, p.CHSAssetNo); return e && e.OnLoanTo && e.Returned !== 'Yes' && e.BatchID !== g.batchId }).length
   // When a device was moved off (old: the ghost row's "on <date>"): its newest Transfer entry.
   const movedOn = (no) => { const h = (s.history || []).find((x) => x.action === 'Transfer' && x.chsAssetNo === no); return h ? fmtDate(String(h.ts || '').slice(0, 10)) : '' }
+  // Its changes, and whether any are new since it was last looked at here (old: buildLoanUpdateBadge; the same loanSeen_ keys).
+  const updates = useMemo(() => loanUpdates(audit, g), [audit, g])
+  const seenKey = 'loanSeen_' + (g.batchId || encodeURIComponent(g.loanTo || ''))
+  const [seen, setSeen] = useState(() => { try { return localStorage.getItem(seenKey) || '' } catch { return '' } })
+  // Compared as moments; what's kept is the newest entry's own time (the old +12:00 stamps run an hour ahead in summer, so "now" could be earlier).
+  const unseen = updates.length > 0 && (!seen || Date.parse(updates[0].ts) > Date.parse(seen))
+  const [showUpdates, setShowUpdates] = useState(false)
+  const openUpdates = () => {
+    setShowUpdates(true)
+    const at = [String(updates[0]?.ts || ''), new Date().toISOString()].sort((a, b) => Date.parse(b) - Date.parse(a))[0]
+    setSeen(at); try { localStorage.setItem(seenKey, at) } catch { /* private mode */ }
+  }
   return (
     <article data-loan={g.kind + ':' + g.key} className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && g.startingSoon ? ' soon' : ''}`}>
       <button type="button" className="eq-loan-head" aria-expanded={open} onClick={onToggle}>
@@ -129,6 +144,7 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
           {g.longTerm && <Badge tone="neutral">Long term</Badge>}
           {g.kind === 'loan' && g.pending.length > 0 && !g.longTerm && <Badge tone="orange">Needs reassigning</Badge>}
           {g.batchId?.startsWith('testbatch_') && <Badge tone="neutral">Test</Badge>}
+          {updates.length > 0 && <span className={`eq-small eq-updated${unseen ? ' new' : ''}`} title={unseen ? 'Changed since you last looked' : 'Last changed'}>{unseen && <i aria-hidden="true" />}{relTime(updates[0].ts)}</span>}
           <ChevronDown size={18} aria-hidden="true" className={`eq-chev${open ? ' open' : ''}`} />
         </span>
       </button>
@@ -158,7 +174,22 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
               </li>
             ))}
           </ul>
+          {updates.length > 0 && <button type="button" className="link-btn eq-small" onClick={openUpdates}>Loan updates ({updates.length}){unseen ? ', some new' : ''}</button>}
           <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
+          {showUpdates && (
+            <Dialog title={`Loan updates: ${g.loanTo}`} onClose={() => setShowUpdates(false)} width={600}>
+              <ul className="eq-audit">
+                {updates.map((e) => (
+                  <li key={e.id || e.ts + e.type}>
+                    <div className="eq-audit-top"><Badge tone={auditTone(e.type)}>{AUDIT_LABELS[e.type] || e.type}</Badge><span className="eq-small">{fmtWhen(e.ts) || e.ts}</span></div>
+                    <div className="eq-audit-what">{e.summary}</div>
+                    {e.detail?.items?.length > 0 && <div className="eq-small eq-mono">{e.detail.items.join(', ')}</div>}
+                    {e.operator && <div className="eq-small">by {e.operator}</div>}
+                  </li>
+                ))}
+              </ul>
+            </Dialog>
+          )}
           {removing?.e && (
             <AdminDialog s={s} title={`Take ${removing.e.CHSAssetNo} off this loan?`} confirmLabel="Take it off" danger onClose={() => setRemoving(null)}
               message="For putting a mistake right: it comes off the loan and its form with no history entry. If it has come back, use Return items instead."

@@ -109,7 +109,7 @@ export default function NewLoan({ s, params, go, onDone }) {
         <div className="eq-form-row">
           <label className="field"><span className="field-label">Start *</span><input className="input" type="date" value={f.startDate} onChange={set('startDate')} /></label>
           <label className="field"><span className="field-label">End {f.longTerm ? '' : '*'}</span><input className="input" type="date" value={f.longTerm ? '' : f.endDate} min={f.startDate} onChange={set('endDate')} disabled={f.longTerm} /></label>
-          <label className="eq-check"><input type="checkbox" checked={f.longTerm} onChange={set('longTerm')} /> Long term (no end date, no Simpro job)</label>
+          <label className="eq-check"><input type="checkbox" checked={f.longTerm} onChange={(e) => { const on = e.target.checked; setF((x) => ({ ...x, longTerm: on, ...(on ? { demoType: '', island: '' } : {}) })); if (on) setOtherType(false) }} /> Long term (no end date, no Simpro job)</label>
         </div>
         <div className="eq-form-row">
           <label className="field"><span className="field-label">Account manager *</span>
