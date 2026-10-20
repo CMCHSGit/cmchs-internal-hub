@@ -62,6 +62,31 @@ export function registerServiceWorker() {
   })
 }
 
+// Reload onto the newest deploy. A plain reload isn't enough when a page asks
+// for a file a deploy has removed: until the new sw.js has taken over, the old
+// one hands back its cached copy of the old page, which asks for the same
+// missing file (only Ctrl+Shift+R, which skips the worker, got past it). So
+// fetch the new worker first and wait for it to take over, then reload. If
+// there is no newer one (a real fault, not a deploy), it reloads anyway after
+// at most `timeout`.
+export async function reloadOntoLatest(timeout = 8000) {
+  try {
+    const sw = navigator.serviceWorker
+    const reg = sw && await sw.getRegistration('/')
+    if (reg) {
+      const tookOver = new Promise((resolve) => sw.addEventListener('controllerchange', resolve, { once: true }))
+      await Promise.race([
+        (async () => {
+          await reg.update()
+          if (reg.installing || reg.waiting) await tookOver
+        })(),
+        new Promise((resolve) => setTimeout(resolve, timeout)),
+      ])
+    }
+  } catch { /* offline, or no worker: a plain reload is all there is */ }
+  window.location.reload()
+}
+
 // The banner: plain DOM, so it works on every page (the React app and the
 // plain /service tools alike), in the site's colours where the page has its
 // tokens and sensible ones where it doesn't. Below the header, where it can't
