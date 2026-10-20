@@ -10,7 +10,8 @@ import {
   EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, toCsv,
 } from './model.js'
 
-const PARTS = [['retired', 'Sold / Retired'], ['kits', 'Kits'], ['data', 'Import and export'], ['simpro', 'Simpro'], ['test', 'Test mode'], ['source', 'Data source']]
+// The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
+const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['simpro', 'Simpro'], ['test', 'Test mode'], ['source', 'Data source']]
 
 /** A library from the same CDN the old tracker uses, once (old: needLib): SheetJS and PapaParse. */
 const LIBS = { xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX'], papa: ['https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js', 'Papa'] }
@@ -29,13 +30,13 @@ function lib(name) {
 const save = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000) }
 
 export default function Manage({ s, params, setParams, onDone }) {
-  const part = PARTS.some(([p]) => p === params.part) ? params.part : 'retired'
+  const part = PARTS.some(([p]) => p === params.part) ? params.part : 'data'
   // Test mode: admins and the testers an admin marks (shared/can.js), not the two names the old one had written in.
   const parts = PARTS.filter(([p]) => (p !== 'test' || s.canTestMode || s.testMode) && (p !== 'source' || s.isAdmin))
   return (
     <div className="eq-manage">
       <nav className="eq-filters" aria-label="Manage">
-        {parts.map(([p, l]) => <button key={p} type="button" className={`tag${part === p ? ' tag-selected' : ''}`} aria-pressed={part === p} onClick={() => setParams({ part: p === 'retired' ? undefined : p })}>{l}</button>)}
+        {parts.map(([p, l]) => <button key={p} type="button" className={`tag${part === p ? ' tag-selected' : ''}`} aria-pressed={part === p} onClick={() => setParams({ part: p === 'data' ? undefined : p })}>{l}</button>)}
       </nav>
       <p className="eq-note">The tracker’s team (account managers, Service &amp; Projects) is in <a href="/settings/people">Settings, People and access</a>.</p>
       {part === 'retired' && <Retired s={s} onDone={onDone} />}
@@ -308,7 +309,7 @@ function TestMode({ s, onDone }) {
   return (
     <section className="card eq-kit">
       <h3 className="eq-h3">Test mode is {s.testMode ? 'on' : 'off'} in this browser</h3>
-      <p className="eq-note">With it on, loans are made as test loans (seen only with test mode on), and Simpro jobs and emails are pretended rather than sent. Everything else is saved for real. The current tracker shares the same switch in this browser.</p>
+      <p className="eq-note">With it on, loans are made as test loans (seen only with test mode on), and Simpro jobs and emails are pretended rather than sent. Everything else is saved for real.</p>
       <div>{s.testMode ? <Button variant="secondary" onClick={() => { s.setTestMode(false); onDone('Test mode is off: Simpro and email are live again.') }}>Turn off</Button> : <Button onClick={() => setAsking(true)}>Turn on…</Button>}</div>
       {asking && <TestModeConfirm s={s} onClose={() => setAsking(false)} onConfirm={() => { s.setTestMode(true); setAsking(false); onDone('Test mode is on: Simpro jobs and emails are pretended.') }} />}
     </section>

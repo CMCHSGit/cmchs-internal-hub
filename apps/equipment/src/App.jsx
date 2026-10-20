@@ -13,11 +13,11 @@
      History    devices' history and the audit log
      Manage     retired items, kits, import/export, Simpro, test mode */
 import { useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
+import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
-import { isLocal } from './db.js'
+import { isLocal, readOld } from './db.js'
 import Loans from './Loans.jsx'
 import { AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
 import Overview from './Overview.jsx'
@@ -28,7 +28,9 @@ import Calendar from './Calendar.jsx'
 import History from './History.jsx'
 import Manage from './Manage.jsx'
 
-const VIEWS = [['overview', 'Overview', LayoutDashboard], ['equipment', 'Equipment', Boxes], ['loans', 'Loans', Truck], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['calendar', 'Calendar', CalendarDays], ['history', 'History', HistoryIcon], ['manage', 'Manage', SlidersHorizontal]]
+// In the old tracker's order (Scan / Loan, Database, History, Loans, Calendar, then Import, Sold / Retired and
+// Settings, which are Manage), after Overview, the old phone's home screen.
+const VIEWS = [['overview', 'Overview', LayoutDashboard], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['equipment', 'Equipment', Boxes], ['history', 'History', HistoryIcon], ['loans', 'Loans', Truck], ['calendar', 'Calendar', CalendarDays], ['manage', 'Manage', SlidersHorizontal]]
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
@@ -115,6 +117,10 @@ function Equipment({ s, params, setParams, go, onDone }) {
   const [confirmDialog, confirm] = useConfirm()
   const filter = STATUSES.some((x) => x.key === params.show) ? params.show : 'all'
   const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1 })
+  // Tile sync's last-seen places, by Tile number (old: _tileLocationCache): always in the old database, whatever the switch says.
+  const [tiles, setTiles] = useState(null)
+  useEffect(() => { readOld('tileLocations').then((r) => setTiles(r.data || {})).catch(() => setTiles({})) }, [])
+  const tileOf = (e) => (e.TileNo ? (tiles ? tiles[String(e.TileNo).trim()] || null : undefined) : null)
   const [open, setOpen] = useState(null) // an item's id
   const [mode, setMode] = useState('view') // what's open for it: view | edit | retire | delete; or 'add' with no item
   const show = (id, m = 'view') => { setOpen(id); setMode(m) }
@@ -133,10 +139,11 @@ function Equipment({ s, params, setParams, go, onDone }) {
     const found = new Set(searchEquipment(withStatus.map((x) => x.e), q))
     return withStatus.filter((x) => found.has(x.e) && (filter === 'all' || x.st.key === filter)).sort((a, b) => {
       const k = sort.key
-      const av = k === 'status' ? a.st.key : String(a.e[k] ?? ''), bv = k === 'status' ? b.st.key : String(b.e[k] ?? '')
+      const val = (x) => (k === 'status' ? x.st.key : k === 'tile' ? tileOf(x.e)?.location || '' : String(x.e[k] ?? ''))
+      const av = val(a), bv = val(b)
       return av.localeCompare(bv, undefined, { numeric: true }) * sort.dir
     })
-  }, [withStatus, q, filter, sort])
+  }, [withStatus, q, filter, sort, tiles]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (k) => setParams({ ...params, show: k === 'all' ? '' : k })
   const item = open && (s.equipment || []).find((e) => e.id === open)
@@ -177,7 +184,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
     setSel(new Set())
     onDone?.(`${plural(ticked.length, 'device')} counted${back ? `, ${back} marked as returned` : ''}.`)
   })
-  const COLUMNS = [['CHSAssetNo', 'Asset no.'], ['Model', 'Model'], ['SerialNo', 'Serial no.'], ['status', 'Status'], ['ShelfLocation', 'Shelf']]
+  const COLUMNS = [['CHSAssetNo', 'Asset no.'], ['Model', 'Model'], ['SerialNo', 'Serial no.'], ['status', 'Status'], ['Location', 'Location'], ['ShelfLocation', 'Shelf'], ['tile', 'Tile']]
 
   return (
     <>
@@ -226,7 +233,9 @@ function Equipment({ s, params, setParams, go, onDone }) {
                 <td data-label="Model"><div>{e.Model}{e.Description && <span className="eq-small">{e.Description}</span>}</div></td>
                 <td data-label="Serial no." className="eq-mono">{e.SerialNo}</td>
                 <td data-label="Status"><Status st={st} /></td>
+                <td data-label="Location">{isOut(e) ? e.Location : ''}</td>
                 <td data-label="Shelf">{e.ShelfLocation}</td>
+                <td data-label="Tile">{(() => { const t = tileOf(e); return t?.location ? <span className="eq-small">{t.alert && <Badge tone="orange">{t.alert}</Badge>} {t.location}</span> : '' })()}</td>
               </tr>
             ))}
           </tbody>
@@ -235,8 +244,10 @@ function Equipment({ s, params, setParams, go, onDone }) {
       </div>
 
       {confirmDialog}
-      {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} history={s.history} onClose={() => setOpen(null)} onAction={(m) => setMode(m)} />}
-      {mode === 'add' && <ItemForm s={s} onClose={() => setMode('view')} onDone={done} />}
+      {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} s={s} go={go} tile={tileOf(item)} onClose={() => setOpen(null)} onAction={(m) => setMode(m)} />}
+      {/* Adding needed the admin password in the old tracker (promptAddAsset); the hub admin role, as for delete. */}
+      {mode === 'add' && (s.isAdmin ? <ItemForm s={s} onClose={() => setMode('view')} onDone={done} />
+        : <AdminDialog s={s} title="Add equipment" onClose={() => setMode('view')} onConfirm={() => {}} />)}
       {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'retire' && <RetireDialog s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'delete' && (
@@ -247,29 +258,79 @@ function Equipment({ s, params, setParams, go, onDone }) {
   )
 }
 
-function ItemDialog({ e, ctx, history, onClose, onAction }) {
+/** The Tile app, then its web map if the app isn't there (old: tileBtn). */
+function FindOnTile({ uuid }) {
+  return (
+    <a className="btn btn-secondary btn-sm" href={`tile://find?uuid=${encodeURIComponent(uuid)}`}
+      onClick={() => setTimeout(() => window.open('https://www.thetileapp.com/en-us/map', '_blank', 'noopener'), 1500)}>
+      <MapPin size={14} aria-hidden="true" /> Find on Tile
+    </a>
+  )
+}
+
+/** An item's Tile, as Tile sync last saw it (old: loadTileLocation): any alert, the address, when, and a map. */
+function TileSection({ tileNo, tile }) {
+  if (tile === undefined) return <p className="eq-note">Fetching the Tile’s location…</p>
+  if (!tile?.location) return <p className="eq-note">No Tile location yet (Tile sync fills it in).</p>
+  const lat = Number(tile.latitude), lng = Number(tile.longitude), has = Number.isFinite(lat) && Number.isFinite(lng) && (lat || lng)
+  const map = has ? `https://www.google.com/maps?q=${lat},${lng}` : `https://www.google.com/maps/search/${encodeURIComponent(tile.location)}`
+  return (
+    <>
+      {tile.alert && <Alert tone="warning" title={`Tile ${tileNo}`}>{tile.alert}</Alert>}
+      <dl className="eq-fields">
+        <div><dt>Address</dt><dd>{tile.location}</dd></div>
+        <div><dt>Last updated</dt><dd>{tile.lastUpdated || '—'}</dd></div>
+        {has && <div><dt>Coordinates</dt><dd className="eq-mono">{lat.toFixed(5)}, {lng.toFixed(5)}</dd></div>}
+      </dl>
+      <a href={map} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>
+    </>
+  )
+}
+
+/**
+ * An item's record (old: the detail panel): its status and booking, every
+ * field, its Tile, its whole history (with due dates), and what can be done
+ * with it: a new loan with it, or its loan opened (Return, Extend and the rest
+ * are there), its history in History, Edit, Retire, Delete.
+ */
+function ItemDialog({ e, ctx, s, go, tile, onClose, onAction }) {
   const st = statusOf(e, ctx)
   const booking = upcomingFor(e, ctx.upcoming, ctx.testMode)
-  const past = historyFor(e, history).slice(0, 20)
+  const past = historyFor(e, s.history)
   const shown = FIELDS.filter(([k]) => e[k])
+  // The loan it's on, else a booking waiting for it.
+  const loan = useMemo(() => {
+    const all = Object.values(loanSections({ ...ctx, equipment: s.equipment })).flat()
+    return all.find((g) => g.items.some((i) => i.id === e.id)) || all.find((g) => (g.pending || []).some((i) => i.CHSAssetNo === e.CHSAssetNo)) || null
+  }, [e, s.equipment]) // eslint-disable-line react-hooks/exhaustive-deps
+  const key = loan && loan.kind + ':' + loan.key
+  const gone = loan && loan.items.some((i) => i.id === e.id) && !(e.LoanStartDate && e.LoanStartDate > ctx.today)
   return (
     <Dialog title={`${e.CHSAssetNo} · ${e.Model || 'Item'}`} description={e.Description} onClose={onClose} width={720}>
       <Status st={st} />
       {booking && st.key !== 'booked' && (
         <p className="eq-note">Booked next for {booking.loanTo}, {fmtDate(booking.startDate)} to {fmtDate(booking.endDate)}.</p>
       )}
+      <div className="eq-actions-row">
+        {!isOut(e) && <Button size="sm" onClick={() => go('new', { add: e.CHSAssetNo })}>New loan with it</Button>}
+        {loan && <Button size="sm" variant="secondary" onClick={() => go('loans', { open: key })}>Open its {loan.kind === 'booking' ? 'booking' : 'loan'}</Button>}
+        {loan && gone && <Button size="sm" variant="secondary" onClick={() => go('loans', { open: key, act: 'return', nos: e.CHSAssetNo })}>Return</Button>}
+        {loan && <Button size="sm" variant="secondary" onClick={() => go('loans', { open: key, act: 'extend' })}>Extend</Button>}
+        {e.TileUUID && <FindOnTile uuid={e.TileUUID} />}
+      </div>
       <dl className="eq-fields">
         {shown.map(([k, label]) => (
           <div key={k}><dt>{label}</dt><dd className={/MAC|SerialNo|UUID|DeviceID/.test(k) ? 'eq-mono' : ''}>{/Date$/.test(k) ? fmtDate(e[k]) : e[k]}</dd></div>
         ))}
       </dl>
-      <h3 className="eq-h3">History</h3>
+      {e.TileNo && (<><h3 className="eq-h3">Tile’s last known location</h3><TileSection tileNo={e.TileNo} tile={tile} /></>)}
+      <h3 className="eq-h3">History <button type="button" className="btn btn-ghost btn-sm" onClick={() => go('history', { q: e.CHSAssetNo })}>Open in History</button></h3>
       {past.length ? (
         <ul className="eq-history">
           {past.map((h) => (
             <li key={h.id}>
               <span className="eq-strong">{h.action}</span> {h.loanTo && `· ${h.loanTo}`}{h.location && `, ${h.location}`}
-              <span className="eq-small">{fmtDate(String(h.ts || '').slice(0, 10))}{h.operator && ` · ${h.operator}`}{h.notes && ` · ${h.notes}`}</span>
+              <span className="eq-small">{fmtDate(String(h.ts || '').slice(0, 10))}{h.loanEnd && ` · due ${fmtDate(h.loanEnd)}`}{h.operator && ` · ${h.operator}`}{h.notes && ` · ${h.notes}`}</span>
             </li>
           ))}
         </ul>

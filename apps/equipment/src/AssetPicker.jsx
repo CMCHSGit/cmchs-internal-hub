@@ -8,7 +8,7 @@ import { X } from 'lucide-react'
 import { assetStatus, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
 import BrowseEquipment from './BrowseEquipment.jsx'
 
-/** mode 'new' (a new loan: one still out is booked to follow) or 'add' (added to a loan: one whose dates clash is left out). */
+/** mode 'new' (a new loan: one still out is booked to follow) or 'add' (added to a loan: the same, except to a loan already started, where it's moved across). */
 export default function AssetPicker({ s, picked, onChange, when = {}, skip = [], mode = 'new' }) {
   const [q, setQ] = useState('')
   const [miss, setMiss] = useState('')
@@ -52,14 +52,16 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
         <ul className="eq-picklist">
           {picked.map((no) => {
             const st = assetStatus(s.equipment, s.upcoming, no, ctx)
-            const tone = !st.found || (mode === 'add' && st.clash) ? 'bad' : st.will === 'follow' ? 'warn' : st.out || st.next ? 'note' : 'ok'
+            // Added to a loan already started, one out elsewhere is moved straight across (old: the basket); to one still to come it's booked to follow, as a new loan.
+            const across = mode === 'add' && st.found && st.out && st.will === 'follow' && !(when.startDate && when.startDate > (when.today || s.today))
+            const tone = !st.found || across ? 'bad' : st.will === 'follow' ? 'warn' : st.out || st.next ? 'note' : 'ok'
             return (
               <li key={no} className="eq-picked">
                 <span className="eq-picked-main">
                   <span className="eq-strong">{no}</span> {st.item?.Model}{st.item?.Description && <span className="text-muted"> · {st.item.Description}</span>}
                   <span className={`eq-small eq-st-${tone}`}>
                     {!st.found ? 'Not found'
-                      : mode === 'add' && st.out ? (st.clash ? `On loan to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: dates clash, so it can’t be added` : `On loan to ${st.item.OnLoanTo}, dates don’t clash: moves onto this loan${st.will === 'reclaim' ? ', and that booking keeps its claim' : ''}`)
+                      : across ? `On loan to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: it’s taken off that loan and moved onto this one`
                       : st.will === 'follow' ? `${st.longTerm ? 'On a long-term loan (no return date)' : 'On loan'} to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: booked on this loan to follow when it’s back`
                         : st.will === 'reclaim' ? `Booked for ${st.item.OnLoanTo} from ${fmtDate(st.item.LoanStartDate)}, no clash: goes on this loan, and that booking keeps its claim`
                           : 'Free'}

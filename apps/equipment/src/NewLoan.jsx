@@ -78,7 +78,7 @@ export default function NewLoan({ s, params, go, onDone }) {
         <Alert tone="success" title={`Loan to ${f.loanTo} made`}>{made.loaned.length} {made.loaned.length === 1 ? 'device' : 'devices'}{extra.length ? `: ${extra.join('; ')}` : ''}. Check its loan form and press Finish.</Alert>
         <LoanForm s={s} docKey={made.batchId} doc={made.doc} items={made.loaned}
           info={{ loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate, accountManager: f.am, contactNumber: f.contact, jobType: f.jobType, demoType: f.demoType, island: f.island, longTerm: f.longTerm, email: f.email }}
-          finishing={{ email: f.email, name: f.am }} onClose={() => {}}
+          finishing={{ email: f.email, name: f.am, away: onDone }} onClose={() => {}}
           onDone={(msg) => { onDone(msg); go('loans', { open: (made.booked.length === made.loaned.length ? 'booking:' : f.startDate > s.today ? 'scheduled:' : 'loan:') + made.batchId }) }} />
       </>
     )

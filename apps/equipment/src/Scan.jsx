@@ -44,6 +44,8 @@ export default function Scan({ s, params, setParams, onDone }) {
     if (!e) { setMsg({ tone: 'critical', text: `“${no}” isn’t in the equipment list. Check the number, or add it under Equipment.` }); return }
     if (mode === 'return') {
       if (!isOut(e)) setMsg({ tone: 'info', text: `${e.CHSAssetNo} is already in the office.` })
+      // On a loan that hasn't started, it hasn't left: returning it would take it off that loan (old: refused, "booked ahead").
+      else if (e.LoanStartDate && e.LoanStartDate > s.today) setMsg({ tone: 'info', text: `${e.CHSAssetNo} is booked ahead for ${e.OnLoanTo}, from ${fmtDate(e.LoanStartDate)}: it hasn’t gone out yet, so there’s nothing to return.` })
       else if (queue.includes(e.id)) setMsg({ tone: 'info', text: `${e.CHSAssetNo} is already in the list.` })
       else { setQueue((q) => [...q, e.id]); setMsg(null) }
     } else if (mode === 'count') {

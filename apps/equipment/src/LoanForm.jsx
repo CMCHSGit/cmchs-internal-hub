@@ -9,7 +9,7 @@
                 is on and it isn't long term): what closing the old form did.
      viewing    a loan's form from its card. Save keeps changes (and brings
                 its Simpro job up to date, as the old Save Changes). */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
 import { fmtDate, formRows, loanFormHtml, toISO } from './model.js'
@@ -19,7 +19,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
     loanTo: doc?.loanTo || info.loanTo || '', location: doc?.location || info.location || '',
     startDate: doc?.startDate || info.startDate || s.today, endDate: info.longTerm ? '' : (doc?.endDate || info.endDate || ''),
     accountManager: doc?.accountManager || info.accountManager || '', contactNumber: doc?.contactNumber || info.contactNumber || '',
-    rows: formRows(doc, items), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '',
+    rows: formRows(doc, items, s.equipment), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '',
   }))
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -39,7 +39,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
     const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager)
     setDone((d) => [...d, r.simulated ? 'Email not sent (test mode or the dev server).' : `Emailed to ${finishing?.email || info.email}.`])
   })
-  async function finish() {
+  async function finish({ away = false } = {}) {
+    started.current = true
     try {
       const notes = []
       await step('Saving…', () => s.saveForm(docKey, form, formInfo, { simproToo: false }))
@@ -54,19 +55,35 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.endDate, accountManager: f.accountManager, contactNumber: f.contactNumber,
           jobType: info.jobType || 'Demo', notes: f.notes, shippingDetails: f.shipping, items: f.rows.filter((r) => r.some(Boolean)).map((r) => ({ CHSAssetNo: r[0], Model: r[1], Description: r[2], SerialNo: r[3] })),
         })).catch(() => ({ skipped: 'failed' }))
-        notes.push(job.test ? `Simpro job ${job.jobId} (made up: test mode or dev)` : job.created ? 'Simpro job being made' : job.skipped === 'creation off' ? 'no Simpro job (job creation is off)' : job.skipped === 'failed' ? 'the Simpro job didn’t go (make it in the current tracker)' : 'Simpro job up to date')
+        notes.push(job.test ? `Simpro job ${job.jobId} (made up: test mode or dev)` : job.created ? 'Simpro job being made' : job.skipped === 'creation off' ? 'no Simpro job (job creation is off)' : job.skipped === 'failed' ? 'the Simpro job didn’t go (make it from the loan’s Job number button, or Manage, Simpro)' : 'Simpro job up to date')
       }
-      onDone?.(`Loan to ${f.loanTo} done: ${notes.join(', ') || 'saved'}.`)
-    } catch { /* shown */ }
+      const msg = `Loan to ${f.loanTo} done: ${notes.join(', ') || 'saved'}.`
+      if (away) finishing.away?.(msg); else onDone?.(msg)
+    } catch { started.current = false /* shown */ }
   }
+  // As closing the old form did, leaving it finishes the loan: the email and the Simpro job are never skipped
+  // because someone went to another tab or pressed Back. (The timeout lets React's dev double-mount through.)
+  const started = useRef(false), alive = useRef(false), finishRef = useRef(finish)
+  finishRef.current = finish
+  useEffect(() => {
+    alive.current = true
+    if (!finishing) return undefined
+    const warn = (e) => { if (!started.current) { e.preventDefault(); e.returnValue = '' } }
+    window.addEventListener('beforeunload', warn)
+    return () => {
+      window.removeEventListener('beforeunload', warn)
+      alive.current = false
+      setTimeout(() => { if (!alive.current && !started.current) finishRef.current({ away: true }) }, 0)
+    }
+  }, [finishing])
   function print() {
     const w = window.open('', '_blank')
     if (!w) return setError('The print window was blocked. Allow pop-ups for this site and try again.')
     w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CHS Loan Form</title><style>@media print{body{margin:0;padding:12px}}body{font-family:Arial,sans-serif}</style></head><body>${loanFormHtml({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) })}<script>window.onload=function(){window.print()}<\/script></body></html>`)
     w.document.close()
   }
-  // While finishing, closing would skip the email and the Simpro job: say so instead.
-  const close = () => (finishing ? setError('The loan is made. Press Finish to save this form, send the email and make the Simpro job.') : onClose())
+  // While finishing, closing finishes (old: closing the form sent the email and made the Simpro job).
+  const close = () => (finishing ? (busy ? undefined : finish()) : onClose())
 
   return (
     <Dialog title={finishing ? 'Check the loan form, then finish' : 'Loan form'} description={finishing ? (finishing.email ? `Finish saves it, emails it to ${finishing.email}${info.longTerm ? '' : ' and makes the Simpro job (if job creation is on)'}.` : 'Finish saves it.') : f.loanTo}
@@ -110,7 +127,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           {!finishing && <Button onClick={() => save().then(() => onDone?.('Loan form saved.')).catch(() => {})} disabled={!!busy || !edited}>{busy || 'Save'}</Button>}
           {finishing && <Button onClick={finish} disabled={!!busy}>{busy || 'Finish'}</Button>}
         </div>
-        {finishing && <p className="eq-note">The loan is already made. Finish is what saves your changes here, sends the email and makes the Simpro job.</p>}
+        {finishing && <p className="eq-note">The loan is already made. Finish (or closing this form) saves your changes here, sends the email and makes the Simpro job.</p>}
         {!finishing && <p className="eq-note">Loan {fmtDate(toISO(f.startDate))}{f.endDate ? ` to ${fmtDate(toISO(f.endDate))}` : ''}.</p>}
       </div>
     </Dialog>

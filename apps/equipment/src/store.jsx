@@ -18,7 +18,7 @@ import { can } from '../../../shared/can.js'
 import { cutover, isLocal, loadCutover, onFirestore, read, readOld, watch, watchCutover, write } from './db.js'
 import { commit as fsCommit } from './db-firestore.js'
 import {
-  activateBookings, addToBooking, applyImport, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, applyImport, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -368,7 +368,7 @@ export function StoreProvider({ children }) {
 
   /** Return to active (old: confirmLongTermToActive): an end date again; its closed Simpro job stays closed, on record. */
   const returnToActive = useCallback(async (g, newDate) => {
-    if (!g.batchId) throw new Error('This loan has no BatchID, so it can’t be changed here. Use the current tracker.')
+    if (!g.batchId) throw new Error('This loan has no BatchID, so it can’t be changed. Make it long term again (which gives it one), then try again.')
     await patchMeta(g.batchId, { longTerm: false })
     try { await write('loanDocs/' + enc(g.batchId), { longTerm: false, endDate: newDate }, { method: 'PATCH' }) } catch (e) { console.warn('[equipment] loan form not updated', e) }
     await updateData((d) => ({ ...d, equipment: extendEquipment(d.equipment, g, newDate) }))
@@ -654,22 +654,16 @@ export function StoreProvider({ children }) {
   const addItems = useCallback(async (g, assetNos) => {
     const today = nzDate(), ts = nzNow()
     if (g.kind === 'booking') {
+      // As the old basket did: the booking's own id, its email; added the same way as to a loan.
       const u = (latest.current.upcoming || []).find((x) => x.id === g.batchId)
       if (!u) throw new Error('That booking has gone. Reload and try again.')
-      let r = null
-      await updateData((d) => { r = addToBooking(d.equipment, u, assetNos); if (!r.added.length) throw new Error('Nothing new to add: they’re not found or already on it.'); return { ...d, equipment: r.equipment } })
-      await write('upcomingLoans/' + enc(u.id), r.booking)
-      setState((s) => ({ ...s, upcoming: s.upcoming.map((x) => (x.id === u.id ? r.booking : x)) }))
-      const n = r.added.length
-      await audit('items_added', `${n} item${n !== 1 ? 's' : ''} added to upcoming loan — ${g.loanTo}`, { loanTo: g.loanTo, batchId: u.id, items: r.added.map((e) => e.CHSAssetNo) })
-      await touch()
-      return { added: r.added, skipped: [], reclaimed: [], batchId: u.id }
+      g = { ...g, items: [], email: u.borrowerEmail || '', am: g.am || u.accountManager || '' }
     }
     const batchId = g.batchId || newBatchId(readTestMode())
     let plan = null
     await updateData((d) => {
       plan = planAddItems({ equipment: d.equipment, history: d.history, upcoming: latest.current.upcoming || [], loanMeta: latest.current.loanMeta || {} }, g, assetNos, { batchId, today, ts, operator })
-      if (!plan.added.length) throw new Error(plan.skipped.length ? 'Those devices are out on loans whose dates clash with this one.' : 'Nothing new to add: they’re not found or already on it.')
+      if (!plan.added.length) throw new Error('Nothing new to add: they’re not found or already on it.')
       return { equipment: plan.equipment, history: plan.history }
     })
     await saveBookings(plan.upcoming, plan.changed)
@@ -683,7 +677,7 @@ export function StoreProvider({ children }) {
       items, rows: rowsWithAdded(doc, plan.added) || formRows(null, items).filter((r) => r.some(Boolean)), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '' }
     try { await saveForm(batchId, form, { loanTo: g.loanTo, location: g.location, startDate: g.startDate || today, endDate: g.endDate || '', accountManager: g.am || '' }, { simproToo: !g.longTerm }) } catch (e) { console.warn('[equipment] loan form not updated', e) }
     await touch()
-    return { added: plan.added, skipped: plan.skipped, reclaimed: plan.reclaimed, batchId }
+    return { added: plan.added, skipped: plan.skipped, reclaimed: plan.reclaimed, moved: plan.moved, booked: plan.booked, batchId }
   }, [audit, operator, saveBookings, saveForm, touch, updateData])
 
   /**

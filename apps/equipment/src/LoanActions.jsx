@@ -8,7 +8,7 @@ import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
-import { canExtend, demoTypeOptions, jobNumber, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { canExtend, demoTypeOptions, formItems, jobNumber, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
@@ -75,7 +75,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
           onSave={(d) => run(() => s.extendLoan(g, d), `${g.loanTo}: extended to ${fmtDate(d)}.`)} />
       )}
       {asking === 'return' && (
-        <ReturnDialog g={g} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+        <ReturnDialog g={g} preset={preset} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onSave={(ids) => run(() => s.returnItems(g, ids), (r) => returnedText(g, r))} />
       )}
       {asking === 'longTerm' && (
@@ -89,9 +89,10 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       {asking === 'form' && (() => {
         const key = g.kind === 'booking' ? g.batchId : loanDocKey(g)
         const doc = s.loanDocs?.[key] || g.doc || null
-        const email = (s.managers || []).find((m) => m.name === g.am)?.email || g.items[0]?.BorrowerEmail || ''
+        // The loan's own email first, then its account manager's (old: openLoanDocForGroup).
+        const email = g.items[0]?.BorrowerEmail || (s.managers || []).find((m) => m.name === g.am)?.email || ''
         return (
-          <LoanForm s={s} docKey={key} doc={doc} items={g.kind === 'booking' ? g.pending : g.items}
+          <LoanForm s={s} docKey={key} doc={doc} items={formItems(g, s.equipment)}
             info={{ loanTo: g.loanTo, location: g.location, startDate: g.startDate, endDate: g.endDate, accountManager: g.am, longTerm: !!g.longTerm, email, jobType: doc?.jobType, demoType: doc?.demoType, island: doc?.island, contactNumber: doc?.contactNumber }}
             onClose={() => setAsking(null)} onDone={(msg) => { setAsking(null); onDone?.(msg) }} />
         )
@@ -103,7 +104,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       )}
       {asking === 'add' && (
         <AddDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
-          onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.skipped.length ? `; ${plural(r.skipped.length, 'was', 'were')} left out (dates clash)` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />
+          onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.booked?.length ? `; ${r.booked.length} still out elsewhere, booked to follow` : ''}${r.moved?.length ? `; taken off ${[...new Set(r.moved.map((e) => e.OnLoanTo))].join(', ')}: their loan form and Simpro job still list ${r.moved.length === 1 ? 'it' : 'them'}` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />
       )}
       {asking === 'transfer' && (
         <TransferDialog g={g} all={all} preset={preset} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
@@ -172,9 +173,10 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const returnedText = (g, r) =>
   `${plural(r.returned, 'item', 'items')} returned from ${g.loanTo}${r.started ? `; ${plural(r.started, 'booking', 'bookings')} waiting on them started` : ''}.`
 
-/** Which devices are back (old: the batch return modal). All ticked to start with: a loan usually comes back whole. */
-function ReturnDialog({ g, busy, error, onClose, onSave }) {
-  const [picked, setPicked] = useState(() => new Set(g.items.map((e) => e.id)))
+/** Which devices are back (old: the batch return modal). None ticked to start with, as the old one: each is ticked as it's checked back in. */
+function ReturnDialog({ g, preset = null, busy, error, onClose, onSave }) {
+  // From an item's record (?nos=): that one ticked.
+  const [picked, setPicked] = useState(() => new Set(preset?.nos ? g.items.filter((e) => preset.nos.split(',').includes(e.CHSAssetNo)).map((e) => e.id) : []))
   const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const n = picked.size
   return (
@@ -235,7 +237,7 @@ function ActiveDialog({ g, today, busy, error, onClose, onSave }) {
           <input className="input" type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} required />
         </label>
         {problem && <p className="eq-note eq-problem">{problem}</p>}
-        <p className="eq-note">Its Simpro job was closed when it became long term and stays closed. If it needs a new one, make it in the current tracker (Settings, Simpro job health).</p>
+        <p className="eq-note">Its Simpro job was closed when it became long term and stays closed. If it needs a new one, use its Job number button, or Manage, Simpro (loans with no Simpro job).</p>
         {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -295,7 +297,7 @@ function EditDialog({ g, s, busy, error, onClose, onSave }) {
         </div>
         <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
         <label className="field"><span className="field-label">Shipping and authorisation</span><textarea className="input" rows={2} value={f.shipping} onChange={set('shipping')} /></label>
-        <p className="eq-note">A box left empty keeps what it had, as in the current tracker (notes, shipping, contact and demo type are saved as shown).</p>
+        <p className="eq-note">A box left empty keeps what it had, as it did in the old tracker (notes, shipping, contact and demo type are saved as shown).</p>
         {problem && <p className="eq-note eq-problem">{problem}</p>}
         {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
         <div className="dialog-actions">
@@ -334,11 +336,11 @@ function DeleteDialog({ g, isAdmin, busy, error, onClose, onSave }) {
 /** Add items (old: Add items to loan / to an upcoming loan): devices chosen as for a new loan. */
 function AddDialog({ g, s, busy, error, onClose, onSave }) {
   const [picked, setPicked] = useState([])
-  const on = (g.kind === 'booking' ? g.pending : g.items).map((e) => e.CHSAssetNo)
+  const on = [...(g.items || []), ...(g.pending || [])].map((e) => e.CHSAssetNo)
   return (
-    <Dialog title={`Add items: ${g.loanTo}`} description={g.kind === 'booking' ? 'They join the booking’s list, and go out with it.' : `They go on this loan${g.endDate ? `, due back ${fmtDate(g.endDate)}` : ''}, and onto its loan form.`} onClose={onClose} width={640}>
+    <Dialog title={`Add items: ${g.loanTo}`} description={g.kind === 'booking' ? 'Free ones are reserved for the booking now; any still out are booked to follow.' : `They go on this loan${g.endDate ? `, due back ${fmtDate(g.endDate)}` : ''}, and onto its loan form.`} onClose={onClose} width={640}>
       <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (picked.length) onSave(picked) }}>
-        <AssetPicker s={s} picked={picked} onChange={setPicked} skip={on} mode={g.kind === 'booking' ? 'new' : 'add'}
+        <AssetPicker s={s} picked={picked} onChange={setPicked} skip={on} mode="add"
           when={{ startDate: g.startDate || s.today, endDate: g.endDate || '', loanTo: g.loanTo, today: s.today }} />
         {error && <Alert tone="critical" title="Not added">{error}</Alert>}
         <div className="dialog-actions">

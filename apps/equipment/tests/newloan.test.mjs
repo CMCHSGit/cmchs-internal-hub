@@ -1,9 +1,9 @@
-// npm test -w apps/equipment — a new loan, add items, transfer and the loan form (model.js), as the old tracker's.
+// npm test -w apps/equipment â€” a new loan, add items, transfer and the loan form (model.js), as the old tracker's.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import {
-  addToBooking, assetStatus, existingLoanMatch, formDoc, formRows, loanFormHtml, newLoanProblem, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout,
+  assetStatus, existingLoanMatch, formDoc, formItems, formRows, loanFormHtml, newLoanProblem, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout,
 } from '../src/model.js'
 
 const today = '2026-10-16', ts = 'T'
@@ -52,19 +52,35 @@ test('asset status says what the new loan would do with it', () => {
   assert.deepEqual(['A1', 'A2', 'A3', 'X'].map((no) => assetStatus(eq, [], no, w).will || 'missing'), ['now', 'follow', 'reclaim', 'missing'])
 })
 
-test('add items: a clash is left out, one without moves across, one already on it is skipped', () => {
+test('add items to a loan already started (old basket): nothing refused; one out elsewhere moves across; one already on it is skipped', () => {
   const g = { kind: 'loan', loanTo: 'Nelson', location: 'ICU', startDate: '2026-10-10', endDate: '2026-10-30', items: [out('5', { OnLoanTo: 'Nelson', BatchID: 'b1', BorrowerEmail: 'sam@x.nz' })] }
   const eq = [g.items[0], shelf('1'), out('2'), out('3', { OnLoanTo: 'Early', BatchID: 'b7', LoanStartDate: '2026-09-01', LoanEndDate: '2026-10-05' })]
   const p = planAddItems({ equipment: eq, history: [], upcoming: [] }, g, ['A5', 'A1', 'A2', 'A3'], { batchId: 'b1', today, ts })
-  assert.deepEqual(p.added.map((e) => e.CHSAssetNo), ['A1', 'A3'])
-  assert.deepEqual(p.skipped.map((e) => e.CHSAssetNo), ['A2'])
+  assert.deepEqual(p.added.map((e) => e.CHSAssetNo), ['A1', 'A2', 'A3'])
+  assert.deepEqual(p.moved.map((e) => e.OnLoanTo), ['Hutt', 'Early'])
+  assert.deepEqual([p.skipped.length, p.booked.length, p.upcoming.length], [0, 0, 0])
   assert.deepEqual([p.equipment[1].BatchID, p.equipment[1].BorrowerEmail, p.equipment[1].LoanEndDate], ['b1', 'sam@x.nz', '2026-10-30'])
+  assert.deepEqual([p.equipment[2].OnLoanTo, p.equipment[2].BatchID], ['Nelson', 'b1'])
   assert.equal(p.history[0].notes, 'Added to existing loan')
-  const b = addToBooking([shelf('1'), shelf('2')], { id: 'u1', items: [{ id: '1', CHSAssetNo: 'A1' }] }, ['A1', 'A2'])
-  assert.deepEqual([b.booking.items.map((i) => i.CHSAssetNo), b.added.length, b.equipment[1]._upcomingLoanId], [['A1', 'A2'], 1, 'u1'])
 })
 
-test('transfer: moved devices take the target’s details and BatchID (one minted and backfilled if it had none)', () => {
+test('add items to a loan or booking still to come: one still out is booked to follow under its id; a free one is claimed now', () => {
+  const later = { kind: 'loan', loanTo: 'Nelson', location: 'ICU', startDate: '2026-10-18', endDate: '2026-10-30', items: [out('5', { OnLoanTo: 'Nelson', BatchID: 'b1', LoanStartDate: '2026-10-18', LoanEndDate: '2026-10-30' })] }
+  const eq = [later.items[0], shelf('1'), out('2')]
+  const p = planAddItems({ equipment: eq, history: [], upcoming: [] }, later, ['A1', 'A2'], { batchId: 'b1', today, ts })
+  assert.deepEqual(p.booked.map((e) => e.CHSAssetNo), ['A2'])
+  assert.deepEqual([p.equipment[2].OnLoanTo, p.equipment[2].BatchID], ['Hutt', 'b9'], 'still on the loan it is out on')
+  assert.deepEqual([p.upcoming[0].id, p.upcoming[0].items.map((i) => i.CHSAssetNo)], ['b1', ['A2']])
+  assert.match(p.history.find((h) => h.chsAssetNo === 'A2').notes, /Booked as upcoming \(currently on loan to Hutt\)/)
+  // A booking: a free device is written onto its record under the booking's id (old: claimed), an out one joins its list.
+  const u = { id: 'u1', loanTo: 'Taupo', location: 'ED', startDate: '2026-10-20', endDate: '2026-10-25', items: [{ id: '9', CHSAssetNo: 'A9' }] }
+  const b = planAddItems({ equipment: [shelf('1'), out('2')], history: [], upcoming: [u] }, { kind: 'booking', loanTo: 'Taupo', location: 'ED', startDate: '2026-10-20', endDate: '2026-10-25', items: [], email: 'x@y.nz' }, ['A1', 'A2'], { batchId: 'u1', today, ts })
+  assert.deepEqual([b.equipment[0].OnLoanTo, b.equipment[0].BatchID, b.equipment[0].LoanStartDate, b.equipment[0].BorrowerEmail], ['Taupo', 'u1', '2026-10-20', 'x@y.nz'])
+  assert.deepEqual(b.upcoming[0].items.map((i) => i.CHSAssetNo), ['A9', 'A2'])
+  assert.deepEqual(b.changed, ['u1'])
+})
+
+test('transfer: moved devices take the targetâ€™s details and BatchID (one minted and backfilled if it had none)', () => {
   const g = { kind: 'loan', loanTo: 'Hutt', location: 'ED', items: [out('1'), out('2')] }
   const target = { kind: 'loan', loanTo: 'Nelson', location: 'ICU', startDate: '2026-10-10', endDate: '2026-10-30', batchId: '', items: [out('7', { OnLoanTo: 'Nelson', BatchID: '' })] }
   const p = planTransfer({ equipment: [out('1'), out('2'), target.items[0]], history: [] }, g, ['A1'], target, { targetBatchId: 'bN', ts })
@@ -73,9 +89,14 @@ test('transfer: moved devices take the target’s details and BatchID (one minte
   assert.deepEqual([p.history[0].action, p.history[0].notes], ['Transfer', 'Reassigned from Hutt (ED) to Nelson (ICU)'])
 })
 
-test('the loan form: rows, saving without wiping what it doesn’t show, the printed copy escaped', () => {
+test('the loan form: rows, saving without wiping what it doesnâ€™t show, the printed copy escaped', () => {
   assert.equal(formRows(null, [shelf('1')]).length, 4, 'the devices and 3 spare rows')
   assert.deepEqual(formRows({ savedRows: [['A1', 'M', '', '', ''], ['', '', '', '', '']] }, [])[0], ['A1', 'M', '', '', ''])
+  // Saved rows: devices on the loan since are added at the bottom; an old 4-column row has its model looked up.
+  assert.deepEqual(formRows({ savedRows: [['A1', 'desc', 'sn', 'note']] }, [shelf('1'), shelf('2')], [shelf('1')]), [['A1', 'M1', 'desc', 'sn', 'note'], ['A2', 'M2', 'M2', '', '']])
+  // The form's devices: a booking's waiting ones after those on it, with the old notes.
+  const items = formItems({ batchId: 'b1', items: [out('1', { BatchID: 'b1' })], pending: [{ id: '1', CHSAssetNo: 'A1' }, { id: '2', CHSAssetNo: 'A2' }, { id: '3', CHSAssetNo: 'A3' }] }, [out('1', { BatchID: 'b1' }), out('2'), shelf('3')])
+  assert.deepEqual(items.map((e) => e._pendingNote || ''), ['', 'Awaiting return from Hutt (due 20/10/2026)', 'Now available for pickup'])
   assert.deepEqual(rowsWithAdded({ savedRows: [['A1']] }, [shelf('2')]).map((r) => r[0]), ['A1', 'A2'])
   assert.equal(rowsWithAdded({}, [shelf('2')]), null)
   assert.deepEqual(rowsWithout([['A1'], [' a2 ']], ['A2']), [['A1']])

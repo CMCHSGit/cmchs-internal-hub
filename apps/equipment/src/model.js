@@ -131,7 +131,8 @@ export function searchEquipment(list, q) {
   const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean)
   if (!words.length) return list
   return list.filter((e) => {
-    const hay = [e.CHSAssetNo, e.Model, e.Description, e.SerialNo, e.PartNo, e.OnLoanTo, e.Location, e.ShelfLocation, e.Notes, e.TileNo, e.OldCHS]
+    // Every field, as the old search (Object.values): MACs, device IDs, battery serials and the rest too.
+    const hay = Object.entries(e).filter(([k, v]) => !k.startsWith('_') && (typeof v === 'string' || typeof v === 'number')).map(([, v]) => v)
       .join(' ').toLowerCase()
     return words.every((w) => hay.includes(w))
   })
@@ -763,45 +764,56 @@ export function planNewLoan({ equipment, history, upcoming, loanMeta = {} }, f, 
 }
 
 /**
- * Devices added to a loan (old: _doAddItemsToLoan). One out on another loan
- * with clashing dates is left out; one on a loan not started yet, without a
- * clash, keeps that claim as a booking.
+ * Devices added to a loan or a booking (old: the basket's _doBasketAddToLoan,
+ * which both the desktop and the phone used; a booking is added to under its
+ * own id). Nothing is refused:
+ *   - a free device goes straight on, its record written (so a booking's is
+ *     claimed, as a scheduled loan under the booking's id);
+ *   - to a loan still to come, one out elsewhere is booked to follow, on the
+ *     booking under this id (made if there isn't one), unless it's on a loan
+ *     not started yet whose dates don't clash, which it's taken from;
+ *   - to a loan already started, one out elsewhere is moved straight onto it
+ *     (`moved`, for the warning the old one gave);
+ *   - one taken from a loan not started yet leaves it a booking (deferToIncumbent).
  */
 export function planAddItems({ equipment, history, upcoming, loanMeta = {} }, g, assetNos, { batchId, today = nzDate(), ts = nzNow(), operator = '' } = {}) {
   const eq = [...equipment]
   let list = [...upcoming]
-  const entries = [], changed = new Set(), added = [], skipped = [], reclaimed = []
+  const entries = [], changed = new Set(), added = [], booked = [], moved = [], reclaimed = []
   const start = g.startDate || today, end = g.endDate || ''
+  const future = !!g.startDate && g.startDate > today
+  const email = g.items?.[0]?.BorrowerEmail || g.email || ''
+  const seen = new Set()
   for (const no of assetNos) {
     const idx = eq.findIndex((e) => e && e.CHSAssetNo && e.CHSAssetNo.trim().toLowerCase() === String(no).trim().toLowerCase())
-    if (idx < 0) continue
+    if (idx < 0 || seen.has(idx)) continue
+    seen.add(idx)
     const cur = eq[idx]
     if (isOut(cur) && cur.BatchID === batchId) continue // already on it
-    if (isOut(cur) && cur.BatchID && cur.BatchID !== batchId) {
-      if (datesOverlap(cur.LoanStartDate || '', cur.LoanEndDate || '', start, end)) { skipped.push(cur); continue }
-      if (cur.LoanStartDate && cur.LoanStartDate > today) {
-        reclaimed.push(cur.OnLoanTo)
-        const d = deferToIncumbent(list, loanMeta, cur, g.loanTo, start, end, { ts, operator })
-        list = d.upcoming; entries.push(d.entry); changed.add(d.changedId)
-      }
-    }
-    eq[idx] = { ...cur, OnLoanTo: g.loanTo, Location: g.location, LoanStartDate: start, LoanEndDate: end, Returned: 'No', BatchID: batchId, BorrowerEmail: g.items[0]?.BorrowerEmail || '' }
+    const out = isOut(cur) && cur.OnLoanTo !== g.loanTo
+    const notStarted = out && !!cur.LoanStartDate && cur.LoanStartDate > today
+    if (future && out && !(notStarted && !datesOverlap(cur.LoanStartDate, cur.LoanEndDate || '', start, end))) { booked.push(cur); continue }
+    if (notStarted) {
+      reclaimed.push(cur.OnLoanTo)
+      const d = deferToIncumbent(list, loanMeta, cur, g.loanTo, start, end, { ts, operator })
+      list = d.upcoming; entries.push(d.entry); changed.add(d.changedId)
+    } else if (out) moved.push(cur)
+    eq[idx] = { ...cur, OnLoanTo: g.loanTo, Location: g.location, LoanStartDate: start, LoanEndDate: end, Returned: 'No', BatchID: batchId, BorrowerEmail: email }
     entries.push({ operator, id: newId(), ts, chsAssetNo: cur.CHSAssetNo, model: cur.Model, action: 'Loan', loanTo: g.loanTo, location: g.location, loanStart: g.startDate, loanEnd: g.endDate, notes: 'Added to existing loan', batchId })
     added.push(eq[idx])
   }
-  return { equipment: eq, history: [...entries.reverse(), ...history], upcoming: list, changed: [...changed], added, skipped, reclaimed }
-}
-
-/** Devices added to a booking (old: _doAddItemsToUpcoming): on its list, marked as reserved for it. */
-export function addToBooking(equipment, u, assetNos) {
-  const items = [...(u.items || [])], added = []
-  for (const no of assetNos) {
-    const e = findAsset(equipment, no)
-    if (!e || items.some((i) => i.CHSAssetNo === e.CHSAssetNo)) continue
-    items.push({ id: e.id, CHSAssetNo: e.CHSAssetNo }); added.push(e)
+  if (booked.length) {
+    const u = list.find((x) => x.id === batchId) || list.find((x) => x.loanTo === g.loanTo && x.startDate === g.startDate && (x.endDate || '') === (g.endDate || ''))
+      || { id: batchId, loanTo: g.loanTo, location: g.location, startDate: g.startDate || '', endDate: g.endDate || '', accountManager: g.am || g.accountManager || '', borrowerEmail: email, items: [] }
+    const items = [...(u.items || [])]
+    for (const b of booked) {
+      if (!items.some((i) => i.CHSAssetNo === b.CHSAssetNo)) items.push({ id: b.id, CHSAssetNo: b.CHSAssetNo, Model: b.Model, SerialNo: b.SerialNo })
+      entries.push({ operator, id: newId(), ts, chsAssetNo: b.CHSAssetNo, model: b.Model, action: 'Loan', loanTo: g.loanTo, location: g.location, loanStart: g.startDate, loanEnd: g.endDate, notes: `Booked as upcoming (currently on loan to ${b.OnLoanTo})`, batchId })
+    }
+    list = list.some((x) => x.id === u.id) ? list.map((x) => (x.id === u.id ? { ...u, items } : x)) : [...list, { ...u, items }]
+    changed.add(u.id)
   }
-  const ids = new Set(added.map((e) => e.id))
-  return { booking: { ...u, items }, added, equipment: equipment.map((e) => (e && ids.has(e.id) ? { ...e, _upcomingLoanId: u.id } : e)) }
+  return { equipment: eq, history: [...entries.reverse(), ...history], upcoming: list, changed: [...changed], added: [...added, ...booked], booked, moved, reclaimed, skipped: [] }
 }
 
 /**
@@ -829,11 +841,45 @@ export function planTransfer({ equipment, history }, g, nos, target, { targetBat
 
 /* ── The loan form (old: generateLoanDoc, saveLoanDocChanges) ── */
 
-/** A loan form's device rows: [asset, model, description, serial, notes]. Its saved rows if it has them, else from the devices with 3 spare. */
-export function formRows(doc, items = []) {
+/**
+ * The devices a loan's form lists (old: openLoanDocForGroup): those on it,
+ * then its booking's waiting ones, each noted "Awaiting return from …" or
+ * "Now available for pickup", their details from the equipment list.
+ */
+export function formItems(g, equipment = []) {
+  const live = (i) => equipment.find((e) => e && (e.id === i.id || e.CHSAssetNo === i.CHSAssetNo)) || i
+  const items = (g.items || []).map(live)
+  const have = new Set(items.map((e) => String(e.CHSAssetNo || '').trim().toLowerCase()))
+  for (const i of g.pending || []) {
+    const e = live(i)
+    const no = String(e.CHSAssetNo || '').trim().toLowerCase()
+    if (!no || have.has(no)) continue
+    have.add(no)
+    items.push({ ...e, _pendingNote: isOut(e) && e.BatchID !== g.batchId ? `Awaiting return from ${e.OnLoanTo}${e.LoanEndDate ? ` (due ${oldDate(e.LoanEndDate)})` : ''}` : 'Now available for pickup' })
+  }
+  return items
+}
+
+/** A saved row as [asset, model, description, serial, notes] (old: _parseLoanDocRow). An old 4-column row has no model: it's looked up. */
+function parseRow(r, equipment) {
+  const s = (v) => String(v ?? '')
+  if (r.length >= 5) return [0, 1, 2, 3, 4].map((i) => s(r[i]))
+  return [s(r[0]), r.length === 4 ? s(findAsset(equipment, r[0])?.Model) : '', s(r[1]), s(r[2]), s(r[3])]
+}
+
+/**
+ * A loan form's device rows: [asset, model, description, serial, notes]. Its
+ * saved rows if it has them, with any device on the loan since (transferred
+ * in, from a booking) added at the bottom, as the old form did; else from the
+ * devices, with 3 spare.
+ */
+export function formRows(doc, items = [], equipment = []) {
+  const row = (e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || e.PartNo || '', e._pendingNote || '']
   const saved = Array.isArray(doc?.savedRows) ? doc.savedRows.filter((r) => Array.isArray(r) && r.some(Boolean)) : []
-  if (saved.length) return saved.map((r) => [0, 1, 2, 3, 4].map((i) => String(r[i] ?? '')))
-  return [...items.map((e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || e.PartNo || '', e._pendingNote || '']), ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']]
+  if (!saved.length) return [...items.map(row), ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']]
+  const rows = saved.map((r) => parseRow(r, equipment))
+  const have = new Set(rows.map((r) => r[0].trim().toLowerCase()))
+  return [...rows, ...items.filter((e) => e.CHSAssetNo && !have.has(e.CHSAssetNo.trim().toLowerCase())).map(row)]
 }
 
 /** Added devices go at the bottom of a form's saved rows, if it has any (old: _doAddItemsToLoan's _mergedSavedRows). */
@@ -1170,7 +1216,7 @@ export const loanToken = (loanTo, endDate) => btoa(encodeURIComponent(loanTo + '
 export function linkTarget(search, sections, upcoming = [], equipment = []) {
   const p = new URLSearchParams(search || '')
   const all = [...sections.needsReassign, ...sections.current, ...sections.longTerm, ...sections.upcoming]
-  const tabs = { loans: 'loans', database: 'equipment', scan: 'scan', calendar: 'calendar', history: 'history', retired: 'manage' }
+  const tabs = { loans: 'loans', database: 'equipment', scan: 'scan', calendar: 'calendar', history: 'history', retired: 'manage', import: 'manage', settings: 'manage' }
   if (p.get('newLoan') === '1') {
     const params = { ref: p.get('ref') || '', loanTo: p.get('loanTo') || '', location: p.get('location') || '', start: p.get('start') || '', end: p.get('end') || '', notes: p.get('notes') || '' }
     return { view: 'new', params: Object.fromEntries(Object.entries(params).filter(([, v]) => v)) }
@@ -1200,7 +1246,7 @@ export function linkTarget(search, sections, upcoming = [], equipment = []) {
     return { view: 'loans', params: { open: g.kind + ':' + g.key, act: p.get('return') ? 'return' : (g.longTerm ? '' : 'extend') } }
   }
   const tab = p.get('tab')
-  if (tab) return { view: tabs[tab] || 'overview', params: {} }
+  if (tab) return { view: tabs[tab] || 'overview', params: tab === 'retired' ? { part: 'retired' } : tab === 'settings' ? { part: 'kits' } : {} }
   return null
 }
 
