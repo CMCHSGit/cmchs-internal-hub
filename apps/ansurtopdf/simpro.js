@@ -314,12 +314,18 @@ async function run() {
 
     if (notes) {
       // Append rather than replace — a job's notes are not ours to clear.
+      // Re-read them first: someone may have added one in Simpro since the
+      // job was picked, and appending to the stale copy would wipe it.
+      const fresh = await call('GET', `/companies/${companyId}/jobs/${job.ID}`)
+      if (ok(fresh) && fresh.data) job.Notes = fresh.data.Notes
+      // Simpro's notes are HTML, so plain line breaks run together into one
+      // paragraph there. Escape the text and turn each line break into <br>.
+      const html = notes.split(/\r?\n/).map(esc).join('<br />')
       const existing = String(job.Notes || '').trim()
-      const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, {
-        Notes: existing ? `${existing}\n\n${notes}` : notes,
-      })
+      const merged = existing ? `${existing}<br /><br />${html}` : html
+      const r = await call('PATCH', `/companies/${companyId}/jobs/${job.ID}`, { Notes: merged })
       if (!ok(r)) { console.warn('[ansur] Notes PATCH rejected', r); failed.push(`Notes: ${simproErr(r)}`) }
-      else job.Notes = existing ? `${existing}\n\n${notes}` : notes
+      else job.Notes = merged
       step('Updating notes…')
     }
 
