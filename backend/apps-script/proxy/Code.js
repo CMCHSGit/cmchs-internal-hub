@@ -130,8 +130,9 @@ function doPost(e) {
       Logger.log('doPost: empty body');
       return respond({ success: false, error: 'Empty body' });
     }
-    Logger.log('doPost received: ' + raw.substring(0, 200));
     const payload = JSON.parse(raw);
+    // The action only: the body carries the sign-in token and loan details.
+    Logger.log('doPost: ' + (payload.action || (payload.close ? 'close' : payload.jobId ? 'update' : 'create')));
     return handlePayload(payload);
   } catch (err) {
     Logger.log('doPost error: ' + err);
@@ -158,21 +159,21 @@ function handlePayload(payload) {
   // own database — see rtdbTokenProxy_.
   if (payload.action === 'rtdbToken') return rtdbTokenProxy_(payload);
 
-  // Everything below this point used to accept any caller. The tracker now
-  // sends the signed-in person's ID token with each request; until every
-  // installed copy has updated, a request without one is still served and
-  // logged. Setting the Script Property REQUIRE_TRACKER_SIGNIN to true refuses
-  // them — no redeploy needed, and unset again to roll back.
+  // SimproSync checks its own (stricter) access below. Everything else needs a
+  // hub sign-in that has finished signing up — always: every caller (the
+  // tracker, Asks, news, Manage, the tools) sends one, and the old tracker
+  // that didn't has been retired. (This used to be soft until the Script
+  // Property REQUIRE_TRACKER_SIGNIN was set; that setting no longer matters.)
+  let caller = null;
   if (payload.action !== 'simproSync') {
-    const caller = tryVerifyStaff_(payload.idToken);
+    caller = tryVerifyStaff_(payload.idToken);
     if (!caller) {
-      const enforce = PropertiesService.getScriptProperties().getProperty('REQUIRE_TRACKER_SIGNIN') === 'true';
-      Logger.log('Tracker request without a valid sign-in (' + (payload.action || (payload.close ? 'close' : payload.jobId ? 'update' : 'create')) + ')' + (enforce ? ' — refused.' : ' — allowed, not enforced yet.'));
-      if (enforce) return respond({ success: false, error: 'Sign in to use this.' });
+      Logger.log('Refused a request without a valid sign-in (' + (payload.action || (payload.close ? 'close' : payload.jobId ? 'update' : 'create')) + ').');
+      return respond({ success: false, error: 'Sign in to use this.' });
     }
   }
 
-  if (payload.action === 'testPush') return sendTestPush_(payload);
+  if (payload.action === 'testPush') return sendTestPush_(payload, caller);
 
   // The hub's Manage → Tool requests / Feedback: tell the engineering team.
   if (payload.action === 'notifyHubRequest') return notifyHubRequest_(payload);
@@ -188,12 +189,25 @@ function handlePayload(payload) {
   // simproSyncProxy_() below.
   if (payload.action === 'simproSync') return simproSyncProxy_(payload);
 
+  // Anything else is the demo tracker's own Simpro job: close, update or create.
+  if (payload.action) return respond({ success: false, error: 'Unknown action' });
+
   // jobId may be a pending-placeholder object { status:'pending', ts:... }
   // from the tracker's duplicate guard — treat that the same as no jobId
   const rawId = payload.jobId;
   const jobId = (rawId && typeof rawId === 'object') ? null : (rawId || null);
+  if (jobId !== null && !/^\d{1,10}$/.test(String(jobId))) return respond({ success: false, error: 'Bad job number' });
+  // pdfKey names a loan in the tracker's database (a path segment there).
+  if (payload.pdfKey != null && !/^[A-Za-z0-9_.:-]{1,200}$/.test(String(payload.pdfKey))) return respond({ success: false, error: 'Bad loan key' });
 
-  Logger.log('handlePayload: jobId=' + jobId + ' pdfKey=' + payload.pdfKey + ' loanTo=' + payload.loanTo);
+  Logger.log('handlePayload: ' + (jobId ? (payload.close ? 'close' : 'update') + ' job ' + jobId : 'create'));
+
+  // Closing and updating: any staff member does these as they return or edit
+  // a loan, but only on the tracker's own demo jobs, never any other Simpro job.
+  if (jobId && !isDemoJob_(jobId)) {
+    Logger.log('Refused: job ' + jobId + ' is not a demo loan job.');
+    return respond({ success: false, error: 'Job ' + jobId + ' is not a demo loan job' });
+  }
 
   if (jobId && payload.close) {
     // ── Close completed loan ─────────────────────────────────────────────────
@@ -217,10 +231,14 @@ function handlePayload(payload) {
     // (Settings → Simpro Job Health) — the deliberate exception kept for the
     // wind-down. An older cached client never sends it, so it's refused here
     // even though its own gate is missing.
+    //
+    // The manual button is in the tracker's Manage, for admins: allowCreate is
+    // only honoured from a hub admin, so it can't be used to make jobs at will.
     const simproCfg = fetchFirebaseJson('/simproConfig.json');
     const createJobsEnabled = !!(simproCfg && simproCfg.createJobs === true);
-    if (!createJobsEnabled && payload.allowCreate !== true) {
-      Logger.log('Job creation disabled — refused create for pdfKey=' + payload.pdfKey + ' loanTo=' + payload.loanTo);
+    const manualCreate = payload.allowCreate === true && caller && caller.admin;
+    if (!createJobsEnabled && !manualCreate) {
+      Logger.log('Job creation disabled — refused create' + (payload.allowCreate === true ? ' (manual, not an admin)' : '') + '.');
       // An old client writes a {status:'pending'} placeholder before POSTing
       // and then polls for a real ID; clear it so the loan reads as "no job"
       // rather than stuck pending forever, which would hide it from both the
@@ -291,6 +309,22 @@ function createJob(data) {
   );
 
   return jobId;
+}
+
+// Whether a Simpro job is one of the tracker's demo loan jobs: made by
+// createJob above (the internal customer, named "Demo Loan - …"). Remembered
+// for six hours either way, so a return doesn't cost an extra Simpro call each time.
+function isDemoJob_(jobId) {
+  const cache = CacheService.getScriptCache();
+  const key = 'demojob:' + jobId;
+  const hit = cache.get(key);
+  if (hit) return hit === '1';
+  const resp = simproFetch('/companies/' + SIMPRO_COMPANY + '/jobs/' + jobId, 'get');
+  if (!resp.ok) { Logger.log('isDemoJob_: could not read job ' + jobId + ' (' + resp.code + ')'); return false; }
+  const job = resp.json || {};
+  const ok = /^Demo Loan - /.test(String(job.Name || '')) && Number(job.Customer && job.Customer.ID) === SIMPRO_CUSTOMER;
+  cache.put(key, ok ? '1' : '0', 21600);
+  return ok;
 }
 
 // ── Close a completed Simpro job ──────────────────────────────────────────────
@@ -1362,12 +1396,17 @@ function pruneDeadTokens_(amName, deadTokens) {
 // someone else's phone. The client fetches this proxy with mode:'no-cors'
 // (same as every other call here), so this response body is never actually
 // read — it only shows up in the Executions log.
-function sendTestPush_(payload) {
+// The requester is whoever is signed in (caller, from handlePayload), matched
+// to their account manager record by email, then name — never a name the
+// request supplies, which anyone could set to someone in Service.
+function sendTestPush_(payload, caller) {
   const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
   const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
-  const requester = ams.find(function(a) { return a && a.name === payload.requesterName; });
+  const lower = function(s) { return String(s || '').trim().toLowerCase(); };
+  const requester = (caller && caller.email && ams.find(function(a) { return a && lower(a.email) === lower(caller.email); }))
+    || (caller && ams.find(function(a) { return a && lower(a.name) === lower(caller.name); }));
   if (!requester || amEffectiveRole_(requester) !== 'service') {
-    Logger.log('sendTestPush_: rejected — requester is not Service & Projects: ' + payload.requesterName);
+    Logger.log('sendTestPush_: rejected — the signed-in person is not Service & Projects.');
     return respond({ success: false, error: 'Only Service & Projects can send test notifications.' });
   }
   const am = ams.find(function(a) { return a && a.name === payload.amName; });
@@ -1376,8 +1415,10 @@ function sendTestPush_(payload) {
   if (!deviceCount) {
     return respond({ success: false, error: am.name + ' has no registered device — they need to turn notifications on at internal.chsnz.co.nz on their phone first.' });
   }
-  const results = sendPushToPerson_(am, payload.title || 'Test notification', payload.body || '', TRACKER_URL + '?mobile=1', true);
-  Logger.log('Test push sent to ' + am.name + ' (' + deviceCount + ' device(s)), requested by ' + requester.name);
+  // Fixed wording: a test can't be used to put someone's own text on a colleague's phone.
+  const first = String(requester.name || 'Someone').split(/\s+/)[0];
+  const results = sendPushToPerson_(am, 'Test notification', first + ' sent this to check notifications reach your phone.', TRACKER_URL + '?mobile=1', true);
+  Logger.log('Test push sent (' + deviceCount + ' device(s)).');
   return respond({ success: true, sentTo: am.name, deviceCount: deviceCount, results: results });
 }
 
