@@ -4,7 +4,8 @@
    it would do: free, out on another loan (dates clash or not), on a
    long-term loan, or booked next for someone. */
 import { useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { Camera, X } from 'lucide-react'
+import Scanner from './Scanner.jsx'
 import { assetStatus, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
 import BrowseEquipment from './BrowseEquipment.jsx'
 
@@ -14,6 +15,7 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
   const [miss, setMiss] = useState('')
   const [kit, setKit] = useState(null) // a kit just started: { label, accessories, tick: Set }
   const [browsing, setBrowsing] = useState(false)
+  const [camera, setCamera] = useState(false)
   const box = useRef(null)
   const ctx = { ...when, testMode: s.testMode, loanMeta: s.loanMeta, loanDocs: s.loanDocs }
   const matches = useMemo(() => {
@@ -31,7 +33,7 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
     const k = kitFor(s.kits, s.equipment, e.CHSAssetNo, [...next, ...skip])
     if (k && k.accessories.some((a) => !a.picked)) setKit({ ...k, tick: new Set(k.accessories.filter((a) => a.free).map((a) => a.item.CHSAssetNo)) })
     setQ('')
-    box.current?.focus()
+    if (!camera) box.current?.focus() // scanning with the camera: the phone's keyboard stays down
   }
 
   // Several ticked in Browse equipment: added in one go, and the first kit
@@ -79,8 +81,11 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
           <input ref={box} className="input" value={q} onChange={(e) => { setQ(e.target.value); setMiss('') }} placeholder="Asset number (type or scan, then Enter), or search model or serial"
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (matches.length === 1 && !findAsset(s.equipment, q)) add(matches[0].CHSAssetNo); else if (q.trim()) add(q) } }} autoComplete="off" />
         </label>
+        {!camera && <button type="button" className="btn btn-secondary" onClick={() => setCamera(true)}><Camera size={16} aria-hidden="true" /> Camera</button>}
         <button type="button" className="btn btn-secondary" onClick={() => setBrowsing(true)}>Browse equipment</button>
       </div>
+      {/* Scanning devices onto a loan with the phone's camera (old: the phone's Scan, Check out, then Book). */}
+      {camera && <Scanner onCode={add} onClose={() => setCamera(false)} />}
       {browsing && <BrowseEquipment s={s} taken={[...picked, ...skip]} onAdd={addMany} onClose={() => setBrowsing(false)} />}
       {miss && <p className="eq-note eq-problem">{miss}</p>}
       {kit && (

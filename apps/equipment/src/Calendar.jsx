@@ -33,6 +33,8 @@ export default function Calendar({ s, params, setParams, go }) {
   }, [days])
   const shift = (n) => setStart(dayList(start, n + 1)[n] || start)
   const back = (n) => { const t = Date.parse(start + 'T00:00:00Z') - n * 86400000; setStart(new Date(t).toISOString().slice(0, 10)) }
+  // Back and on by half the range shown (old: calShift), so the next stretch keeps some of this one in view.
+  const step = Math.round(weeks / 2) * 7, stepLabel = `${step / 7} week${step === 7 ? '' : 's'}`
   const todayAt = days.indexOf(s.today)
   const width = days.length * DAY
 
@@ -40,9 +42,9 @@ export default function Calendar({ s, params, setParams, go }) {
     <div className="eq-cal-page">
       <div className="card eq-toolbar">
         <div className="eq-actions-row">
-          <Button size="sm" variant="secondary" iconLeft={<ChevronLeft size={16} />} onClick={() => back(7)}>Week</Button>
+          <Button size="sm" variant="secondary" iconLeft={<ChevronLeft size={16} />} onClick={() => back(step)}>{stepLabel}</Button>
           <Button size="sm" variant="secondary" onClick={() => setStart(s.today)}>Today</Button>
-          <Button size="sm" variant="secondary" onClick={() => shift(7)}>Week <ChevronRight size={16} aria-hidden="true" /></Button>
+          <Button size="sm" variant="secondary" onClick={() => shift(step)}>{stepLabel} <ChevronRight size={16} aria-hidden="true" /></Button>
         </div>
         <label className="field"><span className="field-label">Show</span>
           <select value={weeks} onChange={(e) => setParams({ ...params, weeks: e.target.value === '8' ? undefined : e.target.value })}>{[4, 8, 12, 26].map((w) => <option key={w} value={w}>{w} weeks</option>)}</select>
@@ -73,7 +75,7 @@ export default function Calendar({ s, params, setParams, go }) {
               const label = `${g.loanTo}: ${STATE[g.state]}, ${g.startDate ? fmtDate(g.startDate) : 'no start'} to ${g.endDate ? fmtDate(g.endDate) : 'no end'}, ${n} ${n === 1 ? 'device' : 'devices'}`
               return (
                 <div key={g.kind + g.key} className="eq-cal-row" role="row">
-                  <div className="eq-cal-label" title={g.location}><span className="eq-strong">{g.loanTo}</span><span className="eq-small">{g.am || g.location}</span></div>
+                  <div className="eq-cal-label" title={g.location}><span className="eq-strong">{g.loanTo}</span><span className="eq-small">{/* old: "N devices · due date", ⏳ on one still to come */}{g.kind === 'booking' || g.kind === 'scheduled' ? '⏳ ' : ''}{n} {n === 1 ? 'device' : 'devices'}{g.endDate ? ` · ${fmtDate(g.endDate)}` : ''}</span></div>
                   <div className="eq-cal-track" style={{ width }}>
                     {todayAt >= 0 && <span className="eq-cal-now" style={{ left: todayAt * DAY + DAY / 2 }} aria-hidden="true" />}
                     <button type="button" className={`eq-cal-bar eq-cal-${g.state}`} style={{ left: Math.max(0, a) * DAY + 2, width: Math.max(1, b - Math.max(0, a) + 1) * DAY - 4 }}

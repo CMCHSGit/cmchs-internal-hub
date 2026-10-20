@@ -922,6 +922,33 @@ export function formDoc(form, stored = {}, info = {}) {
   return doc
 }
 
+/**
+ * The loan form as an RTF file to open in Word (old: exportLoanRTF): the header, the device rows
+ * as fixed columns, the notes, and the ESC reminder. (The old one escaped its own bold marks, so
+ * its labels came out as "{\b Customer:}" text; here they're bold.) Returns { name, rtf }.
+ */
+export function loanFormRtf(doc) {
+  const esc = (s) => String(s ?? '').replace(/\\/g, '\\\\').replace(/\{/g, '\\{').replace(/\}/g, '\\}').replace(/[^\x00-\x7F]/g, (c) => '\\u' + c.charCodeAt(0) + '?')
+  const b = (s) => '{\\b ' + esc(s) + '}'
+  const line = (...parts) => '{\\pard ' + parts.join('') + '\\par}\n'
+  const rule = '{\\pard \\brdrb\\brdrs\\brdrw10\\brdr0 \\par}\n', gap = '{\\pard\\par}\n'
+  const d = (v) => oldDate(toISO(v || ''))
+  const rows = (doc.rows || []).filter((r) => r.some((c) => String(c || '').trim()))
+    .map((r) => [String(r[0] || '').padEnd(12), String(r[1] || '').padEnd(18), String(r[2] || '').padEnd(30), String(r[3] || '')].join('  '))
+  let rtf = '{\\rtf1\\ansi\\deff0\n{\\fonttbl{\\f0 Arial;}}\n{\\f0\\fs20\n'
+  rtf += '{\\pard\\fs28\\b CMCHS Demo Equipment Loan Form\\par}\n' + gap
+  rtf += line(b('Customer:'), '  ', esc(doc.loanTo)) + line(b('Address:'), '  ', esc(doc.location))
+  rtf += line(b('Loan Date:'), '  ', esc(d(doc.startDate)), '     ', b('Loan Ends:'), '  ', esc(doc.longTerm ? 'Long term' : d(doc.endDate)))
+  rtf += line(b('Account Manager:'), '  ', esc(doc.accountManager), doc.contactNumber ? '     ' + b('Contact:') + '  ' + esc(doc.contactNumber) : '')
+  rtf += gap + rule + line(b('CHS ASSET #'.padEnd(12) + '  ' + 'MODEL'.padEnd(18) + '  ' + 'DESCRIPTION'.padEnd(30) + '  SERIAL/PART #')) + rule
+  for (const r of rows) rtf += line(esc(r))
+  rtf += rule
+  if (String(doc.notes || '').trim()) { rtf += gap + line(b('Notes:')); for (const n of String(doc.notes).split('\n')) rtf += line(esc(n)) }
+  rtf += gap + rule + '{\\pard\\i Please ensure this form accompanies demo stock throughout trial and is returned to Connected Healthcare. Check all units have current ESC.\\par}\n}}'
+  const who = String(doc.loanTo || 'loan').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_') || 'loan'
+  return { name: `CHS_Loan_${who}_${toISO(doc.startDate || '') || nzDate()}.rtf`, rtf }
+}
+
 const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** The loan form as plain HTML for the email and for printing (old: _getLoanFormHtml / printLoanDoc). */

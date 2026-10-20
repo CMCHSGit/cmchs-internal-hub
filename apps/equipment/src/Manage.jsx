@@ -7,11 +7,11 @@ import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shar
 import { AdminDialog } from './Items.jsx'
 import { setCutover } from './db.js'
 import {
-  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, toCsv,
+  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, toCsv,
 } from './model.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
-const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['simpro', 'Simpro'], ['test', 'Test mode'], ['source', 'Data source']]
+const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['simpro', 'Simpro'], ['notify', 'Test notifications'], ['test', 'Test mode'], ['source', 'Data source']]
 
 /** A library from the same CDN the old tracker uses, once (old: needLib): SheetJS and PapaParse. */
 const LIBS = { xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX'], papa: ['https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js', 'Papa'] }
@@ -32,7 +32,9 @@ const save = (blob, name) => { const a = document.createElement('a'); a.href = U
 export default function Manage({ s, params, setParams, onDone }) {
   const part = PARTS.some(([p]) => p === params.part) ? params.part : 'data'
   // Test mode: admins and the testers an admin marks (shared/can.js), not the two names the old one had written in.
-  const parts = PARTS.filter(([p]) => (p !== 'test' || s.canTestMode || s.testMode) && (p !== 'source' || s.isAdmin))
+  // Test notifications: Service & Projects (old: Settings, shown to them only; the proxy checks it too).
+  const service = roleOf(s.me) === 'service'
+  const parts = PARTS.filter(([p]) => (p !== 'test' || s.canTestMode || s.testMode) && (p !== 'source' || s.isAdmin) && (p !== 'notify' || service))
   return (
     <div className="eq-manage">
       <nav className="eq-filters" aria-label="Manage">
@@ -43,6 +45,7 @@ export default function Manage({ s, params, setParams, onDone }) {
       {part === 'kits' && <Kits s={s} onDone={onDone} />}
       {part === 'data' && <Data s={s} onDone={onDone} />}
       {part === 'simpro' && <Simpro s={s} onDone={onDone} />}
+      {part === 'notify' && service && <TestPush s={s} onDone={onDone} />}
       {part === 'test' && <TestMode s={s} onDone={onDone} />}
       {part === 'source' && s.isAdmin && <Source s={s} onDone={onDone} />}
     </div>
@@ -392,6 +395,36 @@ function Simpro({ s, onDone }) {
         onConfirm={async () => { setCfg(await s.setJobCreation(true)); setAsking(false); onDone('Simpro job creation is on.') }} />}
       {confirmDialog}
     </>
+  )
+}
+
+/** A test notification to someone on the team, to check it reaches their phone (old: Settings, Test Notifications). */
+function TestPush({ s, onDone }) {
+  const people = [...(s.managers || [])].filter((m) => m && m.name).sort((a, b) => a.name.localeCompare(b.name))
+  const [to, setTo] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function send(e) {
+    e.preventDefault()
+    if (!to) return
+    setBusy(true); setError('')
+    try {
+      const r = await s.testPush(to)
+      onDone(r.simulated ? `Not sent (the dev server): it would go to ${r.sentTo}.` : `Test notification sent to ${r.sentTo}${r.devices ? ` (${r.devices} ${r.devices === 1 ? 'device' : 'devices'})` : ''}.`)
+    } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) }
+  }
+  return (
+    <section className="card eq-kit">
+      <h3 className="eq-h3">Send a test notification</h3>
+      <p className="eq-note">It says who sent it and that it’s a test. They need notifications turned on at internal.chsnz.co.nz on their phone first.</p>
+      <form className="eq-actions-row" onSubmit={send}>
+        <label className="field eq-grow"><span className="field-label">To</span>
+          <select value={to} onChange={(e) => setTo(e.target.value)}><option value="">Choose someone…</option>{people.map((m) => <option key={m.name}>{m.name}</option>)}</select>
+        </label>
+        <Button type="submit" disabled={busy || !to}>{busy ? 'Sending…' : 'Send test notification'}</Button>
+      </form>
+      {error && <Alert tone="critical" title="Not sent">{error}</Alert>}
+    </section>
   )
 }
 

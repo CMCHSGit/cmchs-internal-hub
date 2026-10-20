@@ -10,9 +10,9 @@
      viewing    a loan's form from its card. Save keeps changes (and brings
                 its Simpro job up to date, as the old Save Changes). */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Plus, Printer, Send, X } from 'lucide-react'
+import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
-import { fmtDate, formRows, loanFormHtml, toISO } from './model.js'
+import { fmtDate, formRows, loanFormHtml, loanFormRtf, toISO } from './model.js'
 
 export default function LoanForm({ s, docKey, doc, info, items, finishing = null, onClose, onDone }) {
   const [f, setF] = useState(() => ({
@@ -83,7 +83,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
     w.document.close()
   }
   // While finishing, closing finishes (old: closing the form sent the email and made the Simpro job).
-  const close = () => (finishing ? (busy ? undefined : finish()) : onClose())
+  // Viewing, closing keeps what was changed (old: notes and shipping saved as typed, the rest on close); Discard changes doesn't.
+  const close = () => (busy ? undefined : finishing ? finish() : edited ? save().then(() => onDone?.('Loan form saved.')).catch(() => {}) : onClose())
 
   return (
     <Dialog title={finishing ? 'Check the loan form, then finish' : 'Loan form'} description={finishing ? (finishing.email ? `Finish saves it, emails it to ${finishing.email}${info.longTerm ? '' : ' and makes the Simpro job (if job creation is on)'}.` : 'Finish saves it.') : f.loanTo}
@@ -122,8 +123,15 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
         <div className="dialog-actions eq-lf-actions">
           <Button variant="ghost" iconLeft={<Printer size={16} />} onClick={print} disabled={!!busy}>Print</Button>
+          <Button variant="ghost" iconLeft={<FileText size={16} />} disabled={!!busy} onClick={() => {
+            // Old: Export RTF, the form as a file for Word.
+            const { name, rtf } = loanFormRtf({ ...form, longTerm: !!info.longTerm })
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rtf], { type: 'application/rtf' })); a.download = name; a.click()
+            setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+          }}>Export RTF</Button>
           {!finishing && (info.email || f.accountManager) && <Button variant="ghost" iconLeft={<Send size={16} />} onClick={() => send().catch(() => {})} disabled={!!busy || !info.email}>Email it{info.email ? ` to ${info.email}` : ''}</Button>}
-          {!finishing && <Button variant="secondary" onClick={onClose} disabled={!!busy}>{edited ? 'Close without saving' : 'Close'}</Button>}
+          {!finishing && edited && <Button variant="ghost" onClick={onClose} disabled={!!busy}>Discard changes</Button>}
+          {!finishing && <Button variant="secondary" onClick={close} disabled={!!busy}>{edited ? 'Save and close' : 'Close'}</Button>}
           {!finishing && <Button onClick={() => save().then(() => onDone?.('Loan form saved.')).catch(() => {})} disabled={!!busy || !edited}>{busy || 'Save'}</Button>}
           {finishing && <Button onClick={finish} disabled={!!busy}>{busy || 'Finish'}</Button>}
         </div>

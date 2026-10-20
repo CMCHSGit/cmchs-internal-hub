@@ -210,6 +210,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
           <Button size="sm" disabled={busy} onClick={() => go('new', { add: ticked.map((e) => e.CHSAssetNo).join(',') })}>New loan with these</Button>
           <Button size="sm" variant="secondary" disabled={busy || !tickedOut.length} title={tickedOut.length ? '' : 'None of the ticked ones are out'} onClick={returnTicked}>Return{tickedOut.length ? ` ${tickedOut.length}` : ''}</Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={countTicked}>Count</Button>
+          {ticked.length > 1 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode('kit')}>Make a kit</Button>}
           <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setMode('deleteTicked')}>Delete</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(new Set())}>Clear</Button>
         </div>
@@ -253,6 +254,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
         : <AdminDialog s={s} title="Add equipment" onClose={() => setMode('view')} onConfirm={() => {}} />)}
       {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'retire' && <RetireDialog s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
+      {mode === 'kit' && ticked.length > 1 && <KitFromTicked s={s} ticked={ticked} onClose={() => setMode('view')} onDone={(msg) => { setSel(new Set()); setMode('view'); onDone?.(msg) }} />}
       {mode === 'deleteTicked' && ticked.length > 0 && (
         <AdminDialog s={s} title={`Delete ${plural(ticked.length, 'item')} for good?`} confirmLabel="Delete them" danger
           message={`${ticked.map((e) => e.CHSAssetNo).join(', ')}: they’re removed from the equipment list and can’t be brought back. To keep a record, retire them instead.`}
@@ -263,6 +265,44 @@ function Equipment({ s, params, setParams, go, onDone }) {
           onClose={() => setMode('view')} onConfirm={async () => { await s.deleteItem(item.id); done(`${item.CHSAssetNo} deleted.`) }} />
       )}
     </>
+  )
+}
+
+/** A kit from the ticked items (old: Build Kit, then Save as Kit Group): one is the trigger, the rest its accessories. */
+function KitFromTicked({ s, ticked, onClose, onDone }) {
+  const [trigger, setTrigger] = useState(ticked[0].id)
+  const t = ticked.find((e) => e.id === trigger) || ticked[0]
+  const [label, setLabel] = useState(t.Model || t.CHSAssetNo || '')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const rest = ticked.filter((e) => e.id !== t.id)
+  async function save(ev) {
+    ev.preventDefault()
+    if (!label.trim()) return setError('Give the kit a name.')
+    setBusy(true); setError('')
+    try {
+      const accessories = rest.map((e) => ({ assetNo: e.CHSAssetNo || '', model: e.Model || '', desc: e.Description || e.Notes || '' }))
+      await s.changeKits((k) => ({ ...k, ['kit_' + Date.now()]: { label: label.trim(), triggers: [t.CHSAssetNo || ''], accessories } }))
+      onDone(`Kit “${label.trim()}” made with ${accessories.length} ${accessories.length === 1 ? 'accessory' : 'accessories'}.`)
+    } catch (e) { setError(e.message || String(e)) } finally { setBusy(false) }
+  }
+  return (
+    <Dialog title="Make a kit from these" description="When the trigger is picked for a loan, the others are offered with it." onClose={onClose} width={520}>
+      <form className="eq-form" onSubmit={save}>
+        <label className="field"><span className="field-label">Trigger device</span>
+          <select value={t.id} onChange={(e) => { setTrigger(e.target.value); const n = ticked.find((x) => x.id === e.target.value); if (n) setLabel(n.Model || n.CHSAssetNo || '') }}>
+            {ticked.map((e) => <option key={e.id} value={e.id}>{e.CHSAssetNo} · {e.Model}</option>)}
+          </select>
+        </label>
+        <label className="field"><span className="field-label">Kit name</span><input className="input" value={label} onChange={(e) => setLabel(e.target.value)} /></label>
+        <p className="eq-note">Accessories: {rest.map((e) => e.CHSAssetNo).join(', ')}</p>
+        {error && <Alert tone="critical" title="Not made">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Make the kit'}</Button>
+        </div>
+      </form>
+    </Dialog>
   )
 }
 

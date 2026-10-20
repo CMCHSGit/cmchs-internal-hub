@@ -876,6 +876,19 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, touch])
 
+  /**
+   * A test notification to someone's phones (old: Settings, Test Notifications; Service & Projects only,
+   * which the proxy checks). The words are fixed by the proxy, so a test can't put anyone's own text on a colleague's phone.
+   */
+  const testPush = useCallback(async (amName) => {
+    if (isLocal) return { sentTo: amName, devices: 0, simulated: true } // the dev server: nothing is sent
+    const idToken = await auth?.currentUser?.getIdToken()
+    const r = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'testPush', amName, idToken }) })
+    const j = await r.json().catch(() => ({ success: false, error: 'No answer from the server.' }))
+    if (!j.success) throw new Error(j.error || 'Not sent.')
+    return { sentTo: j.sentTo || amName, devices: j.deviceCount || 0 }
+  }, [])
+
   /** Simpro job creation on or off (old: toggleSimproJobCreation), saying who and when. */
   const setJobCreation = useCallback(async (on) => {
     const { data: cfg } = await read('simproConfig')
@@ -1001,6 +1014,6 @@ export function StoreProvider({ children }) {
   }), [state, team, people, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
     testMode, setTestMode, saveItem, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
-    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory])
+    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory, testPush])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }
