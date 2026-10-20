@@ -174,12 +174,15 @@ const legacyKeys = (loanTo, endDate) => [
   'loandoc_' + (loanTo || '') + '|||' + (endDate || ''),
 ]
 
+/** A loanMeta key as the database can hold it (old: saveLoanMeta): . # $ [ ] / become _. */
+export const metaKey = (k) => String(k || '').replace(/[.#$[\]/]/g, '_')
+
 /** A loan's account manager (old: getLoanAM, then getGroupAM's fallback). */
 export function loanAM({ batchId, loanTo, endDate, accountManager }, { loanMeta = {}, loanDocs = {} } = {}) {
   if (batchId && loanMeta[batchId]?.accountManager) return loanMeta[batchId].accountManager
   if (loanTo) {
     const [enc, dec] = legacyKeys(loanTo, endDate)
-    const found = loanMeta[enc]?.accountManager || loanMeta[dec]?.accountManager || loanDocs[enc]?.accountManager || loanDocs[dec]?.accountManager
+    const found = loanMeta[metaKey(enc)]?.accountManager || loanMeta[enc]?.accountManager || loanMeta[dec]?.accountManager || loanDocs[enc]?.accountManager || loanDocs[dec]?.accountManager
     if (found) return found
   }
   return accountManager || ''
@@ -352,11 +355,14 @@ export const roleOf = (m) => (m && (m.role || (SERVICE_TEAM.includes(m.name) ? '
  *   byAM        active loans per account manager, with how many are overdue
  * Overdue is the Loans tab's (a long-term loan never is), so the numbers agree.
  */
-export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta = {}, today = nzDate(), testMode = false } = {}) {
+export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta = {}, loanDocs = {}, today = nzDate(), testMode = false } = {}) {
   const active = [...sections.needsReassign, ...sections.current, ...sections.longTerm]
   const ahead = sections.upcoming
     .filter((g) => (g.kind === 'scheduled' || (g.startDate && g.pending.length)) && (!g.startDate || g.startDate > today))
+  // A booking held up only by devices on long-term loans isn't chased: that's a known, deliberate state (old: checkStuckLoansForAM).
+  const blockers = (u) => (u.items || []).map((i) => equipment.find((e) => e && (e.id === i.id || e.CHSAssetNo === i.CHSAssetNo) && isOut(e) && e.OnLoanTo !== u.loanTo)).filter(Boolean)
   const stuck = upcoming.filter((u) => (testMode || !isTestBatch(u.id)) && u.startDate && u.startDate <= today)
+    .filter((u) => { const b = blockers(u); return !(b.length && b.every((e) => isLoanLongTerm(e.BatchID, { loanMeta, loanDocs }))) })
   const needsTesting = ahead.filter((g) => {
     if (g.kind === 'booking') return false // nothing reserved yet, so nothing to test
     const r = loanMeta[readinessKey(g)] || {}
@@ -1075,7 +1081,7 @@ export function saveItemEquipment(equipment, history, obj, { editingId = null, t
   return { equipment: eq, history: [...entry, ...history], item: next }
 }
 
-export const RETIRE_REASONS = ['Sold', 'Retired / End of life', 'Lost', 'Damaged / Written off', 'Returned to manufacturer']
+export const RETIRE_REASONS = ['Sold', 'Retired / End of life', 'Lost', 'Damaged / Written off', 'Returned to manufacturer', 'Other']
 
 /** An item out of the equipment list and onto the retired list (old: confirmRetire). */
 export function retireEquipment(equipment, id, { reason = '', notes = '', today = nzDate() } = {}) {
@@ -1185,18 +1191,21 @@ export function kitFor(kits, equipment, assetNo, picked = []) {
 /* Simpro job health (old: findLoansMissingSimproJob, _isPreWindDownLoan) */
 
 /** Loans out with no Simpro job: only ones started before job creation was switched off, unless it's on. */
-export function loansMissingJobs(sections, loanDocs = {}, cfg = {}, today = nzDate()) {
+export function loansMissingJobs(sections, loanDocs = {}, cfg = {}, today = nzDate(), equipment = []) {
   const before = (key, start) => {
     if (cfg.createJobs || !cfg.windDownFrom) return true
     const m = /^(?:test)?batch_(\d{10,})$/.exec(key || '')
     if (m) return new Date(Number(m[1])).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' }) < cfg.windDownFrom
     return !start || start < cfg.windDownFrom
   }
-  return [...sections.needsReassign, ...sections.current, ...sections.upcoming.filter((g) => g.kind === 'scheduled')]
+  // Bookings with no loan yet too, their devices from the equipment list (old: the "Upcoming" rows); soonest start first.
+  const live = (i) => equipment.find((e) => e && (e.id === i.id || e.CHSAssetNo === i.CHSAssetNo)) || i
+  return [...sections.needsReassign, ...sections.current, ...sections.upcoming]
     .filter((g) => g.loanTo && g.loanTo.trim() && !g.longTerm)
-    .map((g) => ({ ...g, docKey: loanDocKey(g) }))
+    .map((g) => ({ ...g, docKey: loanDocKey(g), ...(g.kind === 'booking' ? { items: (g.pending || []).map(live) } : {}) }))
     .filter((g) => !loanDocs[g.docKey]?.simproJobId && before(g.docKey, g.startDate))
-    .map((g) => ({ ...g, type: g.startDate && g.startDate > today ? 'Scheduled' : 'Active' }))
+    .map((g) => ({ ...g, type: g.kind === 'booking' ? 'Upcoming' : g.startDate && g.startDate > today ? 'Scheduled' : 'Active' }))
+    .sort((a, b) => ((a.startDate || '') < (b.startDate || '') ? -1 : 1))
 }
 
 /* ── Links in (old: handleReturnLink, openLoanFromProjectTracker, openStuckLoanReassign) ── */

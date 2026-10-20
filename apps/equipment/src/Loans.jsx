@@ -11,7 +11,8 @@ import LoanActions from './LoanActions.jsx'
 import { AdminDialog } from './Items.jsx'
 import { daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, readinessOf } from './model.js'
 
-const SORTS = [['added', 'Order added'], ['start', 'Start date'], ['expiry', 'Due back'], ['recent', 'Most recent start'], ['alpha', 'Customer A–Z'], ['manager', 'Account manager']]
+// The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
+const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
 
 export default function Loans({ s, params, setParams, go }) {
   // ?open=kind:key opens one loan (Overview's rows); ?at= scrolls to a section.
@@ -24,7 +25,7 @@ export default function Loans({ s, params, setParams, go }) {
   }, [params.open, params.at])
   const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
     [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
-  const f = { q: params.q || '', am: params.am || '', overdueOnly: params.overdue === '1', sort: params.sort || 'added' }
+  const f = { q: params.q || '', am: params.am || '', overdueOnly: params.overdue === '1', sort: params.sort || 'recent' }
   const all = [...sections.needsReassign, ...sections.upcoming, ...sections.current, ...sections.longTerm]
   const ams = [...new Set(all.map((g) => g.am).filter(Boolean))].sort()
   // Overdue only applies to started loans, as the old tab's checkbox did.
@@ -59,7 +60,7 @@ export default function Loans({ s, params, setParams, go }) {
           <select value={f.am} onChange={(e) => set('am', e.target.value)}><option value="">All account managers</option>{ams.map((a) => <option key={a}>{a}</option>)}</select>
         </label>
         <label className="field"><span className="field-label">Sort</span>
-          <select value={f.sort} onChange={(e) => set('sort', e.target.value === 'added' ? '' : e.target.value)}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          <select value={f.sort} onChange={(e) => set('sort', e.target.value === 'recent' ? '' : e.target.value)}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </label>
         <label className="eq-check"><input type="checkbox" checked={f.overdueOnly} onChange={(e) => set('overdue', e.target.checked ? '1' : '')} /> Overdue only</label>
       </div>

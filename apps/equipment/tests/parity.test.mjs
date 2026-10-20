@@ -1,0 +1,48 @@
+// npm test -w apps/equipment — rules brought back in line with the old tracker (21 Oct parity check).
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+
+import { linkTarget, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
+
+const today = '2026-10-21'
+const shelf = (id, o = {}) => ({ id, CHSAssetNo: 'A' + id, Model: 'M' + id, Returned: 'Yes', OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', BatchID: '', ...o })
+const out = (id, o) => shelf(id, { Returned: 'No', OnLoanTo: 'Hutt', Location: 'ED', LoanStartDate: '2026-10-01', LoanEndDate: '2026-10-30', BatchID: 'b9', ...o })
+
+test('search covers every field, as the old one (MACs, device IDs)', () => {
+  const eq = [shelf('1', { LanMAC: 'AA:BB:CC', DeviceID: 'DEV-77' }), shelf('2')]
+  assert.deepEqual(searchEquipment(eq, 'aa:bb').map((e) => e.id), ['1'])
+  assert.deepEqual(searchEquipment(eq, 'dev-77').map((e) => e.id), ['1'])
+})
+
+test('a loanMeta key never holds . # $ [ ] /; the account manager is found under it', () => {
+  assert.equal(metaKey('loandoc_St. John|||2026-10-30'), 'loandoc_St_ John|||2026-10-30')
+  const k = 'loandoc_' + encodeURIComponent('St. John|||2026-10-30')
+  assert.equal(loanAM({ loanTo: 'St. John', endDate: '2026-10-30' }, { loanMeta: { [metaKey(k)]: { accountManager: 'Sam' } } }), 'Sam')
+})
+
+test('old ?tab= links land on Manage’s parts', () => {
+  const sections = { needsReassign: [], current: [], longTerm: [], upcoming: [] }
+  assert.deepEqual(linkTarget('?tab=retired', sections), { view: 'manage', params: { part: 'retired' } })
+  assert.deepEqual(linkTarget('?tab=import', sections), { view: 'manage', params: {} })
+  assert.deepEqual(linkTarget('?tab=database', sections), { view: 'equipment', params: {} })
+})
+
+test('transfers due: a booking held up only by long-term loans is left out (old: checkStuckLoansForAM)', () => {
+  const equipment = [out('1', { BatchID: 'lt' }), out('2', { BatchID: 'b9' })]
+  const upcoming = [
+    { id: 'u1', loanTo: 'Nelson', startDate: '2026-10-20', endDate: '2026-10-25', items: [{ id: '1', CHSAssetNo: 'A1' }] },
+    { id: 'u2', loanTo: 'Taupo', startDate: '2026-10-20', endDate: '2026-10-25', items: [{ id: '2', CHSAssetNo: 'A2' }] },
+  ]
+  const loanMeta = { lt: { longTerm: true } }
+  const sections = loanSections({ equipment, upcoming, loanMeta, today })
+  assert.deepEqual(overviewOf(sections, { equipment, upcoming, loanMeta, today }).stuck.map((u) => u.id), ['u2'])
+})
+
+test('loans with no Simpro job include bookings (Upcoming), soonest first', () => {
+  const equipment = [out('1', { BatchID: 'b1', LoanStartDate: '2026-10-10' }), shelf('2')]
+  const upcoming = [{ id: 'u1', loanTo: 'Nelson', location: 'ICU', startDate: '2026-10-05', endDate: '2026-11-01', items: [{ id: '2', CHSAssetNo: 'A2' }] }]
+  const sections = loanSections({ equipment, upcoming, today })
+  const rows = loansMissingJobs(sections, {}, { createJobs: true }, today, equipment)
+  assert.deepEqual(rows.map((g) => [g.loanTo, g.type]), [['Nelson', 'Upcoming'], ['Hutt', 'Active']])
+  assert.equal(rows[0].items[0].Model, 'M2', 'a booking’s devices from the equipment list')
+})

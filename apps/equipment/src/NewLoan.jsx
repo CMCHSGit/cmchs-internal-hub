@@ -14,11 +14,11 @@
                            made, the loan is posted back to the page that opened
                            it ({ type: 'chs-demo-loan-created', ref, batchId, … },
                            this site only), as the old notifyProjectTrackerOfLoan */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
-import { ISLANDS, JOB_TYPES, assetStatus, demoTypeOptions, loanSections, newLoanProblem } from './model.js'
+import { ISLANDS, JOB_TYPES, assetStatus, demoTypeOptions, loanSections, newLoanProblem, roleOf } from './model.js'
 
 const blank = (today) => ({ loanTo: '', location: '', startDate: today, endDate: '', longTerm: false, am: '', email: '', contact: '', jobType: 'Demo', demoType: '', island: '', notes: '', shipping: '' })
 
@@ -38,6 +38,11 @@ export default function NewLoan({ s, params, go, onDone }) {
     const nos = params.move ? String(params.nos || '').split(',').filter(Boolean) : source.items.map((e) => e.CHSAssetNo)
     return [...new Set(nos)]
   })
+  // An account manager books as themselves (old phone: mpResetBookWizard): their name and email filled in, once the team has loaded.
+  useEffect(() => {
+    const me = s.me
+    if (me && roleOf(me) === 'am' && !f.am) setF((x) => (x.am ? x : { ...x, am: me.name, email: x.email || me.email || '' }))
+  }, [s.me]) // eslint-disable-line react-hooks/exhaustive-deps
   const [otherType, setOtherType] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -95,8 +100,11 @@ export default function NewLoan({ s, params, go, onDone }) {
       <section className="card eq-newloan-part">
         <h2 className="eq-section-title">Who, where and when</h2>
         <div className="eq-form-row">
-          <label className="field"><span className="field-label">On loan to *</span><input className="input" value={f.loanTo} onChange={set('loanTo')} placeholder="Customer or event" /></label>
-          <label className="field"><span className="field-label">Location *</span><input className="input" value={f.location} onChange={set('location')} placeholder="Ward, theatre or address" /></label>
+          <label className="field"><span className="field-label">On loan to *</span><input className="input" value={f.loanTo} onChange={set('loanTo')} placeholder="Customer or event" list="eq-customers" /></label>
+          <label className="field"><span className="field-label">Location *</span><input className="input" value={f.location} onChange={set('location')} placeholder="Ward, theatre or address" list="eq-places" /></label>
+          {/* Who and where equipment is out with now, offered as typed (old: b-contacts-list, b-locations-list). */}
+          <datalist id="eq-customers">{[...new Set(s.equipment.filter((e) => e?.OnLoanTo).map((e) => e.OnLoanTo))].map((v) => <option key={v} value={v} />)}</datalist>
+          <datalist id="eq-places">{[...new Set(s.equipment.filter((e) => e?.Location).map((e) => e.Location))].map((v) => <option key={v} value={v} />)}</datalist>
         </div>
         <div className="eq-form-row">
           <label className="field"><span className="field-label">Start *</span><input className="input" type="date" value={f.startDate} onChange={set('startDate')} /></label>

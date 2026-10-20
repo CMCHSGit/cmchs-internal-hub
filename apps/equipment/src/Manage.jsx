@@ -256,7 +256,14 @@ function Simpro({ s, onDone }) {
   const [confirmDialog, confirm] = useConfirm()
   useEffect(() => { s.loadJobConfig().then(setCfg, (e) => setError(e.message || String(e))) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }), [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
-  const missing = useMemo(() => (cfg && s.extrasReady ? loansMissingJobs(sections, s.loanDocs, cfg, s.today) : []), [sections, s.loanDocs, cfg, s.today, s.extrasReady])
+  const missing = useMemo(() => (cfg && s.extrasReady ? loansMissingJobs(sections, s.loanDocs, cfg, s.today, s.equipment) : []), [sections, s.loanDocs, cfg, s.today, s.extrasReady, s.equipment])
+  const [links, setLinks] = useState({}) // a job number typed against a row (old: the "Existing job #" box and Link)
+  async function link(g) {
+    const n = Number(String(links[g.docKey] || '').trim())
+    if (!Number.isInteger(n) || n <= 0) return setError('Type the Simpro job number (digits only), then Link.')
+    setMaking(g.docKey); setError('')
+    try { await s.setJobNumber(g.docKey, n, g.loanTo); onDone(`Job #${n} linked to ${g.loanTo}.`) } catch (e) { setError(e.message || String(e)) } finally { setMaking('') }
+  }
   if (!cfg) return error ? <Alert tone="critical" title="Didn’t load">{error}</Alert> : <Loading />
   async function off() {
     if (!(await confirm({ title: 'Turn Simpro job creation off?', message: 'New loans stop making Simpro jobs. Jobs already made still update and close as before.', confirmLabel: 'Turn off' }))) return
@@ -289,7 +296,9 @@ function Simpro({ s, onDone }) {
               <li key={g.docKey} className="eq-picked">
                 <span className="eq-picked-main"><span className="eq-strong">{g.loanTo}</span> <Badge tone={g.type === 'Active' ? 'green' : 'purple'}>{g.type}</Badge>
                   <span className="eq-small">{[g.am, g.location, g.startDate && `${fmtDate(g.startDate)} to ${fmtDate(g.endDate) || '…'}`, `${g.items.length} ${g.items.length === 1 ? 'device' : 'devices'}`].filter(Boolean).join(' · ')}</span></span>
-                <Button size="sm" variant="secondary" disabled={!!making} onClick={() => make(g)}>{making === g.docKey ? 'Making…' : 'Make job'}</Button>
+                <input className="input eq-mono eq-job-link" inputMode="numeric" placeholder="Existing job #" aria-label={`Existing Simpro job number for ${g.loanTo}`} value={links[g.docKey] || ''} onChange={(e) => setLinks((x) => ({ ...x, [g.docKey]: e.target.value }))} />
+                <Button size="sm" variant="ghost" disabled={!!making || !links[g.docKey]} onClick={() => link(g)}>Link</Button>
+                <Button size="sm" variant="secondary" disabled={!!making} onClick={() => make(g)}>{making === g.docKey ? 'Working…' : 'Make job'}</Button>
               </li>
             ))}
           </ul>

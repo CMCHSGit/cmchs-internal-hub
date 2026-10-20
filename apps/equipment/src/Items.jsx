@@ -29,11 +29,16 @@ export function ItemForm({ s, item = null, onClose, onDone }) {
   const input = (k) => {
     if (k === 'Returned') return <select value={f[k]} onChange={set(k)}><option value="">—</option><option>Yes</option><option>No</option></select>
     if (k === 'Notes') return <textarea className="input" rows={2} value={f[k]} onChange={set(k)} />
-    return <input className="input" type={DATES.has(k) ? 'date' : NUMBERS.has(k) ? 'number' : 'text'} step={NUMBERS.has(k) ? '0.01' : undefined} value={f[k]} onChange={set(k)} required={k === 'CHSAssetNo'} autoFocus={k === 'CHSAssetNo' && !item} />
+    return <input className="input" type={DATES.has(k) ? 'date' : NUMBERS.has(k) ? 'number' : 'text'} step={NUMBERS.has(k) ? '0.01' : undefined} value={f[k]} onChange={set(k)} required={k === 'CHSAssetNo'} autoFocus={k === 'CHSAssetNo' && !item}
+      list={k === 'Model' ? 'eq-models' : k === 'Description' ? 'eq-descs' : undefined} />
   }
+  // The models and descriptions already in use, offered as typed (old: _populateModelDescLists), so spellings stay the same.
+  const known = (k) => [...new Set((s.equipment || []).map((e) => e?.[k]).filter(Boolean))].sort()
   return (
     <Dialog title={item ? `Edit ${item.CHSAssetNo}` : 'Add equipment'} onClose={onClose} width={760}>
       <form className="eq-form" onSubmit={save}>
+        <datalist id="eq-models">{known('Model').map((v) => <option key={v} value={v} />)}</datalist>
+        <datalist id="eq-descs">{known('Description').map((v) => <option key={v} value={v} />)}</datalist>
         {GROUPS.map(([title, keys]) => (
           <fieldset key={title} className="eq-fieldset">
             <legend className="eq-section-title">{title}</legend>

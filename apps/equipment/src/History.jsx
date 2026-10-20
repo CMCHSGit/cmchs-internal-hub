@@ -10,7 +10,7 @@ import LoanForm from './LoanForm.jsx'
 import { AdminDialog } from './Items.jsx'
 import { AUDIT_LABELS, filterAudit, filterHistory, fmtDate } from './model.js'
 
-const ACTIONS = [['', 'Everything'], ['Loan', 'Loaned out'], ['Return', 'Returned'], ['Count', 'Counted'], ['Transfer', 'Transferred'], ['Converted', 'Converted']]
+const ACTIONS = [['', 'Everything'], ['Loan', 'Loaned out'], ['Return', 'Returned'], ['Count', 'Counted'], ['Transfer', 'Transferred'], ['Converted', 'Converted'], ['Edited', 'Edited']]
 const TONE = { Loan: 'orange', Return: 'green', Count: 'green', Transfer: 'purple' }
 const PAGE = 200
 const when = (ts) => {
@@ -64,7 +64,11 @@ function Devices({ s, params, setParams }) {
       )}
       <div className="data-table-wrap">
         <table className="data-table">
-          <thead><tr><th aria-label="Tick" /><th>When</th><th>Asset</th><th>What</th><th>Customer</th><th>Dates</th><th>Notes</th><th>Who</th></tr></thead>
+          <thead><tr><th>{(() => {
+            // Every entry the search and filter show, as the old Select all did.
+            const ids = rows.map((h) => h.id).filter(Boolean), all = ids.length > 0 && ids.every((id) => picked.has(id))
+            return <input type="checkbox" checked={all} disabled={!ids.length} onChange={() => setPicked((p) => { const n = new Set(p); ids.forEach((id) => (all ? n.delete(id) : n.add(id))); return n })} aria-label="Tick all shown" title="Tick all shown" />
+          })()}</th><th>When</th><th>Asset</th><th>What</th><th>Customer</th><th>Dates</th><th>Notes</th><th>Who</th></tr></thead>
           <tbody>
             {rows.slice(0, shown).map((h) => (
               <tr key={h.id || h.ts + h.chsAssetNo} className="data-table-row">

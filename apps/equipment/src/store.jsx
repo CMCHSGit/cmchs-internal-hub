@@ -18,7 +18,7 @@ import { can } from '../../../shared/can.js'
 import { cutover, isLocal, loadCutover, onFirestore, read, readOld, watch, watchCutover, write } from './db.js'
 import { commit as fsCommit } from './db-firestore.js'
 import {
-  activateBookings, applyImport, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, newBatchId, newId, nzDate, nzNow,
+  activateBookings, applyImport, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -62,7 +62,8 @@ export function StoreProvider({ children }) {
   // lays /loanMeta over /data's copy, one loan at a time; so does this.
   const load = useCallback(async () => {
     await loadCutover() // where the data is (db.js): the old database, or Firestore after the cutover
-    const extras = Promise.all([read('loanDocs'), readOld('accountManagers').catch(() => ({ data: [] })), read('kitGroups'), read('retired'), read('customDemoTypes')])
+    const extras = Promise.all([read('loanDocs'), readOld('accountManagers').catch(() => ({ data: [] })), read('kitGroups'), read('retired'), read('customDemoTypes'),
+      read('testReports').catch(() => ({ data: {} }))]) // which loans have test reports (old: _testReportsKeys): their button shows it
     extras.catch(() => {}) // reported below, once the first part is showing
     try {
       const [data, upcoming, meta] = await Promise.all([read('data'), read('upcomingLoans'), read('loanMeta')])
@@ -78,9 +79,9 @@ export function StoreProvider({ children }) {
       return setState((s) => ({ ...s, error: e.message || String(e) }))
     }
     try {
-      const [loanDocs, managers, kits, retired, demoTypes] = await extras
+      const [loanDocs, managers, kits, retired, demoTypes, reports] = await extras
       setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, managers: list(managers.data), kits: kits.data || {}, retired: list(retired.data),
-        demoTypes: Array.isArray(demoTypes.data) ? demoTypes.data.filter(Boolean) : [], extrasReady: true }))
+        demoTypes: Array.isArray(demoTypes.data) ? demoTypes.data.filter(Boolean) : [], reportKeys: Object.keys(reports.data || {}), extrasReady: true }))
     } catch (e) {
       setState((s) => ({ ...s, error: 'The loan forms didn’t load: ' + (e.message || e) }))
     }
@@ -272,7 +273,9 @@ export function StoreProvider({ children }) {
   }, [simpro, audit])
 
   /** One loan's stored loanMeta entry changed, keeping whatever else is in it (as setReadiness). */
-  const patchMeta = useCallback(async (key, patch) => {
+  const patchMeta = useCallback(async (rawKey, patch) => {
+    // A key can't hold . # $ [ ] / (old: saveLoanMeta's _safeMeta): an old loan's customer name with a dot would fail the write.
+    const key = metaKey(rawKey)
     const path = 'loanMeta/' + enc(key)
     const { data: stored } = await read(path)
     const next = { ...(stored || latest.current.loanMeta?.[key] || {}), ...patch }
@@ -883,6 +886,7 @@ export function StoreProvider({ children }) {
     await write(`testReports/${enc(key)}/${id}`, { filename: file.name, mimeType: file.type || 'application/octet-stream', size: file.size, uploadedAt: nzNow(), uploadedBy: operator || '' })
     await write(`testReportFiles/${enc(key)}/${id}`, dataUrl)
     await audit('test_report_uploaded', `${file.name} uploaded — ${loanTo}`, { key, filename: file.name })
+    setState((s) => ({ ...s, reportKeys: [...new Set([...(s.reportKeys || []), key])] }))
     await touch()
   }, [audit, operator, touch])
   const reportFile = useCallback(async (key, id) => (await read(`testReportFiles/${enc(key)}/${id}`)).data, [])
@@ -890,6 +894,7 @@ export function StoreProvider({ children }) {
     await write(`testReports/${enc(key)}/${report.id}`, null, { method: 'DELETE' })
     await write(`testReportFiles/${enc(key)}/${report.id}`, null, { method: 'DELETE' })
     await audit('test_report_deleted', `${report.filename || 'Report'} deleted — ${loanTo}`, { key, filename: report.filename || '' })
+    try { const { data } = await read('testReports/' + enc(key)); if (!data) setState((s) => ({ ...s, reportKeys: (s.reportKeys || []).filter((k) => k !== key) })) } catch { /* the mark stays until the next load */ }
     await touch()
   }, [audit, touch])
 

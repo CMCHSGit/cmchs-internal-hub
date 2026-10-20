@@ -224,3 +224,10 @@
 
 /* Ticked equipment (App.jsx's Equipment): what to do with them */
 .eq-selbar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 14px; background: var(--surface-accent-tint); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+
+/* A loan with test reports (old: the green Reports button). */
+.eq-has-reports { color: #5b8801; background: var(--chs-green-20); border-color: #5b8801; }
+:root[data-theme="dark"] .eq-has-reports { color: #a6d64a; background: transparent; border-color: currentColor; }
+
+/* Manage, Simpro: a job number typed against a loan with none (old: Existing job # and Link). */
+.eq-job-link { width: 130px; flex: 0 0 auto; }

@@ -8,7 +8,7 @@ import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
-import { canExtend, demoTypeOptions, formItems, jobNumber, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { canExtend, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
@@ -53,11 +53,21 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       <div className="eq-actions-row">
         {canExtend(g) && <Button size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>}
         {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
-        {g.kind === 'loan' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
-        {g.kind === 'loan' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
+        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
+        {g.kind !== 'booking' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>
+        {/* Marked once the loan has any (old: the Reports button turned green). */}
+        {(s.reportKeys || []).includes(readinessKey(g))
+          ? <Button size="sm" variant="secondary" className="eq-has-reports" disabled={busy} onClick={() => setAsking('reports')}>✔ Test reports</Button>
+          : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>}
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>
+        {/* Still waiting on devices once its start has come: Transfer on the loan holding them, ready (old: Reassign / transfer, openStuckLoanReassign). */}
+        {go && (g.pending || []).length > 0 && g.startDate && g.startDate <= s.today && (
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => {
+            const t = linkTarget('?reassign=' + encodeURIComponent(g.batchId), { needsReassign: all || [], current: [], longTerm: [], upcoming: [] }, s.upcoming, s.equipment)
+            if (t?.params?.act === 'transfer') go(t.view, t.params); else onDone?.(t?.note || `Nothing is holding up ${g.loanTo} any more.`)
+          }}>Reassign / transfer</Button>
+        )}
         {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
         {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
         <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
@@ -367,6 +377,10 @@ function TransferDialog({ g, all, preset = null, busy, error, onClose, onSave, o
   return (
     <Dialog title={`Transfer from ${g.loanTo}`} description="Each loan’s Simpro job gets a note of what moved where." onClose={onClose} width={560}>
       <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (nos.length && target) onSave(nos, target) }}>
+        <div className="eq-actions-row">
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set(g.items.map((e) => e.CHSAssetNo)))}>All</Button>
+          <Button size="sm" variant="ghost" onClick={() => setPicked(new Set())}>None</Button>
+        </div>
         <ul className="eq-picklist">
           {g.items.map((e) => (
             <li key={e.id}><label className="eq-pick">

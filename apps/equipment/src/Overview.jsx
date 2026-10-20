@@ -8,7 +8,7 @@
 import { useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Badge } from '../../../shared/ui/index.jsx'
-import { fmtDate, loanSections, overviewOf, roleOf, yoursOf } from './model.js'
+import { fmtDate, linkTarget, loanSections, overviewOf, roleOf, yoursOf } from './model.js'
 
 /** Loans, opened at one loan (Loans.jsx reads ?open=). */
 export const loanLink = (g) => '#/loans?open=' + encodeURIComponent(g.kind + ':' + g.key)
@@ -18,12 +18,17 @@ const devices = (n) => `${n} ${n === 1 ? 'device' : 'devices'}`
 export default function Overview({ s }) {
   const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
     [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
-  const ov = useMemo(() => overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, today: s.today, testMode: s.testMode }),
-    [sections, s.equipment, s.upcoming, s.loanMeta, s.today, s.testMode])
+  const ov = useMemo(() => overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
+    [sections, s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
 
-  // A booking waiting on a transfer opens as the loan it's part of, if any.
+  // A booking waiting on a transfer opens Transfer on the loan holding its devices, those ticked and the
+  // booking chosen, ready to confirm (old: openStuckLoanReassign); if nothing's found, the loan it's part of.
   const all = [...sections.needsReassign, ...sections.upcoming, ...sections.current, ...sections.longTerm]
-  const stuckLink = (u) => loanLink(all.find((g) => g.batchId === u.id) || { kind: 'booking', key: u.id })
+  const stuckLink = (u) => {
+    const t = linkTarget('?reassign=' + encodeURIComponent(u.id), sections, s.upcoming, s.equipment)
+    if (t?.params?.act === 'transfer') return '#/' + t.view + '?' + new URLSearchParams(t.params).toString()
+    return loanLink(all.find((g) => g.batchId === u.id) || { kind: 'booking', key: u.id })
+  }
   // …which is under Needs reassigning once some of it has gone out, else still under Upcoming.
   const stuckAt = ov.stuck.length && all.find((g) => g.batchId === ov.stuck[0].id)?.kind === 'loan' ? 'needsReassign' : 'upcoming'
 
