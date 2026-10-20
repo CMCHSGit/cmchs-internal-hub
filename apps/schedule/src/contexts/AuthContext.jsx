@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../firebase'
 
 /** first.last@ pattern guesses for a full "First Last" name — company uses both domains. */
@@ -68,8 +68,12 @@ async function claimPendingProfile(firebaseUser) {
 
   const data = claimed.data()
   await transferSchedules(claimed.id, firebaseUser.uid)
-  await deleteDoc(claimed.ref)
-  return data
+  // The placeholder is removed in the same write that creates the profile
+  // (below). Its team comes too only on an exact email match: a team grants
+  // rights, and firestore.rules lets a new profile take one only from a
+  // placeholder carrying this sign-in's own email. Otherwise HR sets it.
+  const exactEmail = !!email && (data.email || '').toLowerCase() === email
+  return { ...data, id: claimed.id, team: exactEmail ? data.team || null : null }
 }
 
 const AuthContext = createContext(null)
@@ -128,9 +132,24 @@ export function AuthProvider({ children }) {
           role:        'user',
           ...(claimed?.excelName ? { excelName: claimed.excelName } : {}),
           ...(claimed?.workMobile ? { workMobile: claimed.workMobile } : {}),
+          ...(claimed ? { claimedFrom: claimed.id } : {}),
           createdAt:   serverTimestamp(),
         }
-        await setDoc(ref, newProfile)
+        const batch = writeBatch(db)
+        if (claimed) batch.delete(doc(db, 'users', claimed.id))
+        batch.set(ref, newProfile)
+        try {
+          await batch.commit()
+        } catch (e) {
+          // Rules published before 21 Oct 2026 don't know claimedFrom. Until
+          // the new ones are in the Firebase console, fall back to the old way:
+          // remove the placeholder, then write the profile without it. Safe to
+          // delete this fallback once rules/firestore.rules is published.
+          if (!claimed || e?.code !== 'permission-denied') throw e
+          const { claimedFrom: _unused, ...old } = newProfile
+          await deleteDoc(doc(db, 'users', claimed.id)).catch(() => {})
+          await setDoc(ref, old)
+        }
         setProfile(newProfile)
       }
       setProfileReady(true)

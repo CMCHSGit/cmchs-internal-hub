@@ -9,7 +9,7 @@
 // apps legitimately make, and every attack the new rules must stop.
 import { readFileSync } from 'node:fs'
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp, writeBatch } from 'firebase/firestore'
 
 const env = await initializeTestEnvironment({
   projectId: 'rules-test',
@@ -23,11 +23,14 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'users/bob'), { displayName: 'Bob Sales', role: 'user', team: 'Sales' })
   await setDoc(doc(db, 'users/zed'), { displayName: 'Zed Target', role: 'user', team: 'Sales' })
   await setDoc(doc(db, 'users/notyet'), { displayName: 'Nat New', role: 'user', team: null })
-  await setDoc(doc(db, 'users/pending-carl'), { displayName: 'Carl Pending', role: 'user', team: 'Engineers', pending: true })
+  await setDoc(doc(db, 'users/pending-carl'), { displayName: 'Carl Pending', email: 'carl@cass.co.nz', role: 'user', team: 'Engineers', pending: true })
+  await setDoc(doc(db, 'users/pending-gus'), { displayName: 'Gus Pending', role: 'user', team: 'Sales', pending: true })
+  await setDoc(doc(db, 'users/pending-fay'), { displayName: 'Fay Pending', email: 'fay@cass.co.nz', role: 'user', team: 'Management', pending: true })
   await setDoc(doc(db, 'users/pending-dee'), { displayName: 'Dee Pending', role: 'user', team: 'Sales', pending: true })
 })
 
-const as = (uid) => env.authenticatedContext(uid).firestore()
+// Signed in with a company account, as everyone really is (rules: isCompanyEmail).
+const as = (uid, email = uid + '@cass.co.nz') => env.authenticatedContext(uid, { email }).firestore()
 const anon = env.unauthenticatedContext().firestore()
 let pass = 0, fail = 0
 async function check(label, expectAllowed, fn) {
@@ -42,10 +45,23 @@ async function check(label, expectAllowed, fn) {
 console.log('\nLegitimate writes the apps make — must keep working')
 await check('new user creates own profile (AuthContext)', true, () =>
   setDoc(doc(as('newbie'), 'users/newbie'), { displayName: 'New Bee', email: 'n@cass.co.nz', team: null, role: 'user', createdAt: serverTimestamp() }))
-await check('new user claims a placeholder (team carried over)', true, () =>
-  setDoc(doc(as('carl'), 'users/carl'), { displayName: 'Carl P', email: 'c@cass.co.nz', team: 'Engineers', role: 'user', excelName: 'Carl', createdAt: serverTimestamp() }))
-await check('user picks a team while theirs is empty (TeamOnboarding)', true, () =>
+// Claiming an HR-made placeholder (AuthContext claimPendingProfile): one write
+// that removes it and creates the profile, with its team only on an exact email match.
+const claim = (uid, email, fields, del = true, from = 'pending-carl') => () => {
+  const db = as(uid, email)
+  const b = writeBatch(db)
+  if (del) b.delete(doc(db, 'users/' + from))
+  b.set(doc(db, 'users/' + uid), { displayName: 'Carl P', email, role: 'user', excelName: 'Carl', createdAt: serverTimestamp(), ...fields })
+  return b.commit()
+}
+await check('new user claims their placeholder by exact email (team carried over)', true,
+  claim('carl', 'carl@cass.co.nz', { team: 'Engineers', claimedFrom: 'pending-carl' }))
+await check('new user claims a placeholder by name only: no team comes with it', true,
+  claim('gustav', 'gustav@cass.co.nz', { team: null, claimedFrom: 'pending-gus' }, true, 'pending-gus'))
+await check('user can\'t pick their own team, even while it\'s empty (admins and HR set it)', false, () =>
   updateDoc(doc(as('notyet'), 'users/notyet'), { team: 'Engineers' }))
+await check('@chsnz.co.nz is a company account too', true, () =>
+  getDoc(doc(as('chs', 'someone@chsnz.co.nz'), 'users/bob')))
 await check('user registers a phone for push (push.js)', true, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { fcmTokens: arrayUnion('tok-123') }))
 await check('user turns their own schedule reminder off (Settings → Your notifications)', true, () =>
@@ -69,6 +85,16 @@ await check('admin creates a placeholder', true, () =>
 await check('anyone signed in reads the roster', true, () => getDoc(doc(as('bob'), 'users/admin1')))
 
 console.log('\nThe hole — must now be refused')
+await check('a new user can\'t take a placeholder\'s team when its email isn\'t theirs', false,
+  claim('carlos', 'carlos@cass.co.nz', { team: 'Management', claimedFrom: 'pending-fay' }, true, 'pending-fay'))
+await check('...or give themselves a team with no placeholder at all', false, () =>
+  setDoc(doc(as('newbie2'), 'users/newbie2'), { displayName: 'New', email: 'newbie2@cass.co.nz', team: 'Management', role: 'user', createdAt: serverTimestamp() }))
+await check('...or take a placeholder\'s team and leave the placeholder there', false,
+  claim('fay', 'fay@cass.co.nz', { team: 'Management', claimedFrom: 'pending-fay' }, false, 'pending-fay'))
+await check('an account that isn\'t a company one reads nothing', false, () =>
+  getDoc(doc(as('guest', 'guest@gmail.com'), 'users/bob')))
+await check('...nor a lookalike domain', false, () =>
+  getDoc(doc(as('guest2', 'x@cass.co.nz.evil.com'), 'users/bob')))
 await check('user makes themselves admin', false, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { role: 'admin' }))
 await check('user grants themselves simproAccess', false, () =>

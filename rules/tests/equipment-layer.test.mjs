@@ -42,7 +42,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'equipmentHistory/h1'), { id: 'h1', ts: T, action: 'Count', chsAssetNo: 'Ai1', _pos: 0 })
   await setDoc(doc(db, 'settings/equipment'), { simproConfig: { createJobs: false }, demoTypes: [] })
 })
-globalThis.__testDb = env.authenticatedContext('sam').firestore()
+globalThis.__testDb = env.authenticatedContext('sam', { email: 'sam@cass.co.nz' }).firestore()
 const L = await import(pathToFileURL(process.cwd() + '/layer.bundle.mjs').href)
 const M = L.M
 let pass = 0, fail = 0
@@ -66,7 +66,7 @@ s = await L.current()
 ok('retire (as Sam, not an admin): off the list, onto the retired list', !s.equipment.some((e) => e.id === 'i4') && s.retired[0].id === 'i4')
 
 // Someone else changes an item the next change also touches: the layer takes theirs and runs again.
-const kiri = env.authenticatedContext('kiri').firestore()
+const kiri = env.authenticatedContext('kiri', { email: 'kiri@cass.co.nz' }).firestore()
 const cur = (await getDoc(doc(kiri, 'equipment/i1'))).data()
 await setDoc(doc(kiri, 'equipment/i1'), { ...cur, Notes: 'Kiri was here' })
 await new Promise((r) => setTimeout(r, 500))

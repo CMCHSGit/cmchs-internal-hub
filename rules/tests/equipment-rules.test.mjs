@@ -50,7 +50,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'settings/equipment'), { simproConfig: { createJobs: false, windDownFrom: '2026-10-01' }, demoTypes: ['Evaluation'] })
 })
 
-const as = (uid) => env.authenticatedContext(uid).firestore()
+// Signed in with a company account, as everyone really is (rules: isCompanyEmail).
+const as = (uid) => env.authenticatedContext(uid, { email: uid + '@cass.co.nz' }).firestore()
 const anon = env.unauthenticatedContext().firestore()
 let pass = 0, fail = 0
 async function check(label, expectAllowed, fn) {

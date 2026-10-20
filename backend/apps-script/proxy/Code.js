@@ -1722,6 +1722,9 @@ function verifyScheduleIdTokenShape_(idToken) {
   if (!claims.exp || claims.exp * 1000 < Date.now()) throw new Error('Token expired');
   const uid = claims.user_id || claims.sub;
   if (!uid) throw new Error('Token has no user id');
+  // Company accounts only: the second lock behind the tenant-only Microsoft
+  // sign-in (firestore.rules isCompanyEmail checks the same).
+  if (!/^[^@\s]+@(cass|chsnz)\.co\.nz$/i.test(String(claims.email || ''))) throw new Error('Not a company account');
   return { uid: uid, email: claims.email || '', exp: claims.exp };
 }
 

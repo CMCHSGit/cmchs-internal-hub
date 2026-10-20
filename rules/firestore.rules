@@ -3,7 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Helpers
-    function isSignedIn()     { return request.auth != null; }
+    // Signed in with a company account. Microsoft sign-in is limited to the
+    // company's tenant; this is the second lock, in case a guest or another
+    // account ever gets a token for this project.
+    function isSignedIn()     { return request.auth != null && isCompanyEmail(); }
+    function isCompanyEmail() { return request.auth.token.get('email', '').lower().matches('[^@]+@(cass|chsnz)[.]co[.]nz'); }
     function isAdmin()        { return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
     function isOwner(uid)     { return isSignedIn() && request.auth.uid == uid; }
     // HR (the hub's People page): admins, plus anyone an admin flags hr: true.
@@ -62,16 +66,29 @@ service cloud.firestore {
       );
     }
 
+    // A team grants rights, so nobody gives themselves one: a new profile has
+    // no team, unless it claims an HR-made placeholder whose email is exactly
+    // this sign-in's, and takes that placeholder's team, removing it in the
+    // same write (AuthContext's claimPendingProfile).
     function isNewOwnProfile() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['displayName', 'email', 'team', 'role', 'excelName', 'workMobile', 'createdAt'])
-        && d.role == 'user';
+      return d.keys().hasOnly(['displayName', 'email', 'team', 'role', 'excelName', 'workMobile', 'createdAt', 'claimedFrom'])
+        && d.role == 'user'
+        && (d.get('team', null) in [null, ''] || isClaimedTeam(d));
+    }
+    function isClaimedTeam(d) {
+      let from = d.get('claimedFrom', '');
+      let p = /databases/$(database)/documents/users/$(from);
+      return from is string && from != '' && exists(p) && !existsAfter(p)
+        && get(p).data.get('pending', false) == true
+        && get(p).data.get('email', '').lower() == request.auth.token.get('email', '').lower()
+        && get(p).data.get('team', null) == d.team;
     }
 
     function isOwnSafeUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return changed.hasOnly(['team', 'fcmTokens', 'displayName', 'workMobile', 'notifications'])
-        && (!changed.hasAny(['team']) || resource.data.get('team', null) in [null, ''])
+      // Not the team: only an admin or HR sets that (Settings → People and access, People).
+      return changed.hasOnly(['fcmTokens', 'displayName', 'workMobile', 'notifications'])
         // Settings → Your notifications: your own reminders on or off, nothing else in there.
         && (!changed.hasAny(['notifications']) || isOwnNotifications(request.resource.data.notifications))
         && (!changed.hasAny(['displayName']) || isShortText(request.resource.data.displayName, 1, 80))
