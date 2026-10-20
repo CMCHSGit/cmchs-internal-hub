@@ -54,6 +54,7 @@ export default function TeamWeek() {
     try { localStorage.setItem(PHONE_VIEW_KEY, v) } catch { /* private mode — just not remembered */ }
   }
   const [toast, showToast] = useToast()
+  const wkwHeadRef = useRef(null) // the phone week table's sticky day bar
 
   const { users, loading: usersLoading } = useUsers()
   const { byWeek, loading: schedLoading, patch } = useSchedules([prevWeek, weekStart])
@@ -387,7 +388,7 @@ export default function TeamWeek() {
           </button>
         ))}
       </div>
-      {phoneView === 'day' && <div className="show-narrow"><DayPills weekStart={weekStart} value={dayIdx} onChange={setDayIdx} /></div>}
+      {phoneView === 'day' && <div className="show-narrow day-pills-bar"><DayPills weekStart={weekStart} value={dayIdx} onChange={setDayIdx} /></div>}
 
       <div className={phoneView === 'week' ? 'hide-narrow' : undefined}>
         <LeavePin weekStart={weekStart} dayIdx={dayIdx} people={leaveToday} names={names} />
@@ -474,7 +475,11 @@ export default function TeamWeek() {
               sideways, names pinned on the left — full text, no initials. */}
           {phoneView === 'week' && (
             <div className="wk-mobile">
-              <div className="wkw-scroll">
+              {/* The days stay at the top while the page scrolls: they're their own sticky bar outside
+                  the sideways-scrolling table (a sticky row inside it would only stick within the table's
+                  own box), kept lined up by copying the table's sideways scroll onto it. */}
+              <div className="wkw">
+              <div className="wkw-headbar" ref={wkwHeadRef} aria-hidden="true">
                 <div className="wkw-table">
                   <div className="wkw-row wkw-head">
                     <span className="wkw-name">Name</span>
@@ -483,6 +488,10 @@ export default function TeamWeek() {
                     ))}
                     <span className="wkw-note" />
                   </div>
+                </div>
+              </div>
+              <div className="wkw-scroll" onScroll={e => { if (wkwHeadRef.current) wkwHeadRef.current.scrollLeft = e.currentTarget.scrollLeft }}>
+                <div className="wkw-table">
                   {groups.map(g => (
                     <div key={g.team} className="wkw-group">
                       <div className="wkw-band" style={{ background: g.band }}><span>{g.label}</span></div>
@@ -512,6 +521,7 @@ export default function TeamWeek() {
                     </div>
                   ))}
                 </div>
+              </div>
               </div>
             </div>
           )}

@@ -336,7 +336,23 @@ button.wkm-main { cursor: pointer; }
 .phone-view-switch { display: inline-grid; grid-template-columns: 1fr 1fr; align-self: flex-start; padding: 3px; border-radius: var(--radius-pill); background: var(--surface-subtle); border: 1px solid var(--border-subtle); }
 .phone-view-switch button { border: none; background: none; padding: 6px 22px; border-radius: var(--radius-pill); font: var(--weight-semibold) 14px/1.2 var(--font-body); color: var(--text-muted); cursor: pointer; }
 .phone-view-switch button.active { background: var(--chs-purple); color: #fff; }
-.wkw-scroll { overflow-x: auto; border: 1px solid var(--border-hairline); border-radius: var(--radius-card); -webkit-overflow-scrolling: touch; }
+/* The days stay frozen at the top while the page scrolls (Team week). Sticky offsets are the shell
+   header plus the schedule's own views row (0 on phones, where that row scrolls away). */
+.wk-head {
+  position: sticky; top: calc(var(--shell-header-h, 68px) + var(--sch-views-h)); z-index: 6;
+  background: var(--surface-page); padding-top: 6px; padding-bottom: 6px; margin: -6px 0;
+  box-shadow: 0 1px 0 var(--border-subtle);
+}
+.wk-cell { scroll-margin-top: calc(var(--shell-header-h, 68px) + var(--sch-views-h) + 44px); }
+.day-pills-bar { position: sticky; top: var(--shell-header-h, 64px); z-index: 6; background: var(--surface-page); padding: 6px 0; margin: -6px 0; }
+.wkw { display: flex; flex-direction: column; }
+.wkw-headbar {
+  position: sticky; top: var(--shell-header-h, 64px); z-index: 6; overflow: hidden;
+  border: 1px solid var(--border-hairline); border-bottom: none; border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: var(--surface-subtle);
+}
+.wkw-scroll { overflow-x: auto; border: 1px solid var(--border-hairline); border-radius: 0 0 var(--radius-card) var(--radius-card); -webkit-overflow-scrolling: touch; }
+.wkw-scroll .wkw-group:first-child .wkw-band { border-top: 1px solid var(--border-subtle); }
 .wkw-table { width: max-content; min-width: 100%; }
 .wkw-row { display: flex; align-items: stretch; border-top: 1px solid var(--border-subtle); }
 .wkw-group > .wkw-row:first-of-type { border-top: none; }
