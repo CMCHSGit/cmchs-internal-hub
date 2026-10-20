@@ -164,15 +164,49 @@ function Hero({ user, today, asksCount = 0 }) {
 // ── At a glance ───────────────────────────────────────────────────────────
 
 function Glance({ today }) {
+  const [open, setOpen] = useState(null)
+  const cards = today
+    ? [...today.glance, { key: 'oncall', label: 'On call this week', icon: 'phone', accent: 'pink', people: today.people.filter(p => p.onCall), name: today.onCallName }]
+    : [{ key: 'office' }, { key: 'site' }, { key: 'remote' }, { key: 'out' }, { key: 'oncall' }]
+  const shown = today && cards.find(g => g.key === open)
   return (
-    <section className="glance" aria-label={today?.weekend ? `At a glance, ${today.dayName}` : 'At a glance today'}>
-      {(today?.glance || [{ key: 'office' }, { key: 'site' }, { key: 'remote' }, { key: 'out' }]).map(g => (
-        <a key={g.key} href={PEOPLE_URL} className={`card card-interactive glance-card accent-${g.accent || 'none'}`} aria-busy={!today}>
-          <span className="chs-overline glance-over">{g.icon && <Icon name={g.icon} size={14} />}{g.label || ' '}</span>
-          <span className="glance-n">{today ? g.people.length : '–'}</span>
-          <span className="body-sm glance-names">{today ? (firstNames(g.people) || 'No one') : ' '}</span>
-        </a>
-      ))}
+    <section className="glance-wrap" aria-label={today?.weekend ? `At a glance, ${today.dayName}` : 'At a glance today'}>
+      <div className="glance">
+        {cards.map(g => {
+          const isCall = g.key === 'oncall'
+          const text = !today ? ' ' : isCall ? (g.name || 'No one') : (firstNames(g.people) || 'No one')
+          const expandable = !!today && (isCall ? g.people.length > 0 : g.people.length > 0)
+          return (
+            <button key={g.key} type="button" className={`card card-interactive glance-card accent-${g.accent || 'none'}${open === g.key ? ' glance-open' : ''}`}
+              aria-busy={!today} aria-expanded={expandable ? open === g.key : undefined} aria-controls="glance-list" disabled={!expandable}
+              onClick={() => setOpen(o => (o === g.key ? null : g.key))}>
+              <span className="chs-overline glance-over">{g.icon && <Icon name={g.icon} size={14} />}{g.label || ' '}</span>
+              <span className="glance-n">{!today ? '–' : isCall ? (g.name ? g.name.split(' ')[0] : '–') : g.people.length}</span>
+              <span className="body-sm glance-names">{text}</span>
+            </button>
+          )
+        })}
+      </div>
+      {shown && (
+        <div id="glance-list" className="card glance-list" role="region" aria-label={shown.label}>
+          <div className="glance-list-head">
+            <span className="chs-overline">{shown.label} · {shown.people.length}</span>
+            <button type="button" className="btn-ghost-sm" onClick={() => setOpen(null)}>Close</button>
+          </div>
+          <div className="dir-grid">
+            {shown.people.map(p => (
+              <a key={p.uid} className="person person-link" href={`${PEOPLE_URL}/${encodeURIComponent(p.uid)}`}>
+                <span className="avatar-md" style={p.onCall ? { background: ONCALL_BG, color: '#1d1d1d' } : undefined}>{p.initials}</span>
+                <div className="person-text">
+                  <span className="person-name">{p.name}{p.onCall ? ' - OnCall' : ''}</span>
+                  <span className="person-where"><span className="swatch" style={{ background: p.swatch }} /><span className="ellipsis">{p.where}</span></span>
+                </div>
+                <span className="caption">{p.deptName}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   )
 }
