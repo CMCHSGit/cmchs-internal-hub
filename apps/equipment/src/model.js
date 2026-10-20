@@ -1104,6 +1104,36 @@ export function filterRetired(retired, { q = '', sort = 'RetiredDate', dir = -1 
     .sort((a, b) => { const av = String(a[sort] || '').toLowerCase(), bv = String(b[sort] || '').toLowerCase(); return av < bv ? -dir : av > bv ? dir : 0 })
 }
 
+/** The retired import's headings (old: processRetiredImport's retiredColMap). */
+const RETIRED_IMPORT = {
+  'chs asset no.': 'CHSAssetNo', 'chs asset no': 'CHSAssetNo', 'chs asset number': 'CHSAssetNo', model: 'Model', description: 'Description',
+  'serial number': 'SerialNo', 'serial no.': 'SerialNo', 'serial no': 'SerialNo', 'part number': 'PartNo', 'part no.': 'PartNo',
+  'nz$ price': 'NZPrice', 'nz price': 'NZPrice', 'retired date': 'RetiredDate', date: 'RetiredDate', reason: 'RetiredReason', 'retired reason': 'RetiredReason',
+  'retired notes': 'RetiredNotes', notes: 'Notes', 'manufacture date': 'MfgDate', 'purchase date': 'PurchaseDate', 'us$ price': 'USPrice',
+  'shelf location': 'ShelfLocation', 'tile no.': 'TileNo', 'tile no': 'TileNo', 'device id': 'DeviceID', 'lan mac': 'LanMAC', 'wlan mac': 'WlanMAC',
+  'old chs #': 'OldCHS', 'tile type': 'TileType',
+}
+
+/**
+ * A spreadsheet of sold / retired items (old: processRetiredImport): a row
+ * needs an asset number or a model; no date means today, no reason
+ * "Imported"; a known asset number is updated, a new one added at the top.
+ */
+export function importRetiredRows(retired, rows, { today = nzDate(), makeId = newId } = {}) {
+  let list = [...retired], added = 0, updated = 0
+  for (const row of rows || []) {
+    const m = {}
+    for (const [k, v] of Object.entries(row || {})) { const f = RETIRED_IMPORT[String(k).toLowerCase().trim()]; if (f) m[f] = v }
+    if (!m.CHSAssetNo && !m.Model) continue
+    m.CHSAssetNo = String(m.CHSAssetNo || '').trim()
+    m.RetiredDate = m.RetiredDate || today
+    m.RetiredReason = m.RetiredReason || 'Imported'
+    const i = m.CHSAssetNo ? list.findIndex((e) => e && e.CHSAssetNo && e.CHSAssetNo.toLowerCase() === m.CHSAssetNo.toLowerCase()) : -1
+    if (i >= 0) { list[i] = { ...list[i], ...m }; updated++ } else { list = [{ id: makeId(), ...m }, ...list]; added++ }
+  }
+  return { retired: list, added, updated }
+}
+
 /* Import and export (old: COL_MAP, mapRow, confirmImport, exportCSV, downloadExcel) */
 
 export const EXPORT_COLUMNS = [['Model', 'Model'], ['Description', 'Description'], ['SerialNo', 'Serial Number'], ['MfgDate', 'Manufacture Date'], ['CHSAssetNo', 'CHS Asset Number'],

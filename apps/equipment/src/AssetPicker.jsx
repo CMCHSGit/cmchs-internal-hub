@@ -61,7 +61,7 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
                   <span className="eq-strong">{no}</span> {st.item?.Model}{st.item?.Description && <span className="text-muted"> · {st.item.Description}</span>}
                   <span className={`eq-small eq-st-${tone}`}>
                     {!st.found ? 'Not found'
-                      : across ? `On loan to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: it’s taken off that loan and moved onto this one`
+                      : across ? `${st.longTerm ? 'On a long-term loan' : 'On loan'} to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: it’s taken off that loan and moved onto this one`
                       : st.will === 'follow' ? `${st.longTerm ? 'On a long-term loan (no return date)' : 'On loan'} to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: booked on this loan to follow when it’s back`
                         : st.will === 'reclaim' ? `Booked for ${st.item.OnLoanTo} from ${fmtDate(st.item.LoanStartDate)}, no clash: goes on this loan, and that booking keeps its claim`
                           : 'Free'}

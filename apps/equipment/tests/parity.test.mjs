@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { linkTarget, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
+import { importRetiredRows, linkTarget, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
 
 const today = '2026-10-21'
 const shelf = (id, o = {}) => ({ id, CHSAssetNo: 'A' + id, Model: 'M' + id, Returned: 'Yes', OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', BatchID: '', ...o })
@@ -45,4 +45,14 @@ test('loans with no Simpro job include bookings (Upcoming), soonest first', () =
   const rows = loansMissingJobs(sections, {}, { createJobs: true }, today, equipment)
   assert.deepEqual(rows.map((g) => [g.loanTo, g.type]), [['Nelson', 'Upcoming'], ['Hutt', 'Active']])
   assert.equal(rows[0].items[0].Model, 'M2', 'a booking’s devices from the equipment list')
+})
+
+test('retired import: its own headings; no date is today, no reason "Imported"; a known asset number is updated', () => {
+  let n = 0
+  const r = importRetiredRows([{ id: 'r1', CHSAssetNo: '100001', Model: 'Old', RetiredReason: 'Sold' }],
+    [{ 'CHS Asset No.': '100001', Reason: 'Lost' }, { 'chs asset number': ' 100002 ', Model: 'X9', 'NZ$ Price': '12.5' }, { Notes: 'no number or model' }],
+    { today, makeId: () => 'new' + ++n })
+  assert.deepEqual([r.added, r.updated], [1, 1])
+  assert.deepEqual(r.retired.map((e) => [e.id, e.CHSAssetNo, e.RetiredReason, e.RetiredDate || '']), [['new1', '100002', 'Imported', today], ['r1', '100001', 'Lost', today]])
+  assert.equal(r.retired[0].NZPrice, '12.5')
 })

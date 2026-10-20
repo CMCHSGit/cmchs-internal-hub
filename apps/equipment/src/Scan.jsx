@@ -10,7 +10,7 @@
      Stocktake  every scan is counted and returned straight away, for going
                 along a shelf. For hub admins (the old one asked for the admin password).
    New loans are made in New loan. */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import Scanner from './Scanner.jsx'
@@ -21,7 +21,11 @@ const MODES = [['return', 'Return'], ['count', 'Count'], ['stocktake', 'Stocktak
 export default function Scan({ s, params, setParams, onDone }) {
   const mode = MODES.some(([m]) => m === params.mode) ? params.mode : 'return'
   const [code, setCode] = useState('')
-  const [camera, setCamera] = useState(false)
+  // A phone (a touch screen) starts with the camera on and the keyboard down, as the old phone's Scan did.
+  const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  const [camera, setCamera] = useState(phone)
+  const [log, setLog] = useState([]) // Return and Count: what's been done here (old: addSession, "N actions this session")
+  const logged = (rows) => setLog((l) => [...rows.map((r) => ({ ...r, at: new Date().toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' }) })), ...l].slice(0, 100))
   const [msg, setMsg] = useState(null) // { tone, text }
   const [queue, setQueue] = useState([]) // Return: item ids
   const [current, setCurrent] = useState(null) // Count: an item id
@@ -57,8 +61,17 @@ export default function Scan({ s, params, setParams, onDone }) {
         setMsg({ tone: 'success', text: `${e.CHSAssetNo} counted${r.was.out ? `, and back from ${r.was.loanTo}` : ''}.` })
       })
     }
-    box.current?.focus()
+    if (!phone) box.current?.focus()
   }
+
+  // A number typed and left for a moment is looked up without Enter (old: 500 ms after 3 characters),
+  // once it's an asset number on the list, so a scanner gun's Enter still wins and a part-typed one waits.
+  useEffect(() => {
+    const no = code.trim()
+    if (no.length < 3 || !findAsset(s.equipment, no)) return undefined
+    const t = setTimeout(() => scanned(no), 500)
+    return () => clearTimeout(t)
+  }, [code]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const c = { never: 0, new: 0, old: 0 }
@@ -66,7 +79,7 @@ export default function Scan({ s, params, setParams, onDone }) {
     return { ...c, total: s.equipment.length, done: c.new + c.old }
   }, [s.equipment])
 
-  const switchMode = (m) => { setParams({ mode: m === 'return' ? undefined : m }); setQueue([]); setCurrent(null); setMsg(null); setCamera(false) }
+  const switchMode = (m) => { setParams({ mode: m === 'return' ? undefined : m }); setQueue([]); setCurrent(null); setMsg(null); setCamera(phone) }
   // A stocktake is for hub admins (step 5A: the role, in place of the old admin password).
   const locked = mode === 'stocktake' && !s.isAdmin
 
@@ -88,7 +101,7 @@ export default function Scan({ s, params, setParams, onDone }) {
           <div className="eq-picker-add">
             <label className="field eq-grow"><span className="field-label">Asset number</span>
               <input ref={box} className="input eq-scan-input" value={code} onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); scanned(code) } }}
-                placeholder="Type or scan, then Enter" autoComplete="off" autoFocus inputMode="text" />
+                placeholder="Type or scan, then Enter" autoComplete="off" autoFocus={!phone} inputMode="text" />
             </label>
             {!camera && <Button variant="secondary" iconLeft={<Camera size={16} />} onClick={() => setCamera(true)}>Camera</Button>}
           </div>
@@ -116,7 +129,9 @@ export default function Scan({ s, params, setParams, onDone }) {
           {queue.some((id) => isLoanLongTerm(byId(id)?.BatchID, ctx)) && <Alert tone="warning" title="Some are on long-term loans">That equipment is meant to stay with the customer. Only return it if it has really come back.</Alert>}
           <div className="eq-actions-row">
             <Button disabled={busy} onClick={() => run(async () => {
+              const back = queue.map(byId).filter(Boolean)
               const r = await s.returnItems({ loanTo: '' }, queue)
+              logged(back.map((e) => ({ no: e.CHSAssetNo, model: e.Model, action: 'Returned', loanTo: e.OnLoanTo, location: e.Location })))
               setQueue([])
               onDone(`${r.returned} ${r.returned === 1 ? 'item' : 'items'} returned${r.started ? `; ${r.started} ${r.started === 1 ? 'booking' : 'bookings'} waiting on them started` : ''}.`)
             })}>{busy ? 'Returning…' : `Return ${queue.length} ${queue.length === 1 ? 'item' : 'items'}`}</Button>
@@ -135,8 +150,8 @@ export default function Scan({ s, params, setParams, onDone }) {
                 <p className="eq-note">{e.SerialNo && <span className="eq-mono">{e.SerialNo} · </span>}{e.Counted && e.Counted !== 'No' ? e.Counted : 'Not counted yet'}{e.ShelfLocation ? ` · ${e.ShelfLocation}` : ''}</p>
                 {isOut(e) && <p className="eq-note">On loan to <b>{e.OnLoanTo}</b>{e.LoanEndDate ? `, due ${fmtDate(e.LoanEndDate)}` : ''}. Is it back, or counted where it is?</p>}
                 <div className="eq-actions-row">
-                  <Button disabled={busy} onClick={() => run(async () => { const r = await s.countItem(e.id); setCurrent(null); onDone(`${e.CHSAssetNo} counted${r.was.out ? ' and marked as returned' : ''}.`) })}>{isOut(e) ? 'Count it, it’s back' : 'Count it'}</Button>
-                  {isOut(e) && <Button variant="secondary" disabled={busy} onClick={() => run(async () => { await s.countItem(e.id, { keepOnLoan: true }); setCurrent(null); onDone(`${e.CHSAssetNo} counted, still on loan to ${e.OnLoanTo}.`) })}>Count it, still on loan</Button>}
+                  <Button disabled={busy} onClick={() => run(async () => { const r = await s.countItem(e.id); logged([{ no: e.CHSAssetNo, model: e.Model, action: r.was.out ? 'Counted, returned' : 'Counted', loanTo: r.was.out ? e.OnLoanTo : '', location: r.was.out ? e.Location : e.ShelfLocation }]); setCurrent(null); onDone(`${e.CHSAssetNo} counted${r.was.out ? ' and marked as returned' : ''}.`) })}>{isOut(e) ? 'Count it, it’s back' : 'Count it'}</Button>
+                  {isOut(e) && <Button variant="secondary" disabled={busy} onClick={() => run(async () => { await s.countItem(e.id, { keepOnLoan: true }); logged([{ no: e.CHSAssetNo, model: e.Model, action: 'Counted, on loan', loanTo: e.OnLoanTo, location: e.Location }]); setCurrent(null); onDone(`${e.CHSAssetNo} counted, still on loan to ${e.OnLoanTo}.`) })}>Count it, still on loan</Button>}
                   <Button variant="ghost" onClick={() => setCurrent(null)}>Skip</Button>
                 </div>
               </section>
@@ -152,6 +167,24 @@ export default function Scan({ s, params, setParams, onDone }) {
           </>
         )
       })()}
+
+      {mode !== 'stocktake' && log.length > 0 && (
+        <section className="card eq-scan-list" aria-label="Done this session">
+          <div className="eq-actions-row"><span className="eq-strong eq-grow">{log.length} {log.length === 1 ? 'action' : 'actions'} this session</span><Button size="sm" variant="ghost" onClick={() => setLog([])}>Clear</Button></div>
+          <div className="data-table-wrap">
+            <table className="data-table">
+              <thead><tr><th>Asset</th><th>Model</th><th>Action</th><th>On loan to</th><th>Location</th><th>Time</th></tr></thead>
+              <tbody>{log.map((x, i) => (
+                <tr key={i} className="data-table-row">
+                  <td data-label="Asset"><span className="eq-strong">{x.no}</span></td><td data-label="Model">{x.model}</td>
+                  <td data-label="Action"><Badge tone="green">{x.action}</Badge></td><td data-label="On loan to">{x.loanTo}</td>
+                  <td data-label="Location">{x.location}</td><td data-label="Time" className="eq-nowrap">{x.at}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {mode === 'stocktake' && !locked && (
         <section className="card eq-scan-list">

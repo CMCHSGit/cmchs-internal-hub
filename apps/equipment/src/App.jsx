@@ -121,7 +121,9 @@ function Equipment({ s, params, setParams, go, onDone }) {
   const [tiles, setTiles] = useState(null)
   useEffect(() => { readOld('tileLocations').then((r) => setTiles(r.data || {})).catch(() => setTiles({})) }, [])
   const tileOf = (e) => (e.TileNo ? (tiles ? tiles[String(e.TileNo).trim()] || null : undefined) : null)
-  const [open, setOpen] = useState(null) // an item's id
+  // An item's id; ?item= opens one (a loan's device row links here, as the old openDetailByAssetNo).
+  const [open, setOpen] = useState(params.item || null)
+  useEffect(() => { if (params.item) { setOpen(params.item); setMode('view') } }, [params.item])
   const [mode, setMode] = useState('view') // what's open for it: view | edit | retire | delete; or 'add' with no item
   const show = (id, m = 'view') => { setOpen(id); setMode(m) }
   const done = (msg) => { setOpen(null); setMode('view'); onDone?.(msg) }
@@ -208,6 +210,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
           <Button size="sm" disabled={busy} onClick={() => go('new', { add: ticked.map((e) => e.CHSAssetNo).join(',') })}>New loan with these</Button>
           <Button size="sm" variant="secondary" disabled={busy || !tickedOut.length} title={tickedOut.length ? '' : 'None of the ticked ones are out'} onClick={returnTicked}>Return{tickedOut.length ? ` ${tickedOut.length}` : ''}</Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={countTicked}>Count</Button>
+          <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setMode('deleteTicked')}>Delete</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(new Set())}>Clear</Button>
         </div>
       )}
@@ -244,12 +247,17 @@ function Equipment({ s, params, setParams, go, onDone }) {
       </div>
 
       {confirmDialog}
-      {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} s={s} go={go} tile={tileOf(item)} onClose={() => setOpen(null)} onAction={(m) => setMode(m)} />}
+      {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} s={s} go={go} tile={tileOf(item)} onClose={() => { setOpen(null); if (params.item) setParams({ ...params, item: undefined }) }} onAction={(m) => setMode(m)} />}
       {/* Adding needed the admin password in the old tracker (promptAddAsset); the hub admin role, as for delete. */}
       {mode === 'add' && (s.isAdmin ? <ItemForm s={s} onClose={() => setMode('view')} onDone={done} />
         : <AdminDialog s={s} title="Add equipment" onClose={() => setMode('view')} onConfirm={() => {}} />)}
       {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'retire' && <RetireDialog s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
+      {mode === 'deleteTicked' && ticked.length > 0 && (
+        <AdminDialog s={s} title={`Delete ${plural(ticked.length, 'item')} for good?`} confirmLabel="Delete them" danger
+          message={`${ticked.map((e) => e.CHSAssetNo).join(', ')}: they’re removed from the equipment list and can’t be brought back. To keep a record, retire them instead.`}
+          onClose={() => setMode('view')} onConfirm={async () => { const n = await s.deleteItems(ticked.map((e) => e.id)); setSel(new Set()); setMode('view'); onDone?.(`${plural(n, 'item')} deleted.`) }} />
+      )}
       {item && mode === 'delete' && (
         <AdminDialog s={s} title={`Delete ${item.CHSAssetNo} for good?`} message="It’s removed from the equipment list and can’t be brought back. To keep a record of it, retire it instead." confirmLabel="Delete it" danger
           onClose={() => setMode('view')} onConfirm={async () => { await s.deleteItem(item.id); done(`${item.CHSAssetNo} deleted.`) }} />

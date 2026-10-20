@@ -93,6 +93,13 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
   const demoType = g.doc?.demoType || ''
   const ready = readinessOf(g, { loanMeta: s.loanMeta, today: s.today })
   const byId = (id, assetNo) => s.equipment.find((e) => e.id === id || e.CHSAssetNo === assetNo)
+  // Each device's later bookings, soonest first (old: buildLoanDeviceRow's "Scheduled for …", "Then scheduled for …").
+  const nextFor = (no) => (s.upcoming || []).filter((u) => u.id !== g.batchId && (s.testMode || !String(u.id || '').startsWith('testbatch_')) && (u.items || []).some((i) => i.CHSAssetNo === no))
+    .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
+  // How many of its waiting devices are still out elsewhere (old: "Awaiting return before pickup (n of m)").
+  const waiting = g.kind === 'booking' ? 0 : g.pending.filter((p) => { const e = byId(p.id, p.CHSAssetNo); return e && e.OnLoanTo && e.Returned !== 'Yes' && e.BatchID !== g.batchId }).length
+  // When a device was moved off (old: the ghost row's "on <date>"): its newest Transfer entry.
+  const movedOn = (no) => { const h = (s.history || []).find((x) => x.action === 'Transfer' && x.chsAssetNo === no); return h ? fmtDate(String(h.ts || '').slice(0, 10)) : '' }
   return (
     <article data-loan={g.kind + ':' + g.key} className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && g.startingSoon ? ' soon' : ''}`}>
       <button type="button" className="eq-loan-head" aria-expanded={open} onClick={onToggle}>
@@ -117,6 +124,7 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
         <span className="eq-loan-badges">
           {g.overdue && <Badge tone="critical">Overdue</Badge>}
           {ready.notTested && <Badge tone="orange">Not tested</Badge>}
+          {g.kind === 'scheduled' && !ready.tested && !ready.noTestRequired && <Badge tone="neutral">Awaiting test</Badge>}
           {upcomingKind && (g.startingSoon ? <Badge tone="orange">Starting soon</Badge> : <Badge tone="purple">{g.kind === 'booking' ? 'Booked' : 'Scheduled'}</Badge>)}
           {g.longTerm && <Badge tone="neutral">Long term</Badge>}
           {g.kind === 'loan' && g.pending.length > 0 && !g.longTerm && <Badge tone="orange">Needs reassigning</Badge>}
@@ -128,13 +136,16 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
         <div className="eq-loan-body">
           {g.notes && <p className="eq-loan-notes">{g.notes}</p>}
           <ul className="eq-devices">
-            {g.items.map((e) => <Device key={e.id} e={e} onRemove={() => setRemoving({ e })} />)}
+            {g.items.map((e) => <Device key={e.id} e={e} next={nextFor(e.CHSAssetNo)} onRemove={() => setRemoving({ e })} />)}
+            {g.kind !== 'booking' && g.pending.length > 0 && (
+              <li className="eq-device-head">{waiting ? `⏳ Awaiting return before pickup (${waiting} of ${g.pending.length})` : '✓ All items now available for pickup'}</li>
+            )}
             {g.pending.map((p) => {
               const e = byId(p.id, p.CHSAssetNo)
               const now = e && e.OnLoanTo && e.Returned !== 'Yes' && e.BatchID !== g.batchId ? e : null
               return (
                 <li key={'p' + (p.id || p.CHSAssetNo)} className="eq-device pending">
-                  <span className="eq-strong">{p.CHSAssetNo}</span> {p.Model || e?.Model}
+                  <a className="eq-strong" href={e ? '#/equipment?item=' + encodeURIComponent(e.id) : undefined}>{p.CHSAssetNo}</a> {p.Model || e?.Model}
                   <span className="eq-small">{now ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}` : 'Waiting to be picked up'}</span>
                   <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${p.CHSAssetNo} off the booking`} title="Take off the booking" onClick={() => setRemoving({ p })}>×</button>
                 </li>
@@ -143,7 +154,7 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
             {g.ghosts.map((e) => (
               <li key={'g' + e.id} className="eq-device ghost">
                 <span className="eq-strong">{e.CHSAssetNo}</span> {e.Model}
-                <span className="eq-small">Transferred out, now on loan to {e.OnLoanTo}</span>
+                <span className="eq-small">Transferred to {e.OnLoanTo}{movedOn(e.CHSAssetNo) && ` on ${movedOn(e.CHSAssetNo)}`}</span>
               </li>
             ))}
           </ul>
@@ -163,11 +174,12 @@ function LoanCard({ g, s, all, go, open, onToggle, onDone, start, onStarted }) {
   )
 }
 
-function Device({ e, onRemove }) {
+function Device({ e, next = [], onRemove }) {
   return (
     <li className="eq-device">
-      <span className="eq-strong">{e.CHSAssetNo}</span> {e.Model}{e.Description && <span className="text-muted"> · {e.Description}</span>}
+      <a className="eq-strong" href={'#/equipment?item=' + encodeURIComponent(e.id)} title="Open its record">{e.CHSAssetNo}</a> {e.Model}{e.Description && <span className="text-muted"> · {e.Description}</span>}
       {e.SerialNo && <span className="eq-small eq-mono">{e.SerialNo}</span>}
+      {next.map((u, i) => <span key={u.id} className="eq-small eq-next">{i ? '↪ Then scheduled' : '⏳ Scheduled'} for {u.loanTo} from {fmtDate(u.startDate)}{u.endDate ? ` – ${fmtDate(u.endDate)}` : ''}</span>)}
       {onRemove && <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${e.CHSAssetNo} off this loan`} title="Take off this loan (admin)" onClick={onRemove}>×</button>}
     </li>
   )

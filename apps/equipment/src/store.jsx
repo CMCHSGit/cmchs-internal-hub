@@ -18,7 +18,7 @@ import { can } from '../../../shared/can.js'
 import { cutover, isLocal, loadCutover, onFirestore, read, readOld, watch, watchCutover, write } from './db.js'
 import { commit as fsCommit } from './db-firestore.js'
 import {
-  activateBookings, applyImport, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
+  activateBookings, applyImport, importRetiredRows, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -795,6 +795,16 @@ export function StoreProvider({ children }) {
     await touch()
   }, [audit, touch, updateData])
 
+  /** Several ticked items deleted at once (old: deleteFromSelection), one audit entry listing them. */
+  const deleteItems = useCallback(async (ids) => {
+    const want = new Set(ids)
+    let gone = []
+    await updateData((d) => { gone = d.equipment.filter((e) => e && want.has(e.id)); if (!gone.length) throw new Error('Those items have already gone.'); return { ...d, equipment: d.equipment.filter((e) => e && !want.has(e.id)) } })
+    await audit('asset_deleted', `${gone.length} assets permanently deleted from database`, { items: gone.map((i) => i.CHSAssetNo + (i.Model ? ' — ' + i.Model : '')) })
+    await touch()
+    return gone.length
+  }, [audit, touch, updateData])
+
   /** The retired list changed: read fresh, changed, written whole (as the old saveRetiredAssets, which writes it whole). */
   const changeRetired = useCallback(async (fn) => {
     const { data } = await read('retired')
@@ -821,6 +831,22 @@ export function StoreProvider({ children }) {
     await touch()
     return back.length
   }, [changeRetired, touch, updateData])
+
+  /** A retired item's why and notes changed (old: saveRetiredEdit). */
+  const editRetired = useCallback(async (id, { reason = '', retiredNotes = '', notes = '' }) => {
+    let it = null
+    await changeRetired((l) => l.map((r) => (r.id === id ? (it = { ...r, RetiredReason: reason, RetiredNotes: retiredNotes.trim(), Notes: notes.trim() }) : r)))
+    if (it) await audit('asset_edited', `${it.CHSAssetNo || 'Item'} — retired record updated`, { assetNo: it.CHSAssetNo, reason, retiredNotes: it.RetiredNotes })
+    await touch()
+  }, [audit, changeRetired, touch])
+
+  /** A spreadsheet of sold / retired items (old: handleRetiredImport): added, or updated by asset number. */
+  const importRetired = useCallback(async (rows) => {
+    let r = null
+    await changeRetired((l) => { r = importRetiredRows(l, rows, { today: nzDate() }); if (!r.added && !r.updated) throw new Error('No rows with an asset number or a model were found.'); return r.retired })
+    await touch()
+    return { added: r.added, updated: r.updated }
+  }, [changeRetired, touch])
 
   /** Retired items deleted for good, after the admin password (old: deleteFromRetiredSelection). */
   const deleteRetired = useCallback(async (ids) => {
@@ -930,6 +956,8 @@ export function StoreProvider({ children }) {
           if (jobId) await simpro({ loanTo: doc.loanTo || '', location: doc.location || '', notes: doc.notesCell || '', shippingDetails: doc.authCell || '', startDate: toISO(doc.startDate || ''), endDate: toISO(doc.endDate || ''),
             accountManager: doc.accountManager || '', contactNumber: doc.contactNumber || '', jobType: doc.jobType || 'Demo',
             items: rows.filter((r) => r[0]).map((r) => ({ CHSAssetNo: r[0], Description: r[2] || r[1] || '', SerialNo: r[3] || '' })), jobId, pdfKey: g.batchId })
+          // As the old one recorded it (old: removeItemFromLoan's simpro_updated).
+          if (jobId) await audit('simpro_updated', `Simpro job #${jobId} updated — ${item.CHSAssetNo} removed from ${g.loanTo || 'the loan'}`, { loanTo: g.loanTo || '', jobId, pdfKey: g.batchId })
         }
       } catch (e) { console.warn('[equipment] loan form not updated after removing a device', e) }
     }
@@ -968,11 +996,11 @@ export function StoreProvider({ children }) {
     profile: people.profile, isAdmin: can(people.profile, 'equipment.admin'), canTestMode: can(people.profile, 'equipment.testMode'),
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    saveItem, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
     setJobNumber, removeFromLoan, removeFromBooking, deleteHistory,
   }), [state, team, people, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    testMode, setTestMode, saveItem, deleteItem, retireItem, restoreItems, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    testMode, setTestMode, saveItem, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
     setJobNumber, removeFromLoan, removeFromBooking, deleteHistory])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

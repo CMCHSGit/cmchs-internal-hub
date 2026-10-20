@@ -7,7 +7,7 @@ import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shar
 import { AdminDialog } from './Items.jsx'
 import { setCutover } from './db.js'
 import {
-  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, toCsv,
+  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, toCsv,
 } from './model.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
@@ -49,24 +49,52 @@ export default function Manage({ s, params, setParams, onDone }) {
   )
 }
 
+// The old Sold / Retired table's columns, each sortable (old: sortRetired); newest retired first to start.
+const RETIRED_TABLE = [['CHSAssetNo', 'Asset no.'], ['Model', 'Model'], ['Description', 'Description'], ['SerialNo', 'Serial no.'], ['RetiredNotes', 'Notes'], ['RetiredDate', 'Retired'], ['RetiredReason', 'Why'], ['PartNo', 'Part no.'], ['NZPrice', 'NZ$']]
+const nz = (v) => (v ? '$' + Number(v).toLocaleString('en-NZ', { minimumFractionDigits: 2 }) : '—')
+
 function Retired({ s, onDone }) {
   const [q, setQ] = useState('')
   const [picked, setPicked] = useState(new Set())
   const [asking, setAsking] = useState(null)
   const [error, setError] = useState('')
+  const [sort, setSort] = useState({ key: 'RetiredDate', dir: -1 })
+  const [open, setOpen] = useState(null) // a retired item's id, its record shown (old: openRetiredDetail)
+  const [editing, setEditing] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const file = useRef(null)
   const [confirmDialog, confirm] = useConfirm()
-  const rows = useMemo(() => filterRetired(s.retired || [], { q }), [s.retired, q])
+  const rows = useMemo(() => filterRetired(s.retired || [], { q, sort: sort.key, dir: sort.dir }), [s.retired, q, sort])
   const ids = [...picked]
+  const item = open && (s.retired || []).find((r) => r.id === open)
   const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  async function restore() {
-    if (!(await confirm({ title: `Bring back ${ids.length} ${ids.length === 1 ? 'item' : 'items'}?`, message: 'They go back on the equipment list.', confirmLabel: 'Bring back' }))) return
-    try { const n = await s.restoreItems(ids); setPicked(new Set()); onDone(`${n} ${n === 1 ? 'item' : 'items'} back on the equipment list.`) } catch (e) { setError(e.message || String(e)) }
+  async function restore(list = ids) {
+    if (!(await confirm({ title: `Bring back ${list.length} ${list.length === 1 ? 'item' : 'items'}?`, message: 'They go back on the equipment list.', confirmLabel: 'Bring back' }))) return
+    try { const n = await s.restoreItems(list); setPicked(new Set()); setOpen(null); onDone(`${n} ${n === 1 ? 'item' : 'items'} back on the equipment list.`) } catch (e) { setError(e.message || String(e)) }
+  }
+  // Import (old: handleRetiredImport): CSV or Excel, its own headings; no admin step, as the old one.
+  async function pickFile(ev) {
+    const f = ev.target.files?.[0]
+    if (!f) return
+    setImporting(true); setError('')
+    try {
+      const ext = f.name.split('.').pop().toLowerCase()
+      let data
+      if (ext === 'csv' || ext === 'txt') { const Papa = await lib('papa'); data = await new Promise((resolve, reject) => Papa.parse(f, { header: true, skipEmptyLines: true, complete: (r) => resolve(r.data), error: reject })) }
+      else if (ext === 'xlsx' || ext === 'xls') { const XLSX = await lib('xlsx'); const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' }); data = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' }) }
+      else throw new Error('Choose a CSV or Excel file.')
+      if (!data.length) throw new Error('There’s nothing in that file.')
+      const r = await s.importRetired(data)
+      onDone(`Import done: ${r.added} added, ${r.updated} updated.`)
+    } catch (e) { setError(e.message || String(e)) } finally { setImporting(false); if (file.current) file.current.value = '' }
   }
   return (
     <>
       <div className="card eq-toolbar">
         <label className="field eq-grow"><span className="field-label">Search</span><input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Anything about the item" /></label>
         <Button variant="secondary" size="sm" onClick={() => save(new Blob([toCsv(s.retired || [], RETIRED_COLUMNS)], { type: 'text/csv' }), `CHS-Retired-Assets-${s.today}.csv`)}>Export CSV</Button>
+        <Button size="sm" disabled={importing} onClick={() => file.current?.click()}>{importing ? 'Importing…' : 'Import'}</Button>
+        <input ref={file} type="file" accept=".csv,.txt,.xlsx,.xls" hidden onChange={pickFile} />
       </div>
       {!s.extrasReady && <Loading />}
       {picked.size > 0 && (
@@ -81,17 +109,26 @@ function Retired({ s, onDone }) {
       <p className="text-sm text-muted eq-shown">{rows.length} {rows.length === 1 ? 'item' : 'items'}</p>
       <div className="data-table-wrap">
         <table className="data-table">
-          <thead><tr><th aria-label="Select" /><th>Asset no.</th><th>Model</th><th>Serial no.</th><th>Retired</th><th>Why</th><th>Notes</th></tr></thead>
+          <thead><tr><th aria-label="Select" />{RETIRED_TABLE.map(([k, label]) => (
+            <th key={k} aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
+              <button type="button" className="data-table-sort" onClick={() => setSort((x) => ({ key: k, dir: x.key === k ? -x.dir : 1 }))}>
+                {label}{sort.key === k && <span aria-hidden="true">{sort.dir > 0 ? '▲' : '▼'}</span>}
+              </button>
+            </th>
+          ))}</tr></thead>
           <tbody>
             {rows.map((e) => (
-              <tr key={e.id} className="data-table-row">
-                <td data-label="Select"><input type="checkbox" checked={picked.has(e.id)} onChange={() => toggle(e.id)} aria-label={`Select ${e.CHSAssetNo}`} /></td>
+              <tr key={e.id} className="data-table-row" tabIndex={0} onClick={() => { setOpen(e.id); setEditing(false) }} onKeyDown={(ev) => { if (ev.key === 'Enter') { setOpen(e.id); setEditing(false) } }}>
+                <td data-label="Select" onClick={(ev) => ev.stopPropagation()}><input type="checkbox" checked={picked.has(e.id)} onChange={() => toggle(e.id)} onKeyDown={(ev) => ev.stopPropagation()} aria-label={`Select ${e.CHSAssetNo}`} /></td>
                 <td data-label="Asset no."><span className="eq-strong">{e.CHSAssetNo}</span></td>
-                <td data-label="Model">{e.Model}{e.Description && <span className="eq-small">{e.Description}</span>}</td>
+                <td data-label="Model">{e.Model}</td>
+                <td data-label="Description">{e.Description}</td>
                 <td data-label="Serial no." className="eq-mono">{e.SerialNo}</td>
+                <td data-label="Notes" className="eq-history-notes">{e.RetiredNotes || e.Notes}</td>
                 <td data-label="Retired" className="eq-nowrap">{fmtDate(e.RetiredDate)}</td>
                 <td data-label="Why">{e.RetiredReason && <Badge tone="orange">{e.RetiredReason}</Badge>}</td>
-                <td data-label="Notes" className="eq-history-notes">{e.RetiredNotes || e.Notes}</td>
+                <td data-label="Part no." className="eq-mono">{e.PartNo}</td>
+                <td data-label="NZ$" className="eq-nowrap">{nz(e.NZPrice)}</td>
               </tr>
             ))}
           </tbody>
@@ -102,8 +139,54 @@ function Retired({ s, onDone }) {
         <AdminDialog s={s} title={`Delete ${ids.length} retired ${ids.length === 1 ? 'item' : 'items'} for good?`} message="They can’t be brought back after this." confirmLabel="Delete for good" danger
           onClose={() => setAsking(null)} onConfirm={async () => { const n = await s.deleteRetired(ids); setPicked(new Set()); setAsking(null); onDone(`${n} deleted.`) }} />
       )}
+      {item && !editing && asking !== 'deleteOne' && (
+        <Dialog title={item.CHSAssetNo || 'Retired item'} description={[item.Model, item.Description].filter(Boolean).join(' · ')} onClose={() => setOpen(null)} width={640}>
+          <Badge tone="orange">{item.RetiredReason || 'Sold / Retired'}</Badge>
+          <p className="eq-note">Retired {fmtDate(item.RetiredDate) || '—'}{item.RetiredNotes ? ` · ${item.RetiredNotes}` : ''}</p>
+          <dl className="eq-fields">
+            {[['CHSAssetNo', 'CHS asset no.'], ['Model', 'Model'], ['Description', 'Description'], ['SerialNo', 'Serial no.'], ['BatterySerialNo', 'Battery serial no.'], ['PartNo', 'Part no.'],
+              ['MfgDate', 'Manufactured'], ['PurchaseDate', 'Purchased'], ['USPrice', 'US$'], ['NZPrice', 'NZ$'], ['TileNo', 'Tile no.'], ['ShelfLocation', 'Shelf'], ['Notes', 'Notes']]
+              .filter(([k]) => item[k]).map(([k, label]) => (
+                <div key={k}><dt>{label}</dt><dd className={/SerialNo/.test(k) ? 'eq-mono' : ''}>{/Date$/.test(k) ? fmtDate(item[k]) : k === 'NZPrice' ? nz(item[k]) : k === 'USPrice' ? '$' + Number(item[k]).toLocaleString() : item[k]}</dd></div>
+              ))}
+          </dl>
+          <div className="dialog-actions">
+            <button type="button" className="btn btn-ghost btn-md eq-danger" onClick={() => setAsking('deleteOne')}>Delete for good</button>
+            <button type="button" className="btn btn-secondary btn-md" onClick={() => setEditing(true)}>Edit</button>
+            <button type="button" className="btn btn-primary btn-md" onClick={() => restore([item.id])}>Bring back</button>
+          </div>
+        </Dialog>
+      )}
+      {item && editing && <RetiredEdit s={s} item={item} onClose={() => setEditing(false)} onDone={(msg) => { setEditing(false); onDone(msg) }} />}
+      {item && asking === 'deleteOne' && (
+        <AdminDialog s={s} title={`Delete ${item.CHSAssetNo} for good?`} message="It can’t be brought back after this." confirmLabel="Delete for good" danger
+          onClose={() => setAsking(null)} onConfirm={async () => { await s.deleteRetired([item.id]); setAsking(null); setOpen(null); onDone(`${item.CHSAssetNo} deleted.`) }} />
+      )}
       {confirmDialog}
     </>
+  )
+}
+
+/** A retired item's why and notes (old: the retired edit modal). */
+function RetiredEdit({ s, item, onClose, onDone }) {
+  const [f, setF] = useState({ reason: item.RetiredReason || '', retiredNotes: item.RetiredNotes || '', notes: item.Notes || '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const reasons = [...new Set([...RETIRE_REASONS, ...(f.reason ? [f.reason] : [])])]
+  return (
+    <Dialog title={`Edit ${item.CHSAssetNo || ''}${item.Model ? ' — ' + item.Model : ''}`} onClose={onClose} width={480}>
+      <form className="eq-form" onSubmit={async (e) => { e.preventDefault(); setBusy(true); setError(''); try { await s.editRetired(item.id, f); onDone(`${item.CHSAssetNo || 'Item'} updated.`) } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) } }}>
+        <label className="field"><span className="field-label">Why</span><select value={f.reason} onChange={set('reason')}><option value="">—</option>{reasons.map((r) => <option key={r}>{r}</option>)}</select></label>
+        <label className="field"><span className="field-label">Retired notes</span><textarea className="input" rows={2} value={f.retiredNotes} onChange={set('retiredNotes')} /></label>
+        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
+        {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+        </div>
+      </form>
+    </Dialog>
   )
 }
 
@@ -125,7 +208,7 @@ function Kits({ s, onDone }) {
             <h3 className="eq-h3 eq-grow">{kit.label || key}</h3>
             <Button size="sm" variant="ghost" className="eq-danger" onClick={async () => {
               if (!(await confirm({ title: `Delete the kit “${kit.label || key}”?`, message: 'The devices aren’t touched; they just stop being suggested together.', confirmLabel: 'Delete kit', danger: true }))) return
-              run(() => s.changeKits((k) => { const n = { ...k }; delete n[key]; return n }, ['kit_deleted', `Kit "${kit.label || key}" deleted`, { kit: key }]), 'Kit deleted.')
+              run(() => s.changeKits((k) => { const n = { ...k }; delete n[key]; return n }, ['kit_deleted', `Kit "${kit.label || key}" deleted`, { kit: kit.label || key }]), 'Kit deleted.')
             }}>Delete kit</Button>
           </div>
           <KitList title="Trigger devices" items={(kit.triggers || []).map((t) => ({ assetNo: t }))} find={find}

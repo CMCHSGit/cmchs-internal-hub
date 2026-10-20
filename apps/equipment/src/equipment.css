@@ -231,3 +231,7 @@
 
 /* Manage, Simpro: a job number typed against a loan with none (old: Existing job # and Link). */
 .eq-job-link { width: 130px; flex: 0 0 auto; }
+
+/* A loan's device rows: later bookings, and the waiting devices' heading (old: buildLoanDeviceRow). */
+.eq-next { color: var(--text-muted); }
+.eq-device-head { list-style: none; font: var(--type-body-sm); color: var(--text-muted); padding: 6px 0 2px; }
