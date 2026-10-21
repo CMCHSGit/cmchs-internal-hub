@@ -237,8 +237,9 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       failed on its audit entry (a local `oldDate` hid the date function), so no entry and an error shown.
       Then, the same day: Add assets as the old form (several at once, a kit from them, new or added to),
       and the team in Manage, Team as well as Settings, People and access, through the same changes
-      (`apps/admin/src/tracker.js`: role, add, name and email, remove). Not brought back, on purpose or for
-      later: orphaned-loan recovery, the app-icon badge, ZXing on iPhones (jsQR, with a photo fallback).
+      (`apps/admin/src/tracker.js`: role, add, name and email, remove); the badge count on the Demo tab and
+      the app icon (`shared/badges.js`). Not brought back: orphaned-loan recovery (Peter, 21 Oct: not
+      needed, the new save can't leave a half-saved loan), ZXing on iPhones (jsQR, with a photo fallback).
 
 ### 5. One identity and data platform
 The detailed plan, for Peter: `STEP-5-PLAN.md`.
