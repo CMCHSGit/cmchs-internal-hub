@@ -23,6 +23,8 @@ import { getMessaging } from 'firebase-admin/messaging'
 import { isMineToDo, isOverdue } from '../src/model.js'
 
 const APP_URL = 'https://internal.chsnz.co.nz/asks/#/mine'
+// The Firebase SDK shows it itself (apps/hub/src/sw.js), so the icon comes with it.
+const ICON = 'https://internal.chsnz.co.nz/icons/icon-192.png'
 const DEAD_TOKEN_CODES = new Set(['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'])
 
 /** Hours ahead of UTC in Auckland right now: 13 in daylight saving, 12 otherwise. */
@@ -120,7 +122,7 @@ async function main() {
   for (const { u, msg } of due) {
     const tokens = u.fcmTokens || []
     if (tokens.length) {
-      const r = await getMessaging().sendEachForMulticast({ tokens, notification: { title: msg.title, body: msg.body }, data: { url: APP_URL } })
+      const r = await getMessaging().sendEachForMulticast({ tokens, notification: { title: msg.title, body: msg.body }, data: { url: APP_URL }, webpush: { notification: { icon: ICON, badge: ICON } } })
       pushSent += r.successCount
       pushFailed += r.failureCount
       const dead = r.responses.map((x, i) => (!x.success && DEAD_TOKEN_CODES.has(x.error?.code) ? tokens[i] : null)).filter(Boolean)

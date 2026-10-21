@@ -117,6 +117,8 @@ async function sendPushToUser(db, user, weekStart) {
       body:  `You haven't filled out your schedule for ${weekLabel} yet.`,
     },
     data: { url: `${process.env.APP_URL}/my` },
+    // The Firebase SDK shows it itself (apps/hub/src/sw.js), so the icon comes with it.
+    webpush: { notification: { icon: 'https://internal.chsnz.co.nz/icons/icon-192.png', badge: 'https://internal.chsnz.co.nz/icons/icon-192.png' } },
   })
 
   const deadTokens = response.responses
