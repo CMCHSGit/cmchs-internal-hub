@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { auditTone, filterAudit, importRetiredRows, kitFromNewAssets, planAddAssets, linkTarget, loanFormRtf, loanUpdates, relTime, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
+import { actionCount, auditTone, filterAudit, importRetiredRows, kitFromNewAssets, planAddAssets, linkTarget, loanFormRtf, loanUpdates, relTime, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
 
 const today = '2026-10-21'
 const shelf = (id, o = {}) => ({ id, CHSAssetNo: 'A' + id, Model: 'M' + id, Returned: 'Yes', OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', BatchID: '', ...o })
@@ -92,4 +92,11 @@ test('add assets (old: Add Assets, Save all): each needs a new number; a kit fro
   const added = kitFromNewAssets({ k: { label: 'Old', triggers: ['Z'], accessories: [{ assetNo: 'P1' }] } }, [...items, { CHSAssetNo: 'P2', Model: 'Gel' }], { trigger: 'T1', existing: 'k' })
   assert.deepEqual(added.kits.k.accessories.map((a) => a.assetNo), ['P1', 'P2'], 'one already on it is not doubled')
   assert.match(kitFromNewAssets({}, items, { trigger: 'T1' }).problem, /name/)
+})
+test('the badge: overdue and waiting-on-transfer, yours as an account manager, everyone’s for Service & Projects', () => {
+  const ov = { stuck: [{ id: 'u1', accountManager: 'Sam' }, { id: 'u2', accountManager: 'Ana' }], overdue: [{ am: 'Sam' }, { am: 'Ana' }, { am: 'Ana' }], active: [], ahead: [] }
+  ov.active = ov.overdue.map((g) => ({ ...g, overdue: true }))
+  assert.equal(actionCount(ov, { name: 'Sam', role: 'am' }), 2)
+  assert.equal(actionCount(ov, { name: 'Kiri', role: 'service' }), 5)
+  assert.equal(actionCount(ov, null), 0, 'not on the team: no badge')
 })

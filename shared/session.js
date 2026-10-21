@@ -8,6 +8,7 @@
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
 // The site's one Firebase start-up (shared with every tool's apps/schedule/src/firebase.js)
 import { auth, configured, microsoftProvider } from './firebase.js'
+import { clearBadges } from './badges.js'
 
 export { configured }
 
@@ -32,6 +33,7 @@ export async function signIn() {
 }
 
 export async function signOutUser() {
+  clearBadges() // the counts were this person's (shared/badges.js)
   if (auth) await signOut(auth)
 }
 

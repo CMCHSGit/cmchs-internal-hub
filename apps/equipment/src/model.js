@@ -397,6 +397,18 @@ export function yoursOf(ov, name) {
   }
 }
 
+/**
+ * How many things need this person (old: mpActionRequiredCount, the tab and app-icon badge):
+ * bookings waiting on a transfer and overdue loans, their own for an account manager,
+ * everyone's for Service & Projects; none for someone not on the tracker's team.
+ */
+export function actionCount(ov, me) {
+  if (!me) return 0
+  if (roleOf(me) === 'service') return ov.stuck.length + ov.overdue.length
+  const y = yoursOf(ov, me.name)
+  return y.stuck.length + y.overdue.length
+}
+
 /* ── Changes (the loan actions). The old tracker's ways of recording them,
    kept so both trackers read each other's changes. ── */
 

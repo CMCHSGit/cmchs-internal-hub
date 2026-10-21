@@ -246,3 +246,6 @@
 .eq-team-row .eq-picked-main { flex: 1 1 auto; min-width: 0; }
 .eq-team-row select { width: 190px; flex: 0 0 auto; }
 @media (max-width: 559px) { .eq-team-row { flex-wrap: wrap; } .eq-team-row .eq-picked-main { flex-basis: 100%; } }
+
+/* Overview's count of what needs you (old: the phone's Today tab badge). */
+.eq-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--status-critical); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }

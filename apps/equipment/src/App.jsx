@@ -16,7 +16,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
-import { FIELDS, STATUSES, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
+import { FIELDS, STATUSES, actionCount, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, upcomingFor } from './model.js'
+import { badgeText, setBadge } from '../../../shared/badges.js'
 import { isLocal, readOld } from './db.js'
 import Loans from './Loans.jsx'
 import { AddAssets, AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
@@ -74,6 +75,14 @@ function Shell() {
   // Test mode is for admins and the testers an admin marks (users.trackerTester, shared/can.js); anyone else
   // signed in here has it switched off (old: updateTestModeUI, with two names written in).
   useEffect(() => { if (s.testMode && s.profile && !s.canTestMode) s.setTestMode(false) }, [s.testMode, s.profile, s.canTestMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  // What needs this person (old: the phone's tab and app-icon badge): on Overview here, and on the hub's Demo
+  // tab and the home-screen icon (shared/badges.js). Once the team and loan forms are in, and after every change.
+  const needs = useMemo(() => {
+    if (!s.ready || !s.extrasReady) return null
+    const sections = loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })
+    return actionCount(overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }), s.me)
+  }, [s.ready, s.extrasReady, s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.me])
+  useEffect(() => { if (needs != null) setBadge('equipment', needs) }, [needs])
 
   if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
   if (!s.ready) return <div className="eq-page"><Loading /></div>
@@ -94,6 +103,7 @@ function Shell() {
         {VIEWS.map(([id, label, Icon]) => (
           <a key={id} href={hashOf(id)} className={`eq-view${route.view === id ? ' on' : ''}`} aria-current={route.view === id ? 'page' : undefined}>
             <Icon size={18} aria-hidden="true" />{label}
+            {id === 'overview' && needs > 0 && <span className="eq-badge" aria-label={`, ${needs} need${needs === 1 ? 's' : ''} you`}>{badgeText(needs)}</span>}
           </a>
         ))}
       </nav>

@@ -4,6 +4,27 @@ import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
 import { openSearch } from './Palette.jsx'
+import { EVENT, KEY, badgeText, readAll } from '../../../shared/badges.js'
+
+/** A section's count of things needing you (shared/badges.js), kept up to date across this browser's tabs. */
+function useBadge(id) {
+  const [n, setN] = useState(() => readAll()[id] || 0)
+  useEffect(() => {
+    const update = () => setN(readAll()[id] || 0)
+    const other = (e) => { if (e.key === KEY) update() }
+    window.addEventListener(EVENT, update)
+    window.addEventListener('storage', other)
+    update()
+    return () => { window.removeEventListener(EVENT, update); window.removeEventListener('storage', other) }
+  }, [id])
+  return n
+}
+
+/** The red count on a section's tab (old: the demo tracker's tab badge). */
+function TabBadge({ id }) {
+  const n = useBadge(id)
+  return n > 0 ? <span className="tab-badge" aria-label={`, ${n} need${n === 1 ? 's' : ''} you`}>{badgeText(n)}</span> : null
+}
 
 /** The search box: opens the one search (Palette.jsx), the same as Ctrl+K. */
 function SearchButton() {
@@ -97,7 +118,7 @@ function BottomNav({ page }) {
     <nav className="bottom-nav" aria-label="Sections" ref={box}>
       {NAV.filter(([id]) => BAR.includes(id)).map(([id, label, href, Glyph]) => (
         <a key={id} href={href} className={`bottom-tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined}>
-          <Glyph size={22} aria-hidden="true" />
+          <span className="bottom-tab-icon"><Glyph size={22} aria-hidden="true" /><TabBadge id={id} /></span>
           <span>{label}</span>
         </a>
       ))}
@@ -132,7 +153,7 @@ export default function Header({ user, search = true, page = 'home' }) {
         </a>
         <nav className="nav-tabs wide-only" aria-label="Hub">
           {NAV.map(([id, label, href]) => (
-            <a key={id} href={href} className={`nav-tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined}>{label}</a>
+            <a key={id} href={href} className={`nav-tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined}>{label}<TabBadge id={id} /></a>
           ))}
         </nav>
         <div className="spacer" />
