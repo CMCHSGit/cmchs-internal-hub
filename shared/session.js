@@ -34,7 +34,16 @@ export async function signIn() {
 
 export async function signOutUser() {
   clearBadges() // the counts were this person's (shared/badges.js)
-  if (auth) await signOut(auth)
+  if (!auth) return
+  await signOut(auth)
+  // This person's data kept on the device (shared/firestore.js) goes with
+  // them. Loaded only now, so plain pages that never use Firestore don't
+  // download it. Firestore can't restart in this page afterwards: start afresh.
+  try {
+    const { clearFirestoreCache } = await import('./firestore.js')
+    await clearFirestoreCache()
+  } catch (e) { console.warn('[session] device copy not cleared', e) }
+  location.replace('/')
 }
 
 /** "Peter Lin" -> "PL"; falls back to the email's first letters. */

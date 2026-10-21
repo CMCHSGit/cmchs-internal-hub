@@ -99,7 +99,7 @@ export async function loadToday() {
   } catch {
     return null
   }
-  const db = fs.getFirestore(app)
+  const db = (await import('../../../shared/firestore.js')).firestore(app)
   const weekStart = getCurrentWeekStart(0)
 
   const [usersSnap, schedSnap, oncallSnap] = await Promise.all([

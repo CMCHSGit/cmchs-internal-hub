@@ -53,7 +53,7 @@ export async function watchMyAsks(user, cb) {
     cb(null)
     return () => {}
   }
-  const db = fs.getFirestore(app)
+  const db = (await import('../../../shared/firestore.js')).firestore(app)
   const [profile, usersSnap] = await Promise.all([fs.getDoc(fs.doc(db, 'users', user.uid)), fs.getDocs(fs.collection(db, 'users'))])
   const p = profile.exists() ? profile.data() : {}
   const me = { uid: user.uid, team: p.team || '', role: p.role || 'user' }

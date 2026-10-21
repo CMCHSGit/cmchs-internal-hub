@@ -52,7 +52,7 @@ const local = new Map()
 let fsPromise = null
 async function fs() {
   if (!fsPromise) {
-    fsPromise = Promise.all([import('firebase/app'), import('firebase/firestore')]).then(([{ getApp }, f]) => ({ f, db: f.getFirestore(getApp()) }))
+    fsPromise = Promise.all([import('firebase/app'), import('firebase/firestore'), import('../../../shared/firestore.js')]).then(([{ getApp }, f, s]) => ({ f, db: s.firestore(getApp()) }))
   }
   return fsPromise
 }

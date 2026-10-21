@@ -63,7 +63,7 @@ function snooze() {
 async function firebaseParts() {
   const [{ getApp }, fs, msg] = await Promise.all([import('firebase/app'), import('firebase/firestore'), import('firebase/messaging')])
   const app = getApp() // the one shared/session.js signed in with
-  return { app, fs, msg, db: fs.getFirestore(app) }
+  return { app, fs, msg, db: (await import('../../../shared/firestore.js')).firestore(app) }
 }
 
 async function shouldAsk(uid) {

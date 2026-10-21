@@ -215,7 +215,7 @@ const devMode = import.meta.env?.DEV && !import.meta.env?.VITE_FIREBASE_API_KEY
 let fsPromise = null
 export async function fs() {
   if (!fsPromise) {
-    fsPromise = Promise.all([import('firebase/app'), import('firebase/firestore')]).then(([{ getApp }, f]) => ({ f, db: f.getFirestore(getApp()) }))
+    fsPromise = Promise.all([import('firebase/app'), import('firebase/firestore'), import('../../../shared/firestore.js')]).then(([{ getApp }, f, s]) => ({ f, db: s.firestore(getApp()) }))
   }
   return fsPromise
 }
