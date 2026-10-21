@@ -405,17 +405,6 @@ $('sp-change').addEventListener('click', () => {
   $('sp-find').hidden = false
   refreshAttachCount()
 })
-// Simpro's own job card PDF, from its own templates - the API has no way to
-// render one. This is the URL Simpro opens from a job's Forms > Jobcard,
-// minus the openHash it adds, and the person's Simpro login covers it. It's
-// the PDF view rather than the job's edit page, so it shouldn't lock the job
-// the way having it open does (every PATCH then comes back 422).
-const SIMPRO_WEB = 'https://cass.simprosuite.com'
-$('sp-jobcard').addEventListener('click', () => {
-  if (!job) return
-  const id = encodeURIComponent(job.ID)
-  window.open(`${SIMPRO_WEB}/staff/forms/jobcard/jobcard.php/Jobcard_For_Job_No_${id}.pdf?lem=1`, '_blank', 'noopener')
-})
 $('sp-go').addEventListener('click', run)
 
 // The report list changes as files are added or cleared; the page tells us.

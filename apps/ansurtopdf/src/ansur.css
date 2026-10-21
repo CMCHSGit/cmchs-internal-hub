@@ -92,7 +92,6 @@ body.busy .an-host { cursor: progress; }
 /* The Simpro panel */
 .an-host #simpro { margin-top: 2px; padding: 16px 18px; }
 .an-host .sp-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
-.an-host .sp-job-actions { display: flex; gap: 6px; margin-left: auto; }
 .an-host #sp-q { flex: 1; min-width: 220px; width: auto; }
 .an-host .sp-field { display: flex; flex-direction: column; gap: 6px; font: var(--weight-semibold) var(--size-body-sm)/1.4 var(--font-body); color: var(--text-strong); }
 .an-host .sp-job { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 220px; }
