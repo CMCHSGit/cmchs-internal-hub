@@ -5,3 +5,6 @@ apps/*/dist/
 .env.local
 # SimproSync loads its API key from this file if present. Never commit it.
 simpro_key.js
+
+# graphify: a local map of the code, rebuilt with `graphify update .` (CLAUDE.md)
+graphify-out/
