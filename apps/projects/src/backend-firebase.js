@@ -12,7 +12,7 @@
 
 import { onAuthStateChanged, signInWithPopup } from 'firebase/auth'
 import {
-  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, runTransaction, writeBatch,
+  collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, runTransaction, writeBatch,
 } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../../schedule/src/firebase.js'
 import { clean } from './backend.js'
@@ -40,6 +40,22 @@ export default {
   async profile(uid) {
     const s = await getDoc(doc(db, 'users', uid))
     return s.exists() ? s.data() : {}
+  },
+
+  /** The staff schedule's people, to match the staff list to (for leave). */
+  async scheduleUsers() {
+    const snap = await getDocs(collection(db, 'users'))
+    return snap.docs.map((d) => { const u = d.data(); return { uid: d.id, displayName: u.displayName || '', email: u.email || '', excelName: u.excelName || '' } })
+  },
+  /** The staff schedule's weeks starting on these Mondays: who is where each day, so leave shows here. */
+  async scheduleWeeks(weeks) {
+    const out = []
+    // Firestore's `in` takes up to 30 values
+    for (let i = 0; i < weeks.length; i += 30) {
+      const snap = await getDocs(query(collection(db, 'schedules'), where('weekStart', 'in', weeks.slice(i, i + 30))))
+      for (const d of snap.docs) { const x = d.data(); out.push({ uid: x.uid, weekStart: x.weekStart, days: (x.days || []).map((y) => ({ location: y?.location || '' })) }) }
+    }
+    return out
   },
 
   watch(col, cb, onError) {

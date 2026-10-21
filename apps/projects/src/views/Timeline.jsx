@@ -3,6 +3,9 @@
    move with it), drag an end to change a date. Each week cell shows who is
    there and doing what; click one to change it. "By person" turns it round:
    one row per person, with double bookings and leave clashes picked out.
+   "Leave" lists only who is away in the weeks on screen. Leave is read from
+   the staff schedule (and any typed in Settings); By job shows it as an
+   "On leave" row on top, and someone away all week can't be added that week.
    Compact (the default) keeps each row to one line, sizes the weeks to fill
    the screen and shows people as initials in their activity's colour; jobs
    with nothing in the weeks on screen can be hidden. */
@@ -13,7 +16,7 @@ import { Alert, Button } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { ActivityChip, Avatar, StatusPill, Empty, DensityToggle, useDense, usePref, useFitHeight } from '../ui.jsx'
-import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, leaveInWeek, isISO, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
+import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, isISO, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
 
 const NAME_W = 290
 const NAME_W_DENSE = 230
@@ -44,7 +47,19 @@ export default function Timeline({ params }) {
   const weeks = useMemo(() => weeksFrom(first, count), [first, count])
   const last = addDays(weeks[weeks.length - 1], 6)
   const activeIds = useMemo(() => new Set(s.active.map((j) => j.id)), [s.active])
-  const clash = useMemo(() => clashes(s.assignments, s.settings.staff, activeIds), [s.assignments, s.settings.staff, activeIds])
+  const { awayOf, needLeave } = s
+  // The weeks on screen and the next 8 (the clash warning looks that far), read again on coming back to the tab
+  useEffect(() => {
+    const want = [...new Set([...weeks, ...weeksFrom(thisWeek, 9)])]
+    needLeave(want)
+    const again = () => { if (document.visibilityState === 'visible') needLeave(want) }
+    document.addEventListener('visibilitychange', again)
+    return () => document.removeEventListener('visibilitychange', again)
+  }, [weeks, thisWeek, needLeave])
+  const clash = useMemo(() => clashes(s.assignments, s.settings.staff, activeIds, awayOf), [s.assignments, s.settings.staff, activeIds, awayOf])
+  const awayRows = useMemo(() => s.settings.staff.map((p) => ({ p, weeks: weeks.map((w) => awayOf(p, w)) })), [s.settings.staff, weeks, awayOf])
+  const awayShown = awayRows.filter((r) => r.weeks.some(Boolean))
+  const unlinked = s.leave.fromSchedule && s.leave.loaded ? s.settings.staff.filter((p) => !s.leave.linked.has(p.id)) : []
   const template = `${nameW}px repeat(${count}, ${colW}px)`
   const todayLeft = nameW + (daysBetween(first, s.today) / 7) * colW
   // A job is idle on screen when its bar is outside these weeks and nobody is booked in them
@@ -83,7 +98,7 @@ export default function Timeline({ params }) {
         <span className="pt-spacer" />
         <DensityToggle />
         <div className="pt-seg" role="group" aria-label="Layout">
-          {[['job', 'By job'], ['person', 'By person']].map(([v, l]) => <button key={v} type="button" className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{l}</button>)}
+          {[['job', 'By job'], ['person', 'By person'], ['leave', 'Leave']].map(([v, l]) => <button key={v} type="button" className={layout === v ? 'on' : ''} aria-pressed={layout === v} onClick={() => setLayout(v)}>{l}</button>)}
         </div>
         <div className="pt-seg" role="group" aria-label="Zoom">
           {[['week', 'Week'], ['month', 'Month']].map(([v, l]) => <button key={v} type="button" className={zoom === v ? 'on' : ''} aria-pressed={zoom === v} onClick={() => setZoom(v)}>{l}</button>)}
@@ -117,9 +132,44 @@ export default function Timeline({ params }) {
             {months.map((m) => <div key={m.m} className="overline pt-tl-month" style={{ gridColumn: `${m.from + 2} / span ${m.n}` }}>{m.n * colW > 80 ? `${MONTHS_LONG[Number(m.m.slice(5)) - 1]} ${m.m.slice(0, 4)}` : MONTHS_LONG[Number(m.m.slice(5)) - 1].slice(0, 3)}</div>)}
           </div>
           <div className="pt-tl-row pt-tl-weeks" style={{ gridTemplateColumns: template }}>
-            <div className="pt-tl-name pt-tl-headcell overline">{layout === 'job' ? 'Job' : 'Staff'}</div>
+            <div className="pt-tl-name pt-tl-headcell overline">{layout === 'job' ? 'Job' : layout === 'leave' ? 'On leave' : 'Staff'}</div>
             {weeks.map((w) => <div key={w} className={`pt-tl-week${w === thisWeek ? ' now' : ''}`}>{zoom === 'week' && colW >= 52 ? fmt(w) : toDate(w).getDate()}</div>)}
           </div>
+
+          {layout === 'job' && (
+            <div className="pt-tl-row pt-tl-leaverow" style={{ gridTemplateColumns: template }}>
+              <div className="pt-tl-name pt-row"><b className="pt-strong pt-grow">On leave</b><button type="button" className="link-btn text-sm" onClick={() => setLayout('leave')}>See all</button></div>
+              {weeks.map((w, i) => {
+                const away = awayRows.map((r) => ({ p: r.p, a: r.weeks[i] })).filter((x) => x.a)
+                return (
+                  <div key={w} className="pt-tl-cell pt-tl-static" style={{ gridColumn: i + 2 }}
+                    aria-label={`Week of ${fmt(w)}: ${away.length ? away.map((x) => `${x.p.name} ${x.a.full ? 'away all week' : x.a.label}`).join(', ') : 'nobody on leave'}`}>
+                    {zoom === 'week'
+                      ? away.map(({ p, a }) => <span key={p.id} className={`pt-act pt-act-mini pt-away${a.full ? ' full' : ''}`} title={`${p.name}: on leave ${a.label}`}>{p.initials}</span>)
+                      : away.length > 0 && <span className="pt-mini pt-away full" title={away.map((x) => `${x.p.name}: ${x.a.label}`).join('\n')}>{away.length}</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {layout === 'leave' && awayShown.map(({ p, weeks: aw }) => (
+            <div key={p.id} className="pt-tl-row" style={{ gridTemplateColumns: template }}>
+              <div className="pt-tl-name pt-row">{dense
+                ? <><Avatar person={p} size={20} /><span className="pt-ellipsis" title={`${p.name} · ${p.role}`}><b className="pt-strong">{p.name}</b> <span className="text-muted">{p.role}</span></span></>
+                : <><Avatar person={p} /><span className="pt-col"><b className="pt-strong">{p.name}</b><span className="text-sm text-muted">{p.role}</span></span></>}</div>
+              {weeks.map((w, i) => {
+                const a = aw[i]
+                return (
+                  <div key={w} className={`pt-tl-cell pt-tl-static${a ? ` pt-away${a.full ? ' full' : ''}` : ''}`} style={{ gridColumn: i + 2 }}
+                    title={a ? `${p.name}: on leave ${a.label}` : undefined} aria-label={`${p.name}, week of ${fmt(w)}: ${a ? 'on leave ' + a.label : 'working'}`}>
+                    {a && zoom === 'week' && <span className="pt-away-label">{a.full ? (dense ? 'Away' : 'Away all week') : a.label}</span>}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+          {layout === 'leave' && !awayShown.length && <Empty>Nobody is on leave in these weeks.</Empty>}
 
           {layout === 'job' && s.settings.categories.map((cat) => {
             const jobs = mainJobs.filter((j) => j.category === cat.id && (layout !== 'job' || !hideIdle || busy(j))).sort((a, b) => String(a.start || '9').localeCompare(String(b.start || '9')))
@@ -145,10 +195,11 @@ export default function Timeline({ params }) {
               {weeks.map((w, i) => {
                 const items = s.assignments.filter((a) => a.staffId === p.id && a.week === w && activeIds.has(a.jobId))
                 const why = clash.get(`${p.id}|${w}`)
-                const leave = leaveInWeek(p, w).length > 0
+                const away = awayOf(p, w)
+                const leave = !!away?.full
                 return (
                   <button key={w} type="button" className={`pt-tl-cell${why ? ' clash' : ''}${leave ? ' leave' : ''}`} style={{ gridColumn: i + 2 }}
-                    onClick={(e) => openPop(e, 'person', p.id, w)} aria-label={`${p.name}, week of ${fmt(w)}: ${items.length ? items.length + ' booked' : leave ? 'on leave' : 'free'}`}>
+                    onClick={(e) => openPop(e, 'person', p.id, w)} aria-label={`${p.name}, week of ${fmt(w)}: ${items.length ? items.length + ' booked' : leave ? 'on leave' : 'free'}${away && !leave ? `, on leave ${away.label}` : ''}`}>
                     {items.map((a) => {
                       const job = s.jobById.get(a.jobId)
                       return zoom === 'week'
@@ -157,6 +208,7 @@ export default function Timeline({ params }) {
                     })}
                     {zoom === 'week' && why && <span className="pt-flag" title={why === 'leave' ? 'On leave, booked' : 'Double-booked'}>{dense ? (why === 'leave' ? 'Leave!' : 'Double') : why === 'leave' ? 'On leave, booked' : 'Double-booked'}</span>}
                     {zoom === 'week' && !why && leave && <span className="text-sm text-muted">{dense ? 'Leave' : 'On leave'}</span>}
+                    {zoom === 'week' && away && !leave && <span className="text-sm text-muted" title={`On leave ${away.label}`}>Leave {away.label}</span>}
                   </button>
                 )
               })}
@@ -172,6 +224,12 @@ export default function Timeline({ params }) {
           )}
         </div>
       </div>
+      {layout === 'leave' && (
+        <p className="text-sm text-muted pt-hint">
+          Leave comes from the staff schedule (book it on its Leave calendar), plus any typed against someone in Settings. Someone away all week can't be added to a job that week.
+          {unlinked.length > 0 && ` Not matched to anyone in the staff schedule, so their leave there doesn't show: ${unlinked.map((p) => p.name).join(', ')}. Give them the same email in Settings.`}
+        </p>
+      )}
       <p className="text-sm text-muted pt-hint">Each week is saved as person, job, week and activity, ready to feed the staff schedule later. {s.canEdit && 'Drag a bar to move a job and its people; drag either end to change a date.'}</p>
 
       {pop && <CellPop pop={pop} onClose={() => setPop(null)} />}
@@ -292,6 +350,7 @@ function CellPop({ pop, onClose }) {
   const [activity, setActivity] = useState(acts[0] || 'Prep')
   const items = s.assignments.filter((a) => a.week === pop.week && (pop.kind === 'job' ? a.jobId === pop.id : a.staffId === pop.id))
   const title = pop.kind === 'job' ? s.jobById.get(pop.id)?.name : s.staffById.get(pop.id)?.name
+  const away = staffId ? s.awayOf(s.staffById.get(staffId), pop.week) : null
   const w = 300
   const left = Math.min(Math.max(8, pop.rect.left + pop.rect.width / 2 - w / 2), window.innerWidth - w - 8)
   const below = pop.rect.bottom + 6
@@ -299,7 +358,7 @@ function CellPop({ pop, onClose }) {
 
   async function add(e) {
     e.preventDefault()
-    if (!staffId || !jobId) return
+    if (!staffId || !jobId || away?.full) return
     await s.addAssignment({ jobId, staffId, week: pop.week, activity })
     if (pop.kind === 'job') setStaffId('')
   }
@@ -310,6 +369,7 @@ function CellPop({ pop, onClose }) {
         onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
         <div className="pt-row"><b className="pt-grow">Week of {fmt(pop.week)}</b><button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={onClose}><X size={16} /></button></div>
         <div className="text-sm text-muted pt-ellipsis">{title}</div>
+        {pop.kind === 'person' && away && <p className="text-sm text-muted">{away.full ? 'On leave all week, so can\u2019t be added to a job.' : `On leave ${away.label}.`}</p>}
         {items.length === 0 && <p className="text-sm text-muted">No one booked this week.</p>}
         {items.map((a) => {
           const p = s.staffById.get(a.staffId)
@@ -336,8 +396,10 @@ function CellPop({ pop, onClose }) {
                 <option value="">Add someone…</option>
                 {s.settings.staff.map((p) => {
                   const busy = s.assignments.some((a) => a.staffId === p.id && a.week === pop.week && a.jobId !== pop.id && s.jobById.get(a.jobId) && !s.jobById.get(a.jobId).archived)
-                  const leave = leaveInWeek(p, pop.week).length > 0
-                  return <option key={p.id} value={p.id}>{p.initials} · {p.name}{leave ? ' (on leave)' : busy ? ' (booked elsewhere)' : ''}</option>
+                  const away = s.awayOf(p, pop.week)
+                  // Away all week: shown, greyed out and not pickable
+                  const note = away?.full ? 'on leave' : [away && `leave ${away.label}`, busy && 'booked elsewhere'].filter(Boolean).join(', ')
+                  return <option key={p.id} value={p.id} disabled={!!away?.full}>{p.initials} · {p.name}{note ? ` (${note})` : ''}</option>
                 })}
               </select>
             ) : (
@@ -350,7 +412,7 @@ function CellPop({ pop, onClose }) {
               <select className="pt-grow" value={activity} onChange={(e) => setActivity(e.target.value)} aria-label="Activity">
                 {acts.map((x) => <option key={x}>{x}</option>)}
               </select>
-              <Button size="sm" type="submit" disabled={!staffId || !jobId}>Add</Button>
+              <Button size="sm" type="submit" disabled={!staffId || !jobId || !!away?.full}>Add</Button>
             </div>
           </form>
         )}

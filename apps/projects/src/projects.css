@@ -243,6 +243,17 @@ button.pt-ratio { cursor: pointer; width: 100%; }
 .pt-tl-cell.leave { background: repeating-linear-gradient(135deg, var(--surface-subtle) 0 6px, var(--chs-black-10) 6px 12px); }
 .pt-tl-cell.clash { background: var(--status-critical-tint); box-shadow: inset 0 0 0 2px var(--status-critical); }
 .pt-flag { font: 700 11px/1.2 var(--font-body); color: var(--status-critical); }
+/* Leave, in the staff schedule's own leave colour (kept exact in dark mode too, as there) */
+.pt-tl-static { cursor: default; flex-flow: row wrap; align-content: center; gap: 3px; }
+.pt-tl-static:hover { background: none; }
+.pt-tl-leaverow, .pt-tl-leaverow .pt-tl-name { background: var(--surface-subtle); }
+.pt-away { background: color-mix(in srgb, #FFC000 30%, var(--surface-card)); color: var(--text-strong); box-shadow: inset 0 0 0 1px #FFC000; }
+.pt-away.full { background: #FFC000; color: #1d1d1d; box-shadow: none; }
+.pt-tl-cell.pt-away:hover { background: color-mix(in srgb, #FFC000 30%, var(--surface-card)); }
+.pt-tl-cell.pt-away.full:hover { background: #FFC000; }
+.pt-act.pt-away { font-weight: 700; }
+.pt-away-label { font: 600 12px/1.2 var(--font-body); }
+.pt-dense .pt-away-label { font-size: 11px; }
 .pt-bar { grid-row: 1; z-index: 1; margin: 5px 3px; display: flex; align-items: center; padding: 0 3px; min-width: 0; touch-action: none; }
 .pt-bar.can { cursor: grab; }
 .pt-bar.dragging { cursor: grabbing; opacity: .85; }

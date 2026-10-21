@@ -139,3 +139,35 @@ test('equipment still needing a demo loan form', async () => {
   assert.deepEqual(linesNeedingLoan({ ...job, archived: true }), [])
   assert.deepEqual(linesNeedingLoan({ id: 'x' }), [])
 })
+
+test('leave: from the staff schedule and Settings, full weeks vs some days', async () => {
+  const { awayInWeek, matchStaff, scheduleDays } = await import('../src/model.js')
+  const { statusOf } = await import('../../schedule/src/utils/status.js')
+  const { shortNames } = await import('../../schedule/src/utils/names.js')
+  const staff = [
+    { id: 'a', name: 'Mark H', email: '' },
+    { id: 'b', name: 'Jess', email: 'jess@x.nz' },
+    { id: 'c', name: 'Sam', leave: [{ from: '2026-11-03', to: '2026-11-04' }] },
+  ]
+  const users = [
+    { uid: 'u1', displayName: 'Mark Hall', excelName: 'Mark H' },
+    { uid: 'u2', displayName: 'Mark Dunn', excelName: 'Mark D' },
+    { uid: 'u3', displayName: 'Jessica B', email: 'Jess@x.nz' },
+  ]
+  const link = matchStaff(staff, users, shortNames(users))
+  assert.equal(link.get('a'), 'u1')
+  assert.equal(link.get('b'), 'u3')
+  assert.equal(link.has('c'), false)
+  const sched = scheduleDays([
+    { uid: 'u1', weekStart: '2026-11-02', days: [{ location: 'Annual Leave' }, { location: 'Annual Leave' }, { location: 'Annual Leave' }, { location: 'Annual Leave' }, { location: 'Non-working day' }] },
+    { uid: 'u3', weekStart: '2026-11-02', days: [{ location: 'Office' }, { location: 'Sick Leave' }, {}, {}, {}] },
+  ], link, statusOf)
+  const none = { has: () => false }
+  assert.deepEqual(awayInWeek(staff[0], '2026-11-02', sched, none), { days: 4, full: true, label: 'Mon–Thu' })
+  assert.deepEqual(awayInWeek(staff[1], '2026-11-02', sched, none), { days: 1, full: false, label: 'Tue' })
+  assert.deepEqual(awayInWeek(staff[2], '2026-11-02', sched, none), { days: 2, full: false, label: 'Tue, Wed' })
+  assert.equal(awayInWeek(staff[1], '2026-11-09', sched, none), null)
+  // Leave Tue–Fri in a week with a Monday holiday is the whole week
+  const s2 = new Map([['b|2026-10-26', [null, 'leave', 'leave', 'leave', 'leave']]])
+  assert.equal(awayInWeek(staff[1], '2026-10-26', s2, { has: (d) => d === '2026-10-26' }).full, true)
+})

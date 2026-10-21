@@ -182,11 +182,100 @@ export function leaveInWeek(person, monday) {
   return (person?.leave || []).filter((l) => overlaps(l.from, l.to, monday, sunday))
 }
 
-/**
- * Weeks where someone is booked twice, or booked while on leave.
- * Returns a Map of `${staffId}|${week}` -> 'double' | 'leave'.
+/*
+ * Leave comes from two places: the staff schedule (what people book on its
+ * Leave calendar or type into their week, read for the weeks on screen) and
+ * the ranges typed against someone in this tracker's Settings. `sched` is a
+ * Map of `${staffId}|${monday}` -> five statuses, Mon–Fri, as the schedule's
+ * statusOf() reads them; see scheduleDays().
  */
-export function clashes(assignments, staff, activeJobIds) {
+const WEEKDAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+
+/**
+ * Who on the staff list is who in the staff schedule: by email when the
+ * tracker has one, otherwise by name (the schedule's short name, its Excel
+ * name, full name or first name), only when exactly one person fits.
+ * `users` are the schedule's user docs ({ uid, displayName, email, excelName }),
+ * `short` its shortNames() Map. Returns a Map of staffId -> uid.
+ */
+export function matchStaff(staff, users, short = new Map()) {
+  const out = new Map()
+  const norm = (x) => String(x || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const first = (n) => { const m = String(n || '').match(/\(([^)]+)\)/); return norm(m ? m[1] : String(n || '').trim().split(/\s+/)[0]) }
+  for (const p of staff) {
+    const email = norm(p.email)
+    let hit = email ? users.filter((u) => norm(u.email) === email) : []
+    if (hit.length !== 1) {
+      const name = norm(p.name)
+      if (!name) continue
+      // The closest kind of name first: "Mark H" is a short name, not a first name
+      for (const key of [(u) => norm(short.get(u.uid)), (u) => norm(u.excelName), (u) => norm(u.displayName), (u) => first(u.displayName)]) {
+        hit = users.filter((u) => key(u) === name)
+        if (hit.length) break
+      }
+    }
+    if (hit.length === 1) out.set(p.id, hit[0].uid)
+  }
+  return out
+}
+
+/**
+ * Schedule docs ({ uid, weekStart, days: [{ location }] }) as the `sched` Map
+ * described above. `statusOf` is the schedule's own (utils/status.js), passed
+ * in so this file stays free of its imports.
+ */
+export function scheduleDays(docs, staffToUid, statusOf) {
+  const staffOf = new Map([...staffToUid].map(([s, u]) => [u, s]))
+  const out = new Map()
+  for (const d of docs) {
+    const id = staffOf.get(d.uid)
+    if (!id || !isISO(d.weekStart)) continue
+    out.set(`${id}|${d.weekStart}`, WEEKDAY.map((_, i) => statusOf(d.days?.[i]) || null))
+  }
+  return out
+}
+
+/** "Mon–Wed", "Tue, Thu", "Fri" */
+function dayLabel(idx) {
+  const runs = []
+  for (const i of idx) {
+    const r = runs[runs.length - 1]
+    if (r && r[1] === i - 1) r[1] = i
+    else runs.push([i, i])
+  }
+  return runs.map(([a, b]) => (a === b ? WEEKDAY[a] : b === a + 1 ? `${WEEKDAY[a]}, ${WEEKDAY[b]}` : `${WEEKDAY[a]}–${WEEKDAY[b]}`)).join(', ')
+}
+
+/**
+ * This person's leave in the week starting `monday`, or null if none:
+ * { days, full, label }. `full` means no working day is left (leave plus
+ * non-working days and public holidays cover the week): they can't be put
+ * on a job that week. `holidays` is a Set of public holiday dates.
+ */
+export function awayInWeek(person, monday, sched, holidays) {
+  if (!person) return null
+  const fromSched = sched?.get(`${person.id}|${monday}`)
+  const ranges = leaveInWeek(person, monday)
+  if (!fromSched && !ranges.length) return null
+  const days = WEEKDAY.map((_, i) => {
+    const iso = addDays(monday, i)
+    if (holidays?.has(iso)) return 'holiday'
+    const st = fromSched?.[i]
+    if (st === 'leave' || st === 'nwd' || st === 'holiday') return st
+    if (ranges.some((l) => overlaps(l.from, l.to, iso, iso))) return 'leave'
+    return null
+  })
+  const leave = days.flatMap((d, i) => (d === 'leave' ? [i] : []))
+  if (!leave.length) return null
+  return { days: leave.length, full: days.every(Boolean), label: leave.length === 5 ? 'All week' : dayLabel(leave) }
+}
+
+/**
+ * Weeks where someone is booked twice, or booked while away all week.
+ * Returns a Map of `${staffId}|${week}` -> 'double' | 'leave'.
+ * `away(person, week)` defaults to the leave typed in Settings.
+ */
+export function clashes(assignments, staff, activeJobIds, away = (p, w) => awayInWeek(p, w)) {
   const out = new Map()
   const byKey = new Map()
   for (const a of assignments) {
@@ -198,7 +287,7 @@ export function clashes(assignments, staff, activeJobIds) {
   for (const [k, jobs] of byKey) {
     const [id, week] = k.split('|')
     const person = staff.find((p) => p.id === id)
-    if (person && leaveInWeek(person, week).length) out.set(k, 'leave')
+    if (person && away(person, week)?.full) out.set(k, 'leave')
     else if (jobs.size > 1) out.set(k, 'double')
   }
   return out

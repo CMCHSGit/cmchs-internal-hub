@@ -9,11 +9,15 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { getBackend } from './backend.js'
 import {
   withDefaults, initialsOf, todayISO, addDays, fmt, dueForAutoArchive, COMPLETE, WAITING, mondayOf, rid,
+  matchStaff, scheduleDays, awayInWeek,
 } from './model.js'
 import { summarise, effectivePool } from './feed.js'
 import { readBackup, restorePlan } from './backup.js'
 import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL } from './sample.js'
 import { TEAMS } from '../../schedule/src/utils/teams.js'
+import { shortNames } from '../../schedule/src/utils/names.js'
+import { statusOf } from '../../schedule/src/utils/status.js'
+import { holidayOn } from '../../schedule/src/utils/holidays.js'
 
 const Ctx = createContext(null)
 export const useStore = () => useContext(Ctx)
@@ -21,6 +25,9 @@ export const useStore = () => useContext(Ctx)
 const ONLINE_MS = 70 * 1000
 const BEAT_MS = 25 * 1000
 const FEED_EVERY_MS = 10 * 60 * 1000
+// A week of the staff schedule read longer ago than this is read again when asked for
+const LEAVE_FRESH_MS = 5 * 60 * 1000
+const HOLIDAYS = { has: (iso) => !!holidayOn(iso) }
 // The last good read of the demo tracker, so the figures survive the feed
 // being down (shown marked out of date). Trimmed to what the tracker uses.
 const FEED_CACHE = 'projects_demo_feed'
@@ -103,6 +110,36 @@ export function StoreProvider({ children }) {
   }, [be, user, refreshFeed])
   const feedSummary = useMemo(() => (feed.raw ? summarise(feed.raw, settings.pool, today) : null), [feed.raw, settings.pool, today])
   const pool = useMemo(() => effectivePool(settings.pool, feedSummary), [settings.pool, feedSummary])
+
+  // ── leave, from the staff schedule: its people once, its weeks as views ask for them ──
+  const [schedUsers, setSchedUsers] = useState(null)
+  const [schedDocs, setSchedDocs] = useState({}) // monday -> that week's schedule docs
+  const schedAsked = useRef(new Map()) // monday -> when it was last read
+  useEffect(() => {
+    if (!be?.scheduleUsers || !user) return
+    be.scheduleUsers().then(setSchedUsers).catch(() => setSchedUsers([]))
+  }, [be, user])
+  const needLeave = useCallback(async (weeks) => {
+    if (!be?.scheduleWeeks || !user) return
+    const now = Date.now()
+    const want = weeks.filter((w) => now - (schedAsked.current.get(w) || 0) > LEAVE_FRESH_MS)
+    if (!want.length) return
+    want.forEach((w) => schedAsked.current.set(w, now))
+    try {
+      const docs = await be.scheduleWeeks(want)
+      setSchedDocs((prev) => {
+        const next = { ...prev }
+        for (const w of want) next[w] = []
+        for (const d of docs) if (next[d.weekStart]) next[d.weekStart].push(d)
+        return next
+      })
+    } catch {
+      want.forEach((w) => schedAsked.current.delete(w))
+    }
+  }, [be, user])
+  const staffToUid = useMemo(() => (schedUsers ? matchStaff(settings.staff, schedUsers, shortNames(schedUsers)) : new Map()), [settings.staff, schedUsers])
+  const sched = useMemo(() => scheduleDays(Object.values(schedDocs).flat(), staffToUid, statusOf), [schedDocs, staffToUid])
+  const awayOf = useCallback((person, monday) => awayInWeek(person, monday, sched, HOLIDAYS), [sched])
 
   // Same test as canEditProjects() in firestore.rules: an admin, or anyone on a team.
   const canEdit = Boolean(profile && (profile.role === 'admin' || TEAMS.includes(profile.team)))
@@ -406,11 +443,15 @@ export function StoreProvider({ children }) {
       catById: new Map(settings.categories.map((c) => [c.id, c])),
       statusByName: new Map(settings.statuses.map((s) => [s.name, s])),
       activityByName: new Map(settings.activities.map((s) => [s.name, s])),
+      // Leave: awayOf(person, monday) -> null | { days, full, label }. Views
+      // call needLeave(mondays) for the weeks they show.
+      awayOf, needLeave,
+      leave: { linked: staffToUid, fromSchedule: Boolean(be?.scheduleWeeks), loaded: schedUsers !== null },
       signIn: () => be.signIn(),
       setViewing,
       ...actions,
     }
-  }, [be, user, profile, me, canEdit, error, today, data, settingsRaw, online, settings, setViewing, actions, pool, feed, feedSummary, refreshFeed])
+  }, [be, user, profile, me, canEdit, error, today, data, settingsRaw, online, settings, setViewing, actions, pool, feed, feedSummary, refreshFeed, awayOf, needLeave, staffToUid, schedUsers])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
