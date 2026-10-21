@@ -405,6 +405,23 @@ $('sp-change').addEventListener('click', () => {
   $('sp-find').hidden = false
   refreshAttachCount()
 })
+// Open the job in Simpro, to print its job card (Forms > Jobcard) - the API
+// can't render one, and the job card PDF's own URL is refused unless Simpro
+// issued its openHash. The job page accepts one we make, though: it's PHP
+// uniqid(), i.e. the time in hex (seconds, then 5 digits of microseconds).
+// Having the job open locks it, and every PATCH then comes back 422, hence
+// the warning when it's clicked.
+const SIMPRO_WEB = 'https://cass.simprosuite.com'
+const uniqid = () => {
+  const t = Date.now()
+  return Math.floor(t / 1000).toString(16) + ((t % 1000) * 1000).toString(16).padStart(5, '0')
+}
+$('sp-jobcard').addEventListener('click', () => {
+  if (!job) return
+  const id = encodeURIComponent(job.ID)
+  window.open(`${SIMPRO_WEB}/staff/editProject.php?jobID=${id}&openHash=${uniqid()}`, '_blank', 'noopener')
+  note('Opened in Simpro - for the job card, go to Forms, then Jobcard. Close that tab before Attach and update: Simpro locks a job while it is open.')
+})
 $('sp-go').addEventListener('click', run)
 
 // The report list changes as files are added or cleared; the page tells us.
