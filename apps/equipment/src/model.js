@@ -1116,6 +1116,43 @@ export function itemProblem(equipment, obj, editingId = null) {
   return ''
 }
 
+/** The fields of each asset on the Add assets form, in the old one's order (old: maAddSlot). */
+export const ADD_FIELDS = ['CHSAssetNo', 'Model', 'Description', 'SerialNo', 'BatterySerialNo', 'PartNo', 'MfgDate', 'PurchaseDate', 'USPrice', 'NZPrice', 'ShelfLocation', 'DeviceID', 'Notes']
+
+/**
+ * Several assets added at once (old: maSaveAll): each needs an asset number
+ * not already on the list (nor twice in this one). Returns { items } or { problem }.
+ */
+export function planAddAssets(equipment, slots, { makeId = newId } = {}) {
+  const items = [], seen = new Set()
+  for (const [i, slot] of (slots || []).entries()) {
+    const no = String(slot.CHSAssetNo || '').trim()
+    if (!no) return { problem: `Asset ${i + 1} needs its CHS asset number.` }
+    const p = itemProblem(equipment, { CHSAssetNo: no })
+    if (p) return { problem: p }
+    if (seen.has(no.toLowerCase())) return { problem: `${no} is on this form twice.` }
+    seen.add(no.toLowerCase())
+    items.push({ id: makeId(), ...Object.fromEntries(ADD_FIELDS.map((f) => [f, String(slot[f] ?? '').trim()])), CHSAssetNo: no })
+  }
+  return items.length ? { items } : { problem: 'Add at least one asset.' }
+}
+
+/**
+ * The kit the Add assets form makes from them (old: maSaveAll's kit part): a
+ * new one (a name, the trigger, the rest its accessories), or the rest added to
+ * an existing kit's accessories. Returns { kits, label } or { problem }.
+ */
+export function kitFromNewAssets(kits = {}, items, { trigger = '', existing = '', name = '', key = 'kit_' + Date.now() } = {}) {
+  if (!trigger || !items.some((i) => i.CHSAssetNo === trigger)) return { problem: 'Choose the kit’s trigger device.' }
+  const acc = items.filter((i) => i.CHSAssetNo !== trigger).map((i) => ({ assetNo: i.CHSAssetNo, model: i.Model || '', desc: i.Description || '' }))
+  if (existing && kits[existing]) {
+    const k = kits[existing], have = k.accessories || []
+    return { kits: { ...kits, [existing]: { ...k, accessories: [...have, ...acc.filter((a) => !have.some((h) => h.assetNo === a.assetNo))] } }, label: k.label || existing }
+  }
+  if (!String(name).trim()) return { problem: 'Give the kit a name.' }
+  return { kits: { ...kits, [key]: { label: String(name).trim(), triggers: [trigger], accessories: acc } }, label: String(name).trim() }
+}
+
 /**
  * An item added or edited (old: saveItem). An edit that changes its loan
  * fields leaves an Edited entry in its history saying what changed.

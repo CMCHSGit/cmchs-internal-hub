@@ -18,6 +18,8 @@
 // The pass and the database address are the rebuilt tracker's (one pass for
 // the whole app): apps/equipment/src/db.js.
 import { DB_URL, dbToken, loadCutover, read } from '../../equipment/src/db.js'
+import { deleteField, doc, updateDoc } from 'firebase/firestore'
+import { db } from '../../schedule/src/firebase'
 
 const TEAM = DB_URL + '/accountManagers.json'
 
@@ -76,7 +78,72 @@ const norm = s => (s || '').trim().toLowerCase()
 export function findMember(list, person) {
   const email = norm(person.email)
   return (email && list.find(m => norm(m.email) === email))
-    || list.find(m => norm(m.name) && norm(m.name) === norm(person.displayName))
+    || list.find(m => norm(m.name) && norm(m.name) === norm(person.displayName ?? person.name))
     || null
+}
+
+/*
+ * Changing the team, the same way from Settings (People and access) and the
+ * tracker's Manage (Team), so the two never disagree. A person is { uid?,
+ * name, email }: uid when they have a hub sign-in. Their hub record's
+ * trackerRole is what the tracker reads first (step 5A); the old list is kept
+ * in step while the old database takes writes. Each resolves to the saved old
+ * list, or null if only the hub record could be changed (after the cutover).
+ */
+
+/** Their tracker role: on their hub record, and on the old list (added there if they're not on it). */
+export async function setMemberRole(person, role) {
+  if (person.uid && db) await updateDoc(doc(db, 'users', person.uid), { trackerRole: role })
+  try {
+    return await updateTeam(list => {
+      const m = findMember(list, person)
+      if (m) m.role = role
+      else list.push({ name: person.name || person.email || '', email: person.email || '', role })
+    })
+  } catch (e) {
+    if (!person.uid) throw e
+    console.warn('[tracker] old demo tracker team list not updated', e) // the hub record is what counts
+    return null
+  }
+}
+
+/** Someone added to the team who may not have a sign-in (old: addAccountManager). */
+export async function addMember({ name, email = '', role = 'am' }) {
+  const n = String(name || '').trim().replace(/\s+/g, ' ')
+  if (!n) throw new Error('Type their name.')
+  return updateTeam(list => {
+    if (findMember(list, { name: n, email })) throw new Error(`${n} is already on the team.`)
+    list.push({ name: n, email: String(email || '').trim(), role })
+  })
+}
+
+/** A team member's name or email put right (old: updateAMField). Their phones and settings stay with them. */
+export async function saveMember(was, { name, email }) {
+  const n = String(name || '').trim().replace(/\s+/g, ' ')
+  if (!n) throw new Error('A name is needed.')
+  return updateTeam(list => {
+    const m = findMember(list, was)
+    if (!m) throw new Error(`${was.name} isn’t on the old team list, so there’s nothing here to change: their name and email come from their sign-in.`)
+    m.name = n
+    m.email = String(email || '').trim()
+  })
+}
+
+/**
+ * Off the team (old: removeAccountManager): off the old list, and their hub record's tracker role
+ * cleared, or they'd still count. Their loans keep their name as the account manager.
+ */
+export async function removeMember(person) {
+  if (person.uid && db) await updateDoc(doc(db, 'users', person.uid), { trackerRole: deleteField() })
+  try {
+    return await updateTeam(list => {
+      const m = findMember(list, person)
+      if (m) list.splice(list.indexOf(m), 1)
+    })
+  } catch (e) {
+    if (!person.uid) throw e
+    console.warn('[tracker] old demo tracker team list not updated', e)
+    return null
+  }
 }
 

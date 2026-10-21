@@ -235,9 +235,10 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
       import, test notifications, scan session log and phone camera, each loan's updates, the count list, the
       test-mode banner, and the smaller ones (`tests/parity.test.mjs`). Found on the way: Extend saved, then
       failed on its audit entry (a local `oldDate` hid the date function), so no entry and an error shown.
-      Not brought back, on purpose or for later: orphaned-loan recovery, the multi-item Add form (one at a
-      time, kits from ticked items), the app-icon badge, ZXing on iPhones (jsQR, with a photo fallback),
-      account managers' names and emails edited in the tracker (step 5A: Settings, People and access).
+      Then, the same day: Add assets as the old form (several at once, a kit from them, new or added to),
+      and the team in Manage, Team as well as Settings, People and access, through the same changes
+      (`apps/admin/src/tracker.js`: role, add, name and email, remove). Not brought back, on purpose or for
+      later: orphaned-loan recovery, the app-icon badge, ZXing on iPhones (jsQR, with a photo fallback).
 
 ### 5. One identity and data platform
 The detailed plan, for Peter: `STEP-5-PLAN.md`.

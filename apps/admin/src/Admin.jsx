@@ -7,7 +7,7 @@ import Toast from '../../schedule/src/components/Toast'
 import { TEAMS, teamLabel } from '../../schedule/src/utils/teams'
 import { logActivity } from '../../schedule/src/utils/activityLog'
 import { Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
-import { TRACKER_ROLES, findMember, loadTeam, trackerRoleLabel, updateTeam } from './tracker'
+import { TRACKER_ROLES, findMember, loadTeam, setMemberRole, trackerRoleLabel, updateTeam } from './tracker'
 
 /*
  * People and access, and everyone's notifications: two pages of the one
@@ -41,22 +41,14 @@ export function UsersTab() {
    */
   async function setTrackerRole(person, role) {
     const name = person.displayName || person.email
+    // The same change as the tracker's Manage, Team (tracker.js), so the two places never disagree.
     try {
-      await updateDoc(doc(db, 'users', person.uid), { trackerRole: role })
-      setUsers(list => list.map(u => (u.uid === person.uid ? { ...u, trackerRole: role } : u)))
+      const list = await setMemberRole({ uid: person.uid, name, email: person.email || '' }, role)
+      setUsers(all => all.map(u => (u.uid === person.uid ? { ...u, trackerRole: role } : u)))
+      if (list) tracker.set(list)
     } catch (e) {
       console.error(e)
       return showToast(e.message || 'Could not save the role — try again.')
-    }
-    try {
-      await tracker.update(list => {
-        const m = findMember(list, person)
-        if (m) m.role = role
-        else list.push({ name, email: person.email || '', role })
-      })
-    } catch (e) {
-      // The old list is read-only after the cutover: the hub record is what counts.
-      console.warn('[admin] old demo tracker team list not updated', e)
     }
     showToast('Saved.')
     logActivity(user, `Set ${name}'s demo tracker role to ${trackerRoleLabel(role)} in Settings.`)
@@ -143,6 +135,7 @@ export function UsersTab() {
       <p className="text-sm text-muted">
         Account managers get reminders for their own loans; Service &amp; Projects get the ones they handle.
         Picking a role adds them to the tracker’s team. Who gets which notifications is on the Notifications tab.
+        The same roles, and names, emails and removing someone, are also in the demo tracker: <a href="/equipment/#/manage?part=team">Manage, Team</a>.
       </p>
 
       <h2 className="admin-side-title">Add a person</h2>
@@ -256,13 +249,14 @@ function useTrackerTeam() {
     error,
     loading: team === null,
     async update(change) { setTeam(await updateTeam(change)) },
+    set: (list) => setTeam([...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''))),
   }
 }
 
 /**
  * accountManagers[].role in the demo tracker. "Not in the tracker" only shows
- * while they aren't on its team: removing someone stays in the tracker, where
- * their loans are, so nothing here can orphan a loan's account manager.
+ * while they aren't on its team: removing someone, and names and emails, are in
+ * the tracker's Manage, Team (the same tracker.js changes as here), where their loans are.
  */
 function TrackerRole({ person, tracker, onChange }) {
   if (tracker.loading) return <span className="admin-tracker text-sm text-muted">Loading…</span>

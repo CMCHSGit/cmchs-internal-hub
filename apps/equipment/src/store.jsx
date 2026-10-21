@@ -18,7 +18,7 @@ import { can } from '../../../shared/can.js'
 import { cutover, isLocal, loadCutover, onFirestore, read, readOld, watch, watchCutover, write } from './db.js'
 import { commit as fsCommit } from './db-firestore.js'
 import {
-  activateBookings, applyImport, importRetiredRows, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
+  activateBookings, applyImport, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
 } from './model.js'
 
@@ -877,6 +877,30 @@ export function StoreProvider({ children }) {
   }, [audit, touch])
 
   /**
+   * Several assets added at once, and a kit made from them if asked (old: the Add Assets form, maSaveAll).
+   * Everything is checked before anything is saved; then the equipment, then the kit, one audit entry listing them.
+   */
+  const addAssets = useCallback(async (slots, kit = null) => {
+    const first = planAddAssets(latest.current.equipment || [], slots)
+    if (first.problem) throw new Error(first.problem)
+    if (kit) { const k = kitFromNewAssets(latest.current.kits || {}, first.items, kit); if (k.problem) throw new Error(k.problem) }
+    let items = []
+    await updateData((d) => { const r = planAddAssets(d.equipment, slots); if (r.problem) throw new Error(r.problem); items = r.items; return { ...d, equipment: [...r.items, ...d.equipment] } })
+    let label = ''
+    if (kit) await changeKits((k) => { const r = kitFromNewAssets(k, items, kit); if (r.problem) throw new Error(r.problem); label = r.label; return r.kits })
+    await audit('asset_added', `${items.length} asset${items.length !== 1 ? 's' : ''} added to database`, { items: items.map((i) => i.CHSAssetNo + (i.Model ? ' — ' + i.Model : '')) })
+    await touch()
+    return { added: items.length, kit: label }
+  }, [audit, changeKits, touch, updateData])
+
+  /** The team read again after a change in Manage, Team (old list and hub records), so every screen sees it. */
+  const reloadTeam = useCallback(async () => {
+    const [m, all] = await Promise.all([readOld('accountManagers').catch(() => ({ data: null })), hubDb ? getDocs(collection(hubDb, 'users')).catch(() => null) : null])
+    if (m.data) setState((s) => ({ ...s, managers: list(m.data) }))
+    if (all) setPeople((p) => ({ ...p, users: all.docs.map((d) => ({ uid: d.id, ...d.data() })) }))
+  }, [])
+
+  /**
    * A test notification to someone's phones (old: Settings, Test Notifications; Service & Projects only,
    * which the proxy checks). The words are fixed by the proxy, so a test can't put anyone's own text on a colleague's phone.
    */
@@ -1009,11 +1033,11 @@ export function StoreProvider({ children }) {
     profile: people.profile, isAdmin: can(people.profile, 'equipment.admin'), canTestMode: can(people.profile, 'equipment.testMode'),
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    saveItem, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
-    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory,
+    saveItem, addAssets, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory, testPush, reloadTeam, hubUsers: people.users, audit,
   }), [state, team, people, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    testMode, setTestMode, saveItem, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
-    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory, testPush])
+    testMode, setTestMode, saveItem, addAssets, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    setJobNumber, removeFromLoan, removeFromBooking, deleteHistory, testPush, reloadTeam, audit])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }

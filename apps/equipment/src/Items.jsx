@@ -4,7 +4,7 @@
    changed from Loans. */
 import { useState } from 'react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
-import { FIELDS, RETIRE_REASONS } from './model.js'
+import { ADD_FIELDS, FIELDS, RETIRE_REASONS } from './model.js'
 
 const DATES = new Set(['MfgDate', 'PurchaseDate', 'LoanStartDate', 'LoanEndDate'])
 const NUMBERS = new Set(['USPrice', 'NZPrice'])
@@ -14,6 +14,81 @@ const GROUPS = [
   ['Loan (put a record right; loans are made in Loans)', ['OnLoanTo', 'Location', 'LoanStartDate', 'LoanEndDate', 'Returned', 'BorrowerEmail']],
 ]
 const LABEL = Object.fromEntries(FIELDS)
+
+const ADD_LABELS = { CHSAssetNo: 'CHS asset no.', Model: 'Model', Description: 'Description', SerialNo: 'Serial number', BatterySerialNo: 'Battery serial no.', PartNo: 'Part number',
+  MfgDate: 'Manufactured', PurchaseDate: 'Purchased', USPrice: 'US$ price', NZPrice: 'NZ$ price', ShelfLocation: 'Shelf location', DeviceID: 'Device ID', Notes: 'Notes' }
+const blankSlot = () => Object.fromEntries(ADD_FIELDS.map((f) => [f, '']))
+
+/**
+ * Add assets (old: the "+ Add Asset" form, maSaveAll): one or more, "Add another asset" for each
+ * more, and optionally a kit made from them: a new one (a name and the trigger, the rest its
+ * accessories) or the rest added to an existing kit. Save all checks every one first.
+ */
+export function AddAssets({ s, onClose, onDone }) {
+  const [slots, setSlots] = useState([blankSlot()])
+  const [kitOn, setKitOn] = useState(false)
+  const [kit, setKit] = useState({ name: '', trigger: '', existing: '' })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const set = (i, k) => (e) => { const v = e.target.value; setSlots((l) => l.map((x, j) => (j === i ? { ...x, [k]: v } : x))) }
+  const known = (k) => [...new Set((s.equipment || []).map((e) => e?.[k]).filter(Boolean))].sort()
+  const numbers = slots.map((x) => x.CHSAssetNo.trim()).filter(Boolean)
+  const kits = Object.entries(s.kits || {})
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true); setError('')
+    try {
+      const r = await s.addAssets(slots, kitOn ? { ...kit, trigger: kit.trigger || numbers[0] || '' } : null)
+      onDone(`${r.added} ${r.added === 1 ? 'asset' : 'assets'} added${r.kit ? `; kit “${r.kit}” ${kit.existing ? 'updated' : 'made'}` : ''}.`)
+    } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) }
+  }
+  return (
+    <Dialog title="Add assets" onClose={onClose} width={820}>
+      <form className="eq-form" onSubmit={save}>
+        <datalist id="eq-models">{known('Model').map((v) => <option key={v} value={v} />)}</datalist>
+        <datalist id="eq-descs">{known('Description').map((v) => <option key={v} value={v} />)}</datalist>
+        {slots.map((slot, i) => (
+          <fieldset key={i} className="eq-fieldset">
+            <legend className="eq-section-title">Asset {i + 1}
+              {i > 0 && <button type="button" className="btn btn-ghost btn-sm eq-danger" onClick={() => setSlots((l) => l.filter((_, j) => j !== i))}>Remove</button>}
+            </legend>
+            <div className="eq-fields-grid">
+              {ADD_FIELDS.map((k) => (
+                <label key={k} className={`field${k === 'Notes' || k === 'Description' ? ' eq-wide' : ''}`}><span className="field-label">{ADD_LABELS[k]}{k === 'CHSAssetNo' ? ' *' : ''}</span>
+                  <input className="input" value={slot[k]} onChange={set(i, k)} required={k === 'CHSAssetNo'} autoFocus={k === 'CHSAssetNo' && i === slots.length - 1}
+                    type={/Date$/.test(k) ? 'date' : /Price$/.test(k) ? 'number' : 'text'} step={/Price$/.test(k) ? '0.01' : undefined}
+                    inputMode={k === 'CHSAssetNo' ? 'numeric' : undefined} list={k === 'Model' ? 'eq-models' : k === 'Description' ? 'eq-descs' : undefined} autoComplete="off" />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ))}
+        <Button variant="secondary" onClick={() => setSlots((l) => [...l, blankSlot()])}>+ Add another asset</Button>
+        <label className="eq-check"><input type="checkbox" checked={kitOn} onChange={(e) => setKitOn(e.target.checked)} /> Make a kit from these assets</label>
+        {kitOn && (
+          <div className="eq-form-row">
+            <label className="field"><span className="field-label">Add to an existing kit instead?</span>
+              <select value={kit.existing} onChange={(e) => setKit((k) => ({ ...k, existing: e.target.value }))}><option value="">No, a new kit</option>{kits.map(([key, k]) => <option key={key} value={key}>{k.label || key}</option>)}</select>
+            </label>
+            {!kit.existing && <label className="field"><span className="field-label">Kit name</span><input className="input" value={kit.name} onChange={(e) => setKit((k) => ({ ...k, name: e.target.value }))} placeholder="e.g. TE9 Ultrasound Crate" /></label>}
+            <label className="field"><span className="field-label">Trigger device (the main one)</span>
+              <select value={kit.trigger || numbers[0] || ''} onChange={(e) => setKit((k) => ({ ...k, trigger: e.target.value }))}>
+                {!numbers.length && <option value="">Type the asset numbers first</option>}
+                {numbers.map((n, i) => <option key={n + i} value={n}>{n}{slots.find((x) => x.CHSAssetNo.trim() === n)?.Model ? ' — ' + slots.find((x) => x.CHSAssetNo.trim() === n).Model : ''}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
+        {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+        <div className="dialog-actions">
+          <span className="text-sm text-muted eq-grow">{slots.length} {slots.length === 1 ? 'asset' : 'assets'}</span>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save all'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
 
 /** Add an item, or edit one (old: saveItem). */
 export function ItemForm({ s, item = null, onClose, onDone }) {

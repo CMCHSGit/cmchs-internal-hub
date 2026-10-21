@@ -6,12 +6,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { AdminDialog } from './Items.jsx'
 import { setCutover } from './db.js'
+import { TRACKER_ROLES, addMember, removeMember, saveMember, setMemberRole } from '../../admin/src/tracker.js'
 import {
   EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, toCsv,
 } from './model.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
-const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['simpro', 'Simpro'], ['notify', 'Test notifications'], ['test', 'Test mode'], ['source', 'Data source']]
+const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['simpro', 'Simpro'], ['team', 'Team'], ['notify', 'Test notifications'], ['test', 'Test mode'], ['source', 'Data source']]
 
 /** A library from the same CDN the old tracker uses, once (old: needLib): SheetJS and PapaParse. */
 const LIBS = { xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX'], papa: ['https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js', 'Papa'] }
@@ -34,17 +35,18 @@ export default function Manage({ s, params, setParams, onDone }) {
   // Test mode: admins and the testers an admin marks (shared/can.js), not the two names the old one had written in.
   // Test notifications: Service & Projects (old: Settings, shown to them only; the proxy checks it too).
   const service = roleOf(s.me) === 'service'
-  const parts = PARTS.filter(([p]) => (p !== 'test' || s.canTestMode || s.testMode) && (p !== 'source' || s.isAdmin) && (p !== 'notify' || service))
+  const parts = PARTS.filter(([p]) => (p !== 'test' || s.canTestMode || s.testMode) && (p !== 'source' || s.isAdmin) && (p !== 'notify' || service) && (p !== 'team' || s.isAdmin))
   return (
     <div className="eq-manage">
       <nav className="eq-filters" aria-label="Manage">
         {parts.map(([p, l]) => <button key={p} type="button" className={`tag${part === p ? ' tag-selected' : ''}`} aria-pressed={part === p} onClick={() => setParams({ part: p === 'data' ? undefined : p })}>{l}</button>)}
       </nav>
-      <p className="eq-note">The tracker’s team (account managers, Service &amp; Projects) is in <a href="/settings/people">Settings, People and access</a>.</p>
+      {part !== 'team' && <p className="eq-note">The tracker’s team (account managers, Service &amp; Projects) is in {s.isAdmin ? <><a href={'#/manage?part=team'}>Team</a> here, and </> : ''}<a href="/settings/people">Settings, People and access</a>.</p>}
       {part === 'retired' && <Retired s={s} onDone={onDone} />}
       {part === 'kits' && <Kits s={s} onDone={onDone} />}
       {part === 'data' && <Data s={s} onDone={onDone} />}
       {part === 'simpro' && <Simpro s={s} onDone={onDone} />}
+      {part === 'team' && s.isAdmin && <Team s={s} onDone={onDone} />}
       {part === 'notify' && service && <TestPush s={s} onDone={onDone} />}
       {part === 'test' && <TestMode s={s} onDone={onDone} />}
       {part === 'source' && s.isAdmin && <Source s={s} onDone={onDone} />}
@@ -393,6 +395,86 @@ function Simpro({ s, onDone }) {
       {error && <Alert tone="critical" title="Not done">{error}</Alert>}
       {asking && <AdminDialog s={s} title="Turn Simpro job creation on?" message="New loans start making Simpro jobs again." confirmLabel="Turn on" onClose={() => setAsking(false)}
         onConfirm={async () => { setCfg(await s.setJobCreation(true)); setAsking(false); onDone('Simpro job creation is on.') }} />}
+      {confirmDialog}
+    </>
+  )
+}
+
+/**
+ * The tracker's team (old: the Account Managers list, behind the admin password; now hub admins):
+ * each person's role, name and email, adding someone (with or without a sign-in) and taking
+ * them off. The same changes as Settings, People and access (apps/admin/src/tracker.js), so
+ * whichever place is used, the other shows it.
+ */
+function Team({ s, onDone }) {
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const [editing, setEditing] = useState(null) // { was, name, email }
+  const [adding, setAdding] = useState({ name: '', email: '', role: 'am' })
+  const [confirmDialog, confirm] = useConfirm()
+  const norm = (v) => String(v || '').trim().toLowerCase()
+  const hubFor = (m) => (s.hubUsers || []).find((u) => !u.pending && ((m.email && norm(u.email) === norm(m.email)) || (norm(u.displayName) && norm(u.displayName) === norm(m.name))))
+  const people = [...(s.managers || [])].filter((m) => m && m.name)
+    .filter((m) => !q.trim() || norm(m.name).includes(norm(q)) || norm(m.email).includes(norm(q)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const person = (m) => { const u = hubFor(m); return { uid: u?.uid, name: m.name, email: m.email || u?.email || '' } }
+  async function run(key, fn, msg) {
+    setBusy(key); setError('')
+    try { await fn(); await s.reloadTeam(); onDone(msg); return true } catch (e) { setError(e.message || String(e)); return false } finally { setBusy('') }
+  }
+  return (
+    <>
+      <section className="card eq-kit">
+        <h3 className="eq-h3">The demo tracker’s team</h3>
+        <p className="eq-note">Account managers get reminders for their own loans; Service &amp; Projects get the ones they handle. The same roles are in <a href="/settings/people">Settings, People and access</a>: a change in either shows in both.</p>
+        <label className="field"><span className="field-label">Search</span><input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name or email" /></label>
+        {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+        <ul className="eq-picklist">
+          {people.map((m) => {
+            const u = hubFor(m), key = norm(m.name)
+            return (
+              <li key={key} className="eq-picked eq-team-row">
+                <span className="eq-picked-main"><span className="eq-strong">{m.name}</span>
+                  <span className="eq-small">{m.email || 'No email'}{u ? ' · signs in to the hub' : ' · no hub sign-in'}</span></span>
+                <select value={m.role === 'service' ? 'service' : 'am'} disabled={!!busy} aria-label={`${m.name}’s role`}
+                  onChange={(e) => { const role = e.target.value; run(key, () => setMemberRole(person(m), role), `${m.name} is now ${TRACKER_ROLES.find((r) => r.id === role)?.label}.`) }}>
+                  {TRACKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+                <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => setEditing({ was: { name: m.name, email: m.email || '' }, name: m.name, email: m.email || '' })}>Edit</Button>
+                <Button size="sm" variant="ghost" className="eq-danger" disabled={!!busy} onClick={async () => {
+                  if (!(await confirm({ title: `Take ${m.name} off the team?`, message: 'They stop getting demo reminders and aren’t offered as an account manager. Their loans keep their name.', confirmLabel: 'Take them off', danger: true }))) return
+                  run(key, async () => { await removeMember(person(m)); await s.audit('am_removed', `${m.name} removed from account managers`, { name: m.name, email: m.email || '' }) }, `${m.name} taken off the team.`)
+                }}>Remove</Button>
+              </li>
+            )
+          })}
+          {!people.length && <li className="eq-note">{(s.managers || []).length ? 'No one matches that.' : 'No one on the team yet.'}</li>}
+        </ul>
+      </section>
+      <section className="card eq-kit">
+        <h3 className="eq-h3">Add someone</h3>
+        <p className="eq-note">For someone who should be offered as an account manager, even before they sign in to the hub.</p>
+        <form className="eq-actions-row" onSubmit={(e) => { e.preventDefault(); run('add', () => addMember(adding), `${adding.name.trim()} added to the team.`).then((ok) => ok && setAdding({ name: '', email: '', role: 'am' })) }}>
+          <label className="field eq-grow"><span className="field-label">Name</span><input className="input" value={adding.name} onChange={(e) => setAdding((x) => ({ ...x, name: e.target.value }))} /></label>
+          <label className="field eq-grow"><span className="field-label">Email</span><input className="input" type="email" value={adding.email} onChange={(e) => setAdding((x) => ({ ...x, email: e.target.value }))} /></label>
+          <label className="field"><span className="field-label">Role</span>
+            <select value={adding.role} onChange={(e) => setAdding((x) => ({ ...x, role: e.target.value }))}>{TRACKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
+          </label>
+          <Button type="submit" disabled={!!busy || !adding.name.trim()}>{busy === 'add' ? 'Adding…' : 'Add'}</Button>
+        </form>
+      </section>
+      {editing && (
+        <Dialog title={`Edit ${editing.was.name}`} description="Their phones and reminder settings stay with them." onClose={() => setEditing(null)} width={480}>
+          <form className="eq-form" onSubmit={(e) => { e.preventDefault(); const ed = editing; run('edit', () => saveMember(ed.was, ed), `${ed.name.trim()} saved.`).then((ok) => ok && setEditing(null)) }}>
+            <label className="field"><span className="field-label">Name</span><input className="input" value={editing.name} onChange={(e) => setEditing((x) => ({ ...x, name: e.target.value }))} autoFocus /></label>
+            <label className="field"><span className="field-label">Email</span><input className="input" type="email" value={editing.email} onChange={(e) => setEditing((x) => ({ ...x, email: e.target.value }))} /></label>
+            <p className="eq-note">Loans already made keep the old name as their account manager.</p>
+            {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+            <div className="dialog-actions"><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" disabled={!!busy}>{busy === 'edit' ? 'Saving…' : 'Save'}</Button></div>
+          </form>
+        </Dialog>
+      )}
       {confirmDialog}
     </>
   )

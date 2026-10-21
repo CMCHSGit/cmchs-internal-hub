@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { auditTone, filterAudit, importRetiredRows, linkTarget, loanFormRtf, loanUpdates, relTime, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
+import { auditTone, filterAudit, importRetiredRows, kitFromNewAssets, planAddAssets, linkTarget, loanFormRtf, loanUpdates, relTime, loanAM, loanSections, loansMissingJobs, metaKey, overviewOf, searchEquipment } from '../src/model.js'
 
 const today = '2026-10-21'
 const shelf = (id, o = {}) => ({ id, CHSAssetNo: 'A' + id, Model: 'M' + id, Returned: 'Yes', OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', BatchID: '', ...o })
@@ -77,4 +77,19 @@ test('audit: an asset number finds its equipment entries; colours by kind; a loa
   assert.deepEqual(loanUpdates(audit, { batchId: 'b1', loanTo: 'Hutt' }).map((e) => e.id), ['2', '3'], 'not an equipment entry')
   const now = Date.parse('2026-10-21T10:00:00Z')
   assert.deepEqual(['2026-10-21T09:59:40Z', '2026-10-21T09:55:00Z', '2026-10-21T07:00:00Z', '2026-10-19T10:00:00Z'].map((t) => relTime(t, now)), ['just now', '5m ago', '3h ago', '2d ago'])
+})
+test('add assets (old: Add Assets, Save all): each needs a new number; a kit from them, new or added to', () => {
+  let n = 0
+  const make = () => 'n' + ++n
+  assert.match(planAddAssets([shelf('1')], [{ CHSAssetNo: 'A1' }], { makeId: make }).problem, /already in the list/)
+  assert.match(planAddAssets([], [{ CHSAssetNo: 'X1' }, { CHSAssetNo: ' x1 ' }], { makeId: make }).problem, /twice/)
+  assert.match(planAddAssets([], [{ CHSAssetNo: 'X1' }, { Model: 'no number' }], { makeId: make }).problem, /Asset 2 needs/)
+  n = 0
+  const { items } = planAddAssets([], [{ CHSAssetNo: ' T1 ', Model: 'TE9' }, { CHSAssetNo: 'P1', Model: 'Probe', Description: 'Linear' }], { makeId: make })
+  assert.deepEqual(items.map((i) => [i.id, i.CHSAssetNo, i.Model]), [['n1', 'T1', 'TE9'], ['n2', 'P1', 'Probe']])
+  const made = kitFromNewAssets({}, items, { trigger: 'T1', name: ' Crate ', key: 'kit_1' })
+  assert.deepEqual(made.kits.kit_1, { label: 'Crate', triggers: ['T1'], accessories: [{ assetNo: 'P1', model: 'Probe', desc: 'Linear' }] })
+  const added = kitFromNewAssets({ k: { label: 'Old', triggers: ['Z'], accessories: [{ assetNo: 'P1' }] } }, [...items, { CHSAssetNo: 'P2', Model: 'Gel' }], { trigger: 'T1', existing: 'k' })
+  assert.deepEqual(added.kits.k.accessories.map((a) => a.assetNo), ['P1', 'P2'], 'one already on it is not doubled')
+  assert.match(kitFromNewAssets({}, items, { trigger: 'T1' }).problem, /name/)
 })

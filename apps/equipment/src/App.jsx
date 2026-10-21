@@ -19,7 +19,7 @@ import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { isLocal, readOld } from './db.js'
 import Loans from './Loans.jsx'
-import { AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
+import { AddAssets, AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
 import Overview from './Overview.jsx'
 import NewLoan from './NewLoan.jsx'
 import { Status } from './BrowseEquipment.jsx'
@@ -204,7 +204,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
       </label>
       <div className="eq-actions-row eq-shown">
         <p className="text-sm text-muted eq-grow">{rows.length} of {withStatus.length} {withStatus.length === 1 ? 'item' : 'items'}</p>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => show(null, 'add')}>Add equipment</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => show(null, 'add')}>+ Add assets</button>
       </div>
       {sel.size > 0 && (
         <div className="eq-selbar" role="region" aria-label="Ticked equipment">
@@ -252,7 +252,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
       {confirmDialog}
       {item && mode === 'view' && <ItemDialog e={item} ctx={ctx} s={s} go={go} tile={tileOf(item)} onClose={() => { setOpen(null); if (params.item) setParams({ ...params, item: undefined }) }} onAction={(m) => setMode(m)} />}
       {/* Adding needed the admin password in the old tracker (promptAddAsset); the hub admin role, as for delete. */}
-      {mode === 'add' && (s.isAdmin ? <ItemForm s={s} onClose={() => setMode('view')} onDone={done} />
+      {mode === 'add' && (s.isAdmin ? <AddAssets s={s} onClose={() => setMode('view')} onDone={done} />
         : <AdminDialog s={s} title="Add equipment" onClose={() => setMode('view')} onConfirm={() => {}} />)}
       {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'retire' && <RetireDialog s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
