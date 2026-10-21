@@ -773,6 +773,7 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 /* A section that failed to load (App.jsx SectionBoundary). */
 .section-failed { max-width: 520px; margin: 64px auto; padding: 0 24px; display: flex; flex-direction: column; align-items: flex-start; gap: 14px;
   font: var(--type-body); color: var(--text-body); }
+.section-failed-detail { font-size: 12px; color: var(--text-muted); overflow-wrap: anywhere; }
 
 /* A section's count of things needing you, on its tab (shared/badges.js; old: the demo tracker's tab badge). */
 .tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;

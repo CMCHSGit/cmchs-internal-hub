@@ -40,8 +40,8 @@ function updateOnce(err) {
 // the files an open tab was about to fetch) says so, rather than blanking the
 // header and every other section with it.
 class SectionBoundary extends Component {
-  state = { failed: false, updating: false }
-  static getDerivedStateFromError(err) { return { failed: true, updating: updateOnce(err) } }
+  state = { failed: false, updating: false, detail: '' }
+  static getDerivedStateFromError(err) { return { failed: true, updating: updateOnce(err), detail: String(err?.message || err).slice(0, 200) } }
   componentDidCatch(err) {
     console.error('[shell] section failed', err)
     if (!this.state.updating) return
@@ -58,6 +58,8 @@ class SectionBoundary extends Component {
       <div className="hub-page"><div className="section-failed">
         <p>This part of the hub didn’t load. It may have just been updated.</p>
         <button className="btn btn-primary btn-lg" onClick={this.reload}>Reload</button>
+        {/* What went wrong, for whoever looks after the hub (a screenshot tells them) */}
+        {this.state.detail && <p className="section-failed-detail">{this.state.detail}</p>}
       </div></div>
     )
   }

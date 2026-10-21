@@ -67,9 +67,10 @@ export function registerServiceWorker() {
 // one hands back its cached copy of the old page, which asks for the same
 // missing file (only Ctrl+Shift+R, which skips the worker, got past it). So
 // fetch the new worker first and wait for it to take over, then reload. If
-// there is no newer one (a real fault, not a deploy), it reloads anyway after
-// at most `timeout`.
-export async function reloadOntoLatest(timeout = 8000) {
+// there is no newer one (a real fault, not a deploy), it reloads straight away.
+// The new worker downloads about 1 MB before it takes over, which on a phone's
+// mobile data can take a while (8 s was too short), hence `timeout`.
+export async function reloadOntoLatest(timeout = 30000) {
   try {
     const sw = navigator.serviceWorker
     const reg = sw && await sw.getRegistration('/')

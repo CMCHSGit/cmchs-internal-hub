@@ -9,8 +9,8 @@
 //    assembled site, which no single app's build can see, so scripts/build.mjs
 //    runs workbox's injectManifest over dist/ at the end and that is what fills
 //    in self.__WB_MANIFEST below.
-import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
-import { NavigationRoute, registerRoute } from 'workbox-routing'
+import { matchPrecache, precacheAndRoute } from 'workbox-precaching'
+import { registerRoute } from 'workbox-routing'
 import { CacheFirst, NetworkFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 
@@ -19,6 +19,37 @@ import { ExpirationPlugin } from 'workbox-expiration'
 // what makes the update banner work: claiming the page fires controllerchange.
 self.skipWaiting()
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
+
+// Sections of the one app (apps/hub/src/router.js SECTIONS) have no file of
+// their own: /asks/ is the app at / opened on Asks, /schedule/my the app opened
+// on the schedule's My week. All get the app's page, the job /404.html does
+// when the network answers instead of this worker.
+// (/admin/ moved into Settings; the app forwards it.)
+const APP_SECTIONS = /^\/(schedule|asks|projects|service-orders|maintenance|simprosync|ansurtopdf|equipment|settings|admin)(\/|$)/
+/** An address inside the one app: the hub at / or one of its sections. */
+const inApp = (path) => path === '/' || path === '/index.html' || APP_SECTIONS.test(path)
+
+// The app's page comes from the network whenever there is one, and the
+// precached copy only offline or when the network takes over 5 s. Until 22 Oct
+// 2026 the precached copy came first: a phone whose worker hadn't yet updated
+// after a deploy kept getting the old page, which asked for section files the
+// deploy had removed ("This part of the hub didn't load"), and reloading only
+// got the same old page again. no-cache: GitHub Pages lets browsers keep
+// index.html for 10 minutes, which would bring the same problem back.
+// Registered before precacheAndRoute, which would otherwise answer / itself.
+registerRoute(
+  ({ url, request }) => request.mode === 'navigate' && url.origin === self.location.origin && inApp(url.pathname),
+  async () => {
+    try {
+      const res = await Promise.race([
+        fetch('/index.html', { cache: 'no-cache' }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('slow network')), 5000)),
+      ])
+      if (res.ok) return res
+    } catch { /* offline or slow: the copy below */ }
+    return (await matchPrecache('/index.html')) || fetch('/index.html')
+  },
+)
 
 precacheAndRoute(self.__WB_MANIFEST)
 
@@ -41,19 +72,6 @@ registerRoute(
     plugins: [new ExpirationPlugin({ maxEntries: 150, maxAgeSeconds: 60 * 60 * 24 * 60, purgeOnQuotaError: true })],
   }),
 )
-
-// Sections of the one app (apps/hub/src/router.js SECTIONS) have no file of
-// their own: /asks/ is the app at / opened on Asks, /schedule/my the app opened
-// on the schedule's My week. Hand back the app's page, the job /404.html does
-// when the network answers instead of this worker. Before the route below,
-// which would otherwise take these navigations first.
-// (/admin/ moved into Settings; the app forwards it.)
-const APP_SECTIONS = /^\/(schedule|asks|projects|service-orders|maintenance|simprosync|ansurtopdf|equipment|settings|admin)(\/|$)/
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), {
-  allowlist: [APP_SECTIONS],
-}))
-/** An address inside the one app: the hub at / or one of its sections. */
-const inApp = (path) => path === '/' || path === '/index.html' || APP_SECTIONS.test(path)
 
 // A tool's page itself: fresh when there is a network, the last copy when
 // there is not. Covers the pages left out of the precache (Ansur, demo).
