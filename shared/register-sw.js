@@ -10,6 +10,7 @@
 // A new deploy: sw.js takes over at once (skipWaiting + clients.claim), which
 // fires controllerchange here. The page still shows the copy it loaded, so a
 // banner says "A new version of the hub is ready" with Update now / Later.
+// On phones there is no banner: the quiet reload below covers them.
 // Nothing is lost by updating: everything saves as it goes. If the page is in
 // the background when the new version lands (a phone with the app switched
 // away), it just reloads, so it's new when they come back. Work that must
@@ -28,6 +29,9 @@ export function registerServiceWorker() {
   // A first-ever install also "takes over" an uncontrolled page. That's not
   // an update, and prompting (or reloading) on it would be pointless.
   const hadController = !!navigator.serviceWorker.controller
+  // Phones get no banner: the new version loads by itself the next time the
+  // app is in the background (reloadIfHidden below), which on a phone is soon.
+  const phone = matchMedia('(pointer: coarse)').matches
   let ready = false
   const working = () => document.body.classList.contains('busy') || !!document.querySelector('[data-working]')
   const reloadIfHidden = () => {
@@ -37,7 +41,7 @@ export function registerServiceWorker() {
     if (!hadController || ready) return
     ready = true
     if (document.visibilityState === 'hidden' && !working()) window.location.reload()
-    else showUpdateBanner(working)
+    else if (!phone) showUpdateBanner(working)
   })
   document.addEventListener('visibilitychange', reloadIfHidden)
 

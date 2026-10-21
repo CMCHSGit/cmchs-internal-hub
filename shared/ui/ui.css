@@ -57,6 +57,10 @@
 :root[data-theme="dark"] .logo-dark { display: block; }
 
 html, body, #root { min-height: 100%; }
+/* No browser pull-down-to-refresh on phones: dragging down at the top of a page
+   reloaded the whole app. Sections that want a refresh have their own (the
+   schedule's PullToRefresh, on touch events, which this leaves alone). */
+html, body { overscroll-behavior-y: none; }
 body {
   font: var(--type-body);
   color: var(--text-body);

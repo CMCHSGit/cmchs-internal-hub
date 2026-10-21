@@ -27,6 +27,9 @@ const AnsurSection = lazy(() => import('../../ansurtopdf/src/section.jsx'))
 const EquipmentSection = lazy(() => import('../../equipment/src/section.jsx'))
 const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
+/** A touch-screen phone or tablet: no Reload button there (SectionBoundary). */
+const PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+
 // A page opened before a deploy asks for a section's file by its old name,
 // which the deploy removed: update onto the new version by itself, once a
 // minute at most, so a real fault shows the message, not a loop.
@@ -44,10 +47,17 @@ class SectionBoundary extends Component {
   static getDerivedStateFromError(err) { return { failed: true, updating: updateOnce(err), detail: String(err?.message || err).slice(0, 200) } }
   componentDidCatch(err) {
     console.error('[shell] section failed', err)
-    if (!this.state.updating) return
+    if (!this.state.updating) {
+      // Phones get no Reload button: it tries again by itself the next time
+      // the app is in the background, so it's loaded when they come back.
+      if (PHONE) document.addEventListener('visibilitychange', this.reloadIfHidden)
+      return
+    }
     try { sessionStorage.setItem('hub:chunkReload', String(Date.now())) } catch { /* private mode */ }
     reloadOntoLatest()
   }
+  componentWillUnmount() { document.removeEventListener('visibilitychange', this.reloadIfHidden) }
+  reloadIfHidden = () => { if (document.visibilityState === 'hidden') reloadOntoLatest() }
   reload = () => { this.setState({ updating: true }); reloadOntoLatest() }
   render() {
     if (!this.state.failed) return this.props.children
@@ -57,7 +67,9 @@ class SectionBoundary extends Component {
     return (
       <div className="hub-page"><div className="section-failed">
         <p>This part of the hub didn’t load. It may have just been updated.</p>
-        <button className="btn btn-primary btn-lg" onClick={this.reload}>Reload</button>
+        {PHONE
+          ? <p>Switch to another app and back, and it will load the latest version.</p>
+          : <button className="btn btn-primary btn-lg" onClick={this.reload}>Reload</button>}
         {/* What went wrong, for whoever looks after the hub (a screenshot tells them) */}
         {this.state.detail && <p className="section-failed-detail">{this.state.detail}</p>}
       </div></div>
