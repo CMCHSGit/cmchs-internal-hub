@@ -46,6 +46,7 @@ export const PAGES = [
   { title: 'My week', sub: 'Staff schedule', href: '/schedule/my', also: 'schedule mine roster reminder' },
   { title: 'Day', sub: 'Staff schedule', href: '/schedule/day', also: 'schedule today where is everyone' },
   { title: 'Leave calendar', sub: 'Staff schedule', href: '/schedule/leave', also: 'schedule holiday annual leave away' },
+  { title: 'Who’s where by place', sub: 'Staff schedule', href: '/schedule/places', also: 'schedule places site hospital travel near location who is at' },
   { title: 'On call', sub: 'Staff schedule', href: '/schedule/oncall', also: 'schedule oncall roster after hours' },
   { title: 'Out of town', sub: 'Staff schedule', href: '/schedule/out-of-town', also: 'schedule fbt vehicle report travel' },
   { title: 'My asks', sub: 'Asks', href: '/asks/#/mine', also: 'asks requests todo inbox' },

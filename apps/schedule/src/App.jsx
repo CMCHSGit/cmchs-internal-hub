@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
-import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings as SettingsIcon, Plane } from 'lucide-react'
+import { CalendarCheck, CalendarDays, MapPin, CalendarRange, Phone, Settings as SettingsIcon, Plane, Building2 } from 'lucide-react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Login         from './pages/Login'
 import MySchedule    from './pages/MySchedule'
@@ -9,6 +9,7 @@ import DayView       from './pages/DayView'
 import LeaveCalendar from './pages/LeaveCalendar'
 import OnCall        from './pages/OnCall'
 import OutOfTown     from './pages/OutOfTown'
+import Places        from './pages/Places'
 import TeamOnboarding from './components/TeamOnboarding'
 import PullToRefresh  from './components/PullToRefresh'
 import { Loading } from './components/ui'
@@ -22,6 +23,7 @@ const VIEWS = [
   { to: '/my',          label: 'My week',     tab: 'My week',        Icon: CalendarCheck },
   { to: '/day',         label: 'Day',         tab: 'Day',            Icon: MapPin },
   { to: '/leave',       label: 'Leave',       tab: 'Leave calendar', Icon: CalendarRange },
+  { to: '/places',      label: 'Places',      tab: 'Who’s where',    Icon: Building2 },
   { to: '/oncall',      label: 'On call',     tab: 'On call',        Icon: Phone },
   { to: '/out-of-town', label: 'Out of town', tab: 'Out of town',    Icon: Plane },
 ]
@@ -81,6 +83,7 @@ function AppRoutes() {
           <Route path="/my"     element={<MySchedule />} />
           <Route path="/day"    element={<DayView />} />
           <Route path="/leave"  element={<LeaveCalendar />} />
+          <Route path="/places" element={<Places />} />
           <Route path="/oncall" element={<OnCall />} />
           {/* The schedule's settings are a page of the one app's Settings now;
               /admin was the schedule's admin page before that. */}

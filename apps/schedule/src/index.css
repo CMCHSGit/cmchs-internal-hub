@@ -547,3 +547,10 @@ code { font-family: var(--font-mono); font-size: .92em; }
   .wk-row { min-width: 0; }
   .wk-cols { grid-template-columns: 110px repeat(5, minmax(0, 1fr)) 110px; }
 }
+
+/* Who's where this week, by place (pages/Places.jsx) */
+.place-person { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: center; }
+.place-person .day-person-meta { grid-column: 1; }
+.place-days { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; gap: 3px; }
+.place-day { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-sm, 4px); font: var(--weight-semibold) 11px/1 var(--font-body); color: var(--text-muted); background: var(--surface-subtle); }
+.place-day.on { background: var(--chs-purple); color: #fff; }
