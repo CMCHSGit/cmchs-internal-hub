@@ -206,6 +206,7 @@ button.glance-card:disabled { cursor: default; }
 .glance-list-head { display: flex; justify-content: space-between; align-items: center; }
 .glance-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 16px; }
 .glance-person { display: grid; grid-template-columns: 24px auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 2px; border-top: 1px solid var(--border-hairline, rgba(0,0,0,.06)); min-width: 0; }
+.glance-later { grid-template-columns: 110px minmax(0, 1fr); }
 .glance-person .person-name { font-size: 14px; white-space: nowrap; }
 .glance-person .person-where { font-size: 13px; }
 .glance-person .avatar-sm { width: 24px; height: 24px; font-size: 10px; }

@@ -163,6 +163,8 @@ function Hero({ user, today, asksCount = 0 }) {
 
 // ── At a glance ───────────────────────────────────────────────────────────
 
+const weekLabel = iso => new Date(iso + 'T00:00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+
 function useColumns() {
   const q = '(max-width: 759px)'
   const [narrow, setNarrow] = useState(() => window.matchMedia(q).matches)
@@ -179,7 +181,7 @@ function Glance({ today }) {
   const [open, setOpen] = useState(null)
   const cols = useColumns()
   const cards = today
-    ? [...today.glance, { key: 'oncall', label: 'On call this week', icon: 'phone', accent: 'pink', people: today.people.filter(p => p.onCall), name: today.onCallName }]
+    ? [...today.glance, { key: 'oncall', label: 'On call this week', icon: 'phone', accent: 'pink', people: today.people.filter(p => p.onCall), name: today.onCallName, upcoming: today.upcoming }]
     : [{ key: 'office' }, { key: 'site' }, { key: 'remote' }, { key: 'out' }, { key: 'oncall' }]
   const openIdx = today ? cards.findIndex(g => g.key === open) : -1
   const shown = openIdx >= 0 ? cards[openIdx] : null
@@ -188,7 +190,7 @@ function Glance({ today }) {
   const list = shown && (
     <div key="list" id="glance-list" className="card glance-list" role="region" aria-label={shown.label}>
       <div className="glance-list-head">
-        <span className="chs-overline">{shown.label} · {shown.people.length}</span>
+        <span className="chs-overline">{shown.label}{shown.upcoming ? '' : ` · ${shown.people.length}`}</span>
         <button type="button" className="btn-ghost-sm" onClick={() => setOpen(null)}>Close</button>
       </div>
       <div className="glance-people">
@@ -199,6 +201,12 @@ function Glance({ today }) {
             <span className="person-where"><span className="swatch" style={{ background: p.swatch }} /><span className="ellipsis">{p.where}</span></span>
           </a>
         ))}
+        {shown.upcoming?.map(w => (
+          <div key={w.weekStart} className="glance-person glance-later">
+            <span className="caption">Week of {weekLabel(w.weekStart)}</span>
+            <span className="person-name">{w.name}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -207,7 +215,7 @@ function Glance({ today }) {
       {cards.flatMap((g, i) => {
         const isCall = g.key === 'oncall'
         const text = !today ? ' ' : isCall ? (g.name || 'No one') : (firstNames(g.people) || 'No one')
-        const expandable = !!today && g.people.length > 0
+        const expandable = !!today && (g.people.length > 0 || g.upcoming?.length > 0)
         const card = (
           <button key={g.key} type="button" className={`card card-interactive glance-card accent-${g.accent || 'none'}${open === g.key ? ' glance-open' : ''}`}
             aria-busy={!today} aria-expanded={expandable ? open === g.key : undefined} aria-controls="glance-list" disabled={!expandable}

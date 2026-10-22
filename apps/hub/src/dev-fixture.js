@@ -17,5 +17,6 @@ export default function devFixture() {
   SAMPLE.forEach(([, , where, calls], i) => {
     schedules['u' + i] = { uid: 'u' + i, days: [0, 1, 2, 3, 4].map(() => ({ location: where, onCall: !!calls })) }
   })
-  return { users, schedules, oncall: { uid: 'u11', displayName: 'Bryan' } }
+  const later = [8, 9, 10, 6].map((n, i) => ({ weekStart: new Date(Date.now() + (i + 1) * 6048e5).toISOString().slice(0, 10), doc: { uid: 'u' + n, displayName: SAMPLE[n][0] } }))
+  return { users, schedules, oncall: { uid: 'u11', displayName: 'Bryan' }, later }
 }

@@ -22,6 +22,9 @@ export const ONCALL_BG = '#FF7C80'
 /** Departments for the filter tags, in the schedule's (Excel's) order. */
 export const DEPARTMENTS = TEAMS.map(t => ({ id: t, name: teamLabel(t) }))
 
+/** How many weeks after this one the On call card lists. */
+const UPCOMING_WEEKS = 9
+
 // The four "At a glance" groups, by schedule status.
 export const GLANCE = [
   { key: 'office', label: 'In the office',  icon: 'building',   accent: 'purple',  statuses: ['office', 'calls'] },
@@ -47,7 +50,7 @@ function initials(name) {
  * tested without Firestore: users = the `users` docs (with uid), schedules =
  * { [uid]: that week's schedule doc }, oncall = the week's `oncall` doc.
  */
-export function buildToday({ users, schedules, oncall, now = new Date() }) {
+export function buildToday({ users, schedules, oncall, later = [], now = new Date() }) {
   // The schedule is Monday–Friday. On a weekend getCurrentWeekStart() is
   // already next Monday, so show that day's plan and say so.
   const weekStart = getCurrentWeekStart(0, now)
@@ -82,6 +85,8 @@ export function buildToday({ users, schedules, oncall, now = new Date() }) {
     dayName: WEEK_DAYS[dayIdx],
     holiday,
     onCallName: onCallPerson ? onCallPerson.name : (oncall?.displayName || ''),
+    // The following weeks' on-call, soonest first: [{ weekStart, name }]
+    upcoming: later.filter(w => w.doc?.uid || w.doc?.displayName).map(w => ({ weekStart: w.weekStart, name: names.get(w.doc.uid) || w.doc.displayName || '' })),
     glance: GLANCE.map(g => ({ ...g, people: people.filter(p => g.statuses.includes(p.status)) })),
   }
 }
@@ -102,7 +107,8 @@ export async function loadToday() {
   const db = (await import('../../../shared/firestore.js')).firestore(app)
   const weekStart = getCurrentWeekStart(0)
 
-  const [usersSnap, schedSnap, oncallSnap] = await Promise.all([
+  const laterStarts = Array.from({ length: UPCOMING_WEEKS }, (_, i) => getCurrentWeekStart(i + 1))
+  const [usersSnap, schedSnap, oncallSnap, ...laterSnaps] = await Promise.all([
     fs.getDocs(fs.collection(db, 'users')),
     fs.getDocs(fs.query(fs.collection(db, 'schedules'), fs.where('weekStart', '==', weekStart))),
     fs.getDoc(fs.doc(db, 'oncall', weekStart)).catch(() => null),
