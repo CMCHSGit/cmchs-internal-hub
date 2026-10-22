@@ -16,7 +16,6 @@ import Legend from '../components/Legend'
 import Toast, { useToast } from '../components/Toast'
 import { IconButton, Loading } from '../components/ui'
 
-const MAX_ITEMS = 4
 
 /** One calendar day back/forward, skipping weekends — leave only ever runs Mon–Fri. */
 const prevWeekday = iso => { let d = addDaysISO(iso, -1); while ([0, 6].includes(fromISO(d).getDay())) d = addDaysISO(d, -1); return d }
@@ -233,10 +232,12 @@ export default function LeaveCalendar() {
               >
                 <span className={`month-num${d.iso === today ? ' today' : ''}`}>{fromISO(d.iso).getDate()}</span>
                 {d.holiday && <span className="month-holiday">{d.holiday}</span>}
-                {d.items.slice(0, MAX_ITEMS).map(it => (
-                  <span key={it.uid} className="month-item" style={{ background: it.bg }}>{it.name}</span>
-                ))}
-                {d.items.length > MAX_ITEMS && <span className="month-more">+{d.items.length - MAX_ITEMS} more</span>}
+                {/* Everyone, as small tags that wrap, rather than a column that hides the rest behind "+n more" */}
+                <span className="month-items">
+                  {d.items.map(it => (
+                    <span key={it.uid} className="month-item" style={{ background: it.bg }}>{it.name}</span>
+                  ))}
+                </span>
               </button>
             ))}
           </div>
