@@ -8,6 +8,7 @@ import { configured, nextPath, watchUser } from '../../../shared/session.js'
 import { reloadOntoLatest } from '../../../shared/register-sw.js'
 import { sectionOf, useAddress } from './router.js'
 import Header from './Header.jsx'
+import Service from './Service.jsx'
 import Home from './Home.jsx'
 import Manage from './Manage.jsx'
 import NewsPost from './NewsPost.jsx'
@@ -88,6 +89,8 @@ function hubRouteOf() {
   return { page: 'home' }
 }
 
+const SERVICE_TOOLS = ['service', 'service-orders', 'maintenance', 'simprosync', 'ansurtopdf']
+
 export default function App() {
   // undefined = still checking the saved session, null = signed out
   const [user, setUser] = useState(undefined)
@@ -96,7 +99,8 @@ export default function App() {
   useAddress() // re-render on every address change
   const section = sectionOf(location.pathname) || 'hub'
   const route = section === 'hub' ? hubRouteOf() : null
-  const page = section === 'hub' ? route.page : section
+  // The service tools highlight the Service tab
+  const page = section === 'hub' ? route.page : SERVICE_TOOLS.includes(section) ? 'service' : section
 
   // The hub pages' page colour (hub.css) only applies while they're showing.
   useEffect(() => { document.body.dataset.section = section }, [section])
@@ -151,6 +155,7 @@ export default function App() {
               {section === 'projects' && <ProjectsSection />}
               {section === 'settings' && <SettingsSection />}
               {section === 'service-orders' && <ServiceOrdersSection />}
+              {section === 'service' && <Service />}
               {section === 'maintenance' && <MaintenanceSection />}
               {section === 'simprosync' && <SimproSyncSection />}
               {section === 'ansurtopdf' && <AnsurSection />}

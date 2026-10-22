@@ -392,7 +392,7 @@ function Directory({ today }) {
 
 // ── Tools ─────────────────────────────────────────────────────────────────
 
-function ToolCard({ tool }) {
+export function ToolCard({ tool }) {
   const tab = opensInTab(tool)
   return (
     <div className="card card-interactive tool-card">
@@ -427,7 +427,7 @@ function Tools() {
           </div>
         )}
       </SectionHead>
-      {toolGroups().map(g => (
+      {toolGroups().filter(g => g.name !== 'Service').map(g => ( // Service tools live on the Service page
         <div key={g.name} className="stack-10">
           <div className="group-head">
             <span className="group-stripes" aria-hidden="true"><span style={{ background: g.c1 }} /><span style={{ background: g.c2 }} /></span>

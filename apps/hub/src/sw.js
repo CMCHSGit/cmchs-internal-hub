@@ -25,7 +25,7 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 // on the schedule's My week. All get the app's page, the job /404.html does
 // when the network answers instead of this worker.
 // (/admin/ moved into Settings; the app forwards it.)
-const APP_SECTIONS = /^\/(schedule|asks|projects|service-orders|maintenance|simprosync|ansurtopdf|equipment|settings|admin)(\/|$)/
+const APP_SECTIONS = /^\/(schedule|asks|projects|service|service-orders|maintenance|simprosync|ansurtopdf|equipment|settings|admin)(\/|$)/
 /** An address inside the one app: the hub at / or one of its sections. */
 const inApp = (path) => path === '/' || path === '/index.html' || APP_SECTIONS.test(path)
 

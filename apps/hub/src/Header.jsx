@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Boxes, CalendarDays, ClipboardList, Ellipsis, FolderKanban, Home as HomeIcon, Inbox, Moon, Settings, Sun, Users } from 'lucide-react'
+import { Boxes, CalendarDays, ClipboardList, Ellipsis, FolderKanban, Home as HomeIcon, Inbox, Moon, Settings, Sun, Users, Wrench } from 'lucide-react'
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
@@ -96,7 +96,7 @@ function ThemeButton() {
 // Ctrl+K still opens the one search).
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
-const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['equipment', 'Demo', '/equipment/', Boxes], ['manage', 'Manage', '/#/manage', ClipboardList]]
+const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['service', 'Service', '/service/', Wrench], ['equipment', 'Demo', '/equipment/', Boxes], ['manage', 'Manage', '/#/manage', ClipboardList]]
 // Phones: the sections used most on a phone as bottom tabs; the rest, and
 // Settings, under More. Projects is mostly used at a desk.
 const BAR = ['home', 'schedule', 'asks', 'equipment']
