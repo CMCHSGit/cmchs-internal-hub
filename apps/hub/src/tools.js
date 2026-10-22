@@ -23,7 +23,7 @@ const CATEGORIES = [
 export const tools = allTools.filter(t => t.visible !== false)
 
 /** The service team's tools: the Service menu in the header lists them, so the home page's grid doesn't. */
-export const SERVICE_TOOL_IDS = ['service-orders', 'ansur', 'simpro', 'maintenance']
+export const SERVICE_TOOL_IDS = ['service-orders', 'ansur', 'simpro', 'maintenance', 'oncall']
 export const serviceTools = SERVICE_TOOL_IDS.map(id => tools.find(t => t.id === id)).filter(Boolean)
 
 export function toolGroups() {

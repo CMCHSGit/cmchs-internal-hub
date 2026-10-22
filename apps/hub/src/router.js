@@ -16,6 +16,7 @@ export const SECTIONS = [
   { id: 'projects', prefix: '/projects/' },
   { id: 'service-orders', prefix: '/service-orders/' },
   { id: 'maintenance', prefix: '/maintenance/' },
+  { id: 'oncall', prefix: '/oncall/' },
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
   // The rebuilt demo tracker while it's built (INTEGRATION-PLAN.md step 4).

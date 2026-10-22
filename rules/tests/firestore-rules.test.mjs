@@ -72,6 +72,12 @@ await check('user can\'t put anything else in their notifications', false, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { 'notifications.everything': true }))
 await check('user can\'t set a reminder to something that isn\'t on or off', false, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { 'notifications.asksSummary': 'yes' }))
+await check('anyone signed in reads the on-call history', true, () =>
+  getDoc(doc(as('bob'), 'oncallHistory/2025')))
+await check('an admin imports an on-call history sheet', true, () =>
+  setDoc(doc(as('admin1'), 'oncallHistory/2025'), { name: '2025', year: 2025, weeks: [] }))
+await check('a user can\'t write the on-call history', false, () =>
+  setDoc(doc(as('bob'), 'oncallHistory/2025'), { name: '2025', year: 2025, weeks: [] }))
 await check('user saves their own home page icon row', true, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { homeLayout: { quick: ['asks', { label: 'Intranet', url: 'https://example.co.nz' }] } }))
 await check('user can\'t put anything else in their home layout', false, () =>

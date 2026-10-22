@@ -181,6 +181,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // The on-call roster history (Service → On-call roster): one document per sheet of the
+    // old workbook (2017 to 2026) plus the engineers list, imported by an admin.
+    match /oncallHistory/{sheet} {
+      allow read:  if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Activity log — "who changed what", read on Admin → Activity log.
     // Anyone signed in can log their own action (so a non-admin saving their
     // own week or booking their own leave still gets recorded); only admins
