@@ -801,4 +801,8 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 .hc-add { display: flex; flex-direction: column; gap: 6px; }
 .hc-add-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .hc-add-row .input { flex: 1 1 140px; min-width: 0; }
+.glyph-favicon { border-radius: 4px; object-fit: contain; }
+/* The dialog sits outside .pp-page, so it sets its own button size */
+.pp-dialog .btn { min-height: 40px; padding: 0 16px; white-space: nowrap; flex: 0 0 auto; }
+.pp-dialog .hc-add .input { min-height: 40px; }
 .hc-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

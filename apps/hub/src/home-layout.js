@@ -34,7 +34,9 @@ export function resolveEntries(entries) {
   return cleanEntries(entries).map((e, i) => {
     if (typeof e === 'string') return { key: e, tool: tools.find(t => t.id === e) }
     const external = /^https:/i.test(e.url)
-    return { key: 'link:' + i + e.url, tool: { id: 'link:' + i, name: e.label, short: e.label, description: e.url, link: e.url, icon: 'link', opens: external ? 'tab' : 'here' } }
+    // The site's own icon (asked of Google's favicon service by site name, nothing else); the link icon if there isn't one.
+    const favicon = external ? 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(new URL(e.url).hostname) : ''
+    return { key: 'link:' + i + e.url, tool: { id: 'link:' + i, name: e.label, short: e.label, description: e.url, link: e.url, icon: 'link', favicon, opens: external ? 'tab' : 'here' } }
   })
 }
 

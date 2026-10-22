@@ -6,6 +6,13 @@ import { Dialog } from './ui.jsx'
 import { resolveEntries, safeUrl } from './home-layout.js'
 import { tools } from './tools.js'
 
+/** A tool's icon; a link added by someone shows its site's own icon when it has one. */
+export function ToolGlyph({ tool, size }) {
+  const [failed, setFailed] = useState(false)
+  if (tool.favicon && !failed) return <img src={tool.favicon} alt="" width={size} height={size} className="glyph-favicon" onError={() => setFailed(true)} />
+  return <Icon name={tool.icon} size={size} />
+}
+
 export default function HomeCustomise({ entries, onSave, onReset, onClose }) {
   const [list, setList] = useState(entries)
   const [drag, setDrag] = useState(null)
@@ -49,7 +56,7 @@ export default function HomeCustomise({ entries, onSave, onReset, onClose }) {
             onDragStart={() => setDrag(i)} onDragEnd={() => setDrag(null)}
             onDragOver={e => { e.preventDefault(); if (drag !== null && drag !== i) { move(drag, i); setDrag(i) } }}>
             <span className="hc-grip" aria-hidden="true">⋮⋮</span>
-            <span className="tile tile-32"><Icon name={r.tool.icon} size={16} /></span>
+            <span className="tile tile-32"><ToolGlyph tool={r.tool} size={16} /></span>
             <span className="hc-name">{r.tool.short || r.tool.name}{typeof list[i] === 'object' && <span className="caption"> · {list[i].url}</span>}</span>
             <button type="button" className="icon-btn" aria-label={`Move ${r.tool.name} up`} disabled={i === 0} onClick={() => move(i, i - 1)}>↑</button>
             <button type="button" className="icon-btn" aria-label={`Move ${r.tool.name} down`} disabled={i === rows.length - 1} onClick={() => move(i, i + 1)}>↓</button>

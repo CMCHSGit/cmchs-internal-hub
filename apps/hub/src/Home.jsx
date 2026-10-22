@@ -10,7 +10,7 @@ import Calendar from './Calendar.jsx'
 import AsksPanel from './AsksPanel.jsx'
 import { asksSummary, readSeen, watchMyAsks } from './asks.js'
 import Icon from './Icon.jsx'
-import HomeCustomise from './HomeCustomise.jsx'
+import HomeCustomise, { ToolGlyph } from './HomeCustomise.jsx'
 import { resolveEntries, useHomeLayout } from './home-layout.js'
 import { Toast, useToast } from './ui.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
@@ -157,7 +157,7 @@ function Hero({ user, today, asksCount = 0 }) {
         <nav className="quick" aria-label="Open a tool">
           {resolveEntries(entries).map(({ key, tool: t }) => (
             <ToolLink key={key} tool={t} className="quick-btn" title={t.description}>
-              <span className="quick-circle"><Icon name={t.icon} size={26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
+              <span className="quick-circle"><ToolGlyph tool={t} size={t.favicon ? 32 : 26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
               <span className="quick-label">{t.short || t.name}</span>
             </ToolLink>
           ))}

@@ -112,6 +112,8 @@ export async function loadToday() {
     fs.getDocs(fs.collection(db, 'users')),
     fs.getDocs(fs.query(fs.collection(db, 'schedules'), fs.where('weekStart', '==', weekStart))),
     fs.getDoc(fs.doc(db, 'oncall', weekStart)).catch(() => null),
+    // The coming weeks' on-call, from the same documents the Schedule's On-call roster sets
+    ...laterStarts.map(w => fs.getDoc(fs.doc(db, 'oncall', w)).catch(() => null)),
   ])
   const schedules = {}
   for (const d of schedSnap.docs) { const x = d.data(); schedules[x.uid] = x }
@@ -119,5 +121,6 @@ export async function loadToday() {
     users: usersSnap.docs.map(d => ({ uid: d.id, ...d.data() })),
     schedules,
     oncall: oncallSnap?.exists() ? oncallSnap.data() : null,
+    later: laterStarts.map((w, i) => ({ weekStart: w, doc: laterSnaps[i]?.exists() ? laterSnaps[i].data() : null })),
   })
 }
