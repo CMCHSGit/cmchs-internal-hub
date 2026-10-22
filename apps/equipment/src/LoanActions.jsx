@@ -4,6 +4,7 @@
    Add items, Transfer (to another loan, or a new one), Copy (a new loan
    with the same devices), Edit and Delete. */
 import { useEffect, useState } from 'react'
+import { FileText } from 'lucide-react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
@@ -55,7 +56,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
         {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
         {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
         {g.kind !== 'booking' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
+        <Button size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
         {/* Marked once the loan has any (old: the Reports button turned green). */}
         {(s.reportKeys || []).includes(readinessKey(g))
           ? <Button size="sm" variant="secondary" className="eq-has-reports" disabled={busy} onClick={() => setAsking('reports')}>✔ Test reports</Button>
