@@ -128,7 +128,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
   const [busy, setBusy] = useState(false)
   const [confirmDialog, confirm] = useConfirm()
   const filter = STATUSES.some((x) => x.key === params.show) ? params.show : 'all'
-  const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1 })
+  const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1, auto: true })
   // Tile sync's last-seen places, by Tile number (old: _tileLocationCache): always in the old database, whatever the switch says.
   const [tiles, setTiles] = useState(null)
   useEffect(() => { readOld('tileLocations').then((r) => setTiles(r.data || {})).catch(() => setTiles({})) }, [])
@@ -150,8 +150,11 @@ function Equipment({ s, params, setParams, go, onDone }) {
   }, [withStatus])
 
   const rows = useMemo(() => {
-    const found = new Set(searchEquipment(withStatus.map((x) => x.e), q))
+    const hits = searchEquipment(withStatus.map((x) => x.e), q), found = new Set(hits)
+    const byRank = q.trim() && sort.auto // searching: best matches first, until a column heading is clicked
+    const place = new Map(hits.map((e, i) => [e, i]))
     return withStatus.filter((x) => found.has(x.e) && (filter === 'all' || x.st.key === filter)).sort((a, b) => {
+      if (byRank) return place.get(a.e) - place.get(b.e)
       const k = sort.key
       const val = (x) => (k === 'status' ? x.st.key : k === 'tile' ? tileOf(x.e)?.location || '' : String(x.e[k] ?? ''))
       const av = val(a), bv = val(b)
@@ -234,7 +237,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
             <th className="eq-browse-tick"><input type="checkbox" checked={allShown} disabled={!rows.length} onChange={toggleShown} aria-label="Tick all shown" title="Tick all shown" /></th>
             {COLUMNS.map(([k, label]) => (
             <th key={k} aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
-              <button type="button" className="data-table-sort" onClick={() => setSort((x) => ({ key: k, dir: x.key === k ? -x.dir : 1 }))}>
+              <button type="button" className="data-table-sort" onClick={() => setSort((x) => ({ key: k, dir: x.key === k && !x.auto ? -x.dir : 1 }))}>
                 {label}{sort.key === k && <span aria-hidden="true">{sort.dir > 0 ? '▲' : '▼'}</span>}
               </button>
             </th>

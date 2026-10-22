@@ -126,16 +126,28 @@ export const FIELDS = [
   ['TileUUID', 'Tile UUID'], ['BatterySerialNo', 'Battery serial no.'],
 ]
 
-/** Search across what people look an item up by. Every word must match. */
+/**
+ * Search across what people look an item up by. Every word must match somewhere. Best matches first:
+ * the model (starting with it first), then the asset number, then the serial number, then anything
+ * else (description, location, who it's on loan to...); within each, by asset number.
+ */
 export function searchEquipment(list, q) {
   const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean)
   if (!words.length) return list
-  return list.filter((e) => {
+  const all = (v) => { const t = String(v ?? '').toLowerCase(); return words.every((w) => t.includes(w)) }
+  const rank = (e) => {
     // Every field, as the old search (Object.values): MACs, device IDs, battery serials and the rest too.
     const hay = Object.entries(e).filter(([k, v]) => !k.startsWith('_') && (typeof v === 'string' || typeof v === 'number')).map(([, v]) => v)
       .join(' ').toLowerCase()
-    return words.every((w) => hay.includes(w))
-  })
+    if (!words.every((w) => hay.includes(w))) return -1
+    if (all(e.Model)) return String(e.Model).toLowerCase().startsWith(words[0]) ? 0 : 1
+    if (all(e.CHSAssetNo)) return 2
+    if (all(e.SerialNo)) return 3
+    return 4
+  }
+  return list.map((e) => ({ e, r: rank(e) })).filter((x) => x.r >= 0)
+    .sort((a, b) => a.r - b.r || String(a.e.CHSAssetNo ?? '').localeCompare(String(b.e.CHSAssetNo ?? ''), undefined, { numeric: true }))
+    .map((x) => x.e)
 }
 
 /** This item's history, newest first (by its string timestamp). */

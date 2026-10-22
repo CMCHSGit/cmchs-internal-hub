@@ -77,6 +77,12 @@ test('safeKeys: Firebase-forbidden characters in keys become _', () => {
   assert.deepEqual(Object.keys(safeKeys({ 'loandoc_a.b#c$d[e]f/g': 1 })), ['loandoc_a_b_c_d_e_f_g'])
 })
 
+test('search puts model matches first, then asset number, then serial number', () => {
+  const e = (id, no, Model, SerialNo, Description = '') => ({ id, CHSAssetNo: no, Model, SerialNo, Description })
+  const list = [e('b', '100010', 'TM80 Battery', 'DS04A9028'), e('s', '100500', 'EP30', 'XA9123'), e('n', '100A90', 'Dell', 'zz'), e('m2', '100300', 'Big A9 Thing', 'q'), e('m1', '100200', 'A9 Vaporiser', 'q'), e('d', '100005', 'ES30', 'q', 'works with A9')]
+  assert.deepEqual(searchEquipment(list, 'a9').map((x) => x.id), ['m1', 'm2', 'n', 'b', 's', 'd'])
+})
+
 test('fmtDate, search and history', () => {
   assert.equal(fmtDate('2026-10-07'), '7-Oct-2026')
   assert.equal(fmtDate('Counted 01/10/2026'), 'Counted 01/10/2026')
