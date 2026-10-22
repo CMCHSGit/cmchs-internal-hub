@@ -15,6 +15,7 @@ import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, runTransaction, writeBatch,
 } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../../schedule/src/firebase.js'
+import { ensureProfile } from '../../schedule/src/profile.js'
 import { clean } from './backend.js'
 import { trimRaw } from './feed.js'
 import { readTracker } from '../../admin/src/tracker.js'
@@ -38,6 +39,8 @@ export default {
 
   /** The person's record in the staff schedule: role and team decide who may edit. */
   async profile(uid) {
+    // A first sign-in that came straight here: its record (and any team HR set) first
+    if (auth.currentUser?.uid === uid) await ensureProfile(auth.currentUser).catch(() => {})
     const s = await getDoc(doc(db, 'users', uid))
     return s.exists() ? s.data() : {}
   },

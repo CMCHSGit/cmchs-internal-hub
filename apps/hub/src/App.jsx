@@ -108,6 +108,14 @@ export default function App() {
     ro.observe(header)
     return () => ro.disconnect()
   }, [user])
+  // Everyone signed in needs a users record, whichever section they open
+  // first; a first sign-in's is made here (apps/schedule/src/profile.js).
+  useEffect(() => {
+    if (!user || !configured) return
+    import('../../schedule/src/profile.js')
+      .then(({ ensureProfile }) => ensureProfile(user))
+      .catch(e => console.warn('[shell] profile not made', e))
+  }, [user])
   // A new hub page starts at the top, as a new page load would.
   useEffect(() => { window.scrollTo(0, 0) }, [page, route?.uid, route?.tab, route?.id])
 

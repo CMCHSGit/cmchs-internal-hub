@@ -20,6 +20,7 @@
    switch is kept in this browser instead. */
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { auth, db as firestore } from '../../schedule/src/firebase.js'
+import { ensureProfile } from '../../schedule/src/profile.js'
 import * as fsPaths from './db-paths.js'
 import { watchTracker } from './db-firestore.js'
 import { PROXY_URL } from '../../../shared/proxy.js'
@@ -89,6 +90,9 @@ let pass = readPass()
 let pending = null  // one pass request at a time, however many reads want one
 
 async function mintPass(uid) {
+  // The proxy gives a pass only to someone with a users record: on a first
+  // sign-in that opened Demo straight away, wait for it to be made.
+  await ensureProfile(auth.currentUser)
   const idToken = await auth.currentUser.getIdToken()
   const r = await fetch(PROXY_URL, {
     method: 'POST', headers: { 'Content-Type': 'text/plain' },

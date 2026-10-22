@@ -18,6 +18,7 @@
 import { onAuthStateChanged, signInWithPopup } from 'firebase/auth'
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, runTransaction, writeBatch } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../../schedule/src/firebase.js'
+import { ensureProfile } from '../../schedule/src/profile.js'
 import { canUsePush, needsHomeScreenInstall, pushEnabledOnThisDevice, enablePush, onForegroundMessage } from '../../schedule/src/utils/push.js'
 import { clean } from './backend.js'
 import { statsOf } from './model.js'
@@ -47,6 +48,8 @@ export default {
 
   /** The person's record in the staff schedule: role and team decide what they see. */
   async profile(uid) {
+    // A first sign-in that came straight here: its record (and any team HR set) first
+    if (auth.currentUser?.uid === uid) await ensureProfile(auth.currentUser).catch(() => {})
     const s = await getDoc(doc(db, 'users', uid))
     return s.exists() ? s.data() : {}
   },
