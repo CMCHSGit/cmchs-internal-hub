@@ -79,8 +79,8 @@ test('safeKeys: Firebase-forbidden characters in keys become _', () => {
 
 test('search puts model matches first, then asset number, then serial number', () => {
   const e = (id, no, Model, SerialNo, Description = '') => ({ id, CHSAssetNo: no, Model, SerialNo, Description })
-  const list = [e('b', '100010', 'TM80 Battery', 'DS04A9028'), e('s', '100500', 'EP30', 'XA9123'), e('n', '100A90', 'Dell', 'zz'), e('m2', '100300', 'Big A9 Thing', 'q'), e('m1', '100200', 'A9 Vaporiser', 'q'), e('d', '100005', 'ES30', 'q', 'works with A9')]
-  assert.deepEqual(searchEquipment(list, 'a9').map((x) => x.id), ['m1', 'm2', 'n', 'b', 's', 'd'])
+  const list = [e('b', '100010', 'TM80 Battery', 'DS04A9028'), e('s', '100500', 'EP30', 'XA9123'), e('n', '100A90', 'Dell', 'zz'), e('m2', '100300', 'Big A9 Thing', 'q'), e('x', '100900', 'A9', 'q'), e('m1', '100200', 'A9 Vaporiser', 'q'), e('d', '100005', 'ES30', 'q', 'works with A9')]
+  assert.deepEqual(searchEquipment(list, 'a9').map((x) => x.id), ['x', 'm1', 'm2', 'n', 'b', 's', 'd'])
 })
 
 test('fmtDate, search and history', () => {

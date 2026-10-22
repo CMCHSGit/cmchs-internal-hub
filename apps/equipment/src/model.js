@@ -128,7 +128,7 @@ export const FIELDS = [
 
 /**
  * Search across what people look an item up by. Every word must match somewhere. Best matches first:
- * the model (starting with it first), then the asset number, then the serial number, then anything
+ * the model (exactly it first, then starting with it), then the asset number, then the serial number, then anything
  * else (description, location, who it's on loan to...); within each, by asset number.
  */
 export function searchEquipment(list, q) {
@@ -140,10 +140,13 @@ export function searchEquipment(list, q) {
     const hay = Object.entries(e).filter(([k, v]) => !k.startsWith('_') && (typeof v === 'string' || typeof v === 'number')).map(([, v]) => v)
       .join(' ').toLowerCase()
     if (!words.every((w) => hay.includes(w))) return -1
-    if (all(e.Model)) return String(e.Model).toLowerCase().startsWith(words[0]) ? 0 : 1
-    if (all(e.CHSAssetNo)) return 2
-    if (all(e.SerialNo)) return 3
-    return 4
+    if (all(e.Model)) {
+      const m = String(e.Model).toLowerCase().trim()
+      return m === words.join(' ') ? 0 : m.startsWith(words[0]) ? 1 : 2
+    }
+    if (all(e.CHSAssetNo)) return 3
+    if (all(e.SerialNo)) return 4
+    return 5
   }
   return list.map((e) => ({ e, r: rank(e) })).filter((x) => x.r >= 0)
     .sort((a, b) => a.r - b.r || String(a.e.CHSAssetNo ?? '').localeCompare(String(b.e.CHSAssetNo ?? ''), undefined, { numeric: true }))
