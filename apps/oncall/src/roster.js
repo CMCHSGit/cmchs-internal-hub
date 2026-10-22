@@ -44,6 +44,12 @@ export function byYear(sheets) {
 /** A name as one person: "Sam (Kai)" and " Alex" are Sam and Alex; blank is nobody. */
 export const personOf = engineer => String(engineer || '').replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim()
 
+/** An engineer entry with one person renamed ("Sam (Kai)" with Kai to Kit is "Sam (Kit)"); whole names only. */
+export function renameEngineer(engineer, from, to) {
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return String(engineer).replace(new RegExp('(?<![A-Za-z0-9])' + escaped + '(?![A-Za-z0-9])', 'g'), to)
+}
+
 /** Weeks per person in a year: [{ name, weeks, holidayWeeks }], most weeks first. */
 export function tally(weeks) {
   const by = new Map()

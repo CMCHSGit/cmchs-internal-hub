@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { dateCell, firstStart, parseSheet, parseWorkbook, sheetId } from '../src/parse.js'
-import { byYear, personOf, tally, yearOfWeek } from '../src/roster.js'
+import { byYear, personOf, renameEngineer, tally, yearOfWeek } from '../src/roster.js'
 
 const HEAD = ['Month', 'Week', 'Start Date', 'End Date', 'Engineer', 'Public Holidays', 'Notes']
 
@@ -71,6 +71,13 @@ test('a week belongs to the year of its Thursday; the revised sheet wins; each y
   assert.equal(years[0].weeks[0].engineer, 'B') // the 2026 sheet's, not the 2025 sheet's carry-over
   assert.deepEqual(years[0].extras, ['x'])
   assert.equal(years[2].weeks[0].engineer, 'revised')
+})
+
+test('renaming a person changes whole names only, brackets included', () => {
+  assert.equal(renameEngineer('Ana', 'Ana', 'Anna'), 'Anna')
+  assert.equal(renameEngineer('Dee (Ana)', 'Ana', 'Anna'), 'Dee (Anna)')
+  assert.equal(renameEngineer('Anaya', 'Ana', 'Anna'), 'Anaya')
+  assert.equal(renameEngineer('C.J.', 'C.J.', 'CJ'), 'CJ')
 })
 
 test('tally: people once each, brackets dropped, blanks skipped, holiday weeks counted', () => {
