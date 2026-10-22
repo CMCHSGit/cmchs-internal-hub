@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react'
 import { firstNameOf } from '../../../shared/session.js'
 import Calendar from './Calendar.jsx'
 import AsksPanel from './AsksPanel.jsx'
+import NeedsYou from './NeedsYou.jsx'
 import { asksSummary, readSeen, watchMyAsks } from './asks.js'
 import Icon from './Icon.jsx'
 import HomeCustomise, { ToolGlyph } from './HomeCustomise.jsx'
@@ -508,6 +509,7 @@ export default function Home({ user }) {
       <Hero user={user} today={today} asksCount={asksNow?.mine.length || 0} />
       <div className="stripe-rule stripe-6" aria-hidden="true"><span /><span /><span /></div>
       <div className="home-page">
+        <NeedsYou asks={asksNow} />
         {today !== null && <Glance today={today} />}
         {asksNow && <AsksPanel summary={asksNow} SectionHead={SectionHead} />}
         <News news={news} uid={user.uid} />
