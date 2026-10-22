@@ -12,12 +12,23 @@ import { Dialog, Toast, failMsg, useToast } from './ui.jsx'
 import { loadToday, ONCALL_BG } from './today.js'
 import {
   EMPLOYMENT_TYPES, RELATIONSHIPS, TEAM_OPTIONS, addEmployee, completeness, isHR, loadDirectory, loadProfile,
-  photoFromFile, removeEmployee, saveEmployment, savePhoto, savePrivate, saveUser, searchPeople, tenure,
+  photoFromFile, removeEmployee, saveEmployment, savePhoto, savePrivate, saveUser, searchPeople, telHref, tenure,
 } from './people.js'
 
 const go = hash => { location.hash = hash }
 const longDate = iso => iso ? new Date(iso + 'T00:00').toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
-const telHref = n => 'tel:' + n.replace(/[^\d+]/g, '')
+
+// How the directory is laid out, remembered per browser: cards, or one compact row each with Call and Email buttons
+// (the phone's default, for ringing someone from the list).
+const VIEW_KEY = 'people:view'
+function useDirectoryView() {
+  const [view, setView] = useState(() => {
+    try { const v = localStorage.getItem(VIEW_KEY); if (v === 'cards' || v === 'list') return v } catch { /* none kept */ }
+    return window.matchMedia('(max-width: 759px)').matches ? 'list' : 'cards'
+  })
+  const choose = v => { setView(v); try { localStorage.setItem(VIEW_KEY, v) } catch { /* this page only */ } }
+  return [view, choose]
+}
 
 function Avatar({ person, size = 40 }) {
   const style = { width: size, height: size, fontSize: Math.round(size * 0.34) }
@@ -79,6 +90,7 @@ function Directory({ ctx }) {
   const [q, setQ] = useState('')
   const [teams, setTeams] = useState([])
   const [adding, setAdding] = useState(false)
+  const [view, setView] = useDirectoryView()
   const list = searchPeople(ctx.people, q, teams)
   const onCall = ctx.people.find(p => p.onCall)
   const toggle = id => setTeams(t => (t.includes(id) ? t.filter(x => x !== id) : [...t, id]))
@@ -111,14 +123,44 @@ function Directory({ ctx }) {
             <button key={t.id} className={`tag ${teams.includes(t.id) ? 'tag-on' : ''}`} aria-pressed={teams.includes(t.id)} onClick={() => toggle(t.id)}>{t.name}</button>
           ))}
         </div>
+        <div className="tag-row pp-view" role="group" aria-label="Layout">
+          <button className={`tag ${view === 'list' ? 'tag-on' : ''}`} aria-pressed={view === 'list'} onClick={() => setView('list')}>Contacts</button>
+          <button className={`tag ${view === 'cards' ? 'tag-on' : ''}`} aria-pressed={view === 'cards'} onClick={() => setView('cards')}>Cards</button>
+        </div>
       </div>
 
       {list.length
-        ? <div className="pp-grid">{list.map(p => <PersonCard key={p.uid} p={p} me={ctx.user.uid === p.uid} hr={ctx.hr} />)}</div>
+        ? (view === 'list'
+            ? <ul className="card pp-rows">{list.map(p => <ContactRow key={p.uid} p={p} me={ctx.user.uid === p.uid} />)}</ul>
+            : <div className="pp-grid">{list.map(p => <PersonCard key={p.uid} p={p} me={ctx.user.uid === p.uid} hr={ctx.hr} />)}</div>)
         : <div className="card pp-empty">No one matches that search.</div>}
 
       {adding && <AddEmployee ctx={ctx} onClose={() => setAdding(false)} />}
     </div>
+  )
+}
+
+// One compact row: who, where, and one-tap Call (work mobile) and Email (work email).
+function ContactRow({ p, me }) {
+  const tel = telHref(p.workMobile)
+  return (
+    <li className="pp-row">
+      <a className="pp-row-main" href={`#/people/${encodeURIComponent(p.uid)}`}>
+        <Avatar person={p} size={40} />
+        <span className="person-text">
+          <span className="person-name ellipsis">{p.name}{me && <span className="caption"> (you)</span>}</span>
+          <span className="caption ellipsis">{[p.teamName, p.onCall && 'On call', p.workMobile].filter(Boolean).join(' · ')}</span>
+        </span>
+      </a>
+      <span className="pp-row-actions">
+        {tel
+          ? <a className="pp-act" href={tel} aria-label={`Call ${p.name}, ${p.workMobile}`} title={p.workMobile}><Icon name="phone" size={18} /></a>
+          : <span className="pp-act off" role="img" aria-label={`${p.name} has no work mobile`}><Icon name="phone" size={18} /></span>}
+        {p.email
+          ? <a className="pp-act" href={`mailto:${p.email}`} aria-label={`Email ${p.name}`} title={p.email}><Icon name="mail" size={18} /></a>
+          : <span className="pp-act off" role="img" aria-label={`${p.name} has no work email`}><Icon name="mail" size={18} /></span>}
+      </span>
+    </li>
   )
 }
 
@@ -138,7 +180,7 @@ function PersonCard({ p, me, hr }) {
         {p.email
           ? <a href={`mailto:${p.email}`} className="pp-contact ellipsis"><Icon name="mail" size={14} /><span className="ellipsis">{p.email}</span></a>
           : <span className="pp-contact muted"><Icon name="mail" size={14} />No work email yet</span>}
-        {p.workMobile
+        {telHref(p.workMobile)
           ? <a href={telHref(p.workMobile)} className="pp-contact"><Icon name="phone" size={14} />{p.workMobile}</a>
           : <span className="pp-contact muted"><Icon name="phone" size={14} />No work mobile</span>}
       </div>
@@ -196,7 +238,7 @@ function Profile({ ctx, person }) {
           </div>
           <div className="pp-hero-contact">
             {person.email && <a className="pp-contact" href={`mailto:${person.email}`}><Icon name="mail" size={16} />{person.email}</a>}
-            {person.workMobile && <a className="pp-contact" href={telHref(person.workMobile)}><Icon name="phone" size={16} />{person.workMobile}</a>}
+            {telHref(person.workMobile) && <a className="pp-contact" href={telHref(person.workMobile)}><Icon name="phone" size={16} />{person.workMobile}</a>}
             {manager && <a className="pp-contact" href={`#/people/${manager.uid}`}><Icon name="users" size={16} />Reports to {manager.name}</a>}
           </div>
         </div>
@@ -486,7 +528,7 @@ function EmergencyTab({ ctx, person, details, setDetails }) {
           <Field label="Relationship" value={c.relationship} editing={editing} onChange={set(i, 'relationship')}
             options={editing ? [{ value: '', label: 'Choose…' }, ...RELATIONSHIPS.map(r => ({ value: r, label: r }))] : null} />
           <Field label="Phone" value={c.phone} editing={editing} type="tel" onChange={set(i, 'phone')}
-            display={c.phone && <a href={telHref(c.phone)}>{c.phone}</a>} />
+            display={telHref(c.phone) ? <a href={telHref(c.phone)}>{c.phone}</a> : c.phone} />
         </div>
       ))}
     </Section>

@@ -102,3 +102,12 @@ test('completeness counts what a person fills in themselves', () => {
 test('placeholder ids match the schedule Admin and Excel import', () => {
   assert.equal(placeholderId('Jo  Bloggs-Smith'), 'pending-jo-bloggs-smith')
 })
+
+test('tel links: any way a number is typed, nothing when there are no digits', async () => {
+  const { telHref } = await import('../src/people.js')
+  assert.equal(telHref('021 123 4567'), 'tel:0211234567')
+  assert.equal(telHref('+64 (21) 123-4567'), 'tel:+64211234567')
+  assert.equal(telHref(''), '')
+  assert.equal(telHref(undefined), '')
+  assert.equal(telHref('n/a'), '')
+})

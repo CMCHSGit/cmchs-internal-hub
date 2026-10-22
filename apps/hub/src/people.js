@@ -131,6 +131,9 @@ export function searchPeople(people, q, teams = []) {
       (digits.length >= 3 && p.workMobile.replace(/\D/g, '').includes(digits))))
 }
 
+/** A tel: link for a phone number typed any way ("021 123 4567", "+64 21 123 4567"); '' when there are no digits. */
+export const telHref = n => { const d = String(n || '').replace(/[^\d+]/g, ''); return /\d/.test(d) ? 'tel:' + d : '' }
+
 /** The placeholder id the schedule's Admin uses too, so the two never create duplicates. */
 export const placeholderId = name => 'pending-' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '')
 
