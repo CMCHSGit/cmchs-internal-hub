@@ -197,14 +197,18 @@ a.search-hit:hover { text-decoration: none; }
 .home-page { width: 100%; max-width: var(--container-max); margin: 0 auto; padding: 40px 24px 72px; display: flex; flex-direction: column; gap: 56px; }
 
 /* At a glance */
-.glance-wrap { display: flex; flex-direction: column; gap: 14px; }
 .glance { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
 button.glance-card { font: inherit; text-align: left; cursor: pointer; border: 0; }
 button.glance-card:disabled { cursor: default; }
 .glance-open { box-shadow: var(--focus-ring, 0 0 0 2px var(--chs-purple)); }
 .accent-pink::before { background: #FF7C80; }
-.glance-list { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+.glance-list { grid-column: 1 / -1; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .glance-list-head { display: flex; justify-content: space-between; align-items: center; }
+.glance-people { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 16px; }
+.glance-person { display: grid; grid-template-columns: 24px auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px 2px; border-top: 1px solid var(--border-hairline, rgba(0,0,0,.06)); min-width: 0; }
+.glance-person .person-name { font-size: 14px; white-space: nowrap; }
+.glance-person .person-where { font-size: 13px; }
+.glance-person .avatar-sm { width: 24px; height: 24px; font-size: 10px; }
 .glance-card { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 6px; padding: 23px 20px 18px; color: inherit; }
 .glance-card:hover { text-decoration: none; color: inherit; }
 .glance-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 5px; }

@@ -36,7 +36,7 @@
 .eq-toolbar .eq-grow { flex: 2 1 240px; }
 .eq-check { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; font: var(--type-body-sm); color: var(--text-body); cursor: pointer; }
 .eq-check input { accent-color: var(--accent-fg); }
-.eq-loans { display: flex; flex-direction: column; gap: 8px; }
+.eq-loans { display: flex; flex-direction: column; gap: 6px; }
 .eq-section-title { margin: 8px 0 0; font: var(--type-overline); letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--text-muted); }
 .eq-loans-needsReassign .eq-section-title { color: #a85800; }
 .eq-loans-upcoming .eq-section-title { color: var(--accent-fg); }
@@ -45,17 +45,17 @@
 .eq-loan.soon { border-left-color: var(--chs-orange); }
 .eq-loan.overdue { border-left-color: var(--status-critical); }
 .eq-loans-needsReassign .eq-loan { border-left-color: var(--chs-orange); }
-.eq-loan-head { all: unset; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; width: 100%; padding: 12px 16px; cursor: pointer; }
+.eq-loan-head { all: unset; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; width: 100%; padding: 8px 14px; cursor: pointer; }
 .eq-loan-head:focus-visible { box-shadow: inset 0 0 0 2px var(--border-focus); }
 .eq-loan-main { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .eq-loan-who { font: var(--weight-semibold) 16px/1.3 var(--font-body); color: var(--text-strong); }
 .eq-loan-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .eq-chev { color: var(--text-muted); transition: transform var(--duration-base, .2s); }
 .eq-chev.open { transform: rotate(180deg); }
-.eq-loan-body { padding: 0 16px 12px; border-top: 1px solid var(--border-subtle); }
-.eq-loan-notes { margin: 10px 0 0; padding: 8px 12px; border-radius: var(--radius-md); background: var(--surface-subtle); font: var(--type-body-sm); color: var(--text-body); white-space: pre-line; }
+.eq-loan-body { padding: 0 14px 8px; border-top: 1px solid var(--border-subtle); }
+.eq-loan-notes { margin: 6px 0 0; padding: 4px 10px; max-height: 6.5em; overflow-y: auto; line-height: 1.35; border-radius: var(--radius-md); background: var(--surface-subtle); font: var(--type-body-sm); color: var(--text-body); white-space: pre-line; }
 .eq-devices { list-style: none; margin: 0; padding: 0; }
-.eq-device { padding: 8px 0; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); color: var(--text-body); }
+.eq-device { padding: 4px 0; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); color: var(--text-body); }
 .eq-device:first-child { border-top: none; }
 .eq-device.pending .eq-small { color: var(--accent-fg); }
 .eq-device.ghost { opacity: .6; }
@@ -105,8 +105,8 @@
 .eq-date-chip span:last-child { font-size: 17px; }
 
 /* A loan's actions (LoanActions.jsx) */
-.eq-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; padding-top: 12px; border-top: 1px solid var(--border-subtle); }
-.eq-actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.eq-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--border-subtle); }
+.eq-actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .eq-done { color: var(--text-strong); }
 .eq-when { margin-left: 6px; font-weight: 400; color: var(--text-muted); }
 .eq-form { display: flex; flex-direction: column; gap: 14px; }
@@ -146,18 +146,20 @@
 
 /* The loan form (LoanForm.jsx): the printed form, editable */
 .eq-formdlg .dialog-body { padding-top: 4px; }
-.eq-lf { display: flex; flex-direction: column; gap: 12px; }
+.eq-lf { display: flex; flex-direction: column; gap: 8px; }
 .eq-lf-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--text-strong); }
 .eq-lf-title { font: var(--weight-semibold) 22px/1.15 var(--font-display); color: var(--text-strong); }
 .eq-lf-logo { height: 48px; width: auto; }
 :root[data-theme="dark"] .eq-lf-logo { content: url(/brand/logo-full-dark.png); }
-.eq-lf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 12px; }
+.eq-lf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 10px; }
 .eq-lf-grid label { display: flex; flex-direction: column; gap: 2px; font: var(--weight-semibold) 12px/1.3 var(--font-body); color: var(--text-muted); }
 .eq-lf input, .eq-lf-table input { font: var(--type-body-sm); color: var(--text-strong); background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm, 4px); padding: 5px 7px; min-width: 0; width: 100%; box-sizing: border-box; }
 .eq-lf-tablewrap { overflow-x: auto; }
 .eq-lf-table { width: 100%; border-collapse: collapse; min-width: 640px; }
 .eq-lf-table th { text-align: left; font: var(--weight-semibold) 12px/1.3 var(--font-body); color: var(--text-muted); padding: 4px; border-bottom: 1px solid var(--border-subtle); }
-.eq-lf-table td { padding: 3px 4px; }
+.eq-lf-table td { padding: 1px 3px; }
+.eq-lf-table input, .eq-lf-grid input { padding-top: 3px; padding-bottom: 3px; }
+.eq-lf-tablewrap { max-height: 38vh; overflow-y: auto; }
 .eq-lf-table td:last-child { width: 32px; }
 .eq-lf-actions { flex-wrap: wrap; }
 
@@ -219,8 +221,9 @@
 .eq-kit-list { display: flex; flex-direction: column; gap: 6px; }
 .eq-selbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; position: sticky; top: 8px; z-index: 3; }
 .eq-kit-offer { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--accent-fg); }
-.eq-device { position: relative; padding-right: 36px; }
-.eq-device-x { position: absolute; right: 0; top: 6px; color: var(--text-muted); }
+.eq-device { position: relative; padding-right: 36px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+.eq-device .eq-small { display: inline; margin: 0; }
+.eq-device-x { position: absolute; right: 0; top: 2px; color: var(--text-muted); }
 
 /* Ticked equipment (App.jsx's Equipment): what to do with them */
 .eq-selbar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 14px; background: var(--surface-accent-tint); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }

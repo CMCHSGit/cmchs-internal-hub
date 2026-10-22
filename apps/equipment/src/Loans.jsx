@@ -208,7 +208,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
 function Device({ e, next = [], onRemove }) {
   return (
     <li className="eq-device">
-      <a className="eq-strong" href={'#/equipment?item=' + encodeURIComponent(e.id)} title="Open its record">{e.CHSAssetNo}</a> {e.Model}{e.Description && <span className="text-muted"> · {e.Description}</span>}
+      <span><a className="eq-strong" href={'#/equipment?item=' + encodeURIComponent(e.id)} title="Open its record">{e.CHSAssetNo}</a> {e.Model}{e.Description && <span className="text-muted"> · {e.Description}</span>}</span>
       {e.SerialNo && <span className="eq-small eq-mono">{e.SerialNo}</span>}
       {next.map((u, i) => <span key={u.id} className="eq-small eq-next">{i ? '↪ Then scheduled' : '⏳ Scheduled'} for {u.loanTo} from {fmtDate(u.startDate)}{u.endDate ? ` – ${fmtDate(u.endDate)}` : ''}</span>)}
       {onRemove && <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${e.CHSAssetNo} off this loan`} title="Take off this loan (admin)" onClick={onRemove}>×</button>}

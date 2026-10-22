@@ -79,7 +79,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
   function print() {
     const w = window.open('', '_blank')
     if (!w) return setError('The print window was blocked. Allow pop-ups for this site and try again.')
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CHS Loan Form</title><style>@page{margin:0}body{margin:0;padding:14mm;font-family:Arial,sans-serif}body>div{max-width:none!important}td,th{font-size:13px!important;padding:4px 8px!important}</style></head><body>${loanFormHtml({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) })}<script>window.onload=function(){window.print()}<\/script></body></html>`)
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CHS Loan Form</title><style>@page{size:A4 portrait;margin:0}body{margin:0;padding:10mm;font-family:Arial,sans-serif}body>div{max-width:none!important}td,th{font-size:12px!important;padding:3px 6px!important}</style></head><body>${loanFormHtml({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) })}<script>window.onload=function(){window.print()}<\/script></body></html>`)
     w.document.close()
   }
   // While finishing, closing finishes (old: closing the form sent the email and made the Simpro job).
@@ -118,7 +118,6 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
         <Button size="sm" variant="ghost" iconLeft={<Plus size={14} />} onClick={() => { setF((x) => ({ ...x, rows: [...x.rows, ['', '', '', '', '']] })); setEdited(true) }}>Add a row</Button>
         <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
         <label className="field"><span className="field-label">Shipping details</span><textarea className="input" rows={2} value={f.shipping} onChange={set('shipping')} /></label>
-        <p className="eq-note">The signatures, the ESC reminder and the “data cleared on return” boxes are on the printed form.</p>
         {done.map((d) => <p key={d} className="eq-note">{d}</p>)}
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
         <div className="dialog-actions eq-lf-actions">
