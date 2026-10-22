@@ -936,7 +936,7 @@ export function formDoc(form, stored = {}, info = {}) {
 
 /**
  * The loan form as an RTF file to open in Word (old: exportLoanRTF): the header, the device rows
- * as fixed columns, and the notes. (The old one escaped its own bold marks, so
+ * as fixed columns, the notes, and the ESC reminder. (The old one escaped its own bold marks, so
  * its labels came out as "{\b Customer:}" text; here they're bold.) Returns { name, rtf }.
  */
 export function loanFormRtf(doc) {
@@ -956,7 +956,7 @@ export function loanFormRtf(doc) {
   for (const r of rows) rtf += line(esc(r))
   rtf += rule
   if (String(doc.notes || '').trim()) { rtf += gap + line(b('Notes:')); for (const n of String(doc.notes).split('\n')) rtf += line(esc(n)) }
-  rtf += '}}'
+  rtf += gap + rule + '{\\pard\\i Please ensure this form accompanies demo stock throughout trial and is returned to Connected Healthcare. Check all units have current ESC.\\par}\n}}'
   const who = String(doc.loanTo || 'loan').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_') || 'loan'
   return { name: `CHS_Loan_${who}_${toISO(doc.startDate || '') || nzDate()}.rtf`, rtf }
 }
@@ -967,7 +967,8 @@ const escHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt
 export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/logo-full-colour.png' } = {}) {
   const td = (v, extra = '') => `<td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;${extra}">${escHtml(v)}</td>`
   const th = (v, extra = '') => `<th style="border:1px solid #ccc;padding:2px 6px;font-size:11px;text-align:left;background:#f5f5f5;${extra}">${escHtml(v)}</th>`
-  const rows = (doc.rows || []).map((r) => `<tr>${r.map((c) => td(c)).join('')}</tr>`).join('')
+  const box = '<td style="border:1px solid #ccc;text-align:center"><div style="width:12px;height:12px;border:1.5px solid #333;margin:0 auto"></div></td>'
+  const rows = (doc.rows || []).map((r) => `<tr>${r.map((c) => td(c)).join('')}${box}</tr>`).join('')
   const pre = (v) => escHtml(v).replace(/\n/g, '<br>')
   return `<div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#1a1917">
 <table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>
@@ -976,9 +977,13 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
 <div style="border-top:2px solid #333;border-bottom:1px solid #ccc"></div>
 <table style="width:100%;border-collapse:collapse"><tr>${th('Event and/or Customer Name')}${th('Customer Address')}${th('Loan Date')}${th('Loan Ends Date' + (doc.longTerm ? ' — long term' : ''))}${th('Account Manager')}${th('Contact Number')}</tr>
 <tr>${td(doc.loanTo)}${td(doc.location)}${td(oldDate(doc.startDate))}${td(doc.longTerm ? '' : oldDate(doc.endDate))}${td(doc.accountManager)}${td(doc.contactNumber)}</tr></table>
-<table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>${th('CHS Asset #')}${th('Model')}${th('Description')}${th('Serial/Part #')}${th('Notes/Additional Info')}</tr>${rows}</table>
+<table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>${th('CHS Asset #')}${th('Model')}${th('Description')}${th('Serial/Part #')}${th('Notes/Additional Info')}${th('Data cleared on return', 'text-align:center')}</tr>${rows}</table>
 <table style="width:100%;border-collapse:collapse"><tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;width:14%;text-align:right">Notes:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.notes)}</td></tr>
-<tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;text-align:right">Shipping Details:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.shipping)}</td></tr></table></div>`
+<tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;text-align:right">Shipping Details:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.shipping)}</td></tr></table>
+<table style="width:100%;border-collapse:collapse"><tr>
+<td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Loan authorised by:</b><br><br>Name (print):<br><br>Signature:<br><br>Date:</td>
+<td style="border:1px solid #ccc;padding:8px 12px;text-align:center;font-size:12px"><b style="color:#554596">Please ensure this form accompanies<br>demo stock throughout trial and<br>is returned to Connected Healthcare</b><br><b style="color:#dc2626;font-size:11px">Check all units have current ESC</b></td>
+<td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Return checked by:</b><br><br>Signed:<br><br>Name (print):<br><br>Date:</td></tr></table></div>`
 }
 
 /**

@@ -79,7 +79,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
   function print() {
     const w = window.open('', '_blank')
     if (!w) return setError('The print window was blocked. Allow pop-ups for this site and try again.')
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CHS Loan Form</title><style>@page{size:A4 portrait;margin:0}body{margin:0;padding:10mm;font-family:Arial,sans-serif}body>div{max-width:none!important}td,th{font-size:12px!important;padding:3px 6px!important}</style></head><body>${loanFormHtml({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) })}<script>window.onload=function(){window.print()}<\/script></body></html>`)
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>CHS Loan Form</title><style>@page{size:A4 landscape;margin:0}body{margin:0;padding:10mm;font-family:Arial,sans-serif}body>div{max-width:none!important}td,th{font-size:12px!important;padding:3px 6px!important}</style></head><body>${loanFormHtml({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) })}<script>window.onload=function(){var d=document.body.firstElementChild,m=document.createElement('div');m.style.height='100mm';document.body.appendChild(m);var mm=m.offsetHeight/100;m.remove();d.style.zoom=Math.min(1,(210-20)*mm/d.offsetHeight*0.97);window.print()}<\/script></body></html>`)
     w.document.close()
   }
   // While finishing, closing finishes (old: closing the form sent the email and made the Simpro job).
