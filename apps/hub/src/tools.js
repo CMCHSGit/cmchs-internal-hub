@@ -22,13 +22,17 @@ const CATEGORIES = [
 
 export const tools = allTools.filter(t => t.visible !== false)
 
+/** The service team's tools: the Service menu in the header lists them, so the home page's grid doesn't. */
+export const SERVICE_TOOL_IDS = ['service-orders', 'ansur', 'simpro', 'maintenance']
+export const serviceTools = SERVICE_TOOL_IDS.map(id => tools.find(t => t.id === id)).filter(Boolean)
+
 export function toolGroups() {
   const known = CATEGORIES.map(([name, c1, c2]) => ({ name, c1, c2 }))
   const extra = [...new Set(tools.map(t => t.category))]
     .filter(c => !CATEGORIES.some(([name]) => name === c))
     .map(name => ({ name, c1: PURPLE, c2: GREY }))
   return [...known, ...extra]
-    .map(g => ({ ...g, tools: tools.filter(t => t.category === g.name) }))
+    .map(g => ({ ...g, tools: tools.filter(t => t.category === g.name && !SERVICE_TOOL_IDS.includes(t.id)) }))
     .filter(g => g.tools.length)
 }
 

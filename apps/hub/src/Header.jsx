@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Boxes, CalendarDays, ClipboardList, Ellipsis, FolderKanban, Home as HomeIcon, Inbox, Moon, Settings, Sun, Users, Wrench } from 'lucide-react'
+import { Boxes, CalendarDays, ChevronDown, ClipboardList, Ellipsis, FolderKanban, Home as HomeIcon, Inbox, Moon, Settings, Sun, Users, Wrench } from 'lucide-react'
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
+import { serviceTools } from './tools.js'
 import { openSearch } from './Palette.jsx'
 import { EVENT, KEY, badgeText, readAll } from '../../../shared/badges.js'
 
@@ -92,15 +93,52 @@ function ThemeButton() {
   )
 }
 
+/** The Service tab: hover or click for the service tools (Service orders, Ansur reports, Simpro sync, Maintenance Schedule). */
+function ServiceMenu({ on }) {
+  const [open, setOpen] = useState(false)
+  const box = useRef(null)
+  const timer = useRef(0), pointer = useRef('mouse')
+  useEffect(() => {
+    if (!open) return undefined
+    const close = e => { if (!box.current?.contains(e.target)) setOpen(false) }
+    const esc = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc) }
+  }, [open])
+  const hold = () => { clearTimeout(timer.current); setOpen(true) }
+  const leave = () => { clearTimeout(timer.current); timer.current = setTimeout(() => setOpen(false), 150) }
+  return (
+    <div className="nav-menu" ref={box} onPointerEnter={e => { if (e.pointerType === 'mouse') hold() }} onPointerLeave={e => { if (e.pointerType === 'mouse') leave() }}>
+      <button type="button" className={`nav-tab nav-tab-btn ${on ? 'on' : ''}`} aria-expanded={open} aria-haspopup="menu"
+        onPointerDown={e => { pointer.current = e.pointerType }}
+        onClick={() => setOpen(o => (pointer.current === 'mouse' ? true : !o))}>
+        Service <ChevronDown size={14} aria-hidden="true" className="nav-caret" />
+      </button>
+      {open && (
+        <div className="menu nav-dropdown" role="menu">
+          {serviceTools.map(t => (
+            <a key={t.id} className="menu-item" role="menuitem" href={t.link} onClick={() => setOpen(false)}>
+              <Icon name={t.icon} size={16} /> {t.short || t.name}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // `search={false}` on Home, where the hero has the search box instead (and
 // Ctrl+K still opens the one search).
 // All '/#/…', so switching between them stays on the page. A plain '/' from
 // '/#/people' is a new page load: a white screen and signing-in check again.
-const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['service', 'Service', '/service/', Wrench], ['equipment', 'Demo', '/equipment/', Boxes], ['manage', 'Manage', '/#/manage', ClipboardList]]
+const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/schedule/', CalendarDays], ['people', 'People', '/#/people', Users], ['asks', 'Asks', '/asks/', Inbox], ['projects', 'Projects', '/projects/', FolderKanban], ['service', 'Service', '', Wrench], ['equipment', 'Demo', '/equipment/', Boxes], ['manage', 'Manage', '/#/manage', ClipboardList]]
 // Phones: the sections used most on a phone as bottom tabs; the rest, and
 // Settings, under More. Projects is mostly used at a desk.
 const BAR = ['home', 'schedule', 'asks', 'equipment']
-const MORE = [...NAV.filter(([id]) => !BAR.includes(id)), ['settings', 'Settings', '/settings/', Settings]]
+// Service isn't a page: on a laptop it's a drop-down of the service tools, on a phone they sit under More.
+const MORE = [...NAV.filter(([id]) => !BAR.includes(id) && id !== 'service'),
+  ...serviceTools.map(t => [t.id, t.short || t.name, t.link, Wrench]), ['settings', 'Settings', '/settings/', Settings]]
 
 function BottomNav({ page }) {
   const [open, setOpen] = useState(false)
@@ -152,7 +190,7 @@ export default function Header({ user, search = true, page = 'home' }) {
           <span className="brand-name">Internal Hub</span>
         </a>
         <nav className="nav-tabs wide-only" aria-label="Hub">
-          {NAV.map(([id, label, href]) => (
+          {NAV.map(([id, label, href]) => id === 'service' ? <ServiceMenu key={id} on={page === 'service'} /> : (
             <a key={id} href={href} className={`nav-tab ${page === id ? 'on' : ''}`} aria-current={page === id ? 'page' : undefined}>{label}<TabBadge id={id} /></a>
           ))}
         </nav>

@@ -8,7 +8,6 @@ import { configured, nextPath, watchUser } from '../../../shared/session.js'
 import { reloadOntoLatest } from '../../../shared/register-sw.js'
 import { sectionOf, useAddress } from './router.js'
 import Header from './Header.jsx'
-import Service from './Service.jsx'
 import Home from './Home.jsx'
 import Manage from './Manage.jsx'
 import NewsPost from './NewsPost.jsx'
@@ -89,7 +88,7 @@ function hubRouteOf() {
   return { page: 'home' }
 }
 
-const SERVICE_TOOLS = ['service', 'service-orders', 'maintenance', 'simprosync', 'ansurtopdf']
+const SERVICE_TOOLS = ['service-orders', 'maintenance', 'simprosync', 'ansurtopdf']
 
 export default function App() {
   // undefined = still checking the saved session, null = signed out
@@ -155,7 +154,6 @@ export default function App() {
               {section === 'projects' && <ProjectsSection />}
               {section === 'settings' && <SettingsSection />}
               {section === 'service-orders' && <ServiceOrdersSection />}
-              {section === 'service' && <Service />}
               {section === 'maintenance' && <MaintenanceSection />}
               {section === 'simprosync' && <SimproSyncSection />}
               {section === 'ansurtopdf' && <AnsurSection />}

@@ -14,7 +14,6 @@ import { useSyncExternalStore } from 'react'
 export const SECTIONS = [
   { id: 'asks', prefix: '/asks/' },
   { id: 'projects', prefix: '/projects/' },
-  { id: 'service', prefix: '/service/' },
   { id: 'service-orders', prefix: '/service-orders/' },
   { id: 'maintenance', prefix: '/maintenance/' },
   { id: 'simprosync', prefix: '/simprosync/' },

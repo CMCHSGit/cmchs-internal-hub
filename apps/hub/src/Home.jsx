@@ -17,7 +17,7 @@ import { reactionSummary } from './social.js'
 import { Linked } from './ui.jsx'
 import {
   hostOf, markUsed, newsImage,
-  openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
+  SERVICE_TOOL_IDS, openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
 } from './tools.js'
 
 // The staff directory and profiles (People.jsx)
@@ -149,7 +149,7 @@ function Hero({ user, today, asksCount = 0 }) {
         </div>
         <HeroSearch people={today?.people || null} />
         <nav className="quick" aria-label="Open a tool">
-          {tools.map(t => (
+          {tools.filter(t => !SERVICE_TOOL_IDS.includes(t.id)).map(t => (
             <ToolLink key={t.id} tool={t} className="quick-btn" title={t.description}>
               <span className="quick-circle"><Icon name={t.icon} size={26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
               <span className="quick-label">{t.short || t.name}</span>
@@ -427,7 +427,7 @@ function Tools() {
           </div>
         )}
       </SectionHead>
-      {toolGroups().filter(g => g.name !== 'Service').map(g => ( // Service tools live on the Service page
+      {toolGroups().map(g => (
         <div key={g.name} className="stack-10">
           <div className="group-head">
             <span className="group-stripes" aria-hidden="true"><span style={{ background: g.c1 }} /><span style={{ background: g.c2 }} /></span>
