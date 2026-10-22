@@ -51,7 +51,7 @@ function Account({ user }) {
 
   return (
     <div className="account" ref={box}>
-      <button className="account-btn" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-haspopup="menu">
+      <button className="account-btn" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-haspopup="menu" aria-label={`Account: ${user.displayName || user.email} (sign out)`}>
         <span className="avatar">{initialsOf(user)}</span>
         <span className="account-text wide-only">
           <span className="account-name">{user.displayName || user.email}</span>

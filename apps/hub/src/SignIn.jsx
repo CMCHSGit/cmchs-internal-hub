@@ -1,5 +1,10 @@
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { signIn } from '../../../shared/session.js'
+
+// The test copy's "Sign in as" list (npm run dev:emulators). Written out in
+// full, not via shared/firebase.js, so a real build sees `false` here and
+// leaves the list, and its test password, out of the site altogether.
+const TestSignIn = import.meta.env.DEV && import.meta.env.VITE_EMULATORS === 'true' ? lazy(() => import('./TestSignIn.jsx')) : null
 
 const MESSAGES = {
   'auth/popup-blocked': 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.',
@@ -41,8 +46,10 @@ export default function SignIn({ error: fixedError }) {
               {busy ? 'Signing in…' : 'Sign in with Microsoft'}
             </button>}
         {error && <div className="alert" role="alert">{error}</div>}
+        {TestSignIn && <Suspense fallback={null}><TestSignIn onError={setError} /></Suspense>}
         <span className="caption">Trouble signing in? Call the office on 0800 424 797.</span>
       </div>
     </main>
   )
 }
+

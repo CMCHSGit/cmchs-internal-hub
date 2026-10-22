@@ -5,12 +5,12 @@
 // key) is shared: sign in once at the hub and /service, /demo, /schedule all
 // see you as signed in. The session survives browser restarts until you sign
 // out. No React here, so plain pages (the /service tools' gate) can use it too.
-import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth'
 // The site's one Firebase start-up (shared with every tool's apps/schedule/src/firebase.js)
-import { auth, configured, microsoftProvider } from './firebase.js'
+import { auth, configured, emulators, microsoftProvider } from './firebase.js'
 import { clearBadges } from './badges.js'
 
-export { configured }
+export { configured, emulators }
 
 // `npm run dev` without a .env: pretend someone is signed in so the UI can be
 // worked on. Never happens in a real build (scripts/build.mjs refuses to build
@@ -30,6 +30,12 @@ export function watchUser(callback) {
 export async function signIn() {
   if (!auth) throw new Error('Sign-in is not configured for this build.')
   await signInWithPopup(auth, provider)
+}
+
+/** The test copy only: sign in as one of shared/test-accounts.js's made-up staff (they exist only in the local emulator). */
+export async function signInAsTest(email, password) {
+  if (!emulators || !auth) throw new Error('Test sign-in is only for the test copy.')
+  await signInWithEmailAndPassword(auth, email, password)
 }
 
 export async function signOutUser() {

@@ -59,6 +59,9 @@ body { background: var(--chs-black-05); }
 /* ---------- sign in ---------- */
 .signin { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--surface-page); }
 .signin-col { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 20px; }
+/* The test copy's "Sign in as" list (SignIn.jsx, npm run dev:emulators only). */
+.signin-test { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--border-strong, #ccc); }
+.signin-test .btn { justify-content: space-between; gap: 10px; }
 .signin-copy { display: flex; flex-direction: column; gap: 6px; }
 .signin-copy h2 { letter-spacing: -.01em; }
 .signin-copy p { margin: 0; color: var(--text-body); text-wrap: pretty; }

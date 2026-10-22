@@ -176,6 +176,37 @@ npm run preview              # serve dist/ at http://localhost:4173 (needs .env 
 The service worker only registers in a real build, so `npm run dev` never installs one — use `npm run build && npm run preview` to exercise it. Deep links are the other thing `dev` won't show you honestly: Vite's dev server has its own SPA fallback, so `/schedule/my` just works there, while on GitHub Pages it goes through `404.html`. The schedule, Admin and anything else reading Firestore need the `.env` to show their screens; without one they show the shell's "didn't load" message.
 For real sign-in locally, copy `.env.example` to `.env` and fill it in with the schedule's Firebase web config.
 
+## Test copy: the whole hub with made-up staff
+
+To try a change as different people before it goes live, without touching live data or anyone's account. Sign-in and Firestore run in the Firebase emulators on your computer, with the real `rules/firestore.rules`, under a made-up project (`demo-cmchs`) that can't reach the live one.
+
+```
+npm run emulators        # terminal 1: starts the emulators (needs Java) and fills them with test data; leave it running
+npm run dev:emulators    # terminal 2: the hub at http://localhost:5173 against them
+```
+
+The sign-in page then lists the test staff (`shared/test-accounts.js`): an admin, HR, two engineers, sales, applications, and someone with no team yet. Each opens the hub as that person, so you can check what they see and can change. The data (`scripts/emulator-seed.mjs`): this week's schedule, news, asks, the project tracker's sample jobs and the demo tracker's sample equipment (its data source set to Firestore). Stopping the emulators throws it all away; `npm run emulators:seed` resets it while they run. The emulators' own view of the data is at http://127.0.0.1:4000.
+
+Not in the test copy, because they only exist live: pushes, emails, the Apps Script proxy (Simpro, the demo tracker's database pass and team list), and Microsoft sign-in. The admin password lock opens by itself there. A real build never includes any of this (`.env.emulators` is read only by `dev:emulators`).
+
+### Checking the live-only parts
+
+After a change to pushes, Simpro or the proxy, someone signed in on the live site runs the part that changed. Each takes a minute.
+
+| Check | Do this | Expect |
+|---|---|---|
+| Ask push | Send a test ask to a colleague who has notifications on | Asks says "Notified 1 person on 1 phone"; their phone shows "New ask from …"; tapping it opens the ask |
+| Comment push | Comment on that ask with @their name | "Notified 1 person"; their phone shows your comment |
+| News push | Post a news item with "Notify everyone" ticked | Phones with notifications on show it |
+| Test notification | Demo tracker → Manage → test notification, to yourself | Your phone shows "Test notification" (Service & Projects only) |
+| Demo reminders | Next weekday 8am | Due-back and starting-soon reminders arrive once, not twice |
+| Simpro job | Return a demo loan that has a Simpro job | The job's stage becomes Complete in Simpro |
+| SimproSync | Run a small sheet with one changed field | The plan shows 1 update; Apply changes it in Simpro |
+| Ansur upload | Upload one report to a test job | The PDF appears on the job in Simpro |
+| Proxy refuses strangers | `curl -s -L -H "Content-Type: text/plain" -d '{"action":"testPush"}' <proxy /exec URL>` | `{"success":false,"error":"Sign in to use this."}` |
+
+If one fails, note the exact message Asks or the tool shows; the proxy's own log is in the Apps Script editor, Executions.
+
 ## Deploy setup (one-time)
 - **Secrets:** Settings → Secrets and variables → Actions: the `VITE_*` values from `.env.example`, same values as the cmchs-staff-schedule repo. `VITE_FIREBASE_VAPID_KEY` is the one to watch — an empty value doesn't fail, it quietly falls back to a default key and mints working push tokens, which all rotate the day the real key is added. Set it before anyone enrols for notifications.
 - **Pages:** Settings → Pages → Source: **GitHub Actions**; Custom domain `internal.chsnz.co.nz`; Enforce HTTPS.

@@ -7,7 +7,8 @@ const KEY = 'dev:equipment-db'
 const day = (n) => new Date(Date.now() + n * 86400000).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
 const ts = (n) => day(n) + 'T09:30:00+12:00'
 
-function sample() {
+// Also the test copy's demo equipment (scripts/emulator-seed.mjs).
+export function sample() {
   const eq = (i, o) => ({ id: 'id_dev_' + i, Returned: 'No', OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', BatchID: '', Notes: '', ShelfLocation: 'Shelf ' + (1 + (i % 4)), ...o })
   const equipment = [
     eq(1, { CHSAssetNo: '100166', Model: 'TEX20', Description: 'TEX20 Ultrasound Crate', SerialNo: 'TX-20-0041' }),

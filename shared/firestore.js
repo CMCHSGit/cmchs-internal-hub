@@ -9,9 +9,12 @@
 // getFirestore() that happened to run first would quietly turn it off.
 import { getApp } from 'firebase/app'
 import {
-  clearIndexedDbPersistence, getFirestore, initializeFirestore,
-  persistentLocalCache, persistentMultipleTabManager, terminate,
+  clearIndexedDbPersistence, connectFirestoreEmulator, getFirestore, initializeFirestore,
+  memoryLocalCache, persistentLocalCache, persistentMultipleTabManager, terminate,
 } from 'firebase/firestore'
+// The test copy (npm run dev:emulators), worked out here rather than imported from
+// ./firebase.js, so the tests can load this file outside Vite.
+const emulators = typeof import.meta.env !== 'undefined' && import.meta.env.DEV === true && import.meta.env.VITE_EMULATORS === 'true'
 
 let db = null
 
@@ -19,6 +22,12 @@ let db = null
 export function firestore(app = getApp()) {
   if (db) return db
   try {
+    if (emulators) {
+      // The test copy: no device copy (the emulator's data is wiped and re-seeded), and the local emulator.
+      db = initializeFirestore(app, { localCache: memoryLocalCache() })
+      connectFirestoreEmulator(db, '127.0.0.1', 8080)
+      return db
+    }
     // Multiple tabs: the hub open in two tabs (or the app and a browser tab) share the copy.
     db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
   } catch {
@@ -30,6 +39,7 @@ export function firestore(app = getApp()) {
 
 /** Sign-out: delete this device's copy. Firestore can't be used again in this page afterwards, so reload. */
 export async function clearFirestoreCache() {
+  if (emulators) return
   const d = firestore()
   await terminate(d)
   // Fails while another tab of the hub is still open; that tab's copy stays until it signs out too.

@@ -7,7 +7,7 @@
 // Sign-in only. Firestore and messaging are added by apps/schedule/src/firebase.js
 // for the tools that need them, so the hub's first load stays small.
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { getAuth, OAuthProvider } from 'firebase/auth'
+import { connectAuthEmulator, getAuth, OAuthProvider } from 'firebase/auth'
 
 // Trimmed: a value pasted into GitHub Secrets with a trailing newline (it
 // happened with the tenant ID) makes Microsoft answer "Bad Request".
@@ -25,8 +25,17 @@ export const firebaseConfig = {
 /** False in `npm run dev` without a .env; scripts/build.mjs refuses a CI build without it. */
 export const configured = Boolean(firebaseConfig.apiKey)
 
+/**
+ * The test copy (`npm run dev:emulators`, README "Test copy"): sign-in and
+ * Firestore are the Firebase emulators on this computer, under a made-up
+ * "demo-" project, so nothing can reach the live data. Only on the dev server:
+ * a real build can't turn it on.
+ */
+export const emulators = Boolean(import.meta.env.DEV) && import.meta.env.VITE_EMULATORS === 'true'
+
 export const app = configured ? (getApps().length ? getApp() : initializeApp(firebaseConfig)) : null
 export const auth = app ? getAuth(app) : null
+if (emulators && auth && !auth.emulatorConfig) connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
 
 // Microsoft (Entra ID). Only Cass Medical accounts, and always the account
 // picker, so nobody gets stuck signed in as the wrong person.

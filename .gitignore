@@ -8,3 +8,8 @@ simpro_key.js
 
 # graphify: a local map of the code, rebuilt with `graphify update .` (CLAUDE.md)
 graphify-out/
+
+# The Firebase emulators (npm run emulators) write these as they run.
+firebase-debug.log
+firestore-debug.log
+ui-debug.log

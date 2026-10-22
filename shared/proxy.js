@@ -11,4 +11,13 @@
    (chs-equipment/index.html) has its own copy, SIMPRO_PROXY_URL, until it is
    rebuilt here (INTEGRATION-PLAN.md step 4). */
 
-export const PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+// The test copy (npm run dev:emulators), worked out here rather than imported from
+// ./firebase.js, so the tests can load this file outside Vite.
+const emulators = typeof import.meta.env !== 'undefined' && import.meta.env.DEV === true && import.meta.env.VITE_EMULATORS === 'true'
+
+const LIVE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec'
+
+// The test copy never calls the live proxy: its sign-ins are fake, and pushes,
+// Simpro and the tracker's database pass are live-only. Calls fail fast instead,
+// the same as when the proxy can't be reached.
+export const PROXY_URL = emulators ? 'http://127.0.0.1:59999/no-proxy-in-the-test-copy' : LIVE_PROXY_URL

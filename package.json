@@ -17,7 +17,10 @@
   "scripts": {
     "dev": "npm run dev -w apps/hub",
     "build": "node scripts/build.mjs",
-    "preview": "vite preview --outDir dist --port 4173"
+    "preview": "vite preview --outDir dist --port 4173",
+    "emulators": "node scripts/emulators.mjs",
+    "emulators:seed": "node scripts/emulator-seed.mjs",
+    "dev:emulators": "npm run dev -w apps/hub -- --mode emulators"
   },
   "devDependencies": {
     "vite": "^5.2.0",

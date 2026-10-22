@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Lock } from 'lucide-react'
 import { Button } from './ui'
+const emulators = typeof import.meta.env !== 'undefined' && import.meta.env.DEV === true && import.meta.env.VITE_EMULATORS === 'true' // the test copy (npm run dev:emulators)
 
 /**
  * The admin password — a second step on top of the admin role, useful on an
@@ -21,6 +22,8 @@ async function sha256(text) {
 }
 
 export function isUnlocked() {
+  // The test copy (npm run dev:emulators): its made-up admin is already an admin by role, and the real password stays out of it.
+  if (emulators) return true
   try { return sessionStorage.getItem(UNLOCK_KEY) === ADMIN_PASSWORD_SHA256 } catch { return false }
 }
 

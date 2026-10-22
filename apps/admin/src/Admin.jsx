@@ -121,7 +121,7 @@ export function UsersTab() {
       <div className="admin-side">
       <h2 className="admin-side-title">People</h2>
       <p className="text-sm text-muted">
-        Assign teams and roles. Most people pick their team on first sign-in; change it here if needed.
+        Assign teams and roles. People can’t choose their own team: set it here (or HR does, on People) after their first sign-in.
         Admins can update anyone’s schedule from Team week and run the on-call roster.
       </p>
 
