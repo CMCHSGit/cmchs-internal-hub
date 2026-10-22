@@ -8,8 +8,9 @@ import { tools } from './tools.js'
 
 /** A tool's icon; a link added by someone shows its site's own icon when it has one. */
 export function ToolGlyph({ tool, size }) {
-  const [failed, setFailed] = useState(false)
-  if (tool.favicon && !failed) return <img src={tool.favicon} alt="" width={size} height={size} className="glyph-favicon" onError={() => setFailed(true)} />
+  const [tried, setTried] = useState(0)
+  const src = tool.favicons?.[tried]
+  if (src) return <img key={src} src={src} alt="" width={size} height={size} className="glyph-favicon" onError={() => setTried(n => n + 1)} />
   return <Icon name={tool.icon} size={size} />
 }
 

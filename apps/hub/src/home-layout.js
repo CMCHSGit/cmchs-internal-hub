@@ -34,9 +34,11 @@ export function resolveEntries(entries) {
   return cleanEntries(entries).map((e, i) => {
     if (typeof e === 'string') return { key: e, tool: tools.find(t => t.id === e) }
     const external = /^https:/i.test(e.url)
-    // The site's own icon (asked of Google's favicon service by site name, nothing else); the link icon if there isn't one.
-    const favicon = external ? 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(new URL(e.url).hostname) : ''
-    return { key: 'link:' + i + e.url, tool: { id: 'link:' + i, name: e.label, short: e.label, description: e.url, link: e.url, icon: 'link', favicon, opens: external ? 'tab' : 'here' } }
+    // The site's own icon, tried in turn: its /favicon.ico, then Google's favicon service (given only the site's address, and it
+    // refuses with a 404 when it has none); the link icon if neither has one.
+    const host = external ? new URL(e.url).origin : ''
+    const favicons = external ? [host + '/favicon.ico', 'https://t1.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&size=64&url=' + encodeURIComponent(host)] : []
+    return { key: 'link:' + i + e.url, tool: { id: 'link:' + i, name: e.label, short: e.label, description: e.url, link: e.url, icon: 'link', favicons, opens: external ? 'tab' : 'here' } }
   })
 }
 

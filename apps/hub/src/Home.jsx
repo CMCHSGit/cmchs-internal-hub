@@ -157,7 +157,7 @@ function Hero({ user, today, asksCount = 0 }) {
         <nav className="quick" aria-label="Open a tool">
           {resolveEntries(entries).map(({ key, tool: t }) => (
             <ToolLink key={key} tool={t} className="quick-btn" title={t.description}>
-              <span className="quick-circle"><ToolGlyph tool={t} size={t.favicon ? 32 : 26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
+              <span className="quick-circle"><ToolGlyph tool={t} size={t.favicons?.length ? 32 : 26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
               <span className="quick-label">{t.short || t.name}</span>
             </ToolLink>
           ))}
