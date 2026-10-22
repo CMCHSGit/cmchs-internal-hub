@@ -50,3 +50,5 @@ existing folder).
 
 The tests read `../firestore.rules` relative to themselves, so the copy here is
 always the one tested.
+
+`firestore.rules` with the home page layout (`users/{uid}.homeLayout`, the Customise button on the home page) was published on 23 Oct 2026.
