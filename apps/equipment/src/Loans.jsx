@@ -150,6 +150,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
       </button>
       {open && (
         <div className="eq-loan-body">
+          <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
           {g.notes && <p className="eq-loan-notes">{g.notes}</p>}
           <ul className="eq-devices">
             {g.items.map((e) => <Device key={e.id} e={e} next={nextFor(e.CHSAssetNo)} onRemove={() => setRemoving({ e })} />)}
@@ -175,7 +176,6 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
             ))}
           </ul>
           {updates.length > 0 && <button type="button" className="link-btn eq-small" onClick={openUpdates}>Loan updates ({updates.length}){unseen ? ', some new' : ''}</button>}
-          <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
           {showUpdates && (
             <Dialog title={`Loan updates: ${g.loanTo}`} onClose={() => setShowUpdates(false)} width={600}>
               <ul className="eq-audit">

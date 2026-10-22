@@ -39,6 +39,30 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
 
   return (
     <div className="eq-actions" data-working={busy ? '' : undefined}>
+      <div className="eq-actions-row">
+        {canExtend(g) && <Button size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>}
+        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
+        <Button size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>
+        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
+        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
+        {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
+        {g.kind !== 'booking' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
+        {/* Marked once the loan has any (old: the Reports button turned green). */}
+        {(s.reportKeys || []).includes(readinessKey(g))
+          ? <Button size="sm" variant="secondary" className="eq-has-reports" disabled={busy} onClick={() => setAsking('reports')}>✔ Test reports</Button>
+          : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>}
+        {/* Still waiting on devices once its start has come: Transfer on the loan holding them, ready (old: Reassign / transfer, openStuckLoanReassign). */}
+        {go && (g.pending || []).length > 0 && g.startDate && g.startDate <= s.today && (
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => {
+            const t = linkTarget('?reassign=' + encodeURIComponent(g.batchId), { needsReassign: all || [], current: [], longTerm: [], upcoming: [] }, s.upcoming, s.equipment)
+            if (t?.params?.act === 'transfer') go(t.view, t.params); else onDone?.(t?.note || `Nothing is holding up ${g.loanTo} any more.`)
+          }}>Reassign / transfer</Button>
+        )}
+        {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
+        {g.kind !== 'booking' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking('job')}>Job number</Button>}
+        <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>
+      </div>
       {(rb.noTestRequired || rb.skip || rb.tested || rb.dispatched) && (
         <div className="eq-actions-row" role="group" aria-label="Testing and dispatch">
           {rb.noTestRequired && <Button size="sm" variant="secondary" disabled={busy} onClick={() => undo('noTestRequired')}>— No test required</Button>}
@@ -51,30 +75,6 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
             : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('dispatched')}>Mark dispatched</Button>)}
         </div>
       )}
-      <div className="eq-actions-row">
-        {canExtend(g) && <Button size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>}
-        {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
-        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
-        {g.kind !== 'booking' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
-        <Button size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
-        {/* Marked once the loan has any (old: the Reports button turned green). */}
-        {(s.reportKeys || []).includes(readinessKey(g))
-          ? <Button size="sm" variant="secondary" className="eq-has-reports" disabled={busy} onClick={() => setAsking('reports')}>✔ Test reports</Button>
-          : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>}
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>
-        {/* Still waiting on devices once its start has come: Transfer on the loan holding them, ready (old: Reassign / transfer, openStuckLoanReassign). */}
-        {go && (g.pending || []).length > 0 && g.startDate && g.startDate <= s.today && (
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => {
-            const t = linkTarget('?reassign=' + encodeURIComponent(g.batchId), { needsReassign: all || [], current: [], longTerm: [], upcoming: [] }, s.upcoming, s.equipment)
-            if (t?.params?.act === 'transfer') go(t.view, t.params); else onDone?.(t?.note || `Nothing is holding up ${g.loanTo} any more.`)
-          }}>Reassign / transfer</Button>
-        )}
-        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
-        {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
-        {g.kind !== 'booking' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking('job')}>Job number</Button>}
-        <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>
-      </div>
       {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
 
       {(asking === 'tested' || asking === 'dispatched') && (

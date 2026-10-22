@@ -116,8 +116,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           </table>
         </div>
         <Button size="sm" variant="ghost" iconLeft={<Plus size={14} />} onClick={() => { setF((x) => ({ ...x, rows: [...x.rows, ['', '', '', '', '']] })); setEdited(true) }}>Add a row</Button>
-        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
-        <label className="field"><span className="field-label">Shipping details</span><textarea className="input" rows={2} value={f.shipping} onChange={set('shipping')} /></label>
+        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={1} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Shipping details</span><textarea className="input" rows={1} value={f.shipping} onChange={set('shipping')} /></label>
         {done.map((d) => <p key={d} className="eq-note">{d}</p>)}
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
         <div className="dialog-actions eq-lf-actions">
