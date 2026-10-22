@@ -10,6 +10,9 @@ import Calendar from './Calendar.jsx'
 import AsksPanel from './AsksPanel.jsx'
 import { asksSummary, readSeen, watchMyAsks } from './asks.js'
 import Icon from './Icon.jsx'
+import HomeCustomise from './HomeCustomise.jsx'
+import { resolveEntries, useHomeLayout } from './home-layout.js'
+import { Toast, useToast } from './ui.jsx'
 import { DEPARTMENTS, ONCALL_BG, loadToday } from './today.js'
 import { CATEGORIES, SECTIONS, TONE, categoryOf, loadNews, loadPhoto, mergeNews, photoCountOf, teamNews } from './news.js'
 import { ReactionBar, postUrl } from './NewsPost.jsx'
@@ -17,7 +20,7 @@ import { reactionSummary } from './social.js'
 import { Linked } from './ui.jsx'
 import {
   hostOf, markUsed, newsImage,
-  SERVICE_TOOL_IDS, openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
+  openPhoneApp, opensInTab, recentTools, searchTools, toolGroups, tools,
 } from './tools.js'
 
 // The staff directory and profiles (People.jsx)
@@ -130,6 +133,9 @@ function HeroSearch({ people }) {
 }
 
 function Hero({ user, today, asksCount = 0 }) {
+  const [entries, saveEntries, resetEntries] = useHomeLayout(user?.uid)
+  const [customising, setCustomising] = useState(false)
+  const [toastText, toast] = useToast()
   let sub = ''
   if (today) {
     const out = today.glance.find(g => g.key === 'out').people.length
@@ -149,14 +155,17 @@ function Hero({ user, today, asksCount = 0 }) {
         </div>
         <HeroSearch people={today?.people || null} />
         <nav className="quick" aria-label="Open a tool">
-          {tools.filter(t => !SERVICE_TOOL_IDS.includes(t.id)).map(t => (
-            <ToolLink key={t.id} tool={t} className="quick-btn" title={t.description}>
+          {resolveEntries(entries).map(({ key, tool: t }) => (
+            <ToolLink key={key} tool={t} className="quick-btn" title={t.description}>
               <span className="quick-circle"><Icon name={t.icon} size={26} />{t.id === 'asks' && asksCount > 0 && <span className="quick-badge" aria-label={`${asksCount} waiting`}>{asksCount}</span>}</span>
               <span className="quick-label">{t.short || t.name}</span>
             </ToolLink>
           ))}
         </nav>
+        <button type="button" className="quick-edit" onClick={() => setCustomising(true)}><Icon name="pencil" size={14} /> Customise</button>
       </div>
+      {customising && <HomeCustomise entries={entries} onSave={saveEntries} onReset={resetEntries} onClose={msg => { setCustomising(false); if (msg) toast(msg) }} />}
+      <Toast text={toastText} />
     </section>
   )
 }

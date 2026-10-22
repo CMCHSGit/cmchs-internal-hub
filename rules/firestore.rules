@@ -88,14 +88,20 @@ service cloud.firestore {
     function isOwnSafeUpdate() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
       // Not the team: only an admin or HR sets that (Settings → People and access, People).
-      return changed.hasOnly(['fcmTokens', 'displayName', 'workMobile', 'notifications'])
+      return changed.hasOnly(['fcmTokens', 'displayName', 'workMobile', 'notifications', 'homeLayout'])
         // Settings → Your notifications: your own reminders on or off, nothing else in there.
         && (!changed.hasAny(['notifications']) || isOwnNotifications(request.resource.data.notifications))
+        // The home page's icon row: { quick: [tool ids and { label, url } links] }, at most 30.
+        && (!changed.hasAny(['homeLayout']) || isHomeLayout(request.resource.data.homeLayout))
         && (!changed.hasAny(['displayName']) || isShortText(request.resource.data.displayName, 1, 80))
         && (!changed.hasAny(['workMobile']) || isShortText(request.resource.data.workMobile, 0, 40));
     }
 
     function isShortText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+
+    function isHomeLayout(h) {
+      return h is map && h.keys().hasOnly(['quick']) && h.get('quick', []) is list && h.get('quick', []).size() <= 30;
+    }
 
     function isOwnNotifications(n) {
       return n is map
