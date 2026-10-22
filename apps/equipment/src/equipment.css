@@ -258,3 +258,11 @@
 
 /* Overview's count of what needs you (old: the phone's Today tab badge). */
 .eq-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--status-critical); color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
+/* QR labels (Labels.jsx) */
+.eq-lbl { display: flex; flex-direction: column; gap: 16px; }
+.eq-lbl-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.eq-lbl-pick, .eq-lbl-set { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.eq-lbl-pick .eq-picklist { max-height: 420px; }
+.eq-lbl-preview { position: relative; overflow: hidden; border: 1px solid var(--border-subtle); background: var(--chs-black-05); }
+.eq-lbl-preview iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #fff; }
+@media (max-width: 759px) { .eq-lbl-cols { grid-template-columns: minmax(0, 1fr); } }

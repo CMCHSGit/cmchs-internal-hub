@@ -12,11 +12,11 @@
      Calendar   loans across the weeks
      History    devices' history and the audit log
      Manage     retired items, kits, import/export, Simpro, test mode */
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
-import { FIELDS, STATUSES, actionCount, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, upcomingFor } from './model.js'
+import { FIELDS, STATUSES, actionCount, findByIdOrNo, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, upcomingFor } from './model.js'
 import { badgeText, setBadge } from '../../../shared/badges.js'
 import { isLocal, readOld } from './db.js'
 import Loans from './Loans.jsx'
@@ -25,6 +25,7 @@ import Overview from './Overview.jsx'
 import NewLoan from './NewLoan.jsx'
 import { Status } from './BrowseEquipment.jsx'
 import Scan from './Scan.jsx'
+const Labels = lazy(() => import('./Labels.jsx')) // brings the QR drawing with it, only when labels are printed
 import Calendar from './Calendar.jsx'
 import History from './History.jsx'
 import Manage from './Manage.jsx'
@@ -35,7 +36,7 @@ const VIEWS = [['overview', 'Overview', LayoutDashboard], ['new', 'New loan', Pl
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
-  const view = VIEWS.some(([id]) => id === v) ? v : 'overview'
+  const view = VIEWS.some(([id]) => id === v) || v === 'labels' ? v : 'overview' // labels: opened from the Equipment list's ticks, not a tab
   return { view, params: Object.fromEntries(new URLSearchParams(q || '')) }
 }
 const hashOf = (view, params = {}) => {
@@ -110,7 +111,8 @@ function Shell() {
       {route.view === 'manage' ? <Manage s={s} params={route.params} setParams={setParams} onDone={showToast} />
         : route.view === 'calendar' ? <Calendar s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'history' ? <History s={s} params={route.params} setParams={setParams} />
-        : route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} onDone={showToast} />
+        : route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} go={go} onDone={showToast} />
+        : route.view === 'labels' ? <Suspense fallback={<Loading />}><Labels s={s} params={route.params} /></Suspense>
         : route.view === 'new' ? <NewLoan key={JSON.stringify(route.params)} s={s} params={route.params} go={go} onDone={showToast} />
         : route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} go={go} onDone={showToast} />
@@ -163,7 +165,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
   }, [withStatus, q, filter, sort, tiles]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = (k) => setParams({ ...params, show: k === 'all' ? '' : k })
-  const item = open && (s.equipment || []).find((e) => e.id === open)
+  const item = open && findByIdOrNo(s.equipment || [], open) // ?item= is an id (a loan's row) or an asset number (a label's QR)
 
   const ticked = (s.equipment || []).filter((e) => e && sel.has(e.id))
   // A device on a loan that hasn't started is still on the shelf: it isn't
@@ -217,6 +219,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
       </label>
       <div className="eq-actions-row eq-shown">
         <p className="text-sm text-muted eq-grow">{rows.length} of {withStatus.length} {withStatus.length === 1 ? 'item' : 'items'}</p>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => go('labels')}>QR labels</button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => show(null, 'add')}>+ Add assets</button>
       </div>
       {sel.size > 0 && (
@@ -225,6 +228,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
           <Button size="sm" disabled={busy} onClick={() => go('new', { add: ticked.map((e) => e.CHSAssetNo).join(',') })}>New loan with these</Button>
           <Button size="sm" variant="secondary" disabled={busy || !tickedOut.length} title={tickedOut.length ? '' : 'None of the ticked ones are out'} onClick={returnTicked}>Return{tickedOut.length ? ` ${tickedOut.length}` : ''}</Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={countTicked}>Count</Button>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('labels', { nos: ticked.map((e) => e.CHSAssetNo).join(',') })}>QR labels</Button>
           {ticked.length > 1 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode('kit')}>Make a kit</Button>}
           <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setMode('deleteTicked')}>Delete</Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(new Set())}>Clear</Button>

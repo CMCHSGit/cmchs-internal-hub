@@ -680,6 +680,30 @@ export function findAsset(equipment, no) {
   return n ? equipment.find((e) => e && e.CHSAssetNo && e.CHSAssetNo.trim().toLowerCase() === n) : undefined
 }
 
+/** Where an asset label's QR code points: this asset's record in the tracker, by its asset number. */
+export const LABEL_ORIGIN = 'https://internal.chsnz.co.nz'
+export const labelUrl = (assetNo) => `${LABEL_ORIGIN}/equipment/#/equipment?item=${encodeURIComponent(String(assetNo || '').trim())}`
+
+/**
+ * What a scanned code means: the asset number inside a label's link (labelUrl, in the address or its
+ * #/equipment?item= part), or the code as it is (the older labels hold just the asset number).
+ */
+export function assetNoFromScan(raw) {
+  const text = String(raw || '').trim()
+  if (!/^https?:\/\//i.test(text)) return text
+  try {
+    const u = new URL(text)
+    const hash = u.hash.includes('?') ? u.hash.slice(u.hash.indexOf('?') + 1) : ''
+    return new URLSearchParams(hash).get('item') || new URLSearchParams(u.search).get('item') || text
+  } catch { return text }
+}
+
+/** An item by its id or its asset number (a label's link carries the number; a loan's row links by id). */
+export function findByIdOrNo(equipment, key) {
+  const k = String(key || '').trim()
+  return k ? equipment.find((e) => e && e.id === k) || findAsset(equipment, k) : undefined
+}
+
 /** Two loans' dates overlap (an open end overlaps everything after the start). */
 export const datesOverlap = (aStart, aEnd, bStart, bEnd) => (!aEnd || aEnd >= bStart) && (!bEnd || bEnd >= aStart)
 

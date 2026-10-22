@@ -14,12 +14,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import Scanner from './Scanner.jsx'
-import { countCategory, findAsset, fmtDate, isLoanLongTerm, isOut, statusOf } from './model.js'
+import { assetNoFromScan, countCategory, findAsset, fmtDate, isLoanLongTerm, isOut, statusOf } from './model.js'
 import { Status } from './BrowseEquipment.jsx'
 
-const MODES = [['return', 'Return'], ['count', 'Count'], ['stocktake', 'Stocktake']]
+const MODES = [['return', 'Return'], ['count', 'Count'], ['stocktake', 'Stocktake'], ['lookup', 'Look up']]
 
-export default function Scan({ s, params, setParams, onDone }) {
+export default function Scan({ s, params, setParams, go, onDone }) {
   const mode = MODES.some(([m]) => m === params.mode) ? params.mode : 'return'
   const [code, setCode] = useState('')
   // A phone (a touch screen) starts with the camera on and the keyboard down, as the old phone's Scan did.
@@ -42,11 +42,16 @@ export default function Scan({ s, params, setParams, onDone }) {
   }
 
   function scanned(raw) {
-    const no = String(raw || '').trim()
+    // A label's QR holds a link to the item (labelUrl); older labels and typed numbers are just the asset number
+    const no = assetNoFromScan(raw)
     setCode('')
     if (!no) return
     const e = findAsset(s.equipment, no)
     if (!e) { setMsg({ tone: 'critical', text: `“${no}” isn’t in the equipment list. Check the number, or add it under Equipment.` }); return }
+    if (mode === 'lookup') {
+      go('equipment', { item: e.id }) // its record: status, current loan, history
+      return
+    }
     if (mode === 'return') {
       if (!isOut(e)) setMsg({ tone: 'info', text: `${e.CHSAssetNo} is already in the office.` })
       // On a loan that hasn't started, it hasn't left: returning it would take it off that loan (old: refused, "booked ahead").
@@ -92,7 +97,8 @@ export default function Scan({ s, params, setParams, onDone }) {
       <p className="eq-note">
         {mode === 'return' ? 'Scan what’s come back, then return them together.'
           : mode === 'count' ? 'Scan an item to count it.'
-            : 'Every scan is counted and returned straight away. Keep scanning; the camera stays on.'}
+            : mode === 'lookup' ? 'Scan an asset’s QR label to open its record: status, current loan and history.'
+              : 'Every scan is counted and returned straight away. Keep scanning; the camera stays on.'}
       </p>
 
       {locked ? (
