@@ -90,6 +90,8 @@ export function StoreProvider({ children }) {
 
     /** Change an ask in a transaction; tell people if the change carries an event. */
     async function change(a, fn) {
+      // A change reads the ask first (a transaction), which can't be done with no connection: say so at once.
+      if (navigator.onLine === false) throw new Error('You’re offline. Try again when you’re back online.')
       let notify = false
       const next = await be.mutate(a.id, (cur) => {
         const r = fn(cur)
@@ -112,7 +114,7 @@ export function StoreProvider({ children }) {
         const id = be.newId()
         const now = Date.now()
         const pics = photoDocs(id, photos.slice(0, LIMITS.photos))
-        await be.create(id, {
+        const saving = be.create(id, {
           ...f,
           // Only written when someone's copied in, so an ask without needs nothing new of the rules.
           ...(copied.length ? { cc: copied } : {}),
@@ -122,6 +124,15 @@ export function StoreProvider({ children }) {
           photoCount: pics.length, commentCount: 0, lastCommentAtMs: 0, lastCommentBy: '',
           event: eventOf('created', me),
         }, pics)
+        if (navigator.onLine === false) {
+          // No connection: the ask is kept on this device and goes when it's back, which can be long after this form
+          // closes, so don't wait for it. The people are told when it arrives: from here if it's quick (the server
+          // only takes a tell within ten minutes), otherwise by the server's own sweep (sweepAsks in the proxy).
+          saving.then(() => { if (Date.now() - now < 9 * 60 * 1000) tell(id) }).catch((e) => console.warn('[asks] queued ask not sent', e))
+          markSeen(id)
+          return id
+        }
+        await saving
         markSeen(id)
         tell(id)
         return id

@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import { Alert, Button, Switch } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
+import { useOnline } from './online.js'
 import { CcPicker, Field, Modal, SendToPicker } from './ui.jsx'
 import { compressPhoto } from './photos.js'
 import { LIMITS } from './model.js'
@@ -24,6 +25,7 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
   }))
   const [photos, setPhotos] = useState([])
   const [busy, setBusy] = useState(false)
+  const online = useOnline()
   const [err, setErr] = useState('')
   const set = (patch) => setF((x) => ({ ...x, ...patch }))
 
@@ -76,9 +78,15 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
         </div>
         {!editing && <PhotoAdder photos={photos} setPhotos={setPhotos} max={LIMITS.photos} onError={setErr} />}
         {err && <Alert tone="critical" title="Not sent">{err}</Alert>}
+        {!online && (
+          <Alert tone="warning" title="You’re offline">
+            {editing ? 'Changes to an ask can’t be saved until you’re back online.'
+              : 'You can still write it. It’s kept on this device and sent as soon as you’re back online, and the people you’ve sent it to are told then. Keep using this phone or browser until it has gone.'}
+          </Alert>
+        )}
         <div className="ak-formfoot">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={busy}>{busy ? 'Saving…' : editing ? 'Save' : 'Send ask'}</Button>
+          <Button type="submit" disabled={busy || (editing && !online)}>{busy ? 'Saving…' : editing ? 'Save' : online ? 'Send ask' : 'Save to send later'}</Button>
         </div>
       </form>
     </Modal>

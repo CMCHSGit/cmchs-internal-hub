@@ -9,6 +9,7 @@ import { Inbox, List, Building2, Plus } from 'lucide-react'
 import { Alert, Button, Loading } from '../../schedule/src/components/ui'
 import Toast, { useToast } from '../../schedule/src/components/Toast'
 import { useStore } from './store.jsx'
+import { useOnline } from './online.js'
 import Mine from './views/Mine.jsx'
 import All from './views/All.jsx'
 import Company from './views/Company.jsx'
@@ -67,6 +68,7 @@ function Shell() {
   const s = useStore()
   const [route, setRoute] = useState(parseHash)
   const [toastMsg, toast] = useToast()
+  const online = useOnline()
   const [editing, setEditing] = useState(null) // null | { ask } | { prefill }
 
   useEffect(() => {
@@ -150,6 +152,7 @@ function Shell() {
           <span className="ak-spacer" />
           <Button iconLeft={<Plus size={18} />} onClick={() => setEditing({ prefill: {} })}>New ask</Button>
         </div>
+        {!online && <div className="ak-pad"><Alert tone="warning" title="You’re offline">New asks are kept on this device and sent when you’re back online. Other changes (comments, picking up, marking done) can’t be saved until then.</Alert></div>}
         {s.error && <div className="ak-pad"><Alert tone="critical" title="Not everything loaded">{s.error}</Alert></div>}
         <main className="ak-main">
           <View />
@@ -159,7 +162,7 @@ function Shell() {
       {askId && !ask && <MissingAsk onClose={closeAsk} />}
       {editing && (
         <NewAsk ask={editing.ask} prefill={editing.prefill} onClose={() => setEditing(null)}
-          onSaved={(id) => { if (!editing.ask) { toast('Sent. They’ve been notified.'); go(route.view, { ...route.params, ask: id }, { replace: false }) } else toast('Saved') }} />
+          onSaved={(id) => { if (!editing.ask) { toast(navigator.onLine === false ? 'Saved on this device. It will be sent when you’re back online.' : 'Sent. They’ve been notified.'); go(route.view, { ...route.params, ask: id }, { replace: false }) } else toast('Saved') }} />
       )}
       <button type="button" className="ak-fab" onClick={() => setEditing({ prefill: {} })} aria-label="New ask"><Plus size={26} /></button>
       <Toast message={toastMsg} />

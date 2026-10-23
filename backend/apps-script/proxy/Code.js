@@ -1194,12 +1194,23 @@ function notifyAsk_(payload) {
     if (comment.uid !== caller.uid) return respond({ success: false, error: 'Not your comment' });
   }
 
+  const out = deliverAsk_(id, ask, ev, comment, token, caller.name);
+  if (out.error) return respond({ success: false, error: out.error });
+  return respond(out);
+}
+
+/**
+ * Tells the people an ask's latest event concerns (push, else email) and returns counts only:
+ * { success, people, pushed, failed, emailed, unreached } or { error }. Shared by notifyAsk_ (the
+ * sender's page, right after saving) and sweepAsks (a timer, for asks that reached the server late).
+ */
+function deliverAsk_(id, ask, ev, comment, token, fallbackActor) {
   let users;
   try { users = loadAskUsers_(token); }
-  catch (err) { Logger.log('notifyAsk_: could not read users: ' + err.message); return respond({ success: false, error: 'Could not read the people list' }); }
+  catch (err) { Logger.log('deliverAsk_: could not read users: ' + err.message); return { error: 'Could not read the people list' }; }
   const byUid = {};
   users.forEach(function(u) { byUid[u.uid] = u; });
-  const actor = (byUid[ev.by] && byUid[ev.by].name) || caller.name;
+  const actor = (byUid[ev.by] && byUid[ev.by].name) || fallbackActor || '';
   const url = ASKS_URL + '#/mine?ask=' + id;
   const emailOn = askEmailOn_();
   let pushed = 0, failed = 0, emailed = 0, unreached = 0;
@@ -1216,10 +1227,80 @@ function notifyAsk_(payload) {
       unreached++;
     }
   });
-  Logger.log('notifyAsk_: ' + ev.type + ', ' + to.length + ' to tell; push ' + pushed + ' sent/' + failed + ' failed; email ' +
+  Logger.log('deliverAsk_: ' + ev.type + ', ' + to.length + ' to tell; push ' + pushed + ' sent/' + failed + ' failed; email ' +
     (emailOn ? emailed + ' sent' : 'off (Resend not set up)') + '; ' + unreached + ' not reached.');
   // Counts only, for the "Notified 2 people on 3 phones" line in Asks.
-  return respond({ success: true, people: to.length, pushed: pushed, failed: failed, emailed: emailed, unreached: unreached });
+  return { success: true, people: to.length, pushed: pushed, failed: failed, emailed: emailed, unreached: unreached };
+}
+
+// ── Asks that reached the server late ─────────────────────────────────────────────────────────
+// An ask written with no connection is kept on the sender's device and sent when it's back, perhaps
+// hours later, and then notifyAsk_ refuses it (its event is more than ten minutes old) or the sender's
+// page is gone. This timer covers that: every five minutes it looks at asks the SERVER saved since
+// its last look (Firestore's own update time, not the sender's clock) and tells people about any
+// latest event nobody has been told about yet. An event the sender's page already announced is
+// skipped (same cache key as notifyAsk_), and each event is done once (ASK_SWEPT).
+// Run installAskSweepTrigger() once from the Apps Script editor.
+function installAskSweepTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'sweepAsks') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sweepAsks').timeBased().everyMinutes(5).create();
+  Logger.log('Ask sweep trigger installed (every 5 minutes).');
+}
+
+function sweepAsks() {
+  const token = hubAccessToken_();
+  if (!token) { Logger.log('sweepAsks: hub push is not set up'); return; }
+  const props = PropertiesService.getScriptProperties();
+  const cache = CacheService.getScriptCache();
+  const now = Date.now();
+  const upTo = now - 2 * 60 * 1000; // the sender's own page has had its go at telling people
+  const stored = Number(props.getProperty('ASK_SWEEP_AT') || 0);
+  if (!stored) { props.setProperty('ASK_SWEEP_AT', String(upTo)); Logger.log('sweepAsks: first run, watching from now.'); return; }
+  const from = Math.max(stored, now - 6 * 60 * 60 * 1000); // the "already told" cache lasts six hours
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents';
+  const q = UrlFetchApp.fetch(base + ':runQuery', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: { Authorization: 'Bearer ' + token },
+    // Created or changed (by the sender's clock) in the last week: an ask kept on a device that long is still found.
+    payload: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'asks' }],
+      where: { fieldFilter: { field: { fieldPath: 'updatedAtMs' }, op: 'GREATER_THAN_OR_EQUAL', value: { integerValue: String(now - 7 * 24 * 60 * 60 * 1000) } } },
+      orderBy: [{ field: { fieldPath: 'updatedAtMs' }, direction: 'DESCENDING' }], limit: 300 } })
+  });
+  if (q.getResponseCode() !== 200) { Logger.log('sweepAsks: could not read asks (' + q.getResponseCode() + ')'); return; }
+  let swept = {};
+  try { swept = JSON.parse(props.getProperty('ASK_SWEPT') || '{}'); } catch (e) { swept = {}; }
+  let told = 0, skipped = 0, failed = 0;
+  JSON.parse(q.getContentText()).forEach(function(row) {
+    const d = row.document;
+    if (!d) return;
+    const saved = Date.parse(d.updateTime);
+    if (!(saved > from && saved <= upTo)) return;
+    const ask = fsFields_(d.fields);
+    const ev = ask.event || {};
+    if (!ev.by || !/^[a-z0-9]{6,24}$/.test(String(ev.id || ''))) return;
+    const id = d.name.split('/').pop();
+    const key = 'ask:' + id + ':' + ev.id;
+    if (swept[key] || cache.get(key)) { skipped++; swept[key] = 1; return; }
+    let comment = null;
+    if (ev.type === 'comment') {
+      const c = UrlFetchApp.fetch(base + '/asks/' + id + '/comments/' + encodeURIComponent(String(ev.ref || '')),
+        { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+      if (c.getResponseCode() !== 200) { failed++; return; }
+      comment = fsFields_(JSON.parse(c.getContentText()).fields);
+      if (comment.uid !== ev.by) { swept[key] = 1; return; }
+    }
+    const out = deliverAsk_(id, ask, ev, comment, token, '');
+    if (out.error) { failed++; return; }
+    cache.put(key, '1', 21600);
+    swept[key] = 1;
+    told++;
+  });
+  const keys = Object.keys(swept);
+  if (keys.length > 150) keys.slice(0, keys.length - 150).forEach(function(k) { delete swept[k]; });
+  props.setProperty('ASK_SWEPT', JSON.stringify(swept));
+  if (!failed) props.setProperty('ASK_SWEEP_AT', String(upTo)); // a failure is looked at again next time
+  Logger.log('sweepAsks: ' + told + ' told, ' + skipped + ' already told, ' + failed + ' failed.');
 }
 
 // ── Hub company news ─────────────────────────────────────────────────────
