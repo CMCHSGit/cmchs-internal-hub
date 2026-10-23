@@ -154,8 +154,8 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
           {g.notes && <p className="eq-loan-notes">{g.notes}</p>}
           <ul className="eq-devices">
             {g.items.map((e) => <Device key={e.id} e={e} next={nextFor(e.CHSAssetNo)} onRemove={() => setRemoving({ e })} />)}
-            {g.kind !== 'booking' && g.pending.length > 0 && (
-              <li className="eq-device-head">{waiting ? `⏳ Awaiting return before pickup (${waiting} of ${g.pending.length})` : '✓ All items now available for pickup'}</li>
+            {g.kind !== 'booking' && waiting > 0 && (
+              <li className="eq-device-head">{`⏳ Awaiting return before pickup (${waiting} of ${g.pending.length})`}</li>
             )}
             {g.pending.map((p) => {
               const e = byId(p.id, p.CHSAssetNo)
@@ -163,9 +163,9 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
               return (
                 <li key={'p' + (p.id || p.CHSAssetNo)} className="eq-device pending">
                   <a className="eq-strong" href={e ? '#/equipment?item=' + encodeURIComponent(e.id) : undefined}>{p.CHSAssetNo}</a> {p.Model || e?.Model}
-                  <span className="eq-small">{held?.why === 'out' ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
-                    : held?.why === 'booked' ? `Booked to ${now.OnLoanTo} from ${fmtDate(now.LoanStartDate)}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
-                    : held?.why === 'later' ? `Free for this loan (${now.OnLoanTo} has it from ${fmtDate(now.LoanStartDate)})` : 'Waiting to be picked up'}</span>
+                  {/* A note only when something is holding it up; a free device just sits on the list. */}
+                  {(held?.why === 'out' || held?.why === 'booked') && <span className="eq-small">{held.why === 'out' ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
+                    : `Booked to ${now.OnLoanTo} from ${fmtDate(now.LoanStartDate)}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`}</span>}
                   <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${p.CHSAssetNo} off the booking`} title="Take off the booking" onClick={() => setRemoving({ p })}>×</button>
                 </li>
               )

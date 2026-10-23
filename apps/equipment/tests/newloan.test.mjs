@@ -96,7 +96,7 @@ test('the loan form: rows, saving without wiping what it doesnâ€™t show, th
   assert.deepEqual(formRows({ savedRows: [['A1', 'desc', 'sn', 'note']] }, [shelf('1'), shelf('2')], [shelf('1')]), [['A1', 'M1', 'desc', 'sn', 'note'], ['A2', 'M2', 'M2', '', '']])
   // The form's devices: a booking's waiting ones after those on it, with the old notes.
   const items = formItems({ batchId: 'b1', items: [out('1', { BatchID: 'b1' })], pending: [{ id: '1', CHSAssetNo: 'A1' }, { id: '2', CHSAssetNo: 'A2' }, { id: '3', CHSAssetNo: 'A3' }] }, [out('1', { BatchID: 'b1' }), out('2'), shelf('3')])
-  assert.deepEqual(items.map((e) => e._pendingNote || ''), ['', 'Awaiting return from Hutt (due 20/10/2026)', 'Now available for pickup'])
+  assert.deepEqual(items.map((e) => e._pendingNote || ''), ['', 'Awaiting return from Hutt (due 20/10/2026)', ''])
   assert.deepEqual(rowsWithAdded({ savedRows: [['A1']] }, [shelf('2')]).map((r) => r[0]), ['A1', 'A2'])
   assert.equal(rowsWithAdded({}, [shelf('2')]), null)
   assert.deepEqual(rowsWithout([['A1'], [' a2 ']], ['A2']), [['A1']])

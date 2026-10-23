@@ -911,8 +911,8 @@ export function planTransfer({ equipment, history }, g, nos, target, { targetBat
 
 /**
  * The devices a loan's form lists (old: openLoanDocForGroup): those on it,
- * then its booking's waiting ones, each noted "Awaiting return from …" or
- * "Now available for pickup", their details from the equipment list.
+ * then its booking's waiting ones, noted "Awaiting return from …" only when
+ * still held up elsewhere; their details come from the equipment list.
  */
 export function formItems(g, equipment = []) {
   const live = (i) => equipment.find((e) => e && (e.id === i.id || e.CHSAssetNo === i.CHSAssetNo)) || i
@@ -923,7 +923,7 @@ export function formItems(g, equipment = []) {
     const no = String(e.CHSAssetNo || '').trim().toLowerCase()
     if (!no || have.has(no)) continue
     have.add(no)
-    items.push({ ...e, _pendingNote: heldUpBy(e, g) && heldUpBy(e, g).why !== 'later' ? `Awaiting return from ${e.OnLoanTo}${e.LoanEndDate ? ` (due ${oldDate(e.LoanEndDate)})` : ''}` : 'Now available for pickup' })
+    items.push({ ...e, _pendingNote: heldUpBy(e, g) && heldUpBy(e, g).why !== 'later' ? `Awaiting return from ${e.OnLoanTo}${e.LoanEndDate ? ` (due ${oldDate(e.LoanEndDate)})` : ''}` : '' })
   }
   return items
 }
