@@ -9,7 +9,7 @@ import { ChevronDown } from 'lucide-react'
 import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
 import { AdminDialog } from './Items.jsx'
-import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, jobOf, loanSections, loanUpdates, readinessOf, relTime } from './model.js'
+import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, relTime } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -100,7 +100,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
   const nextFor = (no) => (s.upcoming || []).filter((u) => u.id !== g.batchId && (s.testMode || !String(u.id || '').startsWith('testbatch_')) && (u.items || []).some((i) => i.CHSAssetNo === no))
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
   // How many of its waiting devices are still out elsewhere (old: "Awaiting return before pickup (n of m)").
-  const waiting = g.kind === 'booking' ? 0 : g.pending.filter((p) => { const e = byId(p.id, p.CHSAssetNo); return e && e.OnLoanTo && e.Returned !== 'Yes' && e.BatchID !== g.batchId }).length
+  const waiting = g.kind === 'booking' ? 0 : g.pending.filter((p) => { const h = heldUpBy(byId(p.id, p.CHSAssetNo), g, s.today); return h && h.why !== 'later' }).length
   // When a device was moved off (old: the ghost row's "on <date>"): its newest Transfer entry.
   const movedOn = (no) => { const h = (s.history || []).find((x) => x.action === 'Transfer' && x.chsAssetNo === no); return h ? fmtDate(String(h.ts || '').slice(0, 10)) : '' }
   // Its changes, and whether any are new since it was last looked at here (old: buildLoanUpdateBadge; the same loanSeen_ keys).
@@ -159,11 +159,13 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
             )}
             {g.pending.map((p) => {
               const e = byId(p.id, p.CHSAssetNo)
-              const now = e && e.OnLoanTo && e.Returned !== 'Yes' && e.BatchID !== g.batchId ? e : null
+              const held = heldUpBy(e, g, s.today), now = held?.e || null // a later booking's claim doesn't hold this one up
               return (
                 <li key={'p' + (p.id || p.CHSAssetNo)} className="eq-device pending">
                   <a className="eq-strong" href={e ? '#/equipment?item=' + encodeURIComponent(e.id) : undefined}>{p.CHSAssetNo}</a> {p.Model || e?.Model}
-                  <span className="eq-small">{now ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}` : 'Waiting to be picked up'}</span>
+                  <span className="eq-small">{held?.why === 'out' ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
+                    : held?.why === 'booked' ? `Booked to ${now.OnLoanTo} from ${fmtDate(now.LoanStartDate)}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
+                    : held?.why === 'later' ? `Free for this loan (${now.OnLoanTo} has it from ${fmtDate(now.LoanStartDate)})` : 'Waiting to be picked up'}</span>
                   <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${p.CHSAssetNo} off the booking`} title="Take off the booking" onClick={() => setRemoving({ p })}>×</button>
                 </li>
               )

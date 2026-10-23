@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { fmtDate, historyFor, isLoanLongTerm, mergeEquipmentAndHistory, safeKeys, searchEquipment, statusOf, upcomingFor } from '../src/model.js'
+import { fmtDate, historyFor, isLoanLongTerm, mergeEquipmentAndHistory, safeKeys, searchEquipment, statusOf, upcomingFor, heldUpBy } from '../src/model.js'
 
 const today = '2026-10-17'
 const item = (o = {}) => ({ id: 'id_1', CHSAssetNo: '100166', Model: 'TEX20', Returned: 'No', ...o })
@@ -91,4 +91,16 @@ test('fmtDate, search and history', () => {
   assert.equal(searchEquipment(list, '').length, 2)
   const h = historyFor(item(), [{ chsAssetNo: '100166', ts: '2026-10-01T09:00' }, { chsAssetNo: 'x' }, { chsAssetNo: '100166', ts: '2026-10-05T09:00' }])
   assert.deepEqual(h.map((x) => x.ts), ['2026-10-05T09:00', '2026-10-01T09:00'])
+})
+
+test('a device waiting on a booking: held up by a loan out now or clashing, not by one booked from after it ends', () => {
+  const g = { batchId: 'sc', startDate: '2026-10-29', endDate: '2026-11-09' }
+  const on = (over) => ({ OnLoanTo: 'X', Returned: 'No', BatchID: 'x', LoanStartDate: '2026-10-01', LoanEndDate: '2026-12-11', ...over })
+  const today = '2026-10-23'
+  assert.equal(heldUpBy(on({}), g, today).why, 'out') // out now
+  assert.equal(heldUpBy(on({ LoanStartDate: '2026-11-05', LoanEndDate: '2026-12-11' }), g, today).why, 'booked') // starts before this one ends
+  assert.equal(heldUpBy(on({ LoanStartDate: '2026-11-30', LoanEndDate: '2026-12-11' }), g, today).why, 'later') // Grace-style: starts after
+  assert.equal(heldUpBy(on({ Returned: 'Yes' }), g, today), null)
+  assert.equal(heldUpBy(on({ BatchID: 'sc' }), g, today), null) // already on this loan
+  assert.equal(heldUpBy({ OnLoanTo: '' }, g, today), null)
 })

@@ -707,6 +707,17 @@ export function findByIdOrNo(equipment, key) {
 /** Two loans' dates overlap (an open end overlaps everything after the start). */
 export const datesOverlap = (aStart, aEnd, bStart, bEnd) => (!aEnd || aEnd >= bStart) && (!bEnd || bEnd >= aStart)
 
+/**
+ * What a waiting device is held up by, for a loan or booking `g`: null if nothing (free, or already on it);
+ * { e, why: 'out' } still out on a loan that has started; { e, why: 'booked' } booked to someone whose dates
+ * clash with g's; { e, why: 'later' } booked to someone from after g ends, which doesn't hold g up at all.
+ */
+export function heldUpBy(e, g, today = nzDate()) {
+  if (!e || !isOut(e) || e.BatchID === g.batchId) return null
+  if (!e.LoanStartDate || e.LoanStartDate <= today) return { e, why: 'out' }
+  return { e, why: datesOverlap(e.LoanStartDate, e.LoanEndDate || '', g.startDate || '', g.endDate || '') ? 'booked' : 'later' }
+}
+
 /** Why a new loan can't be made yet, or '' (old: submitBatchLoan's checks, in its order). */
 export function newLoanProblem(f) {
   if (!String(f.loanTo || '').trim() || !String(f.location || '').trim()) return 'Fill in who it’s on loan to and where.'
@@ -912,7 +923,7 @@ export function formItems(g, equipment = []) {
     const no = String(e.CHSAssetNo || '').trim().toLowerCase()
     if (!no || have.has(no)) continue
     have.add(no)
-    items.push({ ...e, _pendingNote: isOut(e) && e.BatchID !== g.batchId ? `Awaiting return from ${e.OnLoanTo}${e.LoanEndDate ? ` (due ${oldDate(e.LoanEndDate)})` : ''}` : 'Now available for pickup' })
+    items.push({ ...e, _pendingNote: heldUpBy(e, g) && heldUpBy(e, g).why !== 'later' ? `Awaiting return from ${e.OnLoanTo}${e.LoanEndDate ? ` (due ${oldDate(e.LoanEndDate)})` : ''}` : 'Now available for pickup' })
   }
   return items
 }
