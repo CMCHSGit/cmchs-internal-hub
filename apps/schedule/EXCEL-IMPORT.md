@@ -72,3 +72,28 @@ Admin → Excel, so both write exactly the same thing).
   with a reason.
 - Run once now regardless of the 5-minute timer: `node apps/schedule/scripts/excel-import.mjs --apply --force`.
 - The scheduled task runs the script from this repo folder, so `git pull` updates it.
+
+## Writing back to the Excel (app → Excel)
+
+The other direction, so a change made in the hub also shows up in the workbook. It is **off** until the config says
+`"writeBack": true`, and it runs straight after the import every 5 minutes (`scripts/excel-sync.mjs` runs both; the
+scheduled task runs that).
+
+- **How:** the changes are made in **Excel itself** (`scripts/apply-excel-edits.ps1`, through Excel's automation), on
+  the OneDrive copy. So the formatting stays, and people can keep editing the file while it runs. It needs Excel (the
+  desktop app) on this PC. If the workbook is already open in your Excel it is changed there; otherwise Excel opens it
+  out of sight for a few seconds.
+- **What it changes:** a cell where the app has an entry the Excel doesn't match, and the Excel is blank there or still
+  says what it said when the import last looked (so nobody has changed it in the Excel since). A day with one place goes
+  in both the AM and PM rows; "Starship / Cass Office" splits into AM and PM. The week's comment too.
+- **What it never does:** clear a cell, add a person or a sheet, touch a cell somebody changed in the Excel since the last
+  import (the import brings their change into the app instead), or write a day with more than two places in it. It checks
+  each cell just before writing it and leaves it if it has changed or holds a formula.
+- **Limits:** a run that would change more than `maxCells` (60) cells is refused and writes nothing.
+- **Config keys:** `"writeBack": true` and optionally `"maxCells": 60` in the same `excel-import.json`.
+- **Try it first:** `node apps/schedule/scripts/excel-export.mjs` is a dry run (add `--show` to list each cell: week, row,
+  column, old text, new text, never names). `--apply` writes for real (needs `writeBack`).
+- **Log:** the same log; lines start "Write-back:". It only logs a run that does something or is refused. Real writes
+  also add "Excel write-back (automatic)" to the activity log in Admin settings.
+- **After re-running the installer:** `powershell -ExecutionPolicy Bypass -File appsschedulescriptsinstall-excel-import-task.ps1`
+  points the task at `excel-sync.mjs`; the import alone still works with `excel-import.mjs`.

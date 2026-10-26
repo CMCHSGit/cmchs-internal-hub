@@ -1,4 +1,5 @@
-# Sets up (or replaces) the Windows scheduled task that runs the Excel -> schedule import every 5 minutes
+# Sets up (or replaces) the Windows scheduled task that runs the Excel -> schedule import (and, if the config says
+# "writeBack": true, the schedule -> Excel copy after it) every 5 minutes
 # while you're signed in to this PC. See apps/schedule/EXCEL-IMPORT.md first: the config file and the
 # Firebase key must already be in place, and a dry run should look right.
 #
@@ -13,7 +14,7 @@ if ($Remove) {
   return
 }
 
-$Script = (Resolve-Path (Join-Path $PSScriptRoot 'excel-import.mjs')).Path
+$Script = (Resolve-Path (Join-Path $PSScriptRoot 'excel-sync.mjs')).Path # the import, then the write-back if the config turns it on
 $Node = (Get-Command node -ErrorAction Stop).Source
 $Config = Join-Path $env:USERPROFILE '.cmchs\excel-import.json'
 if (-not (Test-Path $Config)) { throw "No config at $Config - see apps/schedule/EXCEL-IMPORT.md." }

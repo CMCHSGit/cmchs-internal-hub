@@ -111,10 +111,11 @@ export function readPeople(ws, layout) {
     if (cellText(ws.getCell(r, layout.amCol)).toUpperCase() !== 'AM') continue
     const rawName = cellText(ws.getCell(r, layout.nameCol))
     if (!rawName) continue
-    const days = [0, 1, 2, 3, 4].map(i =>
-      combineHalves(cellText(ws.getCell(r, layout.firstDayCol + i)), cellText(ws.getCell(r + 1, layout.firstDayCol + i)))
-    )
+    // Each day's two halves as written, kept so the app → Excel copy knows what is in each cell before it changes one.
+    const halves = [0, 1, 2, 3, 4].map(i => [cellText(ws.getCell(r, layout.firstDayCol + i)), cellText(ws.getCell(r + 1, layout.firstDayCol + i))])
+    const days = halves.map(([am, pm]) => combineHalves(am, pm))
     people.push({
+      row: r, halves, commentRow: cellText(ws.getCell(r, layout.commentCol)) || !cellText(ws.getCell(r + 1, layout.commentCol)) ? r : r + 1,
       name: squash(rawName.replace(ON_CALL_SUFFIX, '')),
       team,
       onCall: ON_CALL_SUFFIX.test(rawName),
