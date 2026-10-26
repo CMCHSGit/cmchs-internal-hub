@@ -177,6 +177,9 @@ function handlePayload(payload) {
   // The hub's Manage → Tool requests / Feedback: tell the engineering team.
   if (payload.action === 'notifyHubRequest') return notifyHubRequest_(payload);
 
+  // Someone signed in with no team: match them to the entry an admin made for them, if there's one.
+  if (payload.action === 'claimPlaceholder') return claimPlaceholder_(caller);
+
   // Someone signed in to the hub for the first time: tell the admins (Settings → People and access).
   if (payload.action === 'notifyNewUser') return notifyNewUser_(payload, caller);
 
@@ -1033,6 +1036,91 @@ function notifyHubRequest_(payload) {
   return respond({ success: true, sent: sent });
 }
 
+// ── Matching a new sign-in to the entry an admin made for them ──────────
+// Settings → People and access (and People → Add employee) make "pending" placeholders for
+// staff who haven't signed in yet, with their team. A first sign-in adopts one in the browser
+// when the work email matches (apps/schedule/src/profile.js); this is the rest: a Microsoft
+// account whose name differs from the entry's ("Jessica Broughan" for "Jess Broughan"). The
+// browser can't be trusted to hand itself a team, so it asks here and the proxy, which
+// reads both records itself, does the merge: the person's record takes the entry's team,
+// excelName and work mobile, the weeks already filled in for the entry move across, and the
+// entry is removed, as an email claim does. Only a person with no team yet, and only a
+// confident match: the same last name, a first name that is the same, shortens to it
+// ("Jess" for "Jessica") or is a common nickname, and exactly one entry like that.
+const NICKNAMES_ = { bob: 'robert', rob: 'robert', bill: 'william', will: 'william', jim: 'james', jimmy: 'james', jack: 'john', johnny: 'john', jon: 'jonathan', liz: 'elizabeth', beth: 'elizabeth', kate: 'katherine', katie: 'katherine', cathy: 'catherine', dick: 'richard', rick: 'richard', ricky: 'richard', ted: 'edward', ed: 'edward', meg: 'margaret', maggie: 'margaret', mike: 'michael', matt: 'matthew', chris: 'christopher', dan: 'daniel', ben: 'benjamin', sam: 'samuel', alex: 'alexander', nick: 'nicholas', tom: 'thomas', andy: 'andrew', tony: 'anthony', steve: 'stephen', pete: 'peter', joe: 'joseph', greg: 'gregory', jess: 'jessica', jenny: 'jennifer', becky: 'rebecca', sue: 'susan', vicky: 'victoria' };
+
+function nameParts_(name) {
+  return String(name || '').toLowerCase().replace(/['’-]/g, '').replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+}
+
+/** Whether two first names can be the same person's: equal, one starting the other (3+ letters), or a nickname. */
+function firstNamesAlike_(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (Math.min(a.length, b.length) >= 3 && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) return true;
+  return NICKNAMES_[a] === b || NICKNAMES_[b] === a || (!!NICKNAMES_[a] && NICKNAMES_[a] === NICKNAMES_[b]);
+}
+
+/** The one placeholder that is this person, or null. person: { email, displayName }; placeholders: [{ email, displayName, ... }]. */
+function placeholderFor_(person, placeholders) {
+  const email = String(person.email || '').trim().toLowerCase();
+  if (email) {
+    const exact = placeholders.filter(function(x) { return String(x.email || '').trim().toLowerCase() === email; });
+    if (exact.length === 1) return exact[0];
+    if (exact.length > 1) return null;
+  }
+  const me = nameParts_(person.displayName);
+  if (me.length < 2) return null;
+  const alike = placeholders.filter(function(x) {
+    const them = nameParts_(x.displayName);
+    return them.length >= 2 && them[them.length - 1] === me[me.length - 1] && firstNamesAlike_(me[0], them[0]);
+  });
+  return alike.length === 1 ? alike[0] : null;
+}
+
+/** Copies the weeks saved under a placeholder's made-up id to the real uid. Never overwrites a week the person already has. Returns the count. */
+function copyPlaceholderSchedules_(placeholderId, uid) {
+  const q = UrlFetchApp.fetch(fsBase_() + ':runQuery', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true, headers: fsAuth_(),
+    payload: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'schedules' }],
+      where: { fieldFilter: { field: { fieldPath: 'uid' }, op: 'EQUAL', value: { stringValue: placeholderId } } } } })
+  });
+  if (q.getResponseCode() !== 200) throw new Error('Could not read the entry\'s schedules (' + q.getResponseCode() + ')');
+  let copied = 0;
+  JSON.parse(q.getContentText()).forEach(function(r) {
+    if (!r.document) return;
+    const oldId = r.document.name.split('/').pop();
+    const fields = JSON.parse(JSON.stringify(r.document.fields || {}));
+    fields.uid = { stringValue: uid };
+    const put = UrlFetchApp.fetch(fsBase_() + 'schedules/' + encodeURIComponent(oldId.replace(placeholderId, uid)) + '?currentDocument.exists=false', {
+      method: 'patch', contentType: 'application/json', muteHttpExceptions: true, headers: fsAuth_(),
+      payload: JSON.stringify({ fields: fields })
+    });
+    if (put.getResponseCode() < 300) copied++;
+  });
+  return copied;
+}
+
+function claimPlaceholder_(caller) {
+  const me = fsGetDoc_('users/' + caller.uid);
+  if (!me) return respond({ success: true, claimed: false });
+  if (me.pending === true || String(me.team || '').trim()) return respond({ success: true, claimed: false });
+  const placeholders = fsList_('users', ['displayName', 'email', 'team', 'pending', 'excelName', 'workMobile'])
+    .filter(function(u) { return u.pending === true && String(u.team || '').trim(); });
+  const hit = placeholderFor_({ email: me.email, displayName: me.displayName }, placeholders);
+  if (!hit) return respond({ success: true, claimed: false });
+
+  // Weeks first, the record next, the entry last: stopped part-way, the next sign-in finishes it.
+  const weeks = copyPlaceholderSchedules_(hit.__id, caller.uid);
+  const patch = { team: hit.team, claimedFrom: hit.__id };
+  if (hit.excelName) patch.excelName = hit.excelName;
+  if (hit.workMobile && !me.workMobile) patch.workMobile = hit.workMobile;
+  fsPatch_('users/' + caller.uid, patch, true);
+  UrlFetchApp.fetch(fsBase_() + 'users/' + encodeURIComponent(hit.__id), { method: 'delete', headers: fsAuth_(), muteHttpExceptions: true });
+  Logger.log('claimPlaceholder_: matched an entry by name; ' + weeks + ' week(s) moved across.');
+  return respond({ success: true, claimed: true, team: hit.team });
+}
+
 // ── New sign-ins ─────────────────────────────────────────────────────────
 // A person's first sign-in makes their users record (apps/schedule/src/profile.js), and the
 // browser then asks here to tell the admins, so someone can give them a team. The browser
@@ -1071,7 +1159,7 @@ function notifyNewUser_(payload, caller) {
   tokens = tokens.filter(function(t, i) { return tokens.indexOf(t) === i; });
 
   const name = String(str('displayName') || str('email') || 'Someone').slice(0, 80);
-  const body = name + ' signed in to the hub for the first time' + (str('team') ? '' : '. They need a team.');
+  const body = name + ' signed in to the hub for the first time' + (str('team') ? ' and joined the ' + str('team') + ' team.' : '. They need a team.');
   const results = sendHubPush_(tokens, 'New person signed in', body, 'https://internal.chsnz.co.nz/settings/people');
   const sent = results.filter(function(r) { return r.ok; }).length;
   Logger.log('notifyNewUser_: push ' + sent + ' sent/' + (results.length - sent) + ' failed, to ' + tokens.length + ' device(s).');

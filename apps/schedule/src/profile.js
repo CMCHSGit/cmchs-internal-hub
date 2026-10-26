@@ -98,11 +98,38 @@ function announceNewPerson(firebaseUser) {
     .catch(e => console.warn('Could not tell the admins about a new sign-in:', e))
 }
 
+/**
+ * Someone with no team yet may be the person an admin already added by a slightly different name
+ * ("Jess Broughan" added, "Jessica Broughan" signs in). The browser can't give itself a team
+ * (firestore.rules), so the proxy does the match and merge (action claimPlaceholder, Code.js)
+ * and answers with the team. Tried once per browser session per person, so someone nobody has
+ * placed yet isn't held up on every page load; any failure just leaves things as they were.
+ */
+async function withClaim(firebaseUser, profile) {
+  if (String(profile.team || '').trim() || profile.pending === true) return profile
+  const tried = 'claimTried:' + firebaseUser.uid
+  try { if (sessionStorage.getItem(tried)) return profile; sessionStorage.setItem(tried, '1') } catch { /* private mode: asks each load */ }
+  try {
+    const idToken = await firebaseUser.getIdToken()
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), 10000)
+    const res = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'claimPlaceholder', idToken }), signal: ctl.signal })
+      .finally(() => clearTimeout(timer))
+    const out = await res.json()
+    if (!out?.claimed) return profile
+    const fresh = await getDoc(doc(db, 'users', firebaseUser.uid))
+    return fresh.exists() ? fresh.data() : { ...profile, team: out.team || null }
+  } catch (e) {
+    console.warn('Could not match this sign-in to an entry:', e)
+    return profile
+  }
+}
+
 /** Reads this person's users record, making it first if this is their first sign-in. */
 async function readOrCreate(firebaseUser) {
   const ref = doc(db, 'users', firebaseUser.uid)
   const snap = await getDoc(ref)
-  if (snap.exists()) return snap.data()
+  if (snap.exists()) return withClaim(firebaseUser, snap.data())
 
   const claimed = await claimPendingProfile(firebaseUser)
   const newProfile = {
@@ -130,8 +157,9 @@ async function readOrCreate(firebaseUser) {
     await deleteDoc(doc(db, 'users', claimed.id)).catch(() => {})
     await setDoc(ref, old)
   }
-  announceNewPerson(firebaseUser)
-  return newProfile
+  const settled = await withClaim(firebaseUser, newProfile)
+  announceNewPerson(firebaseUser) // after the match, so the admins hear which team they joined
+  return settled
 }
 
 let running = null // { uid, promise }: one at a time, shared by every caller
