@@ -177,6 +177,9 @@ function handlePayload(payload) {
   // The hub's Manage → Tool requests / Feedback: tell the engineering team.
   if (payload.action === 'notifyHubRequest') return notifyHubRequest_(payload);
 
+  // Someone signed in to the hub for the first time: tell the admins (Settings → People and access).
+  if (payload.action === 'notifyNewUser') return notifyNewUser_(payload, caller);
+
   // The hub's Asks: tell the people an ask's latest change concerns.
   if (payload.action === 'notifyAsk') return notifyAsk_(payload);
 
@@ -1027,6 +1030,51 @@ function notifyHubRequest_(payload) {
   const results = sendHubPush_(tokens, title, body, url);
   const sent = results.filter(function(r) { return r.ok; }).length;
   Logger.log('notifyHubRequest_: ' + kind + ', push ' + sent + ' sent/' + (results.length - sent) + ' failed.');
+  return respond({ success: true, sent: sent });
+}
+
+// ── New sign-ins ─────────────────────────────────────────────────────────
+// A person's first sign-in makes their users record (apps/schedule/src/profile.js), and the
+// browser then asks here to tell the admins, so someone can give them a team. The browser
+// sends only its sign-in. This reads the record back from the staff schedule's Firestore and
+// checks it is the caller's and under ten minutes old, and announces each person once, so the
+// proxy can't be used to push anything else. The admins are the users whose role is admin (the
+// ones Settings → People and access lists), minus the new person. Logs counts only.
+function notifyNewUser_(payload, caller) {
+  const cache = CacheService.getScriptCache();
+  if (cache.get('newuser:' + caller.uid)) return respond({ success: true, already: true });
+  const token = hubAccessToken_();
+  if (!token) return respond({ success: false, error: 'Hub push is not set up' });
+
+  const base = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/';
+  const resp = UrlFetchApp.fetch(base + 'users/' + encodeURIComponent(caller.uid), { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return respond({ success: false, error: 'No record yet' });
+  const f = JSON.parse(resp.getContentText()).fields || {};
+  const str = function(k) { return (f[k] && f[k].stringValue) || ''; };
+  const created = f.createdAt && f.createdAt.timestampValue ? Date.parse(f.createdAt.timestampValue) : 0;
+  if (!created || Date.now() - created > 10 * 60 * 1000) {
+    Logger.log('notifyNewUser_: refused (not new).');
+    return respond({ success: false, error: 'Not a new sign-in' });
+  }
+  cache.put('newuser:' + caller.uid, '1', 21600);
+
+  const list = UrlFetchApp.fetch(base + 'users?pageSize=300&mask.fieldPaths=role&mask.fieldPaths=fcmTokens&mask.fieldPaths=pending',
+    { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (list.getResponseCode() !== 200) return respond({ success: false, error: 'Could not read the admins' });
+  let tokens = [];
+  (JSON.parse(list.getContentText()).documents || []).forEach(function(d) {
+    const u = d.fields || {};
+    if (d.name.split('/').pop() === caller.uid || (u.pending && u.pending.booleanValue)) return;
+    if ((u.role && u.role.stringValue) !== 'admin') return;
+    ((u.fcmTokens && u.fcmTokens.arrayValue && u.fcmTokens.arrayValue.values) || []).forEach(function(v) { if (v.stringValue) tokens.push(v.stringValue); });
+  });
+  tokens = tokens.filter(function(t, i) { return tokens.indexOf(t) === i; });
+
+  const name = String(str('displayName') || str('email') || 'Someone').slice(0, 80);
+  const body = name + ' signed in to the hub for the first time' + (str('team') ? '' : '. They need a team.');
+  const results = sendHubPush_(tokens, 'New person signed in', body, 'https://internal.chsnz.co.nz/settings/people');
+  const sent = results.filter(function(r) { return r.ok; }).length;
+  Logger.log('notifyNewUser_: push ' + sent + ' sent/' + (results.length - sent) + ' failed, to ' + tokens.length + ' device(s).');
   return respond({ success: true, sent: sent });
 }
 

@@ -114,11 +114,17 @@ export default function App() {
   }, [user])
   // Everyone signed in needs a users record, whichever section they open
   // first; a first sign-in's is made here (apps/schedule/src/profile.js).
+  // Nothing is shown until it's there (or has failed, which is logged and
+  // gets out of the way), so no page reads the roster before the person is on it.
+  const [profileFor, setProfileFor] = useState(null) // the uid whose record is settled
   useEffect(() => {
     if (!user || !configured) return
+    let live = true
     import('../../schedule/src/profile.js')
       .then(({ ensureProfile }) => ensureProfile(user))
       .catch(e => console.warn('[shell] profile not made', e))
+      .finally(() => { if (live) setProfileFor(user.uid) })
+    return () => { live = false }
   }, [user])
   // A new hub page starts at the top, as a new page load would.
   useEffect(() => { window.scrollTo(0, 0) }, [page, route?.uid, route?.tab, route?.id])
@@ -132,7 +138,7 @@ export default function App() {
   if (!configured && !import.meta.env.DEV) {
     return <div className="hub-page"><SignIn error="This build of the hub is missing its sign-in settings. Tell whoever looks after the hub." /></div>
   }
-  if (user === undefined || (user && next)) return <div className="hub-page"><div className="boot" aria-busy="true" /></div>
+  if (user === undefined || (user && next) || (user && configured && profileFor !== user.uid)) return <div className="hub-page"><div className="boot" aria-busy="true" /></div>
   if (!user) return <div className="hub-page"><SignIn /></div>
 
   return (

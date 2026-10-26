@@ -64,7 +64,7 @@ export default function People({ user, route }) {
     <main className="pp-page">
       {!me && (
         <div className="alert">
-          You’re not on the staff list yet. Open the <a href="/schedule/">staff schedule</a> once and it adds you; then come back to fill in your profile.
+          You’re not on the staff list yet. Refresh the page, and if you’re still missing, tell an admin.
         </div>
       )}
       {route.uid

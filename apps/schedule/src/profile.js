@@ -11,6 +11,7 @@
 // its pass. However many ask at once, it runs once per sign-in.
 import { doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from './firebase'
+import { PROXY_URL } from '../../../shared/proxy.js'
 
 /** first.last@ pattern guesses for a full "First Last" name — company uses both domains. */
 function guessedEmails(fullName) {
@@ -85,6 +86,18 @@ async function claimPendingProfile(firebaseUser) {
   return { ...data, id: claimed.id, team: exactEmail ? data.team || null : null }
 }
 
+/**
+ * Tells the admins a new person has signed in for the first time (a push, sent by the proxy:
+ * action notifyNewUser). It sends only the sign-in; the proxy reads the record itself and checks
+ * it is this person's and new, so it can't be used to push anything else. Fire and forget: the
+ * record is made either way.
+ */
+function announceNewPerson(firebaseUser) {
+  firebaseUser.getIdToken()
+    .then(idToken => fetch(PROXY_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'notifyNewUser', idToken }) }))
+    .catch(e => console.warn('Could not tell the admins about a new sign-in:', e))
+}
+
 /** Reads this person's users record, making it first if this is their first sign-in. */
 async function readOrCreate(firebaseUser) {
   const ref = doc(db, 'users', firebaseUser.uid)
@@ -117,6 +130,7 @@ async function readOrCreate(firebaseUser) {
     await deleteDoc(doc(db, 'users', claimed.id)).catch(() => {})
     await setDoc(ref, old)
   }
+  announceNewPerson(firebaseUser)
   return newProfile
 }
 
