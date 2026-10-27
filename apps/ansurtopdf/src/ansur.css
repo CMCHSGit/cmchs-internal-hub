@@ -116,3 +116,8 @@ body.busy .an-host { cursor: progress; }
   .an-host td.act button { margin: 0 6px 0 0; }
   .an-host td.fn { max-width: none; font-weight: 600; }
 }
+
+/* The page hides and shows things with the `hidden` attribute (builder.js, simpro.js). The rules above that set a
+   display on buttons and rows beat the browser's own `[hidden] { display: none }`, so "Sign in to attach to a job"
+   stayed on screen after someone had signed in and was working with a job. */
+.an-host [hidden] { display: none !important; }
