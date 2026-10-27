@@ -19,7 +19,7 @@ import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { XLSXLite } from '../../simprosync/reader.js'
 import {
-  DEFAULT_STEPS, MAX_STEPS, NO_DEPARTMENT, STATUSES, STATUS_ORDER, filterItems, findBySerial, groupByDepartment, latestTick, newDevice, newStepId, niceStamp,
+  DEFAULT_STEPS, MAX_STEPS, NO_DEPARTMENT, mainOf, STATUSES, STATUS_ORDER, filterItems, findBySerial, groupByDepartment, latestTick, newDevice, newStepId, niceStamp,
   parseDevices, progressOf, sharedSerials, sortItems, stamp, stateOf, stepsFromText, stepsOf, summarise, tickOf,
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
@@ -189,7 +189,8 @@ function ListView({ id, me }) {
   // Tick or untick one step on one device.
   const toggle = (it, step, on) => run(setStep(id, it, step.id, on, by))
   // The big box on a one-step list does its only step.
-  const tick = (it) => toggle(it, steps[0], !tickOf(it, steps[0].id))
+  const bigStep = mainOf(steps) || steps[0]
+  const tick = (it) => toggle(it, bigStep, !tickOf(it, bigStep.id))
 
   async function deleteList() {
     if (!(await confirm({ title: `Delete “${list?.name || 'this checklist'}”?`, message: `All ${all.length} devices and everyone’s ticks on it will be removed, for everyone it is shared with. This can’t be undone. Export it first if you need a copy.`, confirmLabel: 'Delete the checklist', danger: true }))) return
@@ -404,18 +405,20 @@ function DeviceRow({ it, steps, grouped, shared, onTick, onToggle, onOpen }) {
   const done = state === 'done'
   const lost = state === 'lost'
   const multi = steps.length > 1
+  const main = mainOf(steps)
   const p = progressOf(it, steps)
   const last = latestTick(it, steps)
   return (
     <tr className={`data-table-row cl-row${done ? ' done' : ''}${lost ? ' lost' : ''}`} tabIndex={0} onClick={() => onOpen(it.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(it.id) }}>
       <td className="cl-check-col" data-label="">
-        {multi ? (
+        {multi && !main ? (
           <span className={`cl-check cl-progress-box${done ? ' on' : p.ticked ? ' part' : ''}`} aria-label={`${p.ticked} of ${p.total} steps done`}>
             {done ? <Check size={22} strokeWidth={3} aria-hidden="true" /> : `${p.ticked}/${p.total}`}
           </span>
         ) : (
-          <button type="button" className={`cl-check${done ? ' on' : ''}`} aria-pressed={done} aria-label={`${done ? 'Untick' : 'Tick'} ${it.name || it.serial}`}
+          <button type="button" className={`cl-check${done ? ' on' : p.ticked ? ' part' : ''}`} aria-pressed={done}
+            aria-label={`${done ? 'Untick' : 'Tick'} ${main ? main.label : ''} ${it.name || it.serial}`.replace(/\s+/g, ' ')}
             onClick={(e) => { e.stopPropagation(); onTick(it) }}>
             {done && <Check size={22} strokeWidth={3} aria-hidden="true" />}
           </button>
@@ -488,7 +491,7 @@ function DetailDialog({ it, steps, shared, canRemove, by, listId, run, onClose, 
             <li key={st.id}>
               <button type="button" className={`cl-step-row${t ? ' on' : ''}`} aria-pressed={!!t} onClick={() => run(setStep(listId, it, st.id, !t, by))}>
                 <span className="cl-check">{t && <Check size={20} strokeWidth={3} aria-hidden="true" />}</span>
-                <span className="cl-step-label">{st.label}</span>
+                <span className="cl-step-label">{st.label}{st.main && <span className="cl-main-tag">Main step</span>}</span>
                 {t && <span className="cl-small">{t.byName || 'someone'}{t.at ? ` · ${stamp(t.at)}` : ''}</span>}
               </button>
             </li>
@@ -596,8 +599,9 @@ function ShareDialog({ list, me, run, onClose, onNotified }) {
 function StepsDialog({ list, steps, summary, run, onClose }) {
   const [rows, setRows] = useState(steps.map((s) => ({ ...s })))
   const set = (i, label) => setRows(rows.map((r, j) => (j === i ? { ...r, label } : r)))
+  const setMain = (i) => setRows(rows.map((r, j) => ({ ...r, main: j === i })))
   const move = (i, d) => { const a = [...rows]; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setRows(a) }
-  const clean = rows.map((r) => ({ id: r.id, label: r.label.replace(/\s+/g, ' ').trim().slice(0, 60) })).filter((r) => r.label)
+  const clean = rows.map((r) => ({ id: r.id, label: r.label.replace(/\s+/g, ' ').trim().slice(0, 60), ...(r.main ? { main: true } : {}) })).filter((r) => r.label)
   function save() {
     if (!clean.length) return
     run(saveSteps(list.id, clean), 'Steps not saved')
@@ -605,11 +609,12 @@ function StepsDialog({ list, steps, summary, run, onClose }) {
   }
   return (
     <Dialog title="Steps on every device" onClose={() => onClose('')} width={560}
-      description="Everything that has to be ticked on each device, in order, for example Software upgraded, then Changed config. A device is done when every step is ticked. Adding a step leaves devices that were done as in progress, so nothing is missed.">
+      description="Everything that has to happen on each device, in order, for example Software upgraded, then Changed config. Choose one as the main step and a device is done as soon as that one is ticked, whatever else is; with none chosen, every step has to be ticked.">
       <ol className="cl-steps-edit">
         {rows.map((r, i) => (
           <li key={r.id}>
             <input className="input" value={r.label} maxLength={60} onChange={(e) => set(i, e.target.value)} aria-label={`Step ${i + 1}`} placeholder="What has to be done" />
+            {rows.length > 1 && <label className="cl-main-pick" title="Done when this step is ticked"><input type="radio" name="main-step" checked={!!r.main} onChange={() => setMain(i)} aria-label={`Make step ${i + 1} the main step`} /> Main</label>}
             <span className="cl-small">{summary.stepCounts[r.id] ? `${summary.stepCounts[r.id]} ticked` : ''}</span>
             <button type="button" className="icon-btn icon-btn-md" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={16} /></button>
             <button type="button" className="icon-btn icon-btn-md" aria-label="Move down" disabled={i === rows.length - 1} onClick={() => move(i, 1)}><ArrowDown size={16} /></button>
@@ -618,7 +623,8 @@ function StepsDialog({ list, steps, summary, run, onClose }) {
         ))}
       </ol>
       {rows.length < MAX_STEPS && <Button variant="secondary" size="sm" iconLeft={<Plus size={16} />} onClick={() => setRows([...rows, { id: newStepId('step', rows.map((x) => x.id)), label: '' }])}>Add a step</Button>}
-      <p className="cl-info">Removing a step takes it off the list and out of what counts as done. Its ticks stay saved if you add it back.</p>
+      {rows.some((r) => r.main) && <Button variant="ghost" size="sm" onClick={() => setRows(rows.map((r) => ({ ...r, main: false })))}>No main step: every step must be ticked</Button>}
+      <p className="cl-info">{rows.some((r) => r.main) ? 'The main step is what makes a device done; the others are still tracked and exported.' : 'A device is done when every step is ticked.'} Adding a step makes devices that were done show as in progress until it is ticked. Removing one takes it off the list; its ticks stay saved if you add it back.</p>
       <div className="dialog-actions">
         <Button variant="ghost" onClick={() => onClose('')}>Cancel</Button>
         <Button disabled={!clean.length} onClick={save}>Save</Button>

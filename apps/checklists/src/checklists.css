@@ -278,3 +278,10 @@
     width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer; background: var(--chs-green); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
   .cl-fab-scan:focus-visible { box-shadow: var(--focus-ring); }
 }
+
+/* The main step: ticking it is what makes a device done */
+.cl-step.main { border-width: 2px; border-color: var(--accent-fg); }
+.cl-step.main.on { border-color: var(--chs-green); }
+.cl-main-pick { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; font: var(--type-body-sm); color: var(--text-muted); cursor: pointer; }
+.cl-main-pick input { accent-color: var(--accent-fg); width: 16px; height: 16px; }
+.cl-main-tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--chs-purple-20); color: var(--accent-fg); font: var(--weight-semibold) 11px/1.5 var(--font-body); text-transform: uppercase; letter-spacing: .04em; }

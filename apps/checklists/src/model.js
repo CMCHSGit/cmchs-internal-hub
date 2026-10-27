@@ -177,10 +177,15 @@ export function tickOf(it, stepId) {
   return stepId === 'done' && it.result === 'done' ? { by: it.doneBy || '', byName: it.doneByName || '', at: it.doneAt || null } : null
 }
 
-/** 'lost' (couldn't find it), 'done' (every step ticked), 'partial', or 'todo'. */
+/** The list's main step, if the owner chose one: ticking it is what makes a device done. Marked `main: true` on the step. */
+export const mainOf = (steps) => steps.find((st) => st.main) || null
+
+/** 'lost' (couldn't find it), 'done' (the main step is ticked, or with none, every step), 'partial', or 'todo'. */
 export function stateOf(it, steps = DEFAULT_STEPS) {
   if (it.result === 'notfound') return 'lost'
   const n = steps.filter((st) => tickOf(it, st.id)).length
+  const main = mainOf(steps)
+  if (main) return tickOf(it, main.id) ? 'done' : n === 0 ? 'todo' : 'partial'
   return n === 0 ? 'todo' : n === steps.length ? 'done' : 'partial'
 }
 

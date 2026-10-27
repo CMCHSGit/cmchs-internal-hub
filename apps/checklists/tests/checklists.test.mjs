@@ -4,7 +4,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  DEFAULT_STEPS, NO_DEPARTMENT, departmentOf, exportRows, exportHeaders, latestTick, newStepId, progressLabel, progressOf, stateOf, stepsFromText, stepsOf, tickOf, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
+  DEFAULT_STEPS, NO_DEPARTMENT, mainOf, departmentOf, exportRows, exportHeaders, latestTick, newStepId, progressLabel, progressOf, stateOf, stepsFromText, stepsOf, tickOf, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
   sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial, matchScan, bestMatches, suggestName,
 } from '../src/model.js'
 
@@ -311,6 +311,37 @@ test('a device not on the list is named like the others', () => {
   assert.equal(suggestName(onList, 'AA3-555'), 'AA3-555', 'not an asset number: as scanned')
   assert.equal(suggestName([{ name: 'Bed 1' }, { name: 'Bed 2' }], 'WHA999999'), 'WHA999999', 'the list has no pattern to copy')
   assert.equal(suggestName([], ' WHA999999 '), 'WHA999999')
+})
+
+const WITH_MAIN = [{ id: 'sw', label: 'Software upgraded', main: true }, { id: 'cfg', label: 'Changed config' }, { id: 'bat', label: 'Battery tested' }]
+
+test('with a main step, ticking it makes the device done whatever else is ticked', () => {
+  assert.equal(mainOf(WITH_MAIN).id, 'sw')
+  assert.equal(mainOf(STEPS), null)
+  assert.equal(stateOf(mk({}), WITH_MAIN), 'todo')
+  assert.equal(stateOf(mk({ checks: { sw: tick('Ann') } }), WITH_MAIN), 'done', 'only the main step')
+  assert.equal(stateOf(mk({ checks: { cfg: tick('Ann'), bat: tick('Ann') } }), WITH_MAIN), 'partial', 'everything but the main step is not done')
+  assert.equal(stateOf(mk({ result: 'notfound', checks: { sw: tick('Ann') } }), WITH_MAIN), 'lost')
+  assert.equal(stateOf(mk({ checks: { sw: tick('Ann') } }), STEPS.map((s) => ({ ...s }))), 'partial', 'with no main step every step is needed, as before')
+})
+
+test('counts and filters follow the main step, and the other steps are still counted and exported', () => {
+  const list = [
+    mk({ id: 'a', name: 'A', checks: { sw: tick('Ann') } }),
+    mk({ id: 'b', name: 'B', checks: { cfg: tick('Ben') } }),
+    mk({ id: 'c', name: 'C', checks: { sw: tick('Cy'), cfg: tick('Cy'), bat: tick('Cy') } }),
+  ]
+  const s = summarise(list, WITH_MAIN)
+  assert.equal(s.done, 2)
+  assert.equal(s.todo, 1)
+  assert.deepEqual(s.stepCounts, { sw: 2, cfg: 2, bat: 1 })
+  assert.deepEqual(filterItems(list, { show: 'done' }, WITH_MAIN).map((i) => i.id), ['a', 'c'])
+  assert.deepEqual(filterItems(list, { missing: 'cfg' }, WITH_MAIN).map((i) => i.id), ['a'])
+  const heads = exportHeaders(WITH_MAIN)
+  const [row] = exportRows([list[0]], WITH_MAIN)
+  assert.equal(row[heads.indexOf('Progress')], 'Done')
+  assert.equal(row[heads.indexOf('Changed config')], '')
+  assert.equal(row[heads.indexOf('Software upgraded')], 'Yes')
 })
 
 test('dates and file names', () => {
