@@ -213,6 +213,29 @@ service cloud.firestore {
       allow create, update, delete: if canEditMaintenance();
     }
 
+    // Project checklists (internal.chsnz.co.nz/checklists/) — a list of devices for a job (the N1
+    // monitor software upgrade), ticked off by everyone on the team as they go. A document a list, and a
+    // document a device under it, so two people ticking different devices never write the same one.
+    // Everyone signed in reads, and ticks: that is the result (done / couldn't find), who and when, and a
+    // note, nothing else about the device. The Engineers and Management teams and admins also make and
+    // delete lists and import or refresh the devices. A tick is stamped with the person's own uid.
+    match /checklists/{listId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if canEditMaintenance();
+      match /items/{itemId} {
+        allow read: if isSignedIn();
+        allow create, delete: if canEditMaintenance();
+        allow update: if canEditMaintenance() || (isSignedIn() && isChecklistTick());
+      }
+      function isChecklistTick() {
+        return request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['result', 'doneBy', 'doneByName', 'doneAt', 'note', 'noteByName'])
+          && request.resource.data.get('result', '') in ['', 'done', 'notfound']
+          && request.resource.data.get('doneBy', '') in ['', request.auth.uid]
+          && request.resource.data.get('note', '').size() <= 1000;
+      }
+    }
+
     // Project tracker (internal.chsnz.co.nz/projects/) — replaces the project
     // team's job register and weekly timeline sheets. Everyone signed in can
     // read; anyone with a team set (or an admin) can edit, as on the shared

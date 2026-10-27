@@ -1,0 +1,123 @@
+/* Project checklists (App.jsx). Buttons, fields, badges, alerts, dialogs and the data table are the kit's;
+   this is the page around them, the progress strip, and the big tick box. */
+.cl-page { max-width: 1440px; margin: 0 auto; padding: 22px 24px 48px; display: flex; flex-direction: column; gap: 14px; }
+.cl-page .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.cl-back { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; color: var(--text-muted); font: var(--type-body-sm); text-decoration: none; }
+.cl-back:hover { color: var(--accent-fg); text-decoration: none; }
+.cl-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.cl-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.cl-title { margin: 0; font: var(--type-h2); color: var(--text-strong); overflow-wrap: anywhere; }
+.cl-sub { margin: 4px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.cl-head-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cl-del { color: var(--status-critical); }
+
+/* The lists */
+.cl-lists { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.cl-list-card { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; min-height: 96px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--text-body); text-decoration: none; }
+.cl-list-card:hover { text-decoration: none; border-color: var(--accent-fg); }
+.cl-list-name { font: var(--weight-semibold) 18px/1.3 var(--font-display); color: var(--text-strong); overflow-wrap: anywhere; }
+.cl-list-meta { font: var(--type-body-sm); color: var(--text-muted); }
+.cl-empty { padding: 28px 20px; border: 1px dashed var(--border-strong, var(--border-subtle)); border-radius: var(--radius-lg); background: var(--surface-card); color: var(--text-body); }
+.cl-empty p { margin: 0 0 6px; }
+
+/* Progress: stays in view while the list scrolls, so each person always sees where the team is. */
+.cl-progress { position: sticky; top: var(--shell-header-h, 0px); z-index: 5; display: flex; flex-direction: column; gap: 6px; padding: 10px 14px;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); background: var(--surface-card); box-shadow: var(--shadow-card); }
+.cl-progress-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; font: var(--type-body); color: var(--text-body); }
+.cl-progress-top b { font: var(--weight-semibold) 20px/1.2 var(--font-display); color: var(--text-strong); }
+.cl-sync { margin-left: auto; font: var(--type-body-sm); color: var(--text-muted); }
+.cl-sync.wait { color: #a85800; font-weight: 600; }
+.cl-bar { display: flex; height: 10px; border-radius: 999px; background: var(--chs-black-10, var(--surface-subtle)); overflow: hidden; }
+.cl-bar-done { background: var(--chs-green); transition: width .25s; }
+.cl-bar-lost { background: var(--chs-orange); transition: width .25s; }
+
+.cl-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.cl-tile { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--text-body); }
+.cl-tile b { font: var(--weight-semibold) 26px/1.15 var(--font-display); color: var(--text-strong); }
+.cl-tile span { font: var(--type-body-sm); color: var(--text-muted); }
+.cl-tile:hover { border-color: var(--border-strong); }
+.cl-tile:focus-visible { box-shadow: var(--focus-ring); }
+.cl-tile.on { border-color: var(--accent-fg); background: var(--surface-brand-tint); box-shadow: inset 0 0 0 1px var(--accent-fg); }
+
+.cl-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-card); }
+.cl-filters .field { flex: 1 1 170px; min-width: 150px; }
+.cl-filters .cl-grow { flex: 3 1 260px; }
+.cl-sort-row { display: flex; gap: 6px; align-items: center; }
+.cl-sort-row select { flex: 1; min-width: 0; }
+.cl-count { display: flex; align-items: center; gap: 14px; font: var(--type-body-sm); color: var(--text-muted); }
+.cl-link { all: unset; cursor: pointer; color: var(--accent-fg); text-decoration: underline; }
+.cl-link:focus-visible { box-shadow: var(--focus-ring); border-radius: 4px; }
+
+/* The table */
+.cl-table td { min-width: 0; }
+.cl-check-col { width: 64px; }
+.cl-table .cl-row.done { background: var(--chs-green-20); }
+.cl-table .cl-row.done .cl-strong { text-decoration: line-through; text-decoration-color: var(--text-muted); }
+.cl-table .cl-row.lost { background: var(--chs-orange-20); }
+.cl-strong { display: block; font-weight: 600; color: var(--text-strong); }
+.cl-small { display: block; margin-top: 2px; font: var(--type-caption, var(--type-body-sm)); color: var(--text-muted); }
+.cl-mono { font-family: var(--font-mono); font-size: 13px; }
+.cl-none { color: var(--text-muted); font-style: italic; }
+.cl-guess { font-style: italic; }
+.cl-shared { margin-left: 6px; }
+.cl-note { display: block; margin-top: 4px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--type-body-sm); color: var(--text-body); }
+.cl-group td { padding: 8px 14px; background: var(--surface-subtle); border-bottom: 1px solid var(--border-subtle); }
+.cl-group b { font: var(--weight-semibold) 15px/1.3 var(--font-display); color: var(--text-strong); margin-right: 10px; }
+.cl-group span { font: var(--type-body-sm); color: var(--text-muted); }
+
+/* The tick box: a big target, a thumb's width, for someone standing in a corridor with a monitor in one hand. */
+.cl-check { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  border: 2px solid var(--border-strong, #8a8a8a); border-radius: 10px; background: var(--surface-card); color: #fff; }
+.cl-check:hover { border-color: var(--chs-green); }
+.cl-check:focus-visible { box-shadow: var(--focus-ring); }
+.cl-check.on { background: var(--chs-green); border-color: var(--chs-green); }
+
+/* A device */
+.cl-detail-state { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font: var(--type-body-sm); color: var(--text-muted); }
+.cl-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.cl-detail { margin: 14px 0 0; display: grid; gap: 0; }
+.cl-detail > div { display: flex; gap: 12px; padding: 6px 0; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); }
+.cl-detail dt { flex: 0 0 38%; color: var(--text-muted); font-weight: 600; }
+.cl-detail dd { margin: 0; flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text-body); }
+
+/* Export and import */
+.cl-radios { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.cl-radio { display: flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer; }
+.cl-radio input { accent-color: var(--accent-fg); width: 18px; height: 18px; }
+.cl-import { display: flex; flex-direction: column; gap: 12px; }
+.cl-import-line { margin: 0; font: var(--type-body); color: var(--text-body); }
+.cl-import-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-import-depts { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 120px; overflow: auto; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); font: var(--type-body-sm); color: var(--text-body); }
+.cl-import-depts b { color: var(--text-strong); }
+
+@media (max-width: 759px) {
+  .cl-page { padding: 14px 14px 32px; gap: 12px; }
+  .cl-head-actions { width: 100%; }
+  .cl-filters { padding: 12px; }
+  .cl-filters .field { flex: 1 1 100%; }
+  .cl-tiles { grid-template-columns: repeat(2, 1fr); }
+  .cl-detail dt { flex-basis: 42%; }
+  /* Each device is a compact card (the kit turns the table into cards): the tick on the left, a thumb's width,
+     and what the person needs to find it on the right, without the column labels. */
+  .cl-progress { padding: 8px 12px; }
+  .cl-progress-top b { font-size: 17px; }
+  .data-table.cl-table tbody tr.cl-row { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 12px; row-gap: 1px; padding: 10px 12px; }
+  .cl-table .cl-row td { display: block; grid-column: 2; padding: 0; border: none; }
+  .cl-table .cl-row td + td { border-top: none; }
+  .cl-table .cl-row td::before { display: none; }
+  .cl-table .cl-row .cl-check-col { grid-column: 1; grid-row: 1 / span 6; width: auto; padding: 0; align-self: start; }
+  .cl-table .cl-row .cl-c-dept { order: -1; font: var(--weight-semibold) 12px/1.4 var(--font-body); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .cl-table .cl-row .cl-c-device .cl-small { display: none; }
+  .cl-table .cl-row .cl-c-status, .cl-table .cl-row .cl-c-result { padding-top: 3px; }
+  .cl-table .cl-row .cl-c-status .cl-small, .cl-table .cl-row .cl-c-result .cl-small { display: inline; margin-left: 6px; }
+  .cl-table .cl-row .cl-c-loc .cl-small { display: inline; margin-left: 6px; }
+  .cl-table .cl-row .cl-c-ver { color: var(--text-muted); }
+  .cl-table .cl-row .cl-c-result:empty { display: none; }
+  .cl-table .cl-row.done, .cl-table .cl-row.lost { border-color: transparent; }
+  .data-table.cl-table tbody tr.cl-group { margin: 14px 0 6px; padding: 0; background: none; border: none; }
+  .cl-group td { padding: 4px 2px; background: none; justify-content: flex-start; align-items: baseline; }
+  .cl-note { max-width: none; white-space: normal; }
+}

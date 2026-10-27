@@ -9,7 +9,7 @@
 // (apps/hub/src/router.js, INTEGRATION-PLAN.md steps 2 and 3): apps/schedule
 // (/schedule/), apps/asks (/asks/), apps/projects (/projects/), apps/settings
 // (/settings/, with apps/admin's screens), apps/service-orders (/service-orders/),
-// apps/maintenance (/maintenance/), apps/simprosync (/simprosync/) and
+// apps/maintenance (/maintenance/), apps/checklists (/checklists/), apps/simprosync (/simprosync/) and
 // apps/ansurtopdf (/ansurtopdf/).
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
