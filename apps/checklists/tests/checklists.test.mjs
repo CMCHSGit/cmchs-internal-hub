@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   DEFAULT_STEPS, NO_DEPARTMENT, mainOf, departmentOf, exportRows, exportHeaders, latestTick, newStepId, progressLabel, progressOf, stateOf, stepsFromText, stepsOf, tickOf, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
-  sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial, matchScan, bestMatches, suggestName,
+  sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial, matchScan, bestMatches, suggestName, parseManualLines, newOnly,
 } from '../src/model.js'
 
 const EXPORT_HEADERS = exportHeaders()
@@ -342,6 +342,32 @@ test('counts and filters follow the main step, and the other steps are still cou
   assert.equal(row[heads.indexOf('Progress')], 'Done')
   assert.equal(row[heads.indexOf('Changed config')], '')
   assert.equal(row[heads.indexOf('Software upgraded')], 'Yes')
+})
+
+test('items typed or pasted for a list made by hand: name, then serial, department, location', () => {
+  const out = parseManualLines('Name\tSerial number\tDepartment\nBed 1 monitor\tS-100\tICU\tBay 2\nBed 2 monitor, S-101, ICU\n\nJust a name\n  ,  \n', { category: 'Monitor', model: 'N1', now: 1793000000000, rand: () => 0.5 })
+  assert.equal(out.length, 3, 'the title row, the blank line and the empty line are skipped')
+  assert.deepEqual(out.map((d) => d.name), ['Bed 1 monitor', 'Bed 2 monitor', 'Just a name'])
+  assert.deepEqual(out.map((d) => d.serial), ['S-100', 'S-101', ''])
+  assert.deepEqual(out.map((d) => d.department), ['ICU', 'ICU', ''])
+  assert.equal(out[0].location, 'Bay 2')
+  assert.equal(out[0].category, 'Monitor')
+  assert.equal(out[0].status, '', 'an item made by hand has no status')
+  assert.ok(out.every((d) => /^manual-/.test(d.id)), 'not found- ids: these are the owner’s, not found on site')
+  assert.equal(new Set(out.map((d) => d.id)).size, 3)
+  assert.deepEqual(parseManualLines(''), [])
+  assert.equal(parseManualLines('x\n'.repeat(900)).length, 500, 'five hundred at most')
+})
+
+test('items already on the list are left out when more are added', () => {
+  const have = [{ name: 'Bed 1 monitor', serial: 'S-100' }, { name: 'Spare' }]
+  const add = [{ name: 'Bed 1 monitor', serial: 's-100' }, { name: 'spare' }, { name: 'New one', serial: 'S-200' }, { name: 'New one again', serial: 'S-200' }]
+  assert.deepEqual(newOnly(add, have).map((d) => d.name), ['New one'], 'same serial, or with none the same name, ignoring case; repeats in the paste count once')
+})
+
+test('an item made by hand with its status left blank stays blank', () => {
+  assert.equal(newDevice({ name: 'x', status: '' }).device.status, '')
+  assert.equal(newDevice({ name: 'x' }).device.status, 'Unknown')
 })
 
 test('dates and file names', () => {

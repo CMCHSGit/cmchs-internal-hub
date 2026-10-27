@@ -333,7 +333,8 @@ export function newDevice(form, { category = '', model = '', now = Date.now(), r
   const name = t(form.name)
   const serial = t(form.serial)
   if (!name && !serial) return { error: 'Give it a name or a serial number, so the next person can find it.' }
-  const status = STATUSES.includes(form.status) ? form.status : 'Unknown'
+  // A status left blank on purpose (an item on a list made by hand has none) stays blank; anything else unknown is 'Unknown'.
+  const status = STATUSES.includes(form.status) ? form.status : form.status === '' ? '' : 'Unknown'
   const department = t(form.department)
   return {
     device: {
@@ -343,6 +344,39 @@ export function newDevice(form, { category = '', model = '', now = Date.now(), r
     },
     note: String(form.note || '').trim().slice(0, 1000),
   }
+}
+
+/**
+ * Items typed or pasted, one a line, for a list made by hand: name, then serial number, department and location, split
+ * by tabs (pasted from Excel) or commas. A line with only a name is an item. A first line that is column titles is
+ * skipped. Returns devices with ids that are not found-… (they are the owner's, not found on site).
+ */
+export function parseManualLines(text, { category = '', model = '', now = Date.now(), rand = Math.random } = {}) {
+  const lines = String(text || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 500)
+  const out = []
+  lines.forEach((line, i) => {
+    const cols = (line.includes('\t') ? line.split('\t') : line.split(/\s*[,;]\s*/)).map((c) => cell(c))
+    if (i === 0 && /^(device )?name$/i.test(cols[0]) && cols.some((c) => /serial|department|location/i.test(c))) return
+    const [name = '', serial = '', department = '', location = ''] = cols
+    if (!name && !serial) return
+    out.push({
+      id: 'manual-' + now.toString(36) + '-' + String(out.length).padStart(3, '0') + Math.floor(rand() * 1296).toString(36).padStart(2, '0'),
+      deviceId: '', category, model, serial, name: name || serial, status: '', statusSince: '', location, department, deptGuessed: false,
+      version: '', lastSeenAt: '', lastSeenIn: '',
+    })
+  })
+  return out
+}
+
+/** The devices not already on the list (same serial number, or with none the same name), ignoring case. */
+export function newOnly(devices, items) {
+  const have = new Set(items.map((it) => (it.serial || it.name || '').toLowerCase()))
+  return devices.filter((d) => {
+    const key = (d.serial || d.name || '').toLowerCase()
+    if (!key || have.has(key)) return false
+    have.add(key)
+    return true
+  })
 }
 
 /** The one device on the list that has this serial number, or the first, ignoring case. */

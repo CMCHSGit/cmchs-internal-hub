@@ -94,10 +94,10 @@ const real = {
     }, onError)
   },
 
-  async createList({ name, devices, by, steps }) {
+  async createList({ name, devices, by, steps, manual = false }) {
     const ref = doc(collection(db, COL))
     await setDoc(ref, {
-      name, total: devices.length, steps, people: [by.uid], teams: [],
+      name, total: devices.length, steps, people: [by.uid], teams: [], ...(manual ? { manual: true } : {}),
       createdAt: serverTimestamp(), createdBy: by.uid, createdByName: by.name, importedAt: serverTimestamp(), importedByName: by.name,
     })
     await writeDevices(ref.id, devices, new Set())
@@ -140,12 +140,19 @@ const real = {
   },
 
   /** A device found on site and not on the list. Anyone who can see the list may add one (rules); it is theirs to remove. */
-  addDevice(listId, device, { note, stepIds = [] }, by) {
+  addDevice(listId, device, { note, stepIds = [], plain = false }, by) {
     const checks = Object.fromEntries(stepIds.map((id) => [id, { ...WHO(by), at: serverTimestamp() }]))
+    // `plain`: an item the owner of a list made by hand adds, not a device found on site.
+    const found = plain ? {} : { addedOnSite: true, addedBy: by.uid, addedByName: by.name }
     return setDoc(doc(db, COL, listId, 'items', device.id), {
-      ...strip(device), ...BLANK_PROGRESS, checks, note, noteByName: note ? by.name : '',
-      addedOnSite: true, addedBy: by.uid, addedByName: by.name, addedAt: serverTimestamp(),
+      ...strip(device), ...BLANK_PROGRESS, checks, note, noteByName: note ? by.name : '', ...found, addedAt: serverTimestamp(),
     })
+  },
+
+  /** Several items at once, for the owner of the list (rules: the owner may create any). */
+  async addDevices(listId, devices, totalBefore) {
+    await writeDevices(listId, devices, new Set())
+    await updateDoc(doc(db, COL, listId), { total: totalBefore + devices.length })
   },
 
   async removeList(listId, itemIds) {
@@ -237,9 +244,9 @@ function devStore() {
     watchOwnLists: (uid, cb) => watch(() => newestFirst([...lists.values()].filter((l) => l.createdBy === uid)), cb),
     watchPeople: (cb) => watch(() => people, cb),
     watchItems: (listId, cb) => watch(() => [...(items.get(listId)?.values() || [])].map((x) => ({ ...x, checks: { ...x.checks } })), (arr) => cb(arr, { pending: 0, fromCache: false })),
-    async createList({ name, devices, by, steps }) {
+    async createList({ name, devices, by, steps, manual = false }) {
       const id = 'dev' + Date.now()
-      lists.set(id, { id, name, total: devices.length, steps, people: [by.uid], teams: [], createdAt: now(), createdBy: by.uid, createdByName: by.name, importedByName: by.name })
+      lists.set(id, { id, name, total: devices.length, steps, people: [by.uid], teams: [], ...(manual ? { manual: true } : {}), createdAt: now(), createdBy: by.uid, createdByName: by.name, importedByName: by.name })
       items.set(id, new Map(devices.map((d) => [d.id, { ...d, ...BLANK_PROGRESS }])))
       tell(); return id
     },
@@ -261,11 +268,16 @@ function devStore() {
     async resetItem(listId, itemId) { Object.assign(item(listId, itemId), UNDONE, { checks: {} }); tell() },
     async setNote(listId, itemId, note, by) { Object.assign(item(listId, itemId), { note, noteByName: note ? by.name : '' }); tell() },
     async removeItem(listId, itemId) { items.get(listId).delete(itemId); tell() },
-    async addDevice(listId, device, { note, stepIds = [] }, by) {
+    async addDevice(listId, device, { note, stepIds = [], plain = false }, by) {
       items.get(listId).set(device.id, {
         ...device, ...BLANK_PROGRESS, checks: Object.fromEntries(stepIds.map((s) => [s, { ...WHO(by), at: now() }])), note, noteByName: note ? by.name : '',
-        addedOnSite: true, addedBy: by.uid, addedByName: by.name,
+        ...(plain ? {} : { addedOnSite: true, addedBy: by.uid, addedByName: by.name }),
       }); tell()
+    },
+    async addDevices(listId, devices) {
+      const map = items.get(listId)
+      devices.forEach((d) => map.set(d.id, { ...d, ...BLANK_PROGRESS }))
+      lists.get(listId).total = map.size; tell()
     },
     async removeList(listId) { lists.delete(listId); items.delete(listId); tell() },
     async renameList(listId, name) { lists.get(listId).name = name; tell() },
@@ -292,6 +304,7 @@ export const resetItem = (...a) => impl.resetItem(...a)
 export const setNote = (...a) => impl.setNote(...a)
 export const removeItem = (...a) => impl.removeItem(...a)
 export const addDevice = (...a) => impl.addDevice(...a)
+export const addDevices = (...a) => impl.addDevices(...a)
 export const removeList = (...a) => impl.removeList(...a)
 export const renameList = (...a) => impl.renameList(...a)
 export const saveSteps = (...a) => impl.saveSteps(...a)

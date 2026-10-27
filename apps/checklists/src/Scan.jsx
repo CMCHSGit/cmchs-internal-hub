@@ -13,7 +13,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { Alert, Badge, Button, Dialog } from '../../../shared/ui/index.jsx'
 import StepChecks from './StepChecks.jsx'
-import { bestMatches, stateOf, suggestName } from './model.js'
+import { bestMatches, mainOf, stateOf, suggestName, tickOf } from './model.js'
 
 const COOLDOWN = 2500
 const WANTED = ['qr_code', 'code_128', 'code_39', 'code_93', 'codabar', 'ean_13', 'ean_8', 'itf', 'upc_a', 'upc_e', 'data_matrix', 'pdf417']
@@ -170,7 +170,7 @@ function Camera({ onCode }) {
 }
 
 /** The device a code found, with its step buttons: tick what you have done without leaving the camera. */
-function Found({ it, steps, onToggle, onOpen }) {
+function Found({ it, steps, onToggle, onOpen, applied, onUndo }) {
   const state = stateOf(it, steps)
   return (
     <div className="cl-scan-card">
@@ -181,19 +181,54 @@ function Found({ it, steps, onToggle, onOpen }) {
         {state === 'lost' && <Badge tone="orange">Couldn’t find</Badge>}
       </div>
       <p className="cl-scan-where">{[it.department, it.location, it.status].filter(Boolean).join(' · ')}</p>
+      {applied && (
+        <p className="cl-scan-did" role="status">
+          {applied.steps.length ? `Ticked: ${applied.steps.map((s) => s.label).join(', ')}` : 'Already ticked, so nothing changed'}
+          {applied.steps.length > 0 && <button type="button" className="cl-link" onClick={onUndo}>Undo</button>}
+        </p>
+      )}
       <StepChecks it={it} steps={steps} onToggle={onToggle} />
       <Button variant="ghost" size="sm" onClick={() => onOpen(it.id)}>Details and note</Button>
     </div>
   )
 }
 
-export default function Scan({ items, steps, onToggle, onOpen, onAdd, onClose }) {
+/** Which steps a scan ticks by itself: what this person chose last time on this list, else the main step, else the only step. */
+function startingSteps(listId, steps) {
+  try {
+    const saved = JSON.parse(localStorage.getItem('cl-autotick:' + listId) || 'null')
+    if (Array.isArray(saved)) return saved.filter((id) => steps.some((s) => s.id === id))
+  } catch { /* private mode: the default */ }
+  const main = mainOf(steps)
+  return main ? [main.id] : steps.length === 1 ? [steps[0].id] : []
+}
+
+export default function Scan({ listId, items, steps, onToggle, onOpen, onAdd, onClose }) {
   const [scan, setScan] = useState(null) // { code, ids }
   const [picked, setPicked] = useState('')
   const [typed, setTyped] = useState('')
+  const [auto, setAuto] = useState(() => startingSteps(listId, steps)) // step ids a scan ticks by itself
+  const [applied, setApplied] = useState(null) // { id, steps } what the last scan ticked, to undo
   const focus = useRef(null)
 
-  const handle = (code) => { setScan({ code, ids: bestMatches(items, code).map((i) => i.id) }); setPicked('') }
+  useEffect(() => { try { localStorage.setItem('cl-autotick:' + listId, JSON.stringify(auto)) } catch { /* private mode */ } }, [auto, listId])
+
+  // Ticks the chosen steps on a device a scan found, never unticks (scanning the same one twice is harmless).
+  const tickFor = (it) => {
+    const todo = steps.filter((st) => auto.includes(st.id) && !tickOf(it, st.id))
+    todo.forEach((st) => onToggle(it, st, true))
+    setApplied(auto.length ? { id: it.id, steps: todo } : null)
+  }
+  const handle = (code) => {
+    const found = bestMatches(items, code)
+    setScan({ code, ids: found.map((i) => i.id) }); setPicked('')
+    if (found.length === 1) tickFor(found[0]); else setApplied(null)
+  }
+  const undo = () => {
+    const it = items.find((x) => x.id === applied?.id)
+    if (it) applied.steps.forEach((st) => onToggle(it, st, false))
+    setApplied(null)
+  }
   const live = (scan?.ids || []).map((id) => items.find((x) => x.id === id)).filter(Boolean)
   const one = live.length === 1 ? live[0] : live.find((x) => x.id === picked) || null
 
@@ -201,12 +236,7 @@ export default function Scan({ items, steps, onToggle, onOpen, onAdd, onClose })
     <Dialog title="Scan a device" description="Point the camera at the barcode or QR code on the device. The code doesn’t have to match the list exactly." onClose={onClose} width={560} initialFocus={focus}>
       <div className="cl-scan" tabIndex={-1} ref={focus}>
         <Camera onCode={handle} />
-        <form className="cl-scan-type" onSubmit={(e) => { e.preventDefault(); const c = clean(typed); if (c) { handle(c); setTyped('') } }}>
-          <input className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type or paste a code, e.g. WHA303756" autoComplete="off" aria-label="Type or paste a code" />
-          <Button type="submit" size="sm" variant="secondary" disabled={!clean(typed)}>Find</Button>
-        </form>
-
-        {!scan && <p className="cl-info">Nothing scanned yet.</p>}
+        {!scan && <p className="cl-info">{auto.length ? 'Nothing scanned yet. Each device found is ticked for you; Undo is offered.' : 'Nothing scanned yet. Choose steps above to have each scan tick them for you.'}</p>}
         {scan && !live.length && (
           <Alert tone="info" title={`“${scan.code}” isn’t on this list`}
             action={<Button size="sm" iconLeft={<Plus size={16} />} onClick={() => onAdd({ name: suggestName(items, scan.code) })}>Add it</Button>}>
@@ -217,13 +247,23 @@ export default function Scan({ items, steps, onToggle, onOpen, onAdd, onClose })
           <div className="cl-scan-pick">
             <p className="cl-info">{live.length} devices fit “{scan.code}”. Which one?</p>
             {live.map((it) => (
-              <button key={it.id} type="button" className="cl-scan-opt" onClick={() => setPicked(it.id)}>
+              <button key={it.id} type="button" className="cl-scan-opt" onClick={() => { setPicked(it.id); tickFor(it) }}>
                 <b>{it.name || it.serial}</b><span className="cl-mono">{it.serial}</span><span>{[it.department, it.location].filter(Boolean).join(' · ')}</span>
               </button>
             ))}
           </div>
         )}
-        {one && <Found it={one} steps={steps} onToggle={onToggle} onOpen={onOpen} />}
+        {one && <Found it={one} steps={steps} onToggle={onToggle} onOpen={onOpen} applied={applied?.id === one.id ? applied : null} onUndo={undo} />}
+        <form className="cl-scan-type" onSubmit={(e) => { e.preventDefault(); const c = clean(typed); if (c) { handle(c); setTyped('') } }}>
+          <input className="input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Or type or paste a code, e.g. WHA303756" autoComplete="off" aria-label="Type or paste a code" />
+          <Button type="submit" size="sm" variant="secondary" disabled={!clean(typed)}>Find</Button>
+        </form>
+
+        <fieldset className="cl-teams cl-scan-auto"><legend className="field-label">When a device is found, tick</legend>
+          {steps.map((st) => (
+            <label key={st.id} className="cl-radio"><input type="checkbox" checked={auto.includes(st.id)} onChange={(e) => setAuto(e.target.checked ? [...auto, st.id] : auto.filter((x) => x !== st.id))} /> {st.label}{st.main ? ' (main)' : ''}</label>
+          ))}
+        </fieldset>
       </div>
       <div className="dialog-actions">
         <Button variant="secondary" onClick={onClose}>Close the camera</Button>

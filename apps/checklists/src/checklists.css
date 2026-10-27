@@ -285,3 +285,20 @@
 .cl-main-pick { display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto; font: var(--type-body-sm); color: var(--text-muted); cursor: pointer; }
 .cl-main-pick input { accent-color: var(--accent-fg); width: 16px; height: 16px; }
 .cl-main-tag { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--chs-purple-20); color: var(--accent-fg); font: var(--weight-semibold) 11px/1.5 var(--font-body); text-transform: uppercase; letter-spacing: .04em; }
+
+/* Phone: nothing may be wider than the screen. A long step label or word used to push the page past it, which put
+   the Scan and Add device buttons (fixed to the right edge) off screen until you zoomed out. */
+.cl-page { overflow-x: clip; }
+@media (max-width: 759px) {
+  .cl-page { max-width: 100vw; }
+  .cl-steps { max-width: 100%; min-width: 0; }
+  .cl-step { white-space: normal; max-width: 100%; text-align: left; }
+  .cl-table .cl-row td, .cl-table .cl-row td > * { min-width: 0; overflow-wrap: anywhere; }
+  .cl-progress-top, .cl-steps-line, .cl-head, .cl-sub, .cl-title { overflow-wrap: anywhere; min-width: 0; }
+  /* 16px stops iPhones zooming the page in when a field is tapped, which also pushes the buttons off screen. */
+  .cl-page input:not([type=checkbox]):not([type=radio]), .cl-page select, .cl-page textarea,
+  .dialog input:not([type=checkbox]):not([type=radio]), .dialog select, .dialog textarea { font-size: 16px; }
+}
+
+.cl-scan-auto { padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.cl-scan-did { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font: var(--weight-semibold) 14px/1.4 var(--font-body); color: var(--text-strong); }

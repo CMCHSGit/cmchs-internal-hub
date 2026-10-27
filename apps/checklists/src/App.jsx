@@ -350,7 +350,7 @@ function ListView({ id, me }) {
       <button type="button" className="cl-fab-scan" aria-label="Scan a device" title="Scan a device" onClick={() => setDialog('scan')}><ScanBarcode size={24} aria-hidden="true" /></button>
       {dialog === 'scan' && (
         <Suspense fallback={null}>
-          <Scan items={all} steps={steps} onToggle={toggle} onClose={() => setDialog('')}
+          <Scan listId={id} items={all} steps={steps} onToggle={toggle} onClose={() => setDialog('')}
             onOpen={(oid) => { setDialog(''); setOpenId(oid) }}
             onAdd={(p) => { setPrefill(p); setDialog('add') }} />
         </Suspense>
