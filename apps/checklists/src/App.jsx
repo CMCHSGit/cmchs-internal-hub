@@ -24,6 +24,7 @@ import {
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
 import StepChecks from './StepChecks.jsx'
+import MultiSelect from './MultiSelect.jsx'
 import {
   addDevice, addDevices, createList, importInto, markLost, notifyShared, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
 } from './store.js'
@@ -142,7 +143,7 @@ const COLUMNS = [
   ['location', 'Last location'], ['version', 'Software'], ['result', 'Progress'],
 ]
 const SORT_LABELS = { department: 'Department', facility: 'Facility', status: 'Status', serial: 'Serial number', name: 'Device name', location: 'Last location', version: 'Software version', lastSeen: 'Last seen', result: 'Progress' }
-const NO_FILTER = { q: '', status: '', department: '', facility: '', version: '', missing: '', show: 'all' }
+const NO_FILTER = { q: '', status: [], department: [], facility: [], version: [], missing: [], show: 'all' }
 
 function ListView({ id, me }) {
   const by = me
@@ -187,7 +188,7 @@ function ListView({ id, me }) {
   const statuses = STATUS_ORDER.filter((s) => summary.byStatus[s]).concat(Object.keys(summary.byStatus).filter((s) => !STATUS_ORDER.includes(s)))
 
   const sortBy = (key) => setSort((s) => ({ key, dir: s.key === key ? -s.dir : 1 }))
-  const filtered = f.q || f.status || f.department || f.facility || f.version || f.missing || f.show !== 'all'
+  const filtered = f.q || f.status.length || f.department.length || f.facility.length || f.version.length || f.missing.length || f.show !== 'all'
 
   async function run(promise, failed = 'Not saved') {
     try { await promise } catch (e) { toast(e?.code === 'permission-denied' ? 'Not saved: the database refused it. The checklists rule may not be published yet.' : `${failed}: ${e?.message || e}`) }
@@ -211,7 +212,7 @@ function ListView({ id, me }) {
   const open = all.find((x) => x.id === openId)
   const pct = summary.total ? Math.round((summary.done / summary.total) * 100) : 0
   const tiles = [['todo', 'To do', summary.todo], ['done', 'Done', summary.done], ['notfound', 'Couldn’t find', summary.notfound], ['all', 'All devices', summary.total]]
-  const activeFilters = [f.department, f.facility, f.status, f.version, f.missing].filter(Boolean).length
+  const activeFilters = [f.department, f.facility, f.status, f.version, f.missing].filter((x) => x.length).length
 
   return (
     <div className="cl-page">
@@ -284,40 +285,20 @@ function ListView({ id, me }) {
         </button>
         <div className={`cl-more${more ? ' open' : ''}`}>
           {summary.facilities.length > 1 && (
-            <label className="field"><span className="field-label">Facility</span>
-              <select value={f.facility} onChange={(e) => setF({ ...f, facility: e.target.value })}>
-                <option value="">All facilities ({summary.facilities.length})</option>
-                {summary.facilities.map((x) => <option key={x.name || NO_DEPARTMENT} value={x.name || NO_DEPARTMENT}>{x.name || 'No facility'} ({x.count})</option>)}
-              </select>
-            </label>
+            <MultiSelect label="Facility" all={`All facilities (${summary.facilities.length})`} noun={['facility', 'facilities']} selected={f.facility} onChange={(v) => setF({ ...f, facility: v })}
+              options={summary.facilities.map((x) => ({ value: x.name || NO_DEPARTMENT, label: `${x.name || 'No facility'} (${x.count})` }))} />
           )}
-          <label className="field"><span className="field-label">Department</span>
-            <select value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })}>
-              <option value="">All departments ({summary.departments.length})</option>
-              {summary.departments.map((d) => <option key={d.name || NO_DEPARTMENT} value={d.name || NO_DEPARTMENT}>{d.name || NO_DEPT_LABEL} ({d.total - d.done - d.notfound} to do of {d.total})</option>)}
-            </select>
-          </label>
-          <label className="field"><span className="field-label">Status</span>
-            <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
-              <option value="">Any status</option>
-              {statuses.map((s) => <option key={s} value={s}>{s} ({summary.byStatus[s]})</option>)}
-            </select>
-          </label>
+          <MultiSelect label="Department" all={`All departments (${summary.departments.length})`} noun={['department', 'departments']} selected={f.department} onChange={(v) => setF({ ...f, department: v })}
+            options={summary.departments.map((d) => ({ value: d.name || NO_DEPARTMENT, label: `${d.name || NO_DEPT_LABEL} (${d.total - d.done - d.notfound} to do of ${d.total})` }))} />
+          <MultiSelect label="Status" all="Any status" noun={['status', 'statuses']} selected={f.status} onChange={(v) => setF({ ...f, status: v })}
+            options={statuses.map((s) => ({ value: s, label: `${s} (${summary.byStatus[s]})` }))} />
           {multi && (
-            <label className="field"><span className="field-label">Missing a step</span>
-              <select value={f.missing} onChange={(e) => setF({ ...f, missing: e.target.value })}>
-                <option value="">Any step</option>
-                {steps.map((st) => <option key={st.id} value={st.id}>Missing: {st.label} ({all.filter((x) => stateOf(x, steps) !== 'lost' && !tickOf(x, st.id)).length})</option>)}
-              </select>
-            </label>
+            <MultiSelect label="Missing a step" all="Any step" noun={['step', 'steps']} selected={f.missing} onChange={(v) => setF({ ...f, missing: v })}
+              options={steps.map((st) => ({ value: st.id, label: `Missing: ${st.label} (${all.filter((x) => stateOf(x, steps) !== 'lost' && !tickOf(x, st.id)).length})` }))} />
           )}
           {summary.versions.length > 1 && (
-            <label className="field"><span className="field-label">Software version</span>
-              <select value={f.version} onChange={(e) => setF({ ...f, version: e.target.value })}>
-                <option value="">Any version</option>
-                {summary.versions.map((v) => <option key={v.name} value={v.name}>{v.name || 'Unknown'} ({v.count})</option>)}
-              </select>
-            </label>
+            <MultiSelect label="Software version" all="Any version" noun={['version', 'versions']} selected={f.version} onChange={(v) => setF({ ...f, version: v })}
+              options={summary.versions.map((v) => ({ value: v.name || NO_DEPARTMENT, label: `${v.name || 'Unknown'} (${v.count})` }))} />
           )}
           <div className="field cl-sort">
             <span className="field-label">Sort by</span>
@@ -371,7 +352,7 @@ function ListView({ id, me }) {
         </Suspense>
       )}
       {dialog === 'add' && (
-        <AddDialog plain={isOwner && !!list.manual} items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, ...(prefill || {}), department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
+        <AddDialog plain={isOwner && !!list.manual} items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, ...(prefill || {}), department: f.department.length === 1 && f.department[0] !== NO_DEPARTMENT ? f.department[0] : '' }}
           onOpen={setOpenId} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />
       )}
       {open && (

@@ -292,19 +292,29 @@ export function sortItems(items, key = 'department', dir = 1, steps = DEFAULT_ST
   })
 }
 
-/** Narrows the list. f: { q, status, department, facility, show: all|todo|done|notfound, version, missing: a step's id } — blank means no filter. */
+const asList = (v) => (Array.isArray(v) ? v : v ? [v] : [])
+/** Whether a device's value is one of the chosen ones (or nothing is chosen). A single value is accepted as a list of one. */
+const anyOf = (chosen, value) => {
+  const c = asList(chosen)
+  return !c.length || c.includes(value || '') || (c.includes(NO_DEPARTMENT) && !value)
+}
+
+/** Narrows the list. f: { q, status, department, facility, version, missing: lists of choices (or one), show: all|todo|done|notfound } — blank means no filter. */
 export function filterItems(items, f = {}, steps = DEFAULT_STEPS) {
   const toks = String(f.q || '').toLowerCase().split(/\s+/).filter(Boolean)
   return items.filter((it) => {
     const state = stateOf(it, steps)
-    if (f.status && it.status !== f.status) return false
-    if (f.department !== undefined && f.department !== '' && (it.department || '') !== (f.department === NO_DEPARTMENT ? '' : f.department)) return false
-    if (f.facility && (it.facility || '') !== (f.facility === NO_DEPARTMENT ? '' : f.facility)) return false
-    if (f.version && (it.version || '') !== f.version) return false
+    // Each filter takes several choices (a device matches if it is any of them); the filters together all have to match.
+    // NO_DEPARTMENT stands for "blank" in any of them.
+    if (!anyOf(f.status, it.status)) return false
+    if (!anyOf(f.department, it.department)) return false
+    if (!anyOf(f.facility, it.facility)) return false
+    if (!anyOf(f.version, it.version)) return false
     if (f.show === 'todo' && (state === 'done' || state === 'lost')) return false
     if (f.show === 'done' && state !== 'done') return false
     if (f.show === 'notfound' && state !== 'lost') return false
-    if (f.missing && (state === 'lost' || tickOf(it, f.missing))) return false
+    const miss = asList(f.missing)
+    if (miss.length && (state === 'lost' || miss.every((id) => tickOf(it, id)))) return false // missing at least one of the chosen steps
     if (toks.length) {
       const who = steps.map((st) => tickOf(it, st.id)?.byName || '').join(' ')
       const hay = [it.name, it.serial, it.deviceId, it.location, it.department, it.facility, it.ip, it.wirelessMac, it.wiredMac, it.note, who, it.category, it.model].join(' ').toLowerCase()

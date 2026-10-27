@@ -383,6 +383,24 @@ test('filtering by facility: counts, one facility, devices with none, and it is 
   assert.deepEqual(sortItems(list, 'facility', 1).map((i) => i.id), ['a', 'b', 'c', 'd'], 'no facility last')
 })
 
+test('every filter takes several choices: any of them within a filter, all the filters together', () => {
+  const list = [
+    mk({ id: 'a', facility: 'NSH', department: 'ICU', status: 'Working', version: '1' }), mk({ id: 'b', facility: 'THM', department: 'ICU', status: 'Offline', version: '2' }),
+    mk({ id: 'c', facility: 'WDHB', department: 'ED', status: 'Working', version: '2' }), mk({ id: 'd', facility: '', department: '', status: 'Shutdown', version: '' }),
+    mk({ id: 'e', facility: 'NSH', department: 'ED', status: 'Standby', version: '1', checks: { sw: tick('Ann') } }),
+  ]
+  const ids = (f, steps) => filterItems(list, f, steps).map((i) => i.id)
+  assert.deepEqual(ids({ facility: ['NSH', 'THM'] }), ['a', 'b', 'e'], 'NSH and THM')
+  assert.deepEqual(ids({ facility: ['NSH', NO_DEPARTMENT] }), ['a', 'd', 'e'], 'a facility, or none')
+  assert.deepEqual(ids({ facility: ['NSH', 'THM'], department: ['ICU'] }), ['a', 'b'], 'the filters together')
+  assert.deepEqual(ids({ department: ['ICU', 'ED'], status: ['Working', 'Standby'] }), ['a', 'c', 'e'])
+  assert.deepEqual(ids({ version: ['1', NO_DEPARTMENT] }), ['a', 'd', 'e'])
+  assert.deepEqual(ids({ status: [] }), ['a', 'b', 'c', 'd', 'e'], 'nothing chosen is no filter')
+  assert.deepEqual(ids({ status: 'Offline' }), ['b'], 'one value as a string still works')
+  assert.deepEqual(ids({ missing: ['sw', 'cfg'] }, STEPS), ['a', 'b', 'c', 'd', 'e'], 'missing any of the chosen steps')
+  assert.deepEqual(ids({ missing: ['sw'] }, STEPS), ['a', 'b', 'c', 'd'])
+})
+
 test('dates and file names', () => {
   assert.equal(niceStamp('2026-10-27 11:43'), '27-Oct-2026 11:43')
   assert.equal(niceStamp('2026-10-27'), '27-Oct-2026')

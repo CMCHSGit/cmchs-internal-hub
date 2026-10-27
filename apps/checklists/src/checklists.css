@@ -302,3 +302,21 @@
 
 .cl-scan-auto { padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); }
 .cl-scan-did { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font: var(--weight-semibold) 14px/1.4 var(--font-body); color: var(--text-strong); }
+
+/* A filter with several choices */
+.cl-ms { position: relative; }
+.cl-ms-btn { all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 42px; padding: 0 12px;
+  border: 1px solid var(--border-strong, var(--border-subtle)); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-body); font: var(--type-body); }
+.cl-ms-btn.on { border-color: var(--accent-fg); background: var(--surface-brand-tint); color: var(--text-strong); }
+.cl-ms-btn:focus-visible { box-shadow: var(--focus-ring); }
+.cl-ms-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-ms-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 40; min-width: 100%; width: max-content; max-width: min(360px, 92vw); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-overlay); }
+.cl-ms-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border-subtle); font: var(--type-body-sm); color: var(--text-muted); }
+.cl-ms-list { max-height: min(320px, 50vh); overflow: auto; padding: 4px 0; }
+.cl-ms-opt { display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-height: 40px; cursor: pointer; font: var(--type-body-sm); color: var(--text-body); }
+.cl-ms-opt:hover { background: var(--surface-subtle); }
+.cl-ms-opt input { accent-color: var(--accent-fg); width: 18px; height: 18px; flex: 0 0 auto; }
+@media (max-width: 759px) {
+  .cl-ms-pop { width: 100%; max-width: 100%; }
+}
