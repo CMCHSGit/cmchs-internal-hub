@@ -186,6 +186,9 @@ function handlePayload(payload) {
   // The hub's Asks: tell the people an ask's latest change concerns.
   if (payload.action === 'notifyAsk') return notifyAsk_(payload);
 
+  // Checklists: tell the people (and teams) a checklist has just been shared with.
+  if (payload.action === 'notifyChecklistShared') return notifyChecklistShared_(payload, caller);
+
   // The hub's company news: a new post to everyone, a comment to the thread.
   if (payload.action === 'notifyNews') return notifyNews_(payload);
 
@@ -1164,6 +1167,64 @@ function notifyNewUser_(payload, caller) {
   const sent = results.filter(function(r) { return r.ok; }).length;
   Logger.log('notifyNewUser_: push ' + sent + ' sent/' + (results.length - sent) + ' failed, to ' + tokens.length + ' device(s).');
   return respond({ success: true, sent: sent });
+}
+
+// ── Checklists ───────────────────────────────────────────────────────────
+// internal.chsnz.co.nz/checklists/: a checklist is seen only by whoever made it and the people and
+// teams it is shared with (`people`, `teams` on checklists/{id}). After the owner shares it, the
+// browser sends only the list's id; this reads the list back, checks the caller made it, and tells
+// each person who can now see it and hasn't been told (`notified` on the list remembers who), so
+// sharing again with one more person tells only that person, and nobody can use the proxy to push
+// anything but "<owner> shared a checklist with you".
+
+/** Who to tell: everyone the list is shared with (named, or on a team it is shared with), not the owner, not placeholders, not yet told. */
+function checklistShareRecipients_(list, users) {
+  const told = list.notified || [];
+  const teams = list.teams || [];
+  const people = list.people || [];
+  const out = {};
+  users.forEach(function(u) {
+    if (u.pending || !u.uid || u.uid === list.createdBy) return;
+    if (people.indexOf(u.uid) >= 0 || (u.team && teams.indexOf(u.team) >= 0)) out[u.uid] = true;
+  });
+  told.forEach(function(uid) { delete out[uid]; });
+  return Object.keys(out);
+}
+
+function notifyChecklistShared_(payload, caller) {
+  const id = String(payload.id || '');
+  if (!/^[A-Za-z0-9]{8,40}$/.test(id)) return respond({ success: false, error: 'Bad checklist id' });
+  const cache = CacheService.getScriptCache();
+  if (cache.get('clshare:' + id)) return respond({ success: true, already: true, pushed: 0, unreached: 0 });
+  const list = fsGetDoc_('checklists/' + id);
+  if (!list) return respond({ success: false, error: 'Checklist not found' });
+  if (list.createdBy !== caller.uid) {
+    Logger.log('notifyChecklistShared_: refused (not the owner).');
+    return respond({ success: false, error: 'Only whoever made a checklist can share it' });
+  }
+  cache.put('clshare:' + id, '1', 20);
+
+  const users = fsList_('users', ['displayName', 'team', 'pending', 'fcmTokens']).map(function(u) { u.uid = u.__id; return u; });
+  const uids = checklistShareRecipients_(list, users);
+  if (!uids.length) return respond({ success: true, pushed: 0, unreached: 0, people: 0 });
+
+  const owner = String(caller.name || 'Someone').split(/\s+/)[0].slice(0, 40);
+  const title = owner + ' shared a checklist with you';
+  const body = String(list.name || 'Checklist').slice(0, 120);
+  const url = 'https://internal.chsnz.co.nz/checklists/#/' + id;
+  let pushed = 0, unreached = 0;
+  uids.forEach(function(uid) {
+    const u = users.filter(function(x) { return x.uid === uid; })[0] || {};
+    const tokens = (u.fcmTokens || []).filter(function(t) { return typeof t === 'string' && t; });
+    if (!tokens.length) { unreached++; return; }
+    const results = sendHubPush_(tokens, title, body, url);
+    if (results.some(function(r) { return r.ok; })) pushed++; else unreached++;
+  });
+  // Remember who has been told, so sharing again tells only the people added since.
+  const told = (list.notified || []).concat(uids.filter(function(u) { return (list.notified || []).indexOf(u) < 0; }));
+  fsPatch_('checklists/' + id, { notified: told }, true);
+  Logger.log('notifyChecklistShared_: ' + uids.length + ' person(s): ' + pushed + ' pushed, ' + unreached + ' without a device.');
+  return respond({ success: true, people: uids.length, pushed: pushed, unreached: unreached });
 }
 
 // ── Hub Asks ─────────────────────────────────────────────────────────────

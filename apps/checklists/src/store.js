@@ -16,7 +16,8 @@
 import {
   arrayUnion, collection, deleteField, doc, onSnapshot, query, setDoc, updateDoc, deleteDoc, where, writeBatch, serverTimestamp,
 } from 'firebase/firestore'
-import { db } from '../../schedule/src/firebase.js'
+import { auth, db } from '../../schedule/src/firebase.js'
+import { PROXY_URL } from '../../../shared/proxy.js'
 
 export const COL = 'checklists'
 const CHUNK = 400 // a batch holds 500 writes
@@ -169,6 +170,23 @@ const real = {
     return updateDoc(doc(db, COL, listId), { people, teams })
   },
 
+  /**
+   * Asks the proxy to push "<you> shared a checklist with you" to whoever can now see the list and hasn't been told. It
+   * sends only the list's id; the proxy checks you made it. Returns { success, people, pushed, unreached } or null. Never throws.
+   */
+  async notifyShared(listId) {
+    try {
+      const idToken = await auth.currentUser?.getIdToken()
+      if (!idToken) return null
+      // text/plain keeps it a simple request (no CORS preflight, which Apps Script can't answer).
+      const res = await fetch(PROXY_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: 'notifyChecklistShared', idToken, id: listId }) })
+      return await res.json()
+    } catch (e) {
+      console.warn('Could not tell the people the checklist was shared with:', e)
+      return null
+    }
+  },
+
   /** Adds people and teams to who a list is shared with (an ask that attaches it does this for its recipients). */
   shareWith(listId, { people = [], teams = [] }) {
     const upd = {}
@@ -253,6 +271,7 @@ function devStore() {
     async renameList(listId, name) { lists.get(listId).name = name; tell() },
     async saveSteps(listId, steps) { lists.get(listId).steps = steps; tell() },
     async saveSharing(listId, sharing) { Object.assign(lists.get(listId), sharing); tell() },
+    async notifyShared() { return { success: true, people: 2, pushed: 1, unreached: 1 } }, // made-up counts, so the message can be seen
     async shareWith(listId, { people: p = [], teams: t = [] }) {
       const l = lists.get(listId); l.people = [...new Set([...(l.people || []), ...p])]; l.teams = [...new Set([...(l.teams || []), ...t])]; tell()
     },
@@ -278,3 +297,4 @@ export const renameList = (...a) => impl.renameList(...a)
 export const saveSteps = (...a) => impl.saveSteps(...a)
 export const saveSharing = (...a) => impl.saveSharing(...a)
 export const shareWith = (...a) => impl.shareWith(...a)
+export const notifyShared = (...a) => impl.notifyShared(...a)

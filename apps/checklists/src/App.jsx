@@ -24,7 +24,7 @@ import {
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
 import {
-  addDevice, createList, importInto, markLost, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
+  addDevice, createList, importInto, markLost, notifyShared, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
 } from './store.js'
 
 const EDIT_TEAMS = ['Engineers', 'Management']
@@ -356,7 +356,10 @@ function ListView({ id, me }) {
       {dialog === 'export' && <ExportDialog name={list.name} all={all} shown={shown} steps={steps} filtered={filtered} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
       {dialog === 'import' && <ImportDialog by={by} list={list} existingIds={all.map((x) => x.id)} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
       {dialog === 'rename' && <RenameDialog name={list.name} onClose={(name) => { setDialog(''); if (name && name !== list.name) run(renameList(id, name)) }} />}
-      {dialog === 'share' && <ShareDialog list={list} me={me} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
+      {dialog === 'share' && (
+        <ShareDialog list={list} me={me} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }}
+          onNotified={(out) => toast(`Shared. ${out.pushed} ${out.pushed === 1 ? 'person' : 'people'} told${out.unreached ? `, ${out.unreached} without notifications on` : ''}.`)} />
+      )}
       {dialog === 'steps' && <StepsDialog list={list} steps={steps} summary={summary} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
       {confirmDialog}
       <Toast message={toastMsg} />
@@ -534,7 +537,7 @@ function RenameDialog({ name, onClose }) {
 // ── Who it is shared with ──────────────────────────────────────────────────────────────────────────
 
 /** The owner chooses the people and teams who see the list: they tick, add devices and export; only the owner changes the list itself. */
-function ShareDialog({ list, me, run, onClose }) {
+function ShareDialog({ list, me, run, onClose, onNotified }) {
   const [users, setUsers] = useState([])
   const [people, setPeople] = useState(() => (list.people || []).filter((u) => u !== me.uid))
   const [teams, setTeams] = useState(list.teams || [])
@@ -549,12 +552,15 @@ function ShareDialog({ list, me, run, onClose }) {
     try { await navigator.clipboard.writeText(link); onClose('Link copied.') } catch { window.prompt('Copy this link', link) }
   }
   function save() {
-    run(saveSharing(list.id, { people: [me.uid, ...people], teams }), 'Not shared')
+    // Once the sharing has reached the server, the people who can now see it and haven't been told get a push.
+    run(saveSharing(list.id, { people: [me.uid, ...people], teams })
+      .then(() => (people.length + teams.length ? notifyShared(list.id) : null))
+      .then((out) => { if (out?.success && out.people) onNotified(out) }), 'Not shared')
     onClose(people.length + teams.length ? 'Shared.' : 'Now only you can see it.')
   }
   return (
     <Dialog title="Share this checklist" onClose={() => onClose('')} width={560}
-      description="Only you and the people and teams below can see it. They can tick devices, add ones they find and export the list. Only you can change the steps, import, share or delete it.">
+      description="Only you and the people and teams below can see it. They can tick devices, add ones they find and export the list. Only you can change the steps, import, share or delete it. New people are sent a notification.">
       <div className="cl-share">
         <label className="field"><span className="field-label">Add a person</span>
           <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Start typing a name" autoComplete="off" />
