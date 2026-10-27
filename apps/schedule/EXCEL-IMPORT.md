@@ -12,7 +12,7 @@ One direction only: Excel → app. Nothing is written to the Excel.
 
 - Same rules as **Admin settings → Excel** (`src/utils/excelPlan.js`): a change in the Excel comes in if
   the app entry hasn't been edited since the last import; an app edit is kept; if both changed, the app
-  wins (counted as "kept"). A blank Excel cell never clears an app entry.
+  wins (counted as "kept"). A blank Excel cell does not clear an app entry that was typed in the app or edited there; but when the app still holds exactly what the last import brought in, the Excel clearing it clears it here too (a week sheet made by duplicating an earlier one and then emptied no longer leaves that copy behind).
 - It runs unattended, so it only does what Admin → Excel does without being asked: **certain matches
   only** (an Excel name saved on the person, full name, or first name within the same team), and it
   **never adds people**. Names that are ambiguous, close-but-not-certain or not in the app are left out

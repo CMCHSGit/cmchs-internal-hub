@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import ExcelJS from 'exceljs'
 import { indexWorkbook, readPeople, combineHalves } from '../src/utils/excelSchedule.js'
+import { describeRun } from '../src/utils/excelImportOps.js'
 import { matchPeople, buildMapping, excelPeople, mergeText, planImport, nameKey, placeholderId } from '../src/utils/excelPlan.js'
 
 // ── reading the workbook ──────────────────────────────────────────────────
@@ -175,7 +176,16 @@ test('placeholder ids match Admin → Add a person', () => assert.equal(placehol
 
 // ── merging ───────────────────────────────────────────────────────────────
 
-test('merge: an Excel blank never blanks the app', () => assert.deepEqual(mergeText('', 'Tauranga', 'Tauranga'), { value: 'Tauranga', kind: 'none' }))
+test('merge: an Excel blank does not blank an app entry it never brought in', () => {
+  assert.deepEqual(mergeText('', 'Tauranga', undefined), { value: 'Tauranga', kind: 'none' }, 'no import history: the app’s own entry')
+  assert.deepEqual(mergeText('', 'Waikato', 'Tauranga'), { value: 'Waikato', kind: 'none' }, 'edited in the app since the import')
+  assert.deepEqual(mergeText('', '', 'Tauranga'), { value: '', kind: 'none' }, 'already blank')
+  assert.deepEqual(mergeText('', 'Tauranga', ''), { value: 'Tauranga', kind: 'none' }, 'the import never brought anything in for this cell')
+})
+test('merge: the Excel clearing what the import brought in clears it, if the app has not touched it', () => {
+  assert.deepEqual(mergeText('', 'Tauranga', 'Tauranga'), { value: '', kind: 'cleared' })
+  assert.deepEqual(mergeText('', ' tauranga ', 'Tauranga'), { value: '', kind: 'cleared' }, 'ignoring case and spacing')
+})
 test('merge: a blank app cell is filled', () => assert.deepEqual(mergeText('Hamilton', '', undefined), { value: 'Hamilton', kind: 'added' }))
 test('merge: same (ignoring case/spacing) is untouched', () => assert.equal(mergeText('cass  office', 'Cass Office').kind, 'same'))
 test('merge: app unchanged since last import → the Excel change flows in', () => assert.deepEqual(mergeText('Dunedin', 'Tauranga', 'Tauranga'), { value: 'Dunedin', kind: 'updated' }))
@@ -250,6 +260,40 @@ test('plan: the app’s customer-calls flag survives an import', () => {
   assert.equal(run({ existing }).schedules[0].days[0].onCall, true)
 })
 test('plan: someone with nothing in the Excel that week is skipped', () => assert.equal(run({ people: [{ name: 'Alex', team: 'Engineers', days: D(), comment: '' }] }).schedules.length, 0))
+// A week sheet made by duplicating an earlier one is picked up before it is emptied; clearing it then clears the copy.
+const copied = () => apply(run())                                  // the app holds what the import brought in: Cass Office, Tauranga, Tauranga, Cass Office, Leave + a comment
+const blankWeek = [{ name: 'Alex', team: 'Engineers', onCall: false, days: D(), comment: '' }]
+test('plan: a week the Excel has since emptied is emptied in the app too, comment included, when nobody edited it', () => {
+  const plan = run({ existing: copied(), people: blankWeek })
+  assert.equal(plan.schedules.length, 1)
+  const s = plan.schedules[0]
+  assert.deepEqual(s.days.map(d => d.location), ['', '', '', '', '']); assert.equal(s.comments, '')
+  assert.equal(s.contentChanged, true); assert.equal(plan.stats.cleared, 5)
+  assert.deepEqual(s.base.days, ['', '', '', '', '']); assert.equal(s.base.comments, '')
+})
+test('plan: once emptied, running it again changes nothing', () => {
+  const first = run({ existing: copied(), people: blankWeek })
+  const second = run({ existing: apply(first, copied()), people: blankWeek })
+  assert.equal(second.schedules.length, 0); assert.equal(second.stats.cleared, 0)
+})
+test('plan: an entry edited in the app survives, and only the untouched ones are cleared', () => {
+  const existing = withDay(copied(), '2026-10-05_u1', 1, 'Waikato')
+  const s = run({ existing, people: blankWeek }).schedules[0]
+  assert.deepEqual(s.days.map(d => d.location), ['', 'Waikato', '', '', ''])
+  assert.equal(run({ existing, people: blankWeek }).stats.cleared, 4)
+})
+test('plan: a blank week is left alone when the app’s entries were never imported', () => {
+  const typedInApp = new Map([['2026-10-05_u1', { days: ['Cass Office', 'Tauranga', '', '', ''].map(location => ({ location, onCall: false })), comments: 'mine' }]])
+  assert.equal(run({ existing: typedInApp, people: blankWeek }).schedules.length, 0)
+})
+test('plan: clearing keeps the app’s customer-calls flag', () => {
+  const existing = copied(); existing.get('2026-10-05_u1').days = existing.get('2026-10-05_u1').days.map((d, i) => (i === 0 ? { ...d, onCall: true } : d))
+  assert.equal(run({ existing, people: blankWeek }).schedules[0].days[0].onCall, true)
+})
+test('plan: the run summary says how many were cleared', () => {
+  const plan = run({ existing: copied(), people: blankWeek })
+  assert.match(describeRun({ plan, selected: ['2026-10-05'], left: { ambiguous: 0, maybe: 0, none: 0 } }), /5 cleared/)
+})
 test('plan: new people are created as pending, on the Excel group’s team', () => {
   const plan = run({ people: [{ name: 'Casey', team: 'Engineers', days: D('Cass Office'), comment: '' }] })
   assert.deepEqual([...plan.newPeople.values()], [{ id: 'pending-casey', displayName: 'Casey', team: 'Engineers', excelName: 'Casey' }])

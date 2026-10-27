@@ -185,11 +185,19 @@ const same = (a, b) => squash(a).toLowerCase() === squash(b).toLowerCase()
  * One cell (or the week's comment). `excel` is what the Excel says now, `app`
  * what's in the app, `base` what the Excel said at the last import (undefined
  * if never imported). → { value, kind } where kind is one of
- * none | added | same | updated | kept | conflict | replaced.
+ * none | added | same | updated | kept | conflict | replaced | cleared.
+ *
+ * A blank Excel cell leaves the app's entry alone, with one exception: when the app still holds exactly what the last
+ * import brought in (nobody has edited it there), the Excel clearing it clears it here too ('cleared'). Otherwise a
+ * week sheet made by duplicating an earlier one, picked up by the automatic import before it was emptied, left that
+ * week's copy in the app for good.
  */
 export function mergeText(excel, app, base, excelWins = false) {
   const e = squash(excel), a = squash(app)
-  if (!e) return { value: a, kind: 'none' }                           // never blank the app out because the Excel is blank
+  if (!e) {
+    if (a && base != null && squash(base) && same(a, base)) return { value: '', kind: 'cleared' } // the Excel cleared what the import brought in, and the app hasn't touched it
+    return { value: a, kind: 'none' }                                  // otherwise never blank the app out because the Excel is blank: it may be the app's own entry
+  }
   if (!a) return { value: e, kind: 'added' }
   if (same(a, e)) return { value: a, kind: 'same' }
   if (base != null) {
@@ -200,12 +208,13 @@ export function mergeText(excel, app, base, excelWins = false) {
   return excelWins ? { value: e, kind: 'replaced' } : { value: a, kind: 'conflict' }
 }
 
-const emptyCounts = () => ({ added: 0, updated: 0, same: 0, kept: 0, conflict: 0, replaced: 0 })
+const emptyCounts = () => ({ added: 0, updated: 0, same: 0, kept: 0, conflict: 0, replaced: 0, cleared: 0 })
 
 /** Merges one person's week. Returns null when there's nothing to import for them. */
 function planPersonWeek({ person, existing, excelWins }) {
   const hasExcelData = person.days.some(Boolean) || person.comment
-  if (!hasExcelData) return null
+  // A person with nothing in the Excel that week is skipped, unless the app holds what an import brought in for them: it may need clearing.
+  if (!hasExcelData && !existing?.excelBase) return null
 
   const appDays = existing ? normalizeSchedule(existing.days) : null
   const base = existing?.excelBase || null
@@ -218,15 +227,15 @@ function planPersonWeek({ person, existing, excelWins }) {
   for (let i = 0; i < 5; i++) {
     const merged = mergeText(person.days[i], appDays?.[i]?.location, base?.days?.[i], excelWins)
     if (merged.kind in counts) counts[merged.kind]++
-    if (merged.kind === 'added' || merged.kind === 'updated' || merged.kind === 'replaced') contentChanged = true
+    if (merged.kind === 'added' || merged.kind === 'updated' || merged.kind === 'replaced' || merged.kind === 'cleared') contentChanged = true
     if (merged.kind === 'conflict') conflicts.push({ day: i, app: squash(appDays?.[i]?.location), excel: squash(person.days[i]) })
     days.push({ ...(appDays?.[i] || { onCall: false }), location: merged.value })
-    baseDays.push(squash(person.days[i]) || squash(base?.days?.[i]))
+    baseDays.push(merged.kind === 'cleared' ? '' : squash(person.days[i]) || squash(base?.days?.[i]))
   }
 
   const mergedComment = mergeText(person.comment, existing?.comments, base?.comments, excelWins)
-  if (mergedComment.kind === 'added' || mergedComment.kind === 'updated' || mergedComment.kind === 'replaced') contentChanged = true
-  const newBase = { days: baseDays, comments: squash(person.comment) || squash(base?.comments) }
+  if (mergedComment.kind === 'added' || mergedComment.kind === 'updated' || mergedComment.kind === 'replaced' || mergedComment.kind === 'cleared') contentChanged = true
+  const newBase = { days: baseDays, comments: mergedComment.kind === 'cleared' ? '' : squash(person.comment) || squash(base?.comments) }
   const baseChanged = !base || baseDays.some((d, i) => !same(d, base.days?.[i])) || !same(newBase.comments, base.comments)
 
   return { days, comments: mergedComment.value, base: newBase, counts, conflicts, contentChanged, baseChanged, isNew: !existing }
