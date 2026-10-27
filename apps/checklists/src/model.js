@@ -1,4 +1,4 @@
-/* Project checklists — reading a device export, and everything the list does with its devices.
+/* Checklists — reading a device export, and everything the list does with its devices.
    Plain functions with no screen and no database, so tests can run them (tests/checklists.test.mjs).
 
    Written for the Mindray central-station export of BeneVision N1 monitors (one row a device,
@@ -137,32 +137,95 @@ export function parseDevices(rows) {
   return { devices: [...byId.values()], skipped, duplicates, error: null }
 }
 
+// ── Steps: what has to be ticked on each device ─────────────────────────────────────────────────────
+
+/** A list with no steps of its own has one, so every list from before steps still works. */
+export const DEFAULT_STEPS = [{ id: 'done', label: 'Done' }]
+export const MAX_STEPS = 12
+
+export const stepsOf = (list) => (Array.isArray(list?.steps) && list.steps.length ? list.steps : DEFAULT_STEPS)
+
+/** A new step's id: its words, plus a few random characters so two steps never share one. Field paths in Firestore, so letters and digits only. */
+export function newStepId(label, taken = [], rand = Math.random()) {
+  const base = cell(label).toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12) || 'step'
+  let id = base
+  let n = 0
+  while (taken.includes(id)) id = base + Math.floor(rand * 36 ** 3 + ++n).toString(36)
+  return id
+}
+
+/** Lines of text as steps ("Software upgraded", "Changed config"): blanks and repeats dropped, up to MAX_STEPS. */
+export function stepsFromText(text, rand = Math.random) {
+  const seen = new Set()
+  const out = []
+  for (const line of String(text || '').split(/\r?\n/)) {
+    const label = cell(line).slice(0, 60)
+    if (!label || seen.has(label.toLowerCase())) continue
+    seen.add(label.toLowerCase())
+    out.push({ id: label.toLowerCase() === 'done' && !out.some((x) => x.id === 'done') ? 'done' : newStepId(label, out.map((x) => x.id), rand()), label })
+    if (out.length >= MAX_STEPS) break
+  }
+  return out
+}
+
+const millis = (t) => (t?.toMillis ? t.toMillis() : t?.toDate ? t.toDate().getTime() : t instanceof Date ? t.getTime() : Number(t) || 0)
+
+/** The tick for one step on a device — { by, byName, at } — or null. A device ticked before steps existed carries result 'done', which is its 'done' step. */
+export function tickOf(it, stepId) {
+  const c = it.checks?.[stepId]
+  if (c) return c
+  return stepId === 'done' && it.result === 'done' ? { by: it.doneBy || '', byName: it.doneByName || '', at: it.doneAt || null } : null
+}
+
+/** 'lost' (couldn't find it), 'done' (every step ticked), 'partial', or 'todo'. */
+export function stateOf(it, steps = DEFAULT_STEPS) {
+  if (it.result === 'notfound') return 'lost'
+  const n = steps.filter((st) => tickOf(it, st.id)).length
+  return n === 0 ? 'todo' : n === steps.length ? 'done' : 'partial'
+}
+
+/** { ticked, total } steps on a device. */
+export function progressOf(it, steps = DEFAULT_STEPS) {
+  return { ticked: steps.filter((st) => tickOf(it, st.id)).length, total: steps.length }
+}
+
+/** The newest tick on a device: { byName, at } or null — who last did something to it. */
+export function latestTick(it, steps = DEFAULT_STEPS) {
+  let best = null
+  for (const st of steps) {
+    const t = tickOf(it, st.id)
+    if (t && (!best || millis(t.at) >= millis(best.at))) best = t
+  }
+  if (it.result === 'notfound' && (!best || millis(it.doneAt) >= millis(best.at))) return { byName: it.doneByName || '', at: it.doneAt || null }
+  return best
+}
+
 // ── What the list shows ────────────────────────────────────────────────────────────────────────────
 
 export const RESULTS = { done: 'done', notfound: 'notfound' }
 
-const isDone = (it) => it.result === RESULTS.done
-const isLost = (it) => it.result === RESULTS.notfound
-
-/** Counts for the top of the list. `items` are the list's devices, ticked or not. */
-export function summarise(items) {
+/** Counts for the top of the list. `items` are the list's devices, ticked or not; a device is done when every step is ticked. */
+export function summarise(items, steps = DEFAULT_STEPS) {
   const bySerial = new Map()
   const byStatus = {}
   const byDept = new Map()
   const byVersion = new Map()
+  const stepCounts = Object.fromEntries(steps.map((st) => [st.id, 0]))
   let done = 0
   let notfound = 0
   for (const it of items) {
-    if (isDone(it)) done++
-    else if (isLost(it)) notfound++
+    const state = stateOf(it, steps)
+    if (state === 'done') done++
+    else if (state === 'lost') notfound++
+    for (const st of steps) if (tickOf(it, st.id)) stepCounts[st.id]++
     const sn = (it.serial || '').toLowerCase()
     if (sn) bySerial.set(sn, (bySerial.get(sn) || 0) + 1)
     byStatus[it.status || 'Unknown'] = (byStatus[it.status || 'Unknown'] || 0) + 1
     const dn = it.department || ''
     const dep = byDept.get(dn) || { name: dn, total: 0, done: 0, notfound: 0 }
     dep.total++
-    if (isDone(it)) dep.done++
-    else if (isLost(it)) dep.notfound++
+    if (state === 'done') dep.done++
+    else if (state === 'lost') dep.notfound++
     byDept.set(dn, dep)
     const vn = it.version || ''
     byVersion.set(vn, (byVersion.get(vn) || 0) + 1)
@@ -171,6 +234,7 @@ export function summarise(items) {
   return {
     total: items.length,
     done, notfound, todo: items.length - done - notfound,
+    stepCounts,
     uniqueSerials: bySerial.size,
     sharedSerials: [...bySerial.values()].filter((n) => n > 1).length,
     byStatus,
@@ -190,6 +254,7 @@ const collate = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: tr
 // Devices with no department go last, as "No department" in the group headers.
 const byName = (a, b) => (!a.name ? (b.name ? 1 : 0) : !b.name ? -1 : collate(a.name, b.name))
 
+const RANK = { todo: 0, partial: 1, lost: 2, done: 3 }
 const SORT_VALUE = {
   department: (it) => it.department || '',
   status: (it) => { const i = STATUS_ORDER.indexOf(it.status); return i < 0 ? STATUS_ORDER.length : i },
@@ -198,37 +263,40 @@ const SORT_VALUE = {
   location: (it) => it.location || '',
   version: (it) => it.version || '',
   lastSeen: (it) => it.lastSeenAt || '',
-  result: (it) => (isDone(it) ? 2 : isLost(it) ? 1 : 0),
+  result: (it, steps) => RANK[stateOf(it, steps)],
 }
 export const SORT_KEYS = Object.keys(SORT_VALUE)
 
 /** A copy of `items` sorted by `key` (department, status, serial, name, location, version, lastSeen, result). Blanks last either way; ties by department then name. */
-export function sortItems(items, key = 'department', dir = 1) {
+export function sortItems(items, key = 'department', dir = 1, steps = DEFAULT_STEPS) {
   const val = SORT_VALUE[key] || SORT_VALUE.department
   const blank = (v) => v === '' || v == null
   return [...items].sort((a, b) => {
-    const av = val(a), bv = val(b)
+    const av = val(a, steps), bv = val(b, steps)
     if (blank(av) !== blank(bv)) return blank(av) ? 1 : -1
     if (!blank(av)) {
       const c = typeof av === 'number' ? av - bv : collate(av, bv)
       if (c) return c * dir
     }
-    return collate(a.department || '￿', b.department || '￿') || collate(a.name || '', b.name || '') || collate(a.id || '', b.id || '')
+    return collate(a.department || '\uffff', b.department || '\uffff') || collate(a.name || '', b.name || '') || collate(a.id || '', b.id || '')
   })
 }
 
-/** Narrows the list. f: { q, status, department, show: all|todo|done|notfound, version } — blank means no filter. */
-export function filterItems(items, f = {}) {
+/** Narrows the list. f: { q, status, department, show: all|todo|done|notfound, version, missing: a step's id } — blank means no filter. */
+export function filterItems(items, f = {}, steps = DEFAULT_STEPS) {
   const toks = String(f.q || '').toLowerCase().split(/\s+/).filter(Boolean)
   return items.filter((it) => {
+    const state = stateOf(it, steps)
     if (f.status && it.status !== f.status) return false
     if (f.department !== undefined && f.department !== '' && (it.department || '') !== (f.department === NO_DEPARTMENT ? '' : f.department)) return false
     if (f.version && (it.version || '') !== f.version) return false
-    if (f.show === 'todo' && (isDone(it) || isLost(it))) return false
-    if (f.show === 'done' && !isDone(it)) return false
-    if (f.show === 'notfound' && !isLost(it)) return false
+    if (f.show === 'todo' && (state === 'done' || state === 'lost')) return false
+    if (f.show === 'done' && state !== 'done') return false
+    if (f.show === 'notfound' && state !== 'lost') return false
+    if (f.missing && (state === 'lost' || tickOf(it, f.missing))) return false
     if (toks.length) {
-      const hay = [it.name, it.serial, it.deviceId, it.location, it.department, it.ip, it.wirelessMac, it.wiredMac, it.note, it.doneByName, it.category, it.model].join(' ').toLowerCase()
+      const who = steps.map((st) => tickOf(it, st.id)?.byName || '').join(' ')
+      const hay = [it.name, it.serial, it.deviceId, it.location, it.department, it.ip, it.wirelessMac, it.wiredMac, it.note, who, it.category, it.model].join(' ').toLowerCase()
       if (!toks.every((t) => hay.includes(t))) return false
     }
     return true
@@ -296,20 +364,33 @@ export function niceStamp(s) {
   return m ? `${m[3]}-${MONTHS[+m[2] - 1]}-${m[1]}${m[4] ? ' ' + m[4] : ''}` : s || ''
 }
 
-export const RESULT_LABEL = { done: 'Done', notfound: 'Couldn’t find', '': '' }
+/** The export's columns: the device, how far along it is, then each step (done, by, at), then the rest. */
+export function exportHeaders(steps = DEFAULT_STEPS) {
+  return [
+    'Department', 'Device type', 'Model', 'Device name', 'Serial number', 'Status', 'Status since', 'Last location',
+    'Last seen', 'Software version', 'Progress',
+    ...steps.flatMap((st) => [st.label, st.label + ' by', st.label + ' at']),
+    'Note', 'Facility', 'Room', 'Bed',
+    'IP address', 'Wireless MAC', 'Wired MAC', 'Device ID', 'Shares a serial with another device', 'Added on site', 'Added by',
+  ]
+}
 
-export const EXPORT_HEADERS = [
-  'Department', 'Device type', 'Model', 'Device name', 'Serial number', 'Status', 'Status since', 'Last location',
-  'Last seen', 'Software version', 'Result', 'Done by', 'Done at', 'Note', 'Facility', 'Room', 'Bed',
-  'IP address', 'Wireless MAC', 'Wired MAC', 'Device ID', 'Shares a serial with another device', 'Added on site', 'Added by',
-]
+/** "Done", "Couldn’t find", "2 of 3" or "". */
+export function progressLabel(it, steps = DEFAULT_STEPS) {
+  const state = stateOf(it, steps)
+  if (state === 'lost') return 'Couldn’t find'
+  if (state === 'done') return 'Done'
+  if (state === 'partial') { const p = progressOf(it, steps); return p.ticked + ' of ' + p.total }
+  return ''
+}
 
-/** One row of cells per device, in EXPORT_HEADERS order. */
-export function exportRows(items) {
+/** One row of cells per device, in exportHeaders order. */
+export function exportRows(items, steps = DEFAULT_STEPS) {
   const shared = sharedSerials(items)
   return items.map((it) => [
     it.department || '', it.category || '', it.model || '', it.name || '', it.serial || '', it.status || '', niceStamp(it.statusSince),
-    it.location || '', niceStamp(it.lastSeenAt), it.version || '', RESULT_LABEL[it.result || ''] ?? '', it.doneByName || '', stamp(it.doneAt),
+    it.location || '', niceStamp(it.lastSeenAt), it.version || '', progressLabel(it, steps),
+    ...steps.flatMap((st) => { const t = tickOf(it, st.id); return t ? ['Yes', t.byName || '', stamp(t.at)] : ['', '', ''] }),
     it.note || '', it.facility || '', it.room || '', it.bed || '', it.ip || '', it.wirelessMac || '', it.wiredMac || '', it.deviceId || '',
     shared.has((it.serial || '').toLowerCase()) ? 'Yes' : '',
     it.addedOnSite ? 'Yes' : '', it.addedByName || '',

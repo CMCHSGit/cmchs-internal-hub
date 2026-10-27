@@ -3,7 +3,7 @@
    on a computer; the whole screen on a phone. */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, Hand, Check, Clock, Undo2, UserPlus, Pencil, Trash2, RotateCcw, Send, Flame, CalendarDays, Play, MoreHorizontal } from 'lucide-react'
+import { X, Hand, Check, ClipboardCheck, ArrowRight, Clock, Undo2, UserPlus, Pencil, Trash2, RotateCcw, Send, Flame, CalendarDays, Play, MoreHorizontal } from 'lucide-react'
 import { Alert, Badge, Button, Loading } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
 import { useUi } from './App.jsx'
@@ -152,6 +152,13 @@ export default function AskPanel({ ask: a, onClose }) {
 
       <div className="ak-panel-body">
         {a.details && <p className="ak-details"><RichText text={a.details} /></p>}
+        {a.checklist && (
+          <a className="ak-checklist" href={`/checklists/#/${encodeURIComponent(a.checklist.id)}`}>
+            <ClipboardCheck size={20} aria-hidden="true" />
+            <span><b>Checklist</b>{a.checklist.name}</span>
+            <ArrowRight size={18} aria-hidden="true" />
+          </a>
+        )}
         {photosTop.length > 0 && (
           <div className="ak-gallery">
             {photosTop.map((p) => <button key={p.id} type="button" className="ak-photo" onClick={() => setBig(p.data)} aria-label="Open photo"><img src={p.data} alt="" /></button>)}

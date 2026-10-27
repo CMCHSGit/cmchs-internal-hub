@@ -89,9 +89,9 @@
   },
   {
     "id": "checklists",
-    "name": "Project checklists",
-    "short": "Project checklists",
-    "description": "Import a list of devices for a job and tick them off as a team, by department. Export it any time",
+    "name": "Checklists",
+    "short": "Checklists",
+    "description": "Equipment checks for a team: software upgrades, maintenance, test rounds. Several ticks a device, shared with who is doing it",
     "link": "/checklists/",
     "category": "Service",
     "icon": "clipboard-check",

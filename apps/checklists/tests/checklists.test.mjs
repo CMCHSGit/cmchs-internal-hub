@@ -4,9 +4,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  NO_DEPARTMENT, departmentOf, exportRows, EXPORT_HEADERS, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
+  DEFAULT_STEPS, NO_DEPARTMENT, departmentOf, exportRows, exportHeaders, latestTick, newStepId, progressLabel, progressOf, stateOf, stepsFromText, stepsOf, tickOf, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
   sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial,
 } from '../src/model.js'
+
+const EXPORT_HEADERS = exportHeaders()
 
 const HEADER = ['Device ID', 'Device Category', 'Device Model', 'Device Serial Number', 'Device Code', 'Asset Number', 'Device Name', 'Device Status', 'Location',
   'Facility', 'Department', 'Room No', 'Bed No', 'Error Information', 'IP Address', 'Wireless MAC address', 'Wired MAC address', 'Central Station IP Address',
@@ -153,11 +155,12 @@ test('the export has a column for each header, the result in words, and defuses 
   assert.equal(out.length, 2)
   assert.ok(out.every((r) => r.length === EXPORT_HEADERS.length))
   const col = (h) => EXPORT_HEADERS.indexOf(h)
-  assert.equal(out[0][col('Result')], 'Done')
+  assert.equal(out[0][col('Progress')], 'Done')
+  assert.equal(out[0][col('Done')], 'Yes')
   assert.equal(out[0][col('Done by')], 'Ann')
   assert.equal(out[0][col('Done at')], '27-Oct-2026 14:05')
   assert.equal(out[0][col('Last seen')], '27-Oct-2026 09:15')
-  assert.equal(out[1][col('Result')], '')
+  assert.equal(out[1][col('Progress')], '')
   const csv = toCsv(EXPORT_HEADERS, out)
   assert.ok(csv.startsWith('﻿"Department"'))
   assert.ok(csv.includes('"\'=SUM(A1)"'), 'a cell that starts with = is made text')
@@ -192,6 +195,76 @@ test('the export says which devices were found on site, and by whom', () => {
   assert.equal(row[EXPORT_HEADERS.indexOf('Added on site')], 'Yes')
   assert.equal(row[EXPORT_HEADERS.indexOf('Added by')], 'Peter')
   assert.equal(exportRows([items[1]])[0][EXPORT_HEADERS.indexOf('Added on site')], '')
+})
+
+const STEPS = [{ id: 'sw', label: 'Software upgraded' }, { id: 'cfg', label: 'Changed config' }]
+const at = new Date(2026, 9, 27, 14, 5)
+const tick = (byName, when = at) => ({ by: byName.toLowerCase(), byName, at: when })
+const mk = (o) => ({ id: 'x', name: 'N1-X', serial: 'SX', status: 'Working', department: 'CCU', ...o })
+
+test('a list with no steps of its own has one, "Done"; a list can have its own', () => {
+  assert.deepEqual(stepsOf(null), DEFAULT_STEPS)
+  assert.deepEqual(stepsOf({ steps: [] }), DEFAULT_STEPS)
+  assert.deepEqual(stepsOf({ steps: STEPS }), STEPS)
+})
+
+test('steps are typed one a line, with ids that are safe in a field path and never repeat', () => {
+  const steps = stepsFromText('Software upgraded\n\n  Changed config  \nsoftware UPGRADED\nDone\nBattery tested\n')
+  assert.deepEqual(steps.map((s) => s.label), ['Software upgraded', 'Changed config', 'Done', 'Battery tested'])
+  assert.ok(steps.every((s) => /^[a-z0-9]+$/.test(s.id)))
+  assert.equal(new Set(steps.map((s) => s.id)).size, 4)
+  assert.equal(steps.find((s) => s.label === 'Done').id, 'done', 'a step called Done is the one older ticks belong to')
+  assert.equal(stepsFromText('a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\nm\nn').length, 12, 'twelve at most')
+  assert.deepEqual(stepsFromText('  \n'), [])
+  assert.notEqual(newStepId('Config', ['config'], 0.3), 'config')
+})
+
+test('a device is done when every step is ticked; partway is not done; a tick from before steps counts as Done', () => {
+  assert.equal(stateOf(mk({}), STEPS), 'todo')
+  assert.equal(stateOf(mk({ checks: { sw: tick('Ann') } }), STEPS), 'partial')
+  assert.equal(stateOf(mk({ checks: { sw: tick('Ann'), cfg: tick('Ann') } }), STEPS), 'done')
+  assert.equal(stateOf(mk({ result: 'notfound', checks: { sw: tick('Ann') } }), STEPS), 'lost')
+  assert.equal(stateOf(mk({ result: 'done', doneByName: 'Old' })), 'done', 'the single step of an older list')
+  assert.equal(tickOf(mk({ result: 'done', doneByName: 'Old' }), 'done').byName, 'Old')
+  assert.equal(tickOf(mk({ result: 'done' }), 'sw'), null)
+  assert.deepEqual(progressOf(mk({ checks: { cfg: tick('Ann') } }), STEPS), { ticked: 1, total: 2 })
+  assert.equal(progressLabel(mk({ checks: { cfg: tick('Ann') } }), STEPS), '1 of 2')
+  assert.equal(progressLabel(mk({ result: 'notfound' }), STEPS), 'Couldn’t find')
+  assert.equal(latestTick(mk({ checks: { sw: tick('Ann', new Date(2026, 9, 27, 9)), cfg: tick('Ben', new Date(2026, 9, 27, 11)) } }), STEPS).byName, 'Ben')
+  assert.equal(latestTick(mk({}), STEPS), null)
+})
+
+test('counts, filters and sorting follow the steps', () => {
+  const list = [
+    mk({ id: 'a', name: 'A', checks: { sw: tick('Ann'), cfg: tick('Ann') } }),
+    mk({ id: 'b', name: 'B', checks: { sw: tick('Ben') } }),
+    mk({ id: 'c', name: 'C' }),
+    mk({ id: 'd', name: 'D', result: 'notfound' }),
+  ]
+  const s = summarise(list, STEPS)
+  assert.equal(s.done, 1)
+  assert.equal(s.notfound, 1)
+  assert.equal(s.todo, 2, 'partway counts as still to do')
+  assert.deepEqual(s.stepCounts, { sw: 2, cfg: 1 })
+  assert.deepEqual(filterItems(list, { show: 'todo' }, STEPS).map((i) => i.id), ['b', 'c'])
+  assert.deepEqual(filterItems(list, { show: 'done' }, STEPS).map((i) => i.id), ['a'])
+  assert.deepEqual(filterItems(list, { missing: 'cfg' }, STEPS).map((i) => i.id), ['b', 'c'], 'a device nobody could find is not missing a step')
+  assert.deepEqual(filterItems(list, { missing: 'sw' }, STEPS).map((i) => i.id), ['c'])
+  assert.deepEqual(filterItems(list, { q: 'ben' }, STEPS).map((i) => i.id), ['b'], 'search finds who ticked')
+  assert.deepEqual(sortItems(list, 'result', 1, STEPS).map((i) => i.id), ['c', 'b', 'd', 'a'])
+})
+
+test('the export has a column set for each step', () => {
+  const heads = exportHeaders(STEPS)
+  const [row] = exportRows([mk({ checks: { sw: tick('Ann') } })], STEPS)
+  assert.equal(row.length, heads.length)
+  const col = (h) => heads.indexOf(h)
+  assert.equal(row[col('Progress')], '1 of 2')
+  assert.equal(row[col('Software upgraded')], 'Yes')
+  assert.equal(row[col('Software upgraded by')], 'Ann')
+  assert.equal(row[col('Software upgraded at')], '27-Oct-2026 14:05')
+  assert.equal(row[col('Changed config')], '')
+  assert.equal(row[col('Changed config by')], '')
 })
 
 test('dates and file names', () => {

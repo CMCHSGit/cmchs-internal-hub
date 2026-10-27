@@ -2,7 +2,7 @@
    one line for what's needed, who it's for, and send. Everything else is
    optional. */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import { Alert, Button, Switch } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
@@ -10,6 +10,7 @@ import { useOnline } from './online.js'
 import { CcPicker, Field, Modal, SendToPicker } from './ui.jsx'
 import { compressPhoto } from './photos.js'
 import { LIMITS } from './model.js'
+import { shareWith, watchOwnLists } from '../../checklists/src/store.js'
 
 export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
   const s = useStore()
@@ -22,7 +23,11 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
     cc: ask?.cc || prefill.cc || [],
     due: ask?.due || '',
     urgent: !!ask?.urgent,
+    checklist: ask?.checklist || prefill.checklist || null,
   }))
+  // The checklists this person made: the only ones they can share, so the only ones an ask can attach.
+  const [mine, setMine] = useState([])
+  useEffect(() => { try { return watchOwnLists(s.me.uid, setMine, () => {}) } catch { return undefined } }, [s.me.uid]) // eslint-disable-line react-hooks/exhaustive-deps
   const [photos, setPhotos] = useState([])
   const [busy, setBusy] = useState(false)
   const online = useOnline()
@@ -34,6 +39,10 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
     setErr('')
     setBusy(true)
     try {
+      // The people it goes to are given the checklist too, before the ask is sent, so nobody is told about one they can't open.
+      if (f.checklist && mine.some((l) => l.id === f.checklist.id)) {
+        await shareWith(f.checklist.id, { people: [...f.assignees, ...f.cc], teams: f.teams }).catch((e) => { throw new Error('The checklist couldn’t be shared, so nothing was sent: ' + (e?.message || e)) })
+      }
       if (editing) {
         await s.edit(ask, f)
         onSaved?.(ask.id)
@@ -67,6 +76,15 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
           <span className="field-label">CC <span className="text-muted ak-label-hint">to keep them in the loop: they’re told when it’s sent and when it’s done</span></span>
           <CcPicker cc={f.cc} exclude={f.assignees} onChange={(cc) => set({ cc })} />
         </div>
+        {(mine.length > 0 || f.checklist) && (
+          <Field label="Checklist" hint="Optional. Everyone you send this to is given the checklist, so they can tick it off.">
+            <select value={f.checklist?.id || ''} onChange={(e) => { const l = mine.find((x) => x.id === e.target.value); set({ checklist: l ? { id: l.id, name: l.name } : null }) }}>
+              <option value="">None</option>
+              {mine.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {f.checklist && !mine.some((l) => l.id === f.checklist.id) && <option value={f.checklist.id}>{f.checklist.name}</option>}
+            </select>
+          </Field>
+        )}
         <div className="ak-formrow">
           <Field label="Due" hint="Optional">
             <input className="input" type="date" value={f.due} min={editing ? undefined : s.today} onChange={(e) => set({ due: e.target.value })} />

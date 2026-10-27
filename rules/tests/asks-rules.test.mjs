@@ -154,6 +154,16 @@ await check('an admin changes an ask they aren\'t part of', false, () => updateD
 await check('an admin deletes an ask they aren\'t part of', false, () => deleteDoc(doc(as('admin1'), 'asks/a1')))
 await check('an admin still reads the company counts', true, () => getDocs(query(collection(as('admin1'), 'askStats'), where('status', 'in', ['open', 'picked', 'waiting']))))
 
+console.log('\nA checklist attached to an ask')
+const CL = { id: 'abc123', name: 'N1 software upgrade' }
+await check('Lee raises an ask with a checklist attached', true, () => setDoc(doc(as('lee'), 'asks/c1'), ask({ teams: ['Engineers'], checklist: CL })))
+await check('an ask whose checklist has more than an id and a name', false, () => setDoc(doc(as('lee'), 'asks/c2'), ask({ teams: ['Engineers'], checklist: { ...CL, steps: 5 } })))
+await check('an ask whose checklist is not a map', false, () => setDoc(doc(as('lee'), 'asks/c3'), ask({ teams: ['Engineers'], checklist: 'abc123' })))
+await check('an ask whose checklist has no id', false, () => setDoc(doc(as('lee'), 'asks/c4'), ask({ teams: ['Engineers'], checklist: { id: '', name: 'x' } })))
+await check('Jess attaches a checklist to an ask she raised', true, () => updateDoc(doc(as('jess'), 'asks/a2'), { checklist: CL }))
+await check('Jess puts a bad checklist on it', false, () => updateDoc(doc(as('jess'), 'asks/a2'), { checklist: { id: 5, name: 'x' } }))
+await check('Jess takes the checklist off again', true, () => updateDoc(doc(as('jess'), 'asks/a2'), { checklist: null }))
+
 console.log(`\n${pass} passed, ${fail} failed`)
 await env.cleanup()
 process.exit(fail ? 1 : 0)

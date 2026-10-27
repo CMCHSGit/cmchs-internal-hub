@@ -213,38 +213,55 @@ service cloud.firestore {
       allow create, update, delete: if canEditMaintenance();
     }
 
-    // Project checklists (internal.chsnz.co.nz/checklists/) — a list of devices for a job (the N1
-    // monitor software upgrade), ticked off by everyone on the team as they go. A document a list, and a
+    // Checklists (internal.chsnz.co.nz/checklists/) — a list of things to check on equipment (the N1 monitor
+    // software upgrade, planned maintenance, a test round), ticked off by a team. A document a list, and a
     // document a device under it, so two people ticking different devices never write the same one.
-    // Everyone signed in reads, and ticks: that is the result (done / couldn't find), who and when, and a
-    // note, nothing else about the device. The Engineers and Management teams and admins also make and
-    // delete lists and import or refresh the devices. A tick is stamped with the person's own uid.
-    // Anyone may also add a device found on site (below) and remove the ones they added.
+    // Seen like an ask: only by whoever made it and the people and teams it is shared with (`people`,
+    // `teams`). Those people read it, tick (the `checks` map, the result 'notfound', who and when, a note:
+    // nothing else about a device), add a device found on site (an id starting "found-", in their own name)
+    // and remove their own again. Whoever made it (an admin, or Engineers or Management, may make one)
+    // imports and refreshes the devices, changes the steps and who it is shared with, renames and deletes it.
+    function canSeeChecklist(l) {
+      return isSignedIn() && (l.get('createdBy', '') == request.auth.uid
+        || request.auth.uid in l.get('people', [])
+        || (myTeam() is string && myTeam() in l.get('teams', [])));
+    }
+    function ownsChecklist(l) { return isSignedIn() && l.get('createdBy', '') == request.auth.uid; }
+    function checklistDoc(listId) { return get(/databases/$(database)/documents/checklists/$(listId)).data; }
+    function isChecklist(d) {
+      return d.get('people', []) is list && d.get('people', []).size() <= 60
+        && d.get('teams', []) is list && d.get('teams', []).hasOnly(['Admin', 'Management', 'Engineers', 'Sales', 'Application'])
+        && d.get('steps', []) is list && d.get('steps', []).size() <= 12;
+    }
+    function isChecklistTick() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['checks', 'result', 'doneBy', 'doneByName', 'doneAt', 'note', 'noteByName'])
+        && request.resource.data.get('checks', {}) is map
+        && request.resource.data.get('result', '') in ['', 'done', 'notfound']
+        && request.resource.data.get('doneBy', '') in ['', request.auth.uid]
+        && request.resource.data.get('note', '').size() <= 1000;
+    }
+    // A device found on site that the spreadsheet didn't list.
+    function isFoundOnSite(itemId) {
+      return itemId.matches('found-.*')
+        && request.resource.data.get('addedOnSite', false) == true
+        && request.resource.data.get('addedBy', '') == request.auth.uid
+        && request.resource.data.get('checks', {}) is map
+        && request.resource.data.get('result', '') in ['', 'done']
+        && request.resource.data.get('doneBy', '') in ['', request.auth.uid]
+        && request.resource.data.get('note', '').size() <= 1000;
+    }
     match /checklists/{listId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if canEditMaintenance();
+      allow read: if canSeeChecklist(resource.data);
+      allow create: if canEditMaintenance() && request.resource.data.get('createdBy', '') == request.auth.uid && isChecklist(request.resource.data);
+      allow update: if ownsChecklist(resource.data) && request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '') && isChecklist(request.resource.data);
+      allow delete: if ownsChecklist(resource.data);
       match /items/{itemId} {
-        allow read: if isSignedIn();
-        // A device found on site that the spreadsheet didn't list: anyone may add one (an id starting
-        // "found-", in their own name) and may remove their own again.
-        allow create: if canEditMaintenance() || (isSignedIn() && isFoundOnSite(itemId));
-        allow delete: if canEditMaintenance() || (isSignedIn() && resource.data.get('addedBy', '') == request.auth.uid);
-        allow update: if canEditMaintenance() || (isSignedIn() && isChecklistTick());
-      }
-      function isFoundOnSite(itemId) {
-        return itemId.matches('found-.*')
-          && request.resource.data.get('addedOnSite', false) == true
-          && request.resource.data.get('addedBy', '') == request.auth.uid
-          && request.resource.data.get('result', '') in ['', 'done']
-          && request.resource.data.get('doneBy', '') in ['', request.auth.uid]
-          && request.resource.data.get('note', '').size() <= 1000;
-      }
-      function isChecklistTick() {
-        return request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['result', 'doneBy', 'doneByName', 'doneAt', 'note', 'noteByName'])
-          && request.resource.data.get('result', '') in ['', 'done', 'notfound']
-          && request.resource.data.get('doneBy', '') in ['', request.auth.uid]
-          && request.resource.data.get('note', '').size() <= 1000;
+        allow read: if canSeeChecklist(checklistDoc(listId));
+        allow create: if ownsChecklist(checklistDoc(listId)) || (canSeeChecklist(checklistDoc(listId)) && isFoundOnSite(itemId));
+        allow delete: if ownsChecklist(checklistDoc(listId))
+          || (canSeeChecklist(checklistDoc(listId)) && resource.data.get('addedBy', '') == request.auth.uid);
+        allow update: if ownsChecklist(checklistDoc(listId)) || (canSeeChecklist(checklistDoc(listId)) && isChecklistTick());
       }
     }
 
@@ -402,7 +419,7 @@ service cloud.firestore {
     function isAsk(d) {
       return d.keys().hasOnly(['title', 'details', 'createdBy', 'createdByName', 'createdAtMs', 'updatedAtMs',
           'assignees', 'teams', 'cc', 'people', 'owner', 'ownerName', 'status', 'waitingOn', 'urgent', 'due',
-          'doneAtMs', 'doneBy', 'photoCount', 'commentCount', 'lastCommentAtMs', 'lastCommentBy', 'event'])
+          'doneAtMs', 'doneBy', 'photoCount', 'commentCount', 'lastCommentAtMs', 'lastCommentBy', 'event', 'checklist'])
         && isShortText(d.title, 1, 200) && isShortText(d.details, 0, 4000)
         && d.createdBy is string && d.createdAtMs is number && d.doneAtMs is number
         && d.status in ['open', 'picked', 'waiting', 'done']
@@ -418,7 +435,11 @@ service cloud.firestore {
         && (!(d.status in ['picked', 'waiting']) || d.owner != '')
         && isShortText(d.waitingOn, 0, 120) && d.urgent is bool
         && d.due is string && (d.due == '' || d.due.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}'))
-        && (d.get('event', null) == null || d.event is map);
+        && (d.get('event', null) == null || d.event is map)
+        // A checklist attached to it (apps/checklists): its id and name, or none.
+        && (d.get('checklist', null) == null || (d.checklist is map && d.checklist.keys().hasOnly(['id', 'name'])
+            && d.checklist.id is string && d.checklist.id.size() > 0 && d.checklist.id.size() <= 40
+            && d.checklist.name is string && d.checklist.name.size() <= 120));
     }
     function isFairOwnerChange() {
       let before = resource.data.owner;

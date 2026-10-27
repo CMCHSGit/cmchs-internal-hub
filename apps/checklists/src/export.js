@@ -1,5 +1,5 @@
-/* Project checklists — downloading a list. Browser only (a Blob and a link); the rows themselves come from model.js. */
-import { EXPORT_HEADERS, exportRows, fileSafe, summarise, toCsv } from './model.js'
+/* Checklists — downloading a list. Browser only (a Blob and a link); the rows themselves come from model.js. */
+import { DEFAULT_STEPS, exportHeaders, exportRows, fileSafe, summarise, toCsv } from './model.js'
 
 function save(blob, filename) {
   const a = document.createElement('a')
@@ -18,32 +18,33 @@ const stampForName = () => {
 
 export const exportName = (listName, ext) => `${fileSafe(listName)}-${stampForName()}.${ext}`
 
-export function downloadCsv(listName, items) {
-  save(new Blob([toCsv(EXPORT_HEADERS, exportRows(items))], { type: 'text/csv;charset=utf-8' }), exportName(listName, 'csv'))
+export function downloadCsv(listName, items, steps = DEFAULT_STEPS) {
+  save(new Blob([toCsv(exportHeaders(steps), exportRows(items, steps))], { type: 'text/csv;charset=utf-8' }), exportName(listName, 'csv'))
 }
 
 /** An Excel workbook: the devices on one sheet (frozen header, filters), the count by department on another. */
-export async function downloadXlsx(listName, items) {
+export async function downloadXlsx(listName, items, steps = DEFAULT_STEPS) {
   const { default: ExcelJS } = await import('exceljs') // loaded only when someone exports
   const wb = new ExcelJS.Workbook()
   wb.creator = 'CHS Internal Hub'
   wb.created = new Date()
 
+  const HEADERS = exportHeaders(steps)
   const ws = wb.addWorksheet('Devices', { views: [{ state: 'frozen', ySplit: 1 }] })
-  ws.addRow(EXPORT_HEADERS)
-  exportRows(items).forEach((r) => ws.addRow(r))
+  ws.addRow(HEADERS)
+  exportRows(items, steps).forEach((r) => ws.addRow(r))
   const head = ws.getRow(1)
   head.font = { bold: true, color: { argb: 'FFFFFFFF' } }
   head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF554596' } }
   head.alignment = { vertical: 'middle', wrapText: true }
   ws.columns.forEach((col, i) => {
-    let w = EXPORT_HEADERS[i].length
+    let w = HEADERS[i].length
     col.eachCell({ includeEmpty: false }, (c) => { w = Math.max(w, Math.min(String(c.value ?? '').length, 40)) })
     col.width = w + 2
   })
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: EXPORT_HEADERS.length } }
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: HEADERS.length } }
 
-  const s = summarise(items)
+  const s = summarise(items, steps)
   const dep = wb.addWorksheet('By department', { views: [{ state: 'frozen', ySplit: 1 }] })
   dep.addRow(['Department', 'Devices', 'Done', 'Couldn’t find', 'To do'])
   s.departments.forEach((d) => dep.addRow([d.name || 'No department', d.total, d.done, d.notfound, d.total - d.done - d.notfound]))

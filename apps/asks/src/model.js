@@ -251,6 +251,9 @@ export function cleanAsk(input) {
     due: /^\d{4}-\d{2}-\d{2}$/.test(input.due || '') ? input.due : '',
     urgent: !!input.urgent,
   }
+  // A checklist attached to it: only written when there is one, so an ask without needs nothing new of the rules.
+  const cl = input.checklist
+  if (cl && typeof cl.id === 'string' && cl.id) out.checklist = { id: cl.id.slice(0, 40), name: str(cl.name, 120) }
   if (!out.title) throw new Error('Say what you need in the first box.')
   if (!out.assignees.length && !out.teams.length) throw new Error('Send it to at least one person or team.')
   return out

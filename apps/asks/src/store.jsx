@@ -192,6 +192,7 @@ export function StoreProvider({ children }) {
         return {
           patch: {
             ...f, people, ...(cc.length || cur.cc ? { cc } : {}),
+            ...(cur.checklist && !f.checklist ? { checklist: null } : {}),
             ...(added.length || newTeams.length || newCc.length ? { event: eventOf('added', me, { to: added, teams: newTeams, cc: newCc }) } : {}),
           },
         }

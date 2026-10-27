@@ -1,26 +1,35 @@
-/* Project checklists, as a section of the one app (INTEGRATION-PLAN.md step 3), under Service.
+/* Checklists, as a section of the one app (INTEGRATION-PLAN.md step 3), under Service.
 
-   For a job where a team visits many devices (the N1 monitor software upgrade at North Shore, 218 of
-   them all over the hospital): import the device export from the central station, and everyone who
-   signs in sees the same list and ticks off what they have done. It sorts by department so people can
-   walk a ward at a time, shows who ticked what and when, and exports to Excel or CSV. Importing a newer
-   export into the same list refreshes each device's status and location and keeps its ticks.
+   A list of things to check on equipment, ticked off by a team: the N1 monitor software upgrade at North
+   Shore (218 devices all over the hospital), a round of planned maintenance, a test round. Import the
+   device export from the central station, say what has to be ticked on every device ("Software upgraded",
+   "Changed config": a device is done when all its steps are), and share the list with the people and teams
+   doing the job. They see it live, tick as they go, add devices they find that weren't on it, and export it.
+   It sorts and groups by department so people can walk a ward at a time. Importing a newer export into the
+   same list refreshes each device's status and location and keeps its ticks.
 
-   Everyone signed in can read and tick; Engineers, Management and admins also import, rename and
-   delete (rules/firestore.rules, `checklists`; the buttons here only reflect it). Which list is open
+   Like an ask, a list is seen only by the people it is shared with. Whoever made it (an admin, or someone in
+   the Engineers or Management team) imports, changes the steps, shares, renames and deletes; everyone it is
+   shared with ticks, adds and exports (rules/firestore.rules, `checklists`; the buttons here only reflect it).
+   An ask can attach one of your lists, which shares it with whoever the ask goes to. Which list is open
    lives in the address (#/<listId>), so a link opens it. */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Download, FileSpreadsheet, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Download, FileSpreadsheet, Link2, Plus, Share2, Trash2, X } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { XLSXLite } from '../../simprosync/reader.js'
 import {
-  NO_DEPARTMENT, RESULTS, STATUSES, STATUS_ORDER, filterItems, findBySerial, groupByDepartment, newDevice, niceStamp, parseDevices, sharedSerials, sortItems, stamp, summarise,
+  DEFAULT_STEPS, MAX_STEPS, NO_DEPARTMENT, STATUSES, STATUS_ORDER, filterItems, findBySerial, groupByDepartment, latestTick, newDevice, newStepId, niceStamp,
+  parseDevices, progressOf, sharedSerials, sortItems, stamp, stateOf, stepsFromText, stepsOf, summarise, tickOf,
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
-import { addDevice, createList, importInto, removeItem, removeList, renameList, setNote, setResult, watchItems, watchLists } from './store.js'
+import {
+  addDevice, createList, importInto, markLost, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
+} from './store.js'
 
 const EDIT_TEAMS = ['Engineers', 'Management']
+// The teams an ask can go to (rules: isAsk); a list is shared with the same ones.
+const TEAMS = ['Admin', 'Management', 'Engineers', 'Sales', 'Application']
 const NO_DEPT_LABEL = 'No department'
 const STATUS_TONE = { Working: 'green', Standby: 'purple', Offline: 'orange', Shutdown: 'neutral' }
 
@@ -52,40 +61,42 @@ function Checklists() {
   const { user, profile, profileReady } = useAuth()
   const id = useHashId()
   if (user === undefined || (user && !profileReady)) return <div className="cl-page"><Loading /></div>
-  const canEdit = profile?.role === 'admin' || EDIT_TEAMS.includes(profile?.team)
-  const by = { uid: user?.uid || '', name: profile?.displayName || user?.displayName || 'Someone' }
-  return id ? <ListView key={id} id={id} by={by} canEdit={canEdit} /> : <Lists by={by} canEdit={canEdit} />
+  const canCreate = profile?.role === 'admin' || EDIT_TEAMS.includes(profile?.team)
+  const me = { uid: user?.uid || '', team: profile?.team || '', name: profile?.displayName || user?.displayName || 'Someone' }
+  return id ? <ListView key={id} id={id} me={me} /> : <Lists me={me} canCreate={canCreate} />
 }
 
 // ── The lists ──────────────────────────────────────────────────────────────────────────────────────
 
-function Lists({ by, canEdit }) {
+const sharedWith = (l) => Math.max(0, (l.people || []).filter((u) => u !== l.createdBy).length) + (l.teams || []).length
+
+function Lists({ me, canCreate }) {
   const [lists, setLists] = useState(null)
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
   const [toastMsg, toast] = useToast()
 
   useEffect(() => {
-    try { return watchLists(setLists, (e) => setError(readError(e, 'to read the checklists'))) } catch (e) { setError(readError(e, 'to read the checklists')) }
-  }, [])
+    try { return watchLists(me, setLists, (e) => setError(readError(e, 'to read the checklists'))) } catch (e) { setError(readError(e, 'to read the checklists')) }
+  }, [me.uid, me.team])
 
   return (
     <div className="cl-page">
       <div className="cl-head">
         <div>
-          <h1 className="cl-title">Project checklists</h1>
-          <p className="cl-sub">A list of devices for a job, ticked off by everyone on the team as they go.</p>
+          <h1 className="cl-title">Checklists</h1>
+          <p className="cl-sub">Things to check on equipment, ticked off by a team: a software upgrade, planned maintenance, a test round. You see the ones you made or that were shared with you.</p>
         </div>
-        {canEdit && <div className="cl-head-actions"><Button iconLeft={<FileSpreadsheet size={18} />} onClick={() => setImporting(true)}>New list from spreadsheet</Button></div>}
+        {canCreate && <div className="cl-head-actions"><Button iconLeft={<FileSpreadsheet size={18} />} onClick={() => setImporting(true)}>New checklist from spreadsheet</Button></div>}
       </div>
       {error && <Alert tone="critical" title="Not everything loaded">{error}</Alert>}
       {lists === null && !error && <Loading />}
       {lists?.length === 0 && (
         <div className="cl-empty">
-          <p><b>No checklists yet.</b></p>
-          <p>{canEdit
-            ? 'Choose New list from spreadsheet and pick the device export (.xlsx or .csv). Everyone signed in will then see the list and can tick devices off.'
-            : 'An admin, or someone in the Engineers or Management team, starts a list by importing a spreadsheet of devices.'}</p>
+          <p><b>No checklists here yet.</b></p>
+          <p>{canCreate
+            ? 'Choose New checklist from spreadsheet and pick the device export (.xlsx or .csv). Then share it with the people doing the job.'
+            : 'Someone shares a checklist with you, or attaches one to an ask, and it appears here. An admin, or someone in the Engineers or Management team, makes them.'}</p>
         </div>
       )}
       {!!lists?.length && (
@@ -94,16 +105,20 @@ function Lists({ by, canEdit }) {
             <li key={l.id}>
               <a className="cl-list-card" href={`#/${encodeURIComponent(l.id)}`}>
                 <span className="cl-list-name">{l.name}</span>
-                <span className="cl-list-meta">{l.total ?? '…'} devices</span>
-                <span className="cl-list-meta">Started {stamp(l.createdAt) || 'just now'}{l.createdByName ? ` by ${l.createdByName}` : ''}</span>
-                {l.importedAt && <span className="cl-list-meta">Spreadsheet loaded {stamp(l.importedAt)}</span>}
+                <span className="cl-list-meta">{l.total ?? '…'} devices · {stepsOf(l).length} {stepsOf(l).length === 1 ? 'step' : 'steps'}</span>
+                <span className="cl-list-meta">
+                  {l.createdBy === me.uid
+                    ? (sharedWith(l) ? `Yours, shared with ${sharedWith(l)}` : 'Yours, not shared')
+                    : `Shared with you by ${l.createdByName || 'someone'}`}
+                </span>
+                <span className="cl-list-meta">Started {stamp(l.createdAt) || 'just now'}</span>
               </a>
             </li>
           ))}
         </ul>
       )}
       {importing && (
-        <ImportDialog by={by} onClose={(msg, newId) => { setImporting(false); if (msg) toast(msg); if (newId) location.hash = '#/' + encodeURIComponent(newId) }} />
+        <ImportDialog by={me} onClose={(msg, newId) => { setImporting(false); if (msg) toast(msg); if (newId) location.hash = '#/' + encodeURIComponent(newId) }} />
       )}
       <Toast message={toastMsg} />
     </div>
@@ -114,39 +129,42 @@ function Lists({ by, canEdit }) {
 
 const COLUMNS = [
   ['department', 'Department'], ['name', 'Device'], ['serial', 'Serial number'], ['status', 'Status'],
-  ['location', 'Last location'], ['version', 'Software'], ['result', 'Result'],
+  ['location', 'Last location'], ['version', 'Software'], ['result', 'Progress'],
 ]
-const SORT_LABELS = { department: 'Department', status: 'Status', serial: 'Serial number', name: 'Device name', location: 'Last location', version: 'Software version', lastSeen: 'Last seen', result: 'Result' }
+const SORT_LABELS = { department: 'Department', status: 'Status', serial: 'Serial number', name: 'Device name', location: 'Last location', version: 'Software version', lastSeen: 'Last seen', result: 'Progress' }
+const NO_FILTER = { q: '', status: '', department: '', version: '', missing: '', show: 'all' }
 
-function ListView({ id, by, canEdit }) {
+function ListView({ id, me }) {
+  const by = me
   const [items, setItems] = useState(null)
   const [meta, setMeta] = useState({ pending: 0, fromCache: false })
   const [lists, setLists] = useState(null)
   const [error, setError] = useState('')
-  const [f, setF] = useState({ q: '', status: '', department: '', version: '', show: 'all' })
+  const [f, setF] = useState(NO_FILTER)
   const [sort, setSort] = useState({ key: 'department', dir: 1 })
   const [openId, setOpenId] = useState('')
-  const [importing, setImporting] = useState(false)
-  const [exporting, setExporting] = useState(false)
-  const [renaming, setRenaming] = useState(false)
-  const [adding, setAdding] = useState(false)
+  const [dialog, setDialog] = useState('') // import | export | rename | add | share | steps
   const [more, setMore] = useState(false) // the filters under the search box, on a phone
+  const [manage, setManage] = useState(false) // the owner's less-used buttons, on a phone
   const [toastMsg, toast] = useToast()
   const [confirmDialog, confirm] = useConfirm()
 
   useEffect(() => {
     try {
-      const a = watchItems(id, (rows, m) => { setItems(rows); setMeta(m) }, (e) => setError(readError(e, 'to read this list')))
-      const b = watchLists(setLists, () => {})
+      const a = watchItems(id, (rows, m) => { setItems(rows); setMeta(m) }, (e) => setError(readError(e, 'to read this checklist')))
+      const b = watchLists(me, setLists, () => {})
       return () => { a(); b() }
-    } catch (e) { setError(readError(e, 'to read this list')) }
-  }, [id])
+    } catch (e) { setError(readError(e, 'to read this checklist')) }
+  }, [id, me.uid, me.team])
 
   const list = lists?.find((l) => l.id === id)
+  const isOwner = !!list && list.createdBy === me.uid
+  const steps = stepsOf(list)
+  const multi = steps.length > 1
   const all = items || []
-  const summary = useMemo(() => summarise(all), [all])
+  const summary = useMemo(() => summarise(all, steps), [all, steps])
   const shared = useMemo(() => sharedSerials(all), [all])
-  const shown = useMemo(() => sortItems(filterItems(all, f), sort.key, sort.dir), [all, f, sort])
+  const shown = useMemo(() => sortItems(filterItems(all, f, steps), sort.key, sort.dir, steps), [all, f, sort, steps])
   const grouped = sort.key === 'department'
   // What a device found on site is most likely to be: the commonest type and model on the list.
   const common = useMemo(() => {
@@ -158,44 +176,56 @@ function ListView({ id, by, canEdit }) {
   const statuses = STATUS_ORDER.filter((s) => summary.byStatus[s]).concat(Object.keys(summary.byStatus).filter((s) => !STATUS_ORDER.includes(s)))
 
   const sortBy = (key) => setSort((s) => ({ key, dir: s.key === key ? -s.dir : 1 }))
-  const filtered = f.q || f.status || f.department || f.version || f.show !== 'all'
+  const filtered = f.q || f.status || f.department || f.version || f.missing || f.show !== 'all'
 
   async function run(promise, failed = 'Not saved') {
     try { await promise } catch (e) { toast(e?.code === 'permission-denied' ? 'Not saved: the database refused it. The checklists rule may not be published yet.' : `${failed}: ${e?.message || e}`) }
   }
-  const tick = (it) => run(setResult(id, it.id, it.result === RESULTS.done ? '' : RESULTS.done, by))
+  // Tick or untick one step on one device.
+  const toggle = (it, step, on) => run(setStep(id, it, step.id, on, by))
+  // The big box on a one-step list does its only step.
+  const tick = (it) => toggle(it, steps[0], !tickOf(it, steps[0].id))
 
   async function deleteList() {
-    if (!(await confirm({ title: `Delete “${list?.name || 'this list'}”?`, message: `All ${all.length} devices and everyone’s ticks on it will be removed. This can’t be undone. Export it first if you need a copy.`, confirmLabel: 'Delete the list', danger: true }))) return
-    try { await removeList(id, all.map((x) => x.id)); location.hash = '#/' } catch (e) { toast(readError(e, 'to delete the list')) }
+    if (!(await confirm({ title: `Delete “${list?.name || 'this checklist'}”?`, message: `All ${all.length} devices and everyone’s ticks on it will be removed, for everyone it is shared with. This can’t be undone. Export it first if you need a copy.`, confirmLabel: 'Delete the checklist', danger: true }))) return
+    try { await removeList(id, all.map((x) => x.id)); location.hash = '#/' } catch (e) { toast(readError(e, 'to delete the checklist')) }
   }
 
-  if (error) return <div className="cl-page"><a className="cl-back" href="#/"><ArrowLeft size={16} /> All lists</a><Alert tone="critical" title="This list didn’t load">{error}</Alert></div>
+  const back = <a className="cl-back" href="#/"><ArrowLeft size={16} /> All checklists</a>
+  if (error) return <div className="cl-page">{back}<Alert tone="critical" title="This checklist didn’t load">{error}</Alert></div>
   if (items === null || lists === null) return <div className="cl-page"><Loading /></div>
-  if (!list && !all.length) return <div className="cl-page"><a className="cl-back" href="#/"><ArrowLeft size={16} /> All lists</a><div className="cl-empty"><p><b>This list isn’t here.</b></p><p>It may have been deleted.</p></div></div>
+  if (!list) return <div className="cl-page">{back}<div className="cl-empty"><p><b>This checklist isn’t here.</b></p><p>It may have been deleted, or it hasn’t been shared with you. Ask whoever made it.</p></div></div>
 
   const open = all.find((x) => x.id === openId)
   const pct = summary.total ? Math.round((summary.done / summary.total) * 100) : 0
   const tiles = [['todo', 'To do', summary.todo], ['done', 'Done', summary.done], ['notfound', 'Couldn’t find', summary.notfound], ['all', 'All devices', summary.total]]
+  const activeFilters = [f.department, f.status, f.version, f.missing].filter(Boolean).length
 
   return (
     <div className="cl-page">
-      <a className="cl-back" href="#/"><ArrowLeft size={16} /> All lists</a>
+      {back}
       <div className="cl-head">
         <div>
-          <h1 className="cl-title">{list?.name || 'Checklist'}</h1>
+          <h1 className="cl-title">{list.name}</h1>
           <p className="cl-sub">
             {summary.total} devices · {summary.uniqueSerials} different serial numbers
             {all.some((x) => x.addedOnSite) ? ` · ${all.filter((x) => x.addedOnSite).length} found on site` : ''}
-            {list?.importedAt ? ` · spreadsheet loaded ${stamp(list.importedAt)}` : ''}
+            {isOwner ? (sharedWith(list) ? ` · shared with ${sharedWith(list)}` : ' · not shared') : ` · shared with you by ${list.createdByName || 'someone'}`}
           </p>
         </div>
         <div className="cl-head-actions">
-          <Button size="sm" className="cl-add-head" iconLeft={<Plus size={16} />} onClick={() => setAdding(true)}>Add a device</Button>
-          <Button variant="secondary" size="sm" iconLeft={<Download size={16} />} onClick={() => setExporting(true)}>Export</Button>
-          {canEdit && <Button variant="ghost" size="sm" iconLeft={<FileSpreadsheet size={16} />} onClick={() => setImporting(true)}>Update from spreadsheet</Button>}
-          {canEdit && <Button variant="ghost" size="sm" onClick={() => setRenaming(true)}>Rename</Button>}
-          {canEdit && <Button variant="ghost" size="sm" className="cl-del" iconLeft={<Trash2 size={16} />} onClick={deleteList}>Delete</Button>}
+          <Button size="sm" className="cl-add-head" iconLeft={<Plus size={16} />} onClick={() => setDialog('add')}>Add a device</Button>
+          <Button variant="secondary" size="sm" iconLeft={<Download size={16} />} onClick={() => setDialog('export')}>Export</Button>
+          {isOwner && <Button variant="secondary" size="sm" iconLeft={<Share2 size={16} />} onClick={() => setDialog('share')}>Share</Button>}
+          {isOwner && <Button variant="ghost" size="sm" className="cl-manage-toggle" aria-expanded={manage} onClick={() => setManage(!manage)}>Manage</Button>}
+          {isOwner && (
+            <span className={`cl-manage${manage ? ' open' : ''}`}>
+              <Button variant="ghost" size="sm" onClick={() => setDialog('steps')}>Steps ({steps.length})</Button>
+              <Button variant="ghost" size="sm" iconLeft={<FileSpreadsheet size={16} />} onClick={() => setDialog('import')}>Update from spreadsheet</Button>
+              <Button variant="ghost" size="sm" onClick={() => setDialog('rename')}>Rename</Button>
+              <Button variant="ghost" size="sm" className="cl-del" iconLeft={<Trash2 size={16} />} onClick={deleteList}>Delete</Button>
+            </span>
+          )}
         </div>
       </div>
 
@@ -211,6 +241,11 @@ function ListView({ id, by, canEdit }) {
           <span className="cl-bar-done" style={{ width: `${summary.total ? (summary.done / summary.total) * 100 : 0}%` }} />
           <span className="cl-bar-lost" style={{ width: `${summary.total ? (summary.notfound / summary.total) * 100 : 0}%` }} />
         </div>
+        {multi && (
+          <div className="cl-steps-line">
+            {steps.map((st) => <span key={st.id}>{st.label} <b>{summary.stepCounts[st.id]}</b></span>)}
+          </div>
+        )}
       </div>
 
       {meta.pending > 0 && <Alert tone="info" title="Waiting to sync">Your ticks are saved on this device and will go to everyone else when there is a signal. Keep this page open until it says All saved.</Alert>}
@@ -228,50 +263,58 @@ function ListView({ id, by, canEdit }) {
 
       <div className="cl-filters card-like">
         <label className="field cl-grow"><span className="field-label">Search</span>
-          <input className="input" type="search" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Device name, serial, location, IP or note" autoComplete="off" />
+          <input className="input" type="search" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Device name, serial, location, IP, note or who ticked" autoComplete="off" />
         </label>
         <button type="button" className="btn btn-secondary btn-sm cl-filters-toggle" aria-expanded={more} onClick={() => setMore(!more)}>
-          Filters and sort{[f.department, f.status, f.version].filter(Boolean).length ? ` (${[f.department, f.status, f.version].filter(Boolean).length})` : ''}
+          Filters and sort{activeFilters ? ` (${activeFilters})` : ''}
         </button>
         <div className={`cl-more${more ? ' open' : ''}`}>
-        <label className="field"><span className="field-label">Department</span>
-          <select value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })}>
-            <option value="">All departments ({summary.departments.length})</option>
-            {summary.departments.map((d) => <option key={d.name || NO_DEPARTMENT} value={d.name || NO_DEPARTMENT}>{d.name || NO_DEPT_LABEL} ({d.total - d.done - d.notfound} to do of {d.total})</option>)}
-          </select>
-        </label>
-        <label className="field"><span className="field-label">Status</span>
-          <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
-            <option value="">Any status</option>
-            {statuses.map((s) => <option key={s} value={s}>{s} ({summary.byStatus[s]})</option>)}
-          </select>
-        </label>
-        {summary.versions.length > 1 && (
-          <label className="field"><span className="field-label">Software version</span>
-            <select value={f.version} onChange={(e) => setF({ ...f, version: e.target.value })}>
-              <option value="">Any version</option>
-              {summary.versions.map((v) => <option key={v.name} value={v.name}>{v.name || 'Unknown'} ({v.count})</option>)}
+          <label className="field"><span className="field-label">Department</span>
+            <select value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })}>
+              <option value="">All departments ({summary.departments.length})</option>
+              {summary.departments.map((d) => <option key={d.name || NO_DEPARTMENT} value={d.name || NO_DEPARTMENT}>{d.name || NO_DEPT_LABEL} ({d.total - d.done - d.notfound} to do of {d.total})</option>)}
             </select>
           </label>
-        )}
-        <div className="field cl-sort">
-          <span className="field-label">Sort by</span>
-          <div className="cl-sort-row">
-            <select value={sort.key} onChange={(e) => setSort({ key: e.target.value, dir: 1 })} aria-label="Sort by">
-              {Object.entries(SORT_LABELS).map(([k, label]) => <option key={k} value={k}>Sort: {label}</option>)}
+          <label className="field"><span className="field-label">Status</span>
+            <select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
+              <option value="">Any status</option>
+              {statuses.map((s) => <option key={s} value={s}>{s} ({summary.byStatus[s]})</option>)}
             </select>
-            <button type="button" className="icon-btn icon-btn-md" aria-label={sort.dir > 0 ? 'Ascending: switch to descending' : 'Descending: switch to ascending'}
-              title={sort.dir > 0 ? 'A to Z' : 'Z to A'} onClick={() => setSort({ ...sort, dir: -sort.dir })}>
-              {sort.dir > 0 ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
-            </button>
+          </label>
+          {multi && (
+            <label className="field"><span className="field-label">Missing a step</span>
+              <select value={f.missing} onChange={(e) => setF({ ...f, missing: e.target.value })}>
+                <option value="">Any step</option>
+                {steps.map((st) => <option key={st.id} value={st.id}>Missing: {st.label} ({all.filter((x) => stateOf(x, steps) !== 'lost' && !tickOf(x, st.id)).length})</option>)}
+              </select>
+            </label>
+          )}
+          {summary.versions.length > 1 && (
+            <label className="field"><span className="field-label">Software version</span>
+              <select value={f.version} onChange={(e) => setF({ ...f, version: e.target.value })}>
+                <option value="">Any version</option>
+                {summary.versions.map((v) => <option key={v.name} value={v.name}>{v.name || 'Unknown'} ({v.count})</option>)}
+              </select>
+            </label>
+          )}
+          <div className="field cl-sort">
+            <span className="field-label">Sort by</span>
+            <div className="cl-sort-row">
+              <select value={sort.key} onChange={(e) => setSort({ key: e.target.value, dir: 1 })} aria-label="Sort by">
+                {Object.entries(SORT_LABELS).map(([k, label]) => <option key={k} value={k}>Sort: {label}</option>)}
+              </select>
+              <button type="button" className="icon-btn icon-btn-md" aria-label={sort.dir > 0 ? 'Ascending: switch to descending' : 'Descending: switch to ascending'}
+                title={sort.dir > 0 ? 'A to Z' : 'Z to A'} onClick={() => setSort({ ...sort, dir: -sort.dir })}>
+                {sort.dir > 0 ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
+              </button>
+            </div>
           </div>
-        </div>
         </div>
       </div>
 
       <div className="cl-count">
         <span>Showing {shown.length} of {summary.total}</span>
-        {filtered && <button type="button" className="cl-link" onClick={() => setF({ q: '', status: '', department: '', version: '', show: 'all' })}>Clear filters</button>}
+        {filtered && <button type="button" className="cl-link" onClick={() => setF(NO_FILTER)}>Clear filters</button>}
       </div>
 
       <div className="data-table-wrap">
@@ -281,44 +324,47 @@ function ListView({ id, by, canEdit }) {
               <th className="cl-check-col"><span className="sr-only">Done</span></th>
               {COLUMNS.filter(([k]) => !(grouped && k === 'department')).map(([k, label]) => (
                 <th key={k} aria-sort={sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : undefined}>
-                  <button type="button" className="data-table-sort" onClick={() => sortBy(k)}>{label}{sort.key === k && <span aria-hidden="true">{sort.dir > 0 ? '▲' : '▼'}</span>}</button>
+                  <button type="button" className="data-table-sort" onClick={() => sortBy(k)}>{k === 'result' && multi ? 'Steps' : label}{sort.key === k && <span aria-hidden="true">{sort.dir > 0 ? '▲' : '▼'}</span>}</button>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {groups.map((g) => (
-              <GroupRows key={g.department ?? 'all'} group={g} grouped={grouped} total={deptTotals.get(g.department || '')} shared={shared} onTick={tick} onOpen={setOpenId} />
+              <GroupRows key={g.department ?? 'all'} group={g} grouped={grouped} total={deptTotals.get(g.department || '')} shared={shared} steps={steps}
+                onTick={tick} onToggle={toggle} onOpen={setOpenId} />
             ))}
           </tbody>
         </table>
-        {!shown.length && <p className="data-table-empty">{all.length ? 'No devices match. Clear the filters to see them all.' : 'This list has no devices yet.'}</p>}
+        {!shown.length && <p className="data-table-empty">{all.length ? 'No devices match. Clear the filters to see them all.' : 'This checklist has no devices yet.'}</p>}
       </div>
 
-      <Button className="cl-fab" iconLeft={<Plus size={20} />} onClick={() => setAdding(true)}>Add device</Button>
-      {adding && (
-        <AddDialog items={all} by={by} listId={id} run={run} defaults={{ ...common, department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
-          onOpen={setOpenId} onClose={(msg) => { setAdding(false); if (msg) toast(msg) }} />
+      <Button className="cl-fab" iconLeft={<Plus size={20} />} onClick={() => setDialog('add')}>Add device</Button>
+      {dialog === 'add' && (
+        <AddDialog items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
+          onOpen={setOpenId} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />
       )}
       {open && (
-        <DetailDialog it={open} shared={shared.has((open.serial || '').toLowerCase())} canEdit={canEdit} by={by} listId={id} run={run}
+        <DetailDialog it={open} steps={steps} shared={shared.has((open.serial || '').toLowerCase())} canRemove={isOwner || (open.addedOnSite && open.addedBy === me.uid)} by={by} listId={id} run={run}
           onClose={() => setOpenId('')}
           onRemove={async () => {
-            if (!(await confirm({ title: `Remove ${open.name || open.serial} from this list?`, message: 'Importing a spreadsheet that still has it will add it back.', confirmLabel: 'Remove', danger: true }))) return
+            if (!(await confirm({ title: `Remove ${open.name || open.serial} from this checklist?`, message: 'Importing a spreadsheet that still has it will add it back.', confirmLabel: 'Remove', danger: true }))) return
             setOpenId('')
             run(removeItem(id, open.id), 'Not removed')
           }} />
       )}
-      {exporting && <ExportDialog name={list?.name} all={all} shown={shown} filtered={filtered} onClose={(msg) => { setExporting(false); if (msg) toast(msg) }} />}
-      {importing && <ImportDialog by={by} list={list} existingIds={all.map((x) => x.id)} onClose={(msg) => { setImporting(false); if (msg) toast(msg) }} />}
-      {renaming && <RenameDialog name={list?.name || ''} onClose={(name) => { setRenaming(false); if (name && name !== list?.name) run(renameList(id, name)) }} />}
+      {dialog === 'export' && <ExportDialog name={list.name} all={all} shown={shown} steps={steps} filtered={filtered} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
+      {dialog === 'import' && <ImportDialog by={by} list={list} existingIds={all.map((x) => x.id)} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
+      {dialog === 'rename' && <RenameDialog name={list.name} onClose={(name) => { setDialog(''); if (name && name !== list.name) run(renameList(id, name)) }} />}
+      {dialog === 'share' && <ShareDialog list={list} me={me} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
+      {dialog === 'steps' && <StepsDialog list={list} steps={steps} summary={summary} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
       {confirmDialog}
       <Toast message={toastMsg} />
     </div>
   )
 }
 
-function GroupRows({ group, grouped, total, shared, onTick, onOpen }) {
+function GroupRows({ group, grouped, total, shared, steps, onTick, onToggle, onOpen }) {
   return (
     <>
       {grouped && (
@@ -329,22 +375,52 @@ function GroupRows({ group, grouped, total, shared, onTick, onOpen }) {
           </td>
         </tr>
       )}
-      {group.items.map((it) => <DeviceRow key={it.id} it={it} grouped={grouped} shared={shared.has((it.serial || '').toLowerCase())} onTick={onTick} onOpen={onOpen} />)}
+      {group.items.map((it) => (
+        <DeviceRow key={it.id} it={it} steps={steps} grouped={grouped} shared={shared.has((it.serial || '').toLowerCase())} onTick={onTick} onToggle={onToggle} onOpen={onOpen} />
+      ))}
     </>
   )
 }
 
-function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
-  const done = it.result === RESULTS.done
-  const lost = it.result === RESULTS.notfound
+/** One toggle per step: tick what has been done, with who and when on hover. */
+function StepChecks({ it, steps, onToggle }) {
+  return (
+    <span className="cl-steps">
+      {steps.map((st) => {
+        const t = tickOf(it, st.id)
+        return (
+          <button key={st.id} type="button" className={`cl-step${t ? ' on' : ''}`} aria-pressed={!!t}
+            title={t ? `${st.label}: ${t.byName || 'someone'}${t.at ? ', ' + stamp(t.at) : ''}` : st.label}
+            onClick={(e) => { e.stopPropagation(); onToggle(it, st, !t) }}>
+            {t && <Check size={14} strokeWidth={3} aria-hidden="true" />}{st.label}
+          </button>
+        )
+      })}
+    </span>
+  )
+}
+
+function DeviceRow({ it, steps, grouped, shared, onTick, onToggle, onOpen }) {
+  const state = stateOf(it, steps)
+  const done = state === 'done'
+  const lost = state === 'lost'
+  const multi = steps.length > 1
+  const p = progressOf(it, steps)
+  const last = latestTick(it, steps)
   return (
     <tr className={`data-table-row cl-row${done ? ' done' : ''}${lost ? ' lost' : ''}`} tabIndex={0} onClick={() => onOpen(it.id)}
       onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(it.id) }}>
       <td className="cl-check-col" data-label="">
-        <button type="button" className={`cl-check${done ? ' on' : ''}`} aria-pressed={done} aria-label={`${done ? 'Untick' : 'Tick'} ${it.name || it.serial}`}
-          onClick={(e) => { e.stopPropagation(); onTick(it) }}>
-          {done && <Check size={22} strokeWidth={3} aria-hidden="true" />}
-        </button>
+        {multi ? (
+          <span className={`cl-check cl-progress-box${done ? ' on' : p.ticked ? ' part' : ''}`} aria-label={`${p.ticked} of ${p.total} steps done`}>
+            {done ? <Check size={22} strokeWidth={3} aria-hidden="true" /> : `${p.ticked}/${p.total}`}
+          </span>
+        ) : (
+          <button type="button" className={`cl-check${done ? ' on' : ''}`} aria-pressed={done} aria-label={`${done ? 'Untick' : 'Tick'} ${it.name || it.serial}`}
+            onClick={(e) => { e.stopPropagation(); onTick(it) }}>
+            {done && <Check size={22} strokeWidth={3} aria-hidden="true" />}
+          </button>
+        )}
       </td>
       {!grouped && <td className="cl-c-dept" data-label="Department">{it.department ? <span className={it.deptGuessed ? 'cl-guess' : ''} title={it.deptGuessed ? 'Not in the export: taken from the location' : undefined}>{it.department}</span> : <span className="cl-none">{NO_DEPT_LABEL}</span>}</td>}
       <td className="cl-c-device" data-label="Device">
@@ -367,9 +443,11 @@ function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
         <span className="cl-ver-inline cl-mono">{it.version}</span>
       </td>
       <td className="cl-c-ver" data-label="Software"><span className="cl-mono">{it.version}</span></td>
-      <td className="cl-c-result" data-label="Result">
-        {done && <><Badge tone="green">Done</Badge><span className="cl-small">{it.doneByName}{it.doneAt ? ` · ${stamp(it.doneAt)}` : ''}</span></>}
-        {lost && <><Badge tone="orange">Couldn’t find</Badge><span className="cl-small">{it.doneByName}{it.doneAt ? ` · ${stamp(it.doneAt)}` : ''}</span></>}
+      <td className="cl-c-result" data-label={multi ? 'Steps' : 'Progress'}>
+        {multi && <StepChecks it={it} steps={steps} onToggle={onToggle} />}
+        {!multi && done && <Badge tone="green">Done</Badge>}
+        {lost && <Badge tone="orange">Couldn’t find</Badge>}
+        {last && (done || lost || !multi) && <span className="cl-small">{last.byName}{last.at ? ` · ${stamp(last.at)}` : ''}</span>}
         {it.note && <span className="cl-note" title={it.note}>“{it.note}”</span>}
       </td>
     </tr>
@@ -378,10 +456,9 @@ function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
 
 // ── One device ─────────────────────────────────────────────────────────────────────────────────────
 
-function DetailDialog({ it, shared, canEdit, by, listId, run, onClose, onRemove }) {
+function DetailDialog({ it, steps, shared, canRemove, by, listId, run, onClose, onRemove }) {
   const [note, setNoteText] = useState(it.note || '')
-  const done = it.result === RESULTS.done
-  const lost = it.result === RESULTS.notfound
+  const state = stateOf(it, steps)
   const rows = [
     ['Department', it.department ? it.department + (it.deptGuessed ? ' (from the location: not in the export)' : '') : NO_DEPT_LABEL],
     ['Device type', [it.category, it.model].filter(Boolean).join(' · ')],
@@ -400,14 +477,28 @@ function DetailDialog({ it, shared, canEdit, by, listId, run, onClose, onRemove 
   return (
     <Dialog title={it.name || it.serial} description={shared ? 'This serial number is on more than one device in the export.' : undefined} onClose={onClose} width={560}>
       <div className="cl-detail-state">
-        {done && <><Badge tone="green">Done</Badge> <span>by {it.doneByName}{it.doneAt ? `, ${stamp(it.doneAt)}` : ''}</span></>}
-        {lost && <><Badge tone="orange">Couldn’t find</Badge> <span>marked by {it.doneByName}{it.doneAt ? `, ${stamp(it.doneAt)}` : ''}</span></>}
-        {!done && !lost && <><Badge tone="neutral">To do</Badge></>}
+        {state === 'done' && <Badge tone="green">Done</Badge>}
+        {state === 'lost' && <><Badge tone="orange">Couldn’t find</Badge> <span>marked by {it.doneByName}{it.doneAt ? `, ${stamp(it.doneAt)}` : ''}</span></>}
+        {state === 'partial' && <Badge tone="purple">{progressOf(it, steps).ticked} of {steps.length} steps</Badge>}
+        {state === 'todo' && <Badge tone="neutral">To do</Badge>}
       </div>
+      <ul className="cl-step-list">
+        {steps.map((st) => {
+          const t = tickOf(it, st.id)
+          return (
+            <li key={st.id}>
+              <button type="button" className={`cl-step-row${t ? ' on' : ''}`} aria-pressed={!!t} onClick={() => run(setStep(listId, it, st.id, !t, by))}>
+                <span className="cl-check">{t && <Check size={20} strokeWidth={3} aria-hidden="true" />}</span>
+                <span className="cl-step-label">{st.label}</span>
+                {t && <span className="cl-small">{t.byName || 'someone'}{t.at ? ` · ${stamp(t.at)}` : ''}</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
       <div className="cl-detail-actions">
-        {!done && <Button iconLeft={<Check size={18} />} onClick={() => run(setResult(listId, it.id, RESULTS.done, by))}>Mark done</Button>}
-        {!lost && <Button variant="secondary" onClick={() => run(setResult(listId, it.id, RESULTS.notfound, by))}>Couldn’t find it</Button>}
-        {(done || lost) && <Button variant="ghost" onClick={() => run(setResult(listId, it.id, '', by))}>Back to to do</Button>}
+        {state !== 'lost' && <Button variant="secondary" onClick={() => run(markLost(listId, it.id, by))}>Couldn’t find it</Button>}
+        {state !== 'todo' && <Button variant="ghost" onClick={() => run(resetItem(listId, it.id))}>Back to to do</Button>}
       </div>
       <label className="field"><span className="field-label">Note{it.noteByName && it.note ? ` (by ${it.noteByName})` : ''}</span>
         <textarea className="input" rows={2} value={note} onChange={(e) => setNoteText(e.target.value)} onBlur={saveNote} placeholder="Where it was, what you did, anything the next person should know" />
@@ -416,7 +507,7 @@ function DetailDialog({ it, shared, canEdit, by, listId, run, onClose, onRemove 
         {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
       </dl>
       <div className="dialog-actions">
-        {(canEdit || (it.addedOnSite && it.addedBy === by.uid)) && <Button variant="ghost" className="cl-del" iconLeft={<Trash2 size={18} />} onClick={onRemove}>Remove from list</Button>}
+        {canRemove && <Button variant="ghost" className="cl-del" iconLeft={<Trash2 size={18} />} onClick={onRemove}>Remove from list</Button>}
         <Button variant="secondary" onClick={() => { saveNote(); onClose() }}>Close</Button>
       </div>
     </Dialog>
@@ -426,9 +517,9 @@ function DetailDialog({ it, shared, canEdit, by, listId, run, onClose, onRemove 
 function RenameDialog({ name, onClose }) {
   const [v, setV] = useState(name)
   return (
-    <Dialog title="Rename the list" onClose={() => onClose('')} width={440}>
+    <Dialog title="Rename the checklist" onClose={() => onClose('')} width={440}>
       <form onSubmit={(e) => { e.preventDefault(); onClose(v.trim()) }}>
-        <label className="field"><span className="field-label">List name</span>
+        <label className="field"><span className="field-label">Name</span>
           <input className="input" value={v} onChange={(e) => setV(e.target.value)} />
         </label>
         <div className="dialog-actions">
@@ -440,12 +531,106 @@ function RenameDialog({ name, onClose }) {
   )
 }
 
+// ── Who it is shared with ──────────────────────────────────────────────────────────────────────────
+
+/** The owner chooses the people and teams who see the list: they tick, add devices and export; only the owner changes the list itself. */
+function ShareDialog({ list, me, run, onClose }) {
+  const [users, setUsers] = useState([])
+  const [people, setPeople] = useState(() => (list.people || []).filter((u) => u !== me.uid))
+  const [teams, setTeams] = useState(list.teams || [])
+  const [q, setQ] = useState('')
+  useEffect(() => { try { return watchPeople(setUsers, () => {}) } catch { return undefined } }, [])
+  const nameOf = (uid) => users.find((u) => u.uid === uid)?.name || 'Someone'
+  const hits = q.trim()
+    ? users.filter((u) => u.uid !== me.uid && !people.includes(u.uid) && (u.name + ' ' + u.team).toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+    : []
+  const link = `${location.origin}/checklists/#/${encodeURIComponent(list.id)}`
+  async function copy() {
+    try { await navigator.clipboard.writeText(link); onClose('Link copied.') } catch { window.prompt('Copy this link', link) }
+  }
+  function save() {
+    run(saveSharing(list.id, { people: [me.uid, ...people], teams }), 'Not shared')
+    onClose(people.length + teams.length ? 'Shared.' : 'Now only you can see it.')
+  }
+  return (
+    <Dialog title="Share this checklist" onClose={() => onClose('')} width={560}
+      description="Only you and the people and teams below can see it. They can tick devices, add ones they find and export the list. Only you can change the steps, import, share or delete it.">
+      <div className="cl-share">
+        <label className="field"><span className="field-label">Add a person</span>
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Start typing a name" autoComplete="off" />
+        </label>
+        {hits.length > 0 && (
+          <ul className="cl-share-hits">
+            {hits.map((u) => <li key={u.uid}><button type="button" onClick={() => { setPeople([...people, u.uid]); setQ('') }}><Plus size={14} aria-hidden="true" /> {u.name}<span>{u.team}</span></button></li>)}
+          </ul>
+        )}
+        {!!people.length && (
+          <div className="cl-chips" aria-label="People it is shared with">
+            {people.map((uid) => (
+              <span key={uid} className="cl-chip">{nameOf(uid)}
+                <button type="button" aria-label={`Stop sharing with ${nameOf(uid)}`} onClick={() => setPeople(people.filter((x) => x !== uid))}><X size={14} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        <fieldset className="cl-teams"><legend className="field-label">Whole teams</legend>
+          {TEAMS.map((t) => (
+            <label key={t} className="cl-radio"><input type="checkbox" checked={teams.includes(t)} onChange={(e) => setTeams(e.target.checked ? [...teams, t] : teams.filter((x) => x !== t))} /> {t}</label>
+          ))}
+        </fieldset>
+      </div>
+      <div className="dialog-actions">
+        <Button variant="ghost" iconLeft={<Link2 size={16} />} onClick={copy}>Copy link</Button>
+        <Button variant="ghost" onClick={() => onClose('')}>Cancel</Button>
+        <Button onClick={save}>Save</Button>
+      </div>
+    </Dialog>
+  )
+}
+
+// ── What has to be ticked ──────────────────────────────────────────────────────────────────────────
+
+/** The owner's steps: add every one that has to happen on a device, so none gets missed. */
+function StepsDialog({ list, steps, summary, run, onClose }) {
+  const [rows, setRows] = useState(steps.map((s) => ({ ...s })))
+  const set = (i, label) => setRows(rows.map((r, j) => (j === i ? { ...r, label } : r)))
+  const move = (i, d) => { const a = [...rows]; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setRows(a) }
+  const clean = rows.map((r) => ({ id: r.id, label: r.label.replace(/\s+/g, ' ').trim().slice(0, 60) })).filter((r) => r.label)
+  function save() {
+    if (!clean.length) return
+    run(saveSteps(list.id, clean), 'Steps not saved')
+    onClose('Steps saved.')
+  }
+  return (
+    <Dialog title="Steps on every device" onClose={() => onClose('')} width={560}
+      description="Everything that has to be ticked on each device, in order, for example Software upgraded, then Changed config. A device is done when every step is ticked. Adding a step leaves devices that were done as in progress, so nothing is missed.">
+      <ol className="cl-steps-edit">
+        {rows.map((r, i) => (
+          <li key={r.id}>
+            <input className="input" value={r.label} maxLength={60} onChange={(e) => set(i, e.target.value)} aria-label={`Step ${i + 1}`} placeholder="What has to be done" />
+            <span className="cl-small">{summary.stepCounts[r.id] ? `${summary.stepCounts[r.id]} ticked` : ''}</span>
+            <button type="button" className="icon-btn icon-btn-md" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp size={16} /></button>
+            <button type="button" className="icon-btn icon-btn-md" aria-label="Move down" disabled={i === rows.length - 1} onClick={() => move(i, 1)}><ArrowDown size={16} /></button>
+            <button type="button" className="icon-btn icon-btn-md" aria-label="Remove this step" disabled={rows.length === 1} onClick={() => setRows(rows.filter((_, j) => j !== i))}><X size={16} /></button>
+          </li>
+        ))}
+      </ol>
+      {rows.length < MAX_STEPS && <Button variant="secondary" size="sm" iconLeft={<Plus size={16} />} onClick={() => setRows([...rows, { id: newStepId('step', rows.map((x) => x.id)), label: '' }])}>Add a step</Button>}
+      <p className="cl-info">Removing a step takes it off the list and out of what counts as done. Its ticks stay saved if you add it back.</p>
+      <div className="dialog-actions">
+        <Button variant="ghost" onClick={() => onClose('')}>Cancel</Button>
+        <Button disabled={!clean.length} onClick={save}>Save</Button>
+      </div>
+    </Dialog>
+  )
+}
+
 // ── A device found on site ───────────────────────────────────────────────────────────────────────────
 
-/** Anyone signed in can add a device the spreadsheet didn't list. It goes on the list at once, and the team sees it. */
-function AddDialog({ items, by, listId, run, defaults, onOpen, onClose }) {
+/** Anyone who can see the list can add a device the spreadsheet didn't list. It goes on at once, and the team sees it. */
+function AddDialog({ items, steps, by, listId, run, defaults, onOpen, onClose }) {
   const [v, setV] = useState({ name: '', serial: '', department: defaults.department, location: '', status: 'Working', version: '', note: '' })
-  const [done, setDone] = useState(false)
+  const [ticked, setTicked] = useState([])
   const [err, setErr] = useState('')
   const set = (k) => (e) => { setV({ ...v, [k]: e.target.value }); setErr('') }
   const dupe = findBySerial(items, v.serial)
@@ -456,8 +641,8 @@ function AddDialog({ items, by, listId, run, defaults, onOpen, onClose }) {
     const out = newDevice(v, { category: defaults.category, model: defaults.model })
     if (out.error) { setErr(out.error); return }
     // Not waited for: with no signal the write is kept on this device and sent later, and the device is on the list already.
-    run(addDevice(listId, out.device, { note: out.note, done }, by), 'Not added')
-    onClose(`Added ${out.device.name || out.device.serial}${done ? ' and marked done' : ''}.`)
+    run(addDevice(listId, out.device, { note: out.note, stepIds: ticked }, by), 'Not added')
+    onClose(`Added ${out.device.name || out.device.serial}${ticked.length ? ' with its ticks' : ''}.`)
   }
 
   return (
@@ -481,7 +666,11 @@ function AddDialog({ items, by, listId, run, defaults, onOpen, onClose }) {
         <datalist id="cl-versions">{distinct('version').map((d) => <option key={d} value={d} />)}</datalist>
         <label className="field"><span className="field-label">Note</span>
           <textarea className="input" rows={2} value={v.note} onChange={set('note')} placeholder="Anything the next person should know" /></label>
-        <label className="cl-radio"><input type="checkbox" checked={done} onChange={(e) => setDone(e.target.checked)} /> It’s already upgraded: mark it done</label>
+        <fieldset className="cl-teams"><legend className="field-label">{steps.length > 1 ? 'Already done' : 'Already done?'}</legend>
+          {steps.map((st) => (
+            <label key={st.id} className="cl-radio"><input type="checkbox" checked={ticked.includes(st.id)} onChange={(e) => setTicked(e.target.checked ? [...ticked, st.id] : ticked.filter((x) => x !== st.id))} /> {steps.length > 1 ? st.label : 'It’s already done: tick it'}</label>
+          ))}
+        </fieldset>
         {dupe && (
           <Alert tone="info" title="That serial number is already on the list"
             action={<Button variant="secondary" size="sm" onClick={() => { onOpen(dupe.id); onClose('') }}>Open it</Button>}>
@@ -500,7 +689,7 @@ function AddDialog({ items, by, listId, run, defaults, onOpen, onClose }) {
 
 // ── Export ─────────────────────────────────────────────────────────────────────────────────────────
 
-function ExportDialog({ name, all, shown, filtered, onClose }) {
+function ExportDialog({ name, all, shown, steps, filtered, onClose }) {
   const [which, setWhich] = useState(filtered ? 'shown' : 'all')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -509,12 +698,12 @@ function ExportDialog({ name, all, shown, filtered, onClose }) {
   async function go(kind) {
     setBusy(true); setError('')
     try {
-      if (kind === 'xlsx') await downloadXlsx(name, rows); else downloadCsv(name, rows)
+      if (kind === 'xlsx') await downloadXlsx(name, rows, steps); else downloadCsv(name, rows, steps)
       onClose(`${rows.length} devices downloaded as ${kind === 'xlsx' ? 'an Excel file' : 'CSV'}.`)
     } catch (e) { setError('Could not make the file: ' + (e.message || e)); setBusy(false) }
   }
   return (
-    <Dialog title="Export the list" description="Every device with its status, department, last location, result, who did it and when." onClose={() => !busy && onClose('')} width={480}>
+    <Dialog title="Export the checklist" description="Every device with its status, department, last location, each step with who ticked it and when, and the notes." onClose={() => !busy && onClose('')} width={480}>
       <div className="cl-radios" role="radiogroup" aria-label="What to export">
         <label className="cl-radio"><input type="radio" name="which" checked={which === 'all'} onChange={() => setWhich('all')} /> Everything on the list ({all.length})</label>
         <label className="cl-radio"><input type="radio" name="which" checked={which === 'shown'} onChange={() => setWhich('shown')} disabled={!filtered} /> Only what’s showing now ({shown.length}){!filtered && ' (no filter is on)'}</label>
@@ -542,10 +731,11 @@ async function readDevices(file) {
   return last || { devices: [], skipped: 0, duplicates: 0, error: 'That file has no sheets.' }
 }
 
-/** Pick the export, check what it holds, then save: a new list, or an update of the one that is open. */
+/** Pick the export, check what it holds, then save: a new checklist, or an update of the one that is open. */
 function ImportDialog({ by, list, existingIds = [], onClose }) {
   const [parsed, setParsed] = useState(null)
   const [name, setName] = useState('')
+  const [stepText, setStepText] = useState('Done')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const input = useRef(null)
@@ -566,6 +756,7 @@ function ImportDialog({ by, list, existingIds = [], onClose }) {
 
   const summary = useMemo(() => (parsed ? summarise(parsed.devices) : null), [parsed])
   const added = parsed ? parsed.devices.filter((d) => !existing.has(d.id)).length : 0
+  const steps = stepsFromText(stepText)
 
   async function save() {
     setBusy(true); setError('')
@@ -574,27 +765,27 @@ function ImportDialog({ by, list, existingIds = [], onClose }) {
         const r = await importInto(list.id, parsed.devices, existingIds, by)
         onClose(`${r.added} added, ${r.updated} refreshed. Ticks were kept.`)
       } else {
-        const id = await createList({ name: name.trim() || 'Checklist', devices: parsed.devices, by })
-        onClose(`List made with ${parsed.devices.length} devices.`, id)
+        const id = await createList({ name: name.trim() || 'Checklist', devices: parsed.devices, by, steps: steps.length ? steps : DEFAULT_STEPS })
+        onClose(`Checklist made with ${parsed.devices.length} devices.`, id)
       }
     } catch (err) {
-      setError(readError(err, 'to save the list').replace(/^Could not /, 'Not saved: could not '))
+      setError(readError(err, 'to save the checklist').replace(/^Could not /, 'Not saved: could not '))
       setBusy(false)
     }
   }
 
   return (
-    <Dialog title={list ? 'Update from a spreadsheet' : 'New list from a spreadsheet'} onClose={() => !busy && onClose('')} width={620}
+    <Dialog title={list ? 'Update from a spreadsheet' : 'New checklist from a spreadsheet'} onClose={() => !busy && onClose('')} width={620}
       description={list
         ? 'Choose a newer export of the same devices. Each device’s status, location and software are refreshed, new ones are added, and nobody’s ticks or notes are touched.'
-        : 'Choose the device export (.xlsx or .csv) from the central station. Each row becomes a device on the list.'}>
+        : 'Choose the device export (.xlsx or .csv) from the central station. Each row becomes a device on the checklist.'}>
       <div className="cl-import">
         <input ref={input} type="file" accept=".xlsx,.csv" onChange={pick} disabled={busy} aria-label="Spreadsheet file" />
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
         {parsed && summary && (
           <>
             <p className="cl-import-line"><b>{parsed.devices.length} devices</b> found · {summary.uniqueSerials} different serial numbers · {summary.departments.length} departments</p>
-            {list && <p className="cl-import-line">{added} new to this list, {parsed.devices.length - added} already on it.</p>}
+            {list && <p className="cl-import-line">{added} new to this checklist, {parsed.devices.length - added} already on it.</p>}
             {summary.sharedSerials > 0 && <Alert tone="info">{summary.sharedSerials} serial number{summary.sharedSerials === 1 ? ' is' : 's are'} on more than one row. They’re kept as separate devices (different Device ID) and tagged on the list.</Alert>}
             {parsed.duplicates > 0 && <Alert tone="info">{parsed.duplicates} row{parsed.duplicates === 1 ? ' repeats' : 's repeat'} a Device ID already in the file; the later one is used.</Alert>}
             {parsed.skipped > 0 && <Alert tone="info">{parsed.skipped} row{parsed.skipped === 1 ? ' has' : 's have'} no Device ID or serial number and {parsed.skipped === 1 ? 'was' : 'were'} skipped.</Alert>}
@@ -605,16 +796,22 @@ function ImportDialog({ by, list, existingIds = [], onClose }) {
               {summary.departments.map((d) => <span key={d.name || '-'}>{d.name || NO_DEPT_LABEL} <b>{d.total}</b></span>)}
             </div>
             {!list && (
-              <label className="field"><span className="field-label">List name</span>
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="N1 software upgrade, North Shore" />
-              </label>
+              <>
+                <label className="field"><span className="field-label">Checklist name</span>
+                  <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="N1 software upgrade, North Shore" />
+                </label>
+                <label className="field"><span className="field-label">What has to be ticked on each device? One step a line</span>
+                  <textarea className="input" rows={3} value={stepText} onChange={(e) => setStepText(e.target.value)} placeholder={'Software upgraded\nChanged config'} />
+                </label>
+                <p className="cl-info">{steps.length > 1 ? `${steps.length} steps: a device is done when all of them are ticked.` : 'One step. Add more any time with Steps.'}</p>
+              </>
             )}
           </>
         )}
       </div>
       <div className="dialog-actions">
         <Button variant="ghost" disabled={busy} onClick={() => onClose('')}>Cancel</Button>
-        <Button disabled={!parsed || busy || (!list && !name.trim())} onClick={save}>{busy ? 'Working…' : list ? 'Update the list' : 'Make the list'}</Button>
+        <Button disabled={!parsed || busy || (!list && !name.trim())} onClick={save}>{busy ? 'Working…' : list ? 'Update the checklist' : 'Make the checklist'}</Button>
       </div>
     </Dialog>
   )
