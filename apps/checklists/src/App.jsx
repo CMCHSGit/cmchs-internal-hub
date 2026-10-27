@@ -336,11 +336,11 @@ function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
       {!grouped && <td className="cl-c-dept" data-label="Department">{it.department ? <span className={it.deptGuessed ? 'cl-guess' : ''} title={it.deptGuessed ? 'Not in the export: taken from the location' : undefined}>{it.department}</span> : <span className="cl-none">{NO_DEPT_LABEL}</span>}</td>}
       <td className="cl-c-device" data-label="Device">
         <span className="cl-strong">{it.name || '(no name)'}</span>
+        <span className="cl-m-serial cl-mono">{it.serial}{shared ? ' · same serial' : ''}</span>
         <span className="cl-small">{[it.category, it.model].filter(Boolean).join(' · ')}</span>
       </td>
       <td className="cl-c-serial" data-label="Serial number">
         <span className="cl-mono">{it.serial}</span>
-        <span className="cl-ver-inline cl-mono">{it.version}</span>
         {shared && <Badge tone="orange" className="cl-shared">Same serial</Badge>}
       </td>
       <td className="cl-c-status" data-label="Status">
@@ -350,6 +350,7 @@ function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
       <td className="cl-c-loc" data-label="Last location">
         {it.location || <span className="cl-none">Unknown</span>}
         {it.lastSeenAt && <span className="cl-small">seen {niceStamp(it.lastSeenAt)}</span>}
+        <span className="cl-ver-inline cl-mono">{it.version}</span>
       </td>
       <td className="cl-c-ver" data-label="Software"><span className="cl-mono">{it.version}</span></td>
       <td className="cl-c-result" data-label="Result">

@@ -147,7 +147,8 @@
 .cl-check-col { width: 44px; }
 .cl-check { width: 28px; height: 28px; border-radius: 7px; border-width: 2px; }
 .cl-check svg { width: 18px; height: 18px; }
-.cl-ver-inline { display: none; }
+.cl-ver-inline, .cl-m-serial { display: none; }
+.cl-table .cl-c-status { white-space: nowrap; }
 .cl-filters .cl-sort { flex: 1 1 210px; }
 .cl-table .cl-c-result { white-space: nowrap; }
 
@@ -169,6 +170,21 @@
   .cl-table .cl-row .cl-c-ver { display: none; }
   .cl-table .cl-row .cl-ver-inline { display: inline; margin-left: 10px; color: var(--text-muted); }
   .cl-table .cl-row .cl-c-status, .cl-table .cl-row .cl-c-result { padding-top: 1px; }
-  .cl-table .cl-row .cl-c-status .cl-small, .cl-table .cl-row .cl-c-loc .cl-small { display: none; }
+  .cl-table .cl-row .cl-c-loc .cl-small { display: none; }
   .data-table.cl-table tbody tr.cl-group { margin: 8px 0 4px; }
+}
+
+/* Phone, tighter again: name and serial on one line, the full status (Offline since ...) always shown, location with the software version. */
+@media (max-width: 759px) {
+  .cl-table .cl-row .cl-c-serial { display: none; }
+  .cl-table .cl-row .cl-m-serial { display: inline; margin-left: 8px; font-size: 12px; color: var(--text-muted); }
+  .cl-table .cl-row .cl-c-device .cl-strong { display: inline; font-size: 15px; }
+  .cl-table .cl-row .cl-c-status { white-space: normal; }
+  .cl-table .cl-row .cl-c-status .cl-small { display: inline; margin-left: 6px; font-size: 13px; color: var(--text-body); }
+  .cl-table .cl-row .cl-c-loc { font-size: 13px; }
+  .cl-check { width: 40px; height: 40px; }
+  .data-table.cl-table .cl-group td { justify-content: flex-start; text-align: left; }
+  .cl-group td::before { display: none; }
+  .cl-table .cl-row .cl-check-col { grid-template-columns: none; }
+  .data-table.cl-table tbody tr.cl-row { grid-template-columns: 46px minmax(0, 1fr); column-gap: 10px; padding: 6px 10px; margin-bottom: 5px; }
 }
