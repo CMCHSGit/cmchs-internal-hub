@@ -279,6 +279,7 @@ export default function ExcelImport() {
                   <div className="excel-stats">
                     <div><strong>{plan.stats.added.toLocaleString('en-NZ')}</strong><span>new entries</span></div>
                     <div><strong>{(plan.stats.updated + plan.stats.replaced).toLocaleString('en-NZ')}</strong><span>updated from Excel</span></div>
+                    {plan.stats.cleared > 0 && <div><strong>{plan.stats.cleared.toLocaleString('en-NZ')}</strong><span>cleared in Excel</span></div>}
                     <div><strong>{plan.stats.same.toLocaleString('en-NZ')}</strong><span>already the same</span></div>
                     <div><strong>{plan.stats.conflict.toLocaleString('en-NZ')}</strong><span>differ — app kept</span></div>
                     <div><strong>{plan.newPeople.size.toLocaleString('en-NZ')}</strong><span>new people</span></div>

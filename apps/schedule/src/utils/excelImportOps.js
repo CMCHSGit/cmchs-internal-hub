@@ -86,6 +86,7 @@ export function describeRun({ plan, selected, left }) {
   const leftOut = left.ambiguous + left.maybe + left.none
   return [
     `${entries} ${entries === 1 ? 'entry' : 'entries'} brought in for ${s.people} ${s.people === 1 ? 'person' : 'people'} across ${selected.length} ${selected.length === 1 ? 'week' : 'weeks'}`,
+    s.cleared ? `${s.cleared} cleared (cleared in the Excel, not edited in the app)` : null,
     `${s.conflict} kept as the app has them (changed in both)`,
     plan.onCall.length ? `${plan.onCall.length} on-call set` : null,
     leftOut ? `${leftOut} Excel ${leftOut === 1 ? 'name' : 'names'} left for Settings → Staff schedule → Excel (${left.ambiguous} several fit, ${left.maybe} to check, ${left.none} not in the app)` : null,
