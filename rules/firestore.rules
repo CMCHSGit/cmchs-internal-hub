@@ -219,13 +219,25 @@ service cloud.firestore {
     // Everyone signed in reads, and ticks: that is the result (done / couldn't find), who and when, and a
     // note, nothing else about the device. The Engineers and Management teams and admins also make and
     // delete lists and import or refresh the devices. A tick is stamped with the person's own uid.
+    // Anyone may also add a device found on site (below) and remove the ones they added.
     match /checklists/{listId} {
       allow read: if isSignedIn();
       allow create, update, delete: if canEditMaintenance();
       match /items/{itemId} {
         allow read: if isSignedIn();
-        allow create, delete: if canEditMaintenance();
+        // A device found on site that the spreadsheet didn't list: anyone may add one (an id starting
+        // "found-", in their own name) and may remove their own again.
+        allow create: if canEditMaintenance() || (isSignedIn() && isFoundOnSite(itemId));
+        allow delete: if canEditMaintenance() || (isSignedIn() && resource.data.get('addedBy', '') == request.auth.uid);
         allow update: if canEditMaintenance() || (isSignedIn() && isChecklistTick());
+      }
+      function isFoundOnSite(itemId) {
+        return itemId.matches('found-.*')
+          && request.resource.data.get('addedOnSite', false) == true
+          && request.resource.data.get('addedBy', '') == request.auth.uid
+          && request.resource.data.get('result', '') in ['', 'done']
+          && request.resource.data.get('doneBy', '') in ['', request.auth.uid]
+          && request.resource.data.get('note', '').size() <= 1000;
       }
       function isChecklistTick() {
         return request.resource.data.diff(resource.data).affectedKeys()

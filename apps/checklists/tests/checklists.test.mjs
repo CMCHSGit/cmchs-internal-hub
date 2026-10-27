@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   NO_DEPARTMENT, departmentOf, exportRows, EXPORT_HEADERS, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
-  sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp,
+  sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial,
 } from '../src/model.js'
 
 const HEADER = ['Device ID', 'Device Category', 'Device Model', 'Device Serial Number', 'Device Code', 'Asset Number', 'Device Name', 'Device Status', 'Location',
@@ -163,6 +163,35 @@ test('the export has a column for each header, the result in words, and defuses 
   assert.ok(csv.includes('"\'=SUM(A1)"'), 'a cell that starts with = is made text')
   assert.equal(csv.split('\r\n').length, 3)
   assert.equal(toCsv(['a'], [['say "hi", ok']]), '﻿"a"\r\n"say ""hi"", ok"')
+})
+
+test('a device found on site: needs a name or a serial, takes the list’s usual type, gets a found- id', () => {
+  assert.match(newDevice({ name: '  ', serial: '' }).error, /name or a serial/)
+  const out = newDevice({ name: ' N1-NEW ', serial: 'AA3-9', department: 'ED2', status: 'Offline', note: ' by the sink ' }, { category: 'Transport Monitor', model: 'BeneVision N1', now: 1793000000000, rand: 0.5 })
+  assert.equal(out.error, undefined)
+  assert.match(out.device.id, /^found-[a-z0-9]+-[a-z0-9]{4}$/)
+  assert.equal(out.device.name, 'N1-NEW')
+  assert.equal(out.device.category, 'Transport Monitor')
+  assert.equal(out.device.model, 'BeneVision N1')
+  assert.equal(out.device.status, 'Offline')
+  assert.equal(out.device.department, 'ED2')
+  assert.equal(out.note, 'by the sink')
+  assert.equal(newDevice({ serial: 'x', status: 'Dancing' }).device.status, 'Unknown')
+  assert.notEqual(newDevice({ serial: 'x' }, { now: 1, rand: 0.1 }).device.id, newDevice({ serial: 'x' }, { now: 2, rand: 0.1 }).device.id)
+})
+
+test('a serial already on the list is found whatever its case', () => {
+  assert.equal(findBySerial(items, 's3').id, 'c')
+  assert.equal(findBySerial(items, ' S4 ').id, 'd')
+  assert.equal(findBySerial(items, 'nope'), null)
+  assert.equal(findBySerial(items, ''), null)
+})
+
+test('the export says which devices were found on site, and by whom', () => {
+  const [row] = exportRows([{ ...items[0], addedOnSite: true, addedByName: 'Peter' }])
+  assert.equal(row[EXPORT_HEADERS.indexOf('Added on site')], 'Yes')
+  assert.equal(row[EXPORT_HEADERS.indexOf('Added by')], 'Peter')
+  assert.equal(exportRows([items[1]])[0][EXPORT_HEADERS.indexOf('Added on site')], '')
 })
 
 test('dates and file names', () => {

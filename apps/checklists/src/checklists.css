@@ -188,3 +188,15 @@
   .cl-table .cl-row .cl-check-col { grid-template-columns: none; }
   .data-table.cl-table tbody tr.cl-row { grid-template-columns: 46px minmax(0, 1fr); column-gap: 10px; padding: 6px 10px; margin-bottom: 5px; }
 }
+
+/* Adding a device found on site */
+.cl-form { display: flex; flex-direction: column; gap: 12px; }
+.cl-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.cl-fab { display: none; }
+@media (max-width: 759px) {
+  .cl-form-grid { grid-template-columns: 1fr; }
+  .cl-add-head { display: none; }
+  .cl-page { padding-bottom: 96px; }
+  /* Always in reach on a phone, above the bottom tabs. */
+  .cl-fab { display: inline-flex; position: fixed; right: 14px; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 30; border-radius: 999px; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+}

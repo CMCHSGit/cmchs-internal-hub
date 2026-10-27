@@ -10,15 +10,15 @@
    delete (rules/firestore.rules, `checklists`; the buttons here only reflect it). Which list is open
    lives in the address (#/<listId>), so a link opens it. */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Download, FileSpreadsheet, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Download, FileSpreadsheet, Plus, Trash2 } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { XLSXLite } from '../../simprosync/reader.js'
 import {
-  NO_DEPARTMENT, RESULTS, STATUS_ORDER, filterItems, groupByDepartment, niceStamp, parseDevices, sharedSerials, sortItems, stamp, summarise,
+  NO_DEPARTMENT, RESULTS, STATUSES, STATUS_ORDER, filterItems, findBySerial, groupByDepartment, newDevice, niceStamp, parseDevices, sharedSerials, sortItems, stamp, summarise,
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
-import { createList, importInto, removeItem, removeList, renameList, setNote, setResult, watchItems, watchLists } from './store.js'
+import { addDevice, createList, importInto, removeItem, removeList, renameList, setNote, setResult, watchItems, watchLists } from './store.js'
 
 const EDIT_TEAMS = ['Engineers', 'Management']
 const NO_DEPT_LABEL = 'No department'
@@ -129,6 +129,7 @@ function ListView({ id, by, canEdit }) {
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  const [adding, setAdding] = useState(false)
   const [more, setMore] = useState(false) // the filters under the search box, on a phone
   const [toastMsg, toast] = useToast()
   const [confirmDialog, confirm] = useConfirm()
@@ -147,6 +148,11 @@ function ListView({ id, by, canEdit }) {
   const shared = useMemo(() => sharedSerials(all), [all])
   const shown = useMemo(() => sortItems(filterItems(all, f), sort.key, sort.dir), [all, f, sort])
   const grouped = sort.key === 'department'
+  // What a device found on site is most likely to be: the commonest type and model on the list.
+  const common = useMemo(() => {
+    const top = (k) => { const n = new Map(); all.forEach((x) => x[k] && n.set(x[k], (n.get(x[k]) || 0) + 1)); return [...n].sort((a, b) => b[1] - a[1])[0]?.[0] || '' }
+    return { category: top('category'), model: top('model') }
+  }, [all])
   const groups = useMemo(() => (grouped ? groupByDepartment(shown) : [{ department: null, items: shown }]), [grouped, shown])
   const deptTotals = useMemo(() => new Map(summary.departments.map((d) => [d.name, d])), [summary])
   const statuses = STATUS_ORDER.filter((s) => summary.byStatus[s]).concat(Object.keys(summary.byStatus).filter((s) => !STATUS_ORDER.includes(s)))
@@ -180,10 +186,12 @@ function ListView({ id, by, canEdit }) {
           <h1 className="cl-title">{list?.name || 'Checklist'}</h1>
           <p className="cl-sub">
             {summary.total} devices · {summary.uniqueSerials} different serial numbers
+            {all.some((x) => x.addedOnSite) ? ` · ${all.filter((x) => x.addedOnSite).length} found on site` : ''}
             {list?.importedAt ? ` · spreadsheet loaded ${stamp(list.importedAt)}` : ''}
           </p>
         </div>
         <div className="cl-head-actions">
+          <Button size="sm" className="cl-add-head" iconLeft={<Plus size={16} />} onClick={() => setAdding(true)}>Add a device</Button>
           <Button variant="secondary" size="sm" iconLeft={<Download size={16} />} onClick={() => setExporting(true)}>Export</Button>
           {canEdit && <Button variant="ghost" size="sm" iconLeft={<FileSpreadsheet size={16} />} onClick={() => setImporting(true)}>Update from spreadsheet</Button>}
           {canEdit && <Button variant="ghost" size="sm" onClick={() => setRenaming(true)}>Rename</Button>}
@@ -287,6 +295,11 @@ function ListView({ id, by, canEdit }) {
         {!shown.length && <p className="data-table-empty">{all.length ? 'No devices match. Clear the filters to see them all.' : 'This list has no devices yet.'}</p>}
       </div>
 
+      <Button className="cl-fab" iconLeft={<Plus size={20} />} onClick={() => setAdding(true)}>Add device</Button>
+      {adding && (
+        <AddDialog items={all} by={by} listId={id} run={run} defaults={{ ...common, department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
+          onOpen={setOpenId} onClose={(msg) => { setAdding(false); if (msg) toast(msg) }} />
+      )}
       {open && (
         <DetailDialog it={open} shared={shared.has((open.serial || '').toLowerCase())} canEdit={canEdit} by={by} listId={id} run={run}
           onClose={() => setOpenId('')}
@@ -337,6 +350,7 @@ function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
       <td className="cl-c-device" data-label="Device">
         <span className="cl-strong">{it.name || '(no name)'}</span>
         <span className="cl-m-serial cl-mono">{it.serial}{shared ? ' · same serial' : ''}</span>
+        {it.addedOnSite && <Badge tone="neutral" className="cl-shared">Found on site</Badge>}
         <span className="cl-small">{[it.category, it.model].filter(Boolean).join(' · ')}</span>
       </td>
       <td className="cl-c-serial" data-label="Serial number">
@@ -379,6 +393,7 @@ function DetailDialog({ it, shared, canEdit, by, listId, run, onClose, onRemove 
     ['Software version', it.versionFull || it.version],
     ['IP address', it.ip], ['Wireless MAC', it.wirelessMac], ['Wired MAC', it.wiredMac], ['Device ID', it.deviceId],
     ['Error', it.error],
+    ['Found on site', it.addedOnSite ? `added by ${it.addedByName || 'someone'}` : ''],
   ].filter(([, v]) => v)
   const saveNote = () => { if (note.trim() !== (it.note || '')) run(setNote(listId, it.id, note.trim(), by)) }
 
@@ -401,7 +416,7 @@ function DetailDialog({ it, shared, canEdit, by, listId, run, onClose, onRemove 
         {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
       </dl>
       <div className="dialog-actions">
-        {canEdit && <Button variant="ghost" className="cl-del" iconLeft={<Trash2 size={18} />} onClick={onRemove}>Remove from list</Button>}
+        {(canEdit || (it.addedOnSite && it.addedBy === by.uid)) && <Button variant="ghost" className="cl-del" iconLeft={<Trash2 size={18} />} onClick={onRemove}>Remove from list</Button>}
         <Button variant="secondary" onClick={() => { saveNote(); onClose() }}>Close</Button>
       </div>
     </Dialog>
@@ -419,6 +434,64 @@ function RenameDialog({ name, onClose }) {
         <div className="dialog-actions">
           <Button variant="ghost" onClick={() => onClose('')}>Cancel</Button>
           <Button type="submit" disabled={!v.trim()}>Save</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+// ── A device found on site ───────────────────────────────────────────────────────────────────────────
+
+/** Anyone signed in can add a device the spreadsheet didn't list. It goes on the list at once, and the team sees it. */
+function AddDialog({ items, by, listId, run, defaults, onOpen, onClose }) {
+  const [v, setV] = useState({ name: '', serial: '', department: defaults.department, location: '', status: 'Working', version: '', note: '' })
+  const [done, setDone] = useState(false)
+  const [err, setErr] = useState('')
+  const set = (k) => (e) => { setV({ ...v, [k]: e.target.value }); setErr('') }
+  const dupe = findBySerial(items, v.serial)
+  const distinct = (k) => [...new Set(items.map((x) => x[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+
+  function save(e) {
+    e.preventDefault()
+    const out = newDevice(v, { category: defaults.category, model: defaults.model })
+    if (out.error) { setErr(out.error); return }
+    // Not waited for: with no signal the write is kept on this device and sent later, and the device is on the list already.
+    run(addDevice(listId, out.device, { note: out.note, done }, by), 'Not added')
+    onClose(`Added ${out.device.name || out.device.serial}${done ? ' and marked done' : ''}.`)
+  }
+
+  return (
+    <Dialog title="Add a device" description="Found one that isn’t on the list? Add it so it’s counted, and the rest of the team can see it." onClose={() => onClose('')} width={600}>
+      <form onSubmit={save} className="cl-form">
+        <div className="cl-form-grid">
+          <label className="field"><span className="field-label">Device name</span>
+            <input className="input" value={v.name} onChange={set('name')} placeholder="N1-WHA…" autoComplete="off" /></label>
+          <label className="field"><span className="field-label">Serial number</span>
+            <input className="input" value={v.serial} onChange={set('serial')} placeholder="AA3-…" autoComplete="off" /></label>
+          <label className="field"><span className="field-label">Department</span>
+            <input className="input" list="cl-depts" value={v.department} onChange={set('department')} placeholder="Where it lives" autoComplete="off" /></label>
+          <label className="field"><span className="field-label">Where you found it</span>
+            <input className="input" value={v.location} onChange={set('location')} placeholder="Ward, room or bed" autoComplete="off" /></label>
+          <label className="field"><span className="field-label">Status</span>
+            <select value={v.status} onChange={set('status')}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>
+          <label className="field"><span className="field-label">Software version</span>
+            <input className="input" list="cl-versions" value={v.version} onChange={set('version')} placeholder="If you know it" autoComplete="off" /></label>
+        </div>
+        <datalist id="cl-depts">{distinct('department').map((d) => <option key={d} value={d} />)}</datalist>
+        <datalist id="cl-versions">{distinct('version').map((d) => <option key={d} value={d} />)}</datalist>
+        <label className="field"><span className="field-label">Note</span>
+          <textarea className="input" rows={2} value={v.note} onChange={set('note')} placeholder="Anything the next person should know" /></label>
+        <label className="cl-radio"><input type="checkbox" checked={done} onChange={(e) => setDone(e.target.checked)} /> It’s already upgraded: mark it done</label>
+        {dupe && (
+          <Alert tone="info" title="That serial number is already on the list"
+            action={<Button variant="secondary" size="sm" onClick={() => { onOpen(dupe.id); onClose('') }}>Open it</Button>}>
+            {dupe.name || dupe.serial}{dupe.department ? ` in ${dupe.department}` : ''}. You can still add it as a separate device if it is one.
+          </Alert>
+        )}
+        {err && <Alert tone="critical">{err}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={() => onClose('')}>Cancel</Button>
+          <Button type="submit" iconLeft={<Plus size={18} />}>{dupe ? 'Add anyway' : 'Add to the list'}</Button>
         </div>
       </form>
     </Dialog>

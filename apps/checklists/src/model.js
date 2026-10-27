@@ -250,6 +250,34 @@ export function groupByDepartment(sorted) {
   return out
 }
 
+// ── A device found on site ───────────────────────────────────────────────────────────────────────────
+
+export const STATUSES = ['Working', 'Standby', 'Offline', 'Shutdown', 'Unknown']
+
+/** A device nobody listed: the form's fields as a device, or { error } when there is too little to go on. */
+export function newDevice(form, { category = '', model = '', now = Date.now(), rand = Math.random() } = {}) {
+  const t = (v) => cell(v)
+  const name = t(form.name)
+  const serial = t(form.serial)
+  if (!name && !serial) return { error: 'Give it a name or a serial number, so the next person can find it.' }
+  const status = STATUSES.includes(form.status) ? form.status : 'Unknown'
+  const department = t(form.department)
+  return {
+    device: {
+      id: 'found-' + now.toString(36) + '-' + Math.floor(rand * 1679616).toString(36).padStart(4, '0'),
+      deviceId: '', category: t(form.category) || category, model: t(form.model) || model, serial, name, status, statusSince: '',
+      location: t(form.location), department, deptGuessed: false, version: t(form.version), lastSeenAt: '', lastSeenIn: '',
+    },
+    note: String(form.note || '').trim().slice(0, 1000),
+  }
+}
+
+/** The one device on the list that has this serial number, or the first, ignoring case. */
+export function findBySerial(items, serial) {
+  const s = cell(serial).toLowerCase()
+  return s ? items.find((it) => (it.serial || '').toLowerCase() === s) || null : null
+}
+
 // ── Export ──────────────────────────────────────────────────────────────────────────────────────────
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -273,7 +301,7 @@ export const RESULT_LABEL = { done: 'Done', notfound: 'Couldn’t find', '': '' 
 export const EXPORT_HEADERS = [
   'Department', 'Device type', 'Model', 'Device name', 'Serial number', 'Status', 'Status since', 'Last location',
   'Last seen', 'Software version', 'Result', 'Done by', 'Done at', 'Note', 'Facility', 'Room', 'Bed',
-  'IP address', 'Wireless MAC', 'Wired MAC', 'Device ID', 'Shares a serial with another device',
+  'IP address', 'Wireless MAC', 'Wired MAC', 'Device ID', 'Shares a serial with another device', 'Added on site', 'Added by',
 ]
 
 /** One row of cells per device, in EXPORT_HEADERS order. */
@@ -284,6 +312,7 @@ export function exportRows(items) {
     it.location || '', niceStamp(it.lastSeenAt), it.version || '', RESULT_LABEL[it.result || ''] ?? '', it.doneByName || '', stamp(it.doneAt),
     it.note || '', it.facility || '', it.room || '', it.bed || '', it.ip || '', it.wirelessMac || '', it.wiredMac || '', it.deviceId || '',
     shared.has((it.serial || '').toLowerCase()) ? 'Yes' : '',
+    it.addedOnSite ? 'Yes' : '', it.addedByName || '',
   ])
 }
 

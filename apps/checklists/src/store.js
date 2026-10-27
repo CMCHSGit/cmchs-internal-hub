@@ -21,6 +21,7 @@ const DONE_FIELDS = (by) => ({ doneBy: by.uid, doneByName: by.name })
 const UNDONE = { result: '', doneBy: '', doneByName: '', doneAt: null }
 const BLANK_PROGRESS = { ...UNDONE, note: '', noteByName: '' }
 
+const RESULT_DONE = 'done'
 const strip = ({ id: _id, ...fields }) => fields
 
 // ── Firestore ──────────────────────────────────────────────────────────────────────────────────────
@@ -90,6 +91,16 @@ const real = {
     return deleteDoc(doc(db, COL, listId, 'items', itemId))
   },
 
+  /** A device found on site and not on the list. Anyone signed in may add one (rules); it is theirs to remove. */
+  addDevice(listId, device, { note, done }, by) {
+    const ref = doc(db, COL, listId, 'items', device.id)
+    const result = done ? { result: RESULT_DONE, ...DONE_FIELDS(by), doneAt: serverTimestamp() } : {}
+    return setDoc(ref, {
+      ...strip(device), ...BLANK_PROGRESS, note, noteByName: note ? by.name : '', ...result,
+      addedOnSite: true, addedBy: by.uid, addedByName: by.name, addedAt: serverTimestamp(),
+    })
+  },
+
   async removeList(listId, itemIds) {
     for (let i = 0; i < itemIds.length; i += CHUNK) {
       const batch = writeBatch(db)
@@ -154,6 +165,12 @@ function devStore() {
     },
     async setNote(listId, itemId, note, by) { Object.assign(items.get(listId).get(itemId), { note, noteByName: note ? by.name : '' }); tell() },
     async removeItem(listId, itemId) { items.get(listId).delete(itemId); tell() },
+    async addDevice(listId, device, { note, done }, by) {
+      items.get(listId).set(device.id, {
+        ...device, ...BLANK_PROGRESS, note, noteByName: note ? by.name : '', ...(done ? { result: RESULT_DONE, ...DONE_FIELDS(by), doneAt: now() } : {}),
+        addedOnSite: true, addedBy: by.uid, addedByName: by.name,
+      }); tell()
+    },
     async removeList(listId) { lists.delete(listId); items.delete(listId); tell() },
     async renameList(listId, name) { lists.get(listId).name = name; tell() },
   }
@@ -168,5 +185,6 @@ export const importInto = (...a) => impl.importInto(...a)
 export const setResult = (...a) => impl.setResult(...a)
 export const setNote = (...a) => impl.setNote(...a)
 export const removeItem = (...a) => impl.removeItem(...a)
+export const addDevice = (...a) => impl.addDevice(...a)
 export const removeList = (...a) => impl.removeList(...a)
 export const renameList = (...a) => impl.renameList(...a)
