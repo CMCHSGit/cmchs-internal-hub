@@ -6,6 +6,7 @@
     "test": "node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "@zxing/library": "^0.21.3",
     "jsqr": "^1.4.0",
     "qrcode-generator": "^2.0.4"
   }

@@ -255,3 +255,26 @@
   .cl-head-actions { gap: 6px; }
   .cl-steps-line { font-size: 12px; }
 }
+
+/* Scanning a device's label */
+.cl-scan { display: flex; flex-direction: column; gap: 12px; outline: none; }
+.cl-scan-camera { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.cl-scan-video { width: 100%; max-height: 38vh; min-height: 160px; object-fit: cover; border-radius: var(--radius-lg); background: #000; }
+.cl-scan-type { display: flex; gap: 8px; }
+.cl-scan-type .input { flex: 1; min-width: 0; }
+.cl-scan-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 14px; border: 1px solid var(--chs-green); border-radius: var(--radius-lg); background: var(--chs-green-20); }
+.cl-scan-card-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.cl-scan-card-top b { font: var(--weight-semibold) 17px/1.3 var(--font-display); color: var(--text-strong); }
+.cl-scan-where { margin: 0; font: var(--type-body-sm); color: var(--text-body); }
+.cl-scan-pick { display: flex; flex-direction: column; gap: 6px; }
+.cl-scan-opt { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); }
+.cl-scan-opt:hover, .cl-scan-opt:focus-visible { border-color: var(--accent-fg); }
+.cl-scan-opt span:last-child { flex-basis: 100%; font: var(--type-body-sm); color: var(--text-muted); }
+.cl-fab-scan { display: none; }
+@media (max-width: 759px) {
+  .cl-scan-head { display: none; }
+  /* The scan button sits just above Add device: both within a thumb's reach. */
+  .cl-fab-scan { display: inline-flex; align-items: center; justify-content: center; position: fixed; right: 14px; bottom: calc(132px + env(safe-area-inset-bottom, 0px)); z-index: 30;
+    width: 52px; height: 52px; border-radius: 50%; border: none; cursor: pointer; background: var(--chs-green); color: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, .35); }
+  .cl-fab-scan:focus-visible { box-shadow: var(--focus-ring); }
+}

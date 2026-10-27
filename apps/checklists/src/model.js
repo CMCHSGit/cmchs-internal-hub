@@ -346,6 +346,65 @@ export function findBySerial(items, serial) {
   return s ? items.find((it) => (it.serial || '').toLowerCase() === s) || null : null
 }
 
+// ── Finding a device from a scanned code ─────────────────────────────────────────────────────────────
+
+/** Letters and digits only, upper case: "N1-WHA303756" and "n1 wha303756" are the same. */
+const alnum = (s) => cell(s).toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+/**
+ * The devices a scanned or typed code could be, best first: [{ item, score }]. A barcode on the device rarely says
+ * what the list says: the asset number on the label is WHA303756, the list calls it N1-WHA303756. So a code is
+ * compared with each device's name, serial number, Device ID, MACs and asset number ignoring punctuation and case.
+ *   3  the same as one of them
+ *   2  one ends with or contains the other (WHA303756 against N1-WHA303756), when the shorter has 6+ characters
+ *   1  a long piece of the code is somewhere in one of them (a label that carries more than the number)
+ * Whole code first, then each run of letters and digits in it that has a digit and 5+ characters.
+ */
+export function matchScan(items, raw) {
+  const whole = alnum(raw)
+  const parts = String(raw ?? '').toUpperCase().split(/[^A-Z0-9]+/).filter((t) => t.length >= 5 && /\d/.test(t))
+  const tokens = [...new Set([whole, ...parts])].filter((t) => t.length >= 5)
+  if (!tokens.length) return []
+  const out = []
+  for (const it of items) {
+    const fields = [it.name, it.serial, it.deviceId, it.wirelessMac, it.wiredMac, it.asset].map(alnum).filter((f) => f.length >= 5)
+    let best = 0
+    for (const f of fields) {
+      for (const t of tokens) {
+        const short = Math.min(f.length, t.length)
+        if (f === t) best = Math.max(best, 3)
+        else if (short >= 6 && (f.endsWith(t) || t.endsWith(f) || f.startsWith(t) || t.startsWith(f))) best = Math.max(best, 2)
+        else if (short >= 6 && (f.includes(t) || t.includes(f))) best = Math.max(best, 1)
+      }
+    }
+    if (best) out.push({ item: it, score: best })
+  }
+  return out.sort((a, b) => b.score - a.score || collate(a.item.name || '', b.item.name || ''))
+}
+
+/** The devices to offer for a code: the best ones only, so one clear match opens straight away. */
+export function bestMatches(items, raw) {
+  const all = matchScan(items, raw)
+  return all.filter((m) => m.score === all[0]?.score).map((m) => m.item)
+}
+
+/**
+ * What to call a device that is not on the list, from the code on its label. The list's names share a prefix
+ * ("N1-WHA303756", "N1-WHA304525"), so a label that only carries WHA303756 becomes N1-WHA303756.
+ */
+export function suggestName(items, raw) {
+  const code = cell(raw)
+  if (!/^[A-Za-z]{2,5}\d{4,}$/.test(code)) return code
+  const prefixes = new Map()
+  let n = 0
+  for (const it of items.slice(0, 40)) {
+    const m = /^(.+?[-_ ])[A-Za-z]{2,5}\d{4,}$/.exec(cell(it.name))
+    if (m) { prefixes.set(m[1], (prefixes.get(m[1]) || 0) + 1); n++ }
+  }
+  const top = [...prefixes].sort((a, b) => b[1] - a[1])[0]
+  return top && top[1] >= Math.max(2, n * 0.6) ? top[0] + code : code
+}
+
 // ── Export ──────────────────────────────────────────────────────────────────────────────────────────
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

@@ -13,8 +13,8 @@
    shared with ticks, adds and exports (rules/firestore.rules, `checklists`; the buttons here only reflect it).
    An ask can attach one of your lists, which shares it with whoever the ask goes to. Which list is open
    lives in the address (#/<listId>), so a link opens it. */
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowDown, ArrowLeft, ArrowUp, Check, Download, FileSpreadsheet, Link2, Plus, Share2, Trash2, X } from 'lucide-react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, ArrowLeft, ArrowUp, Check, Download, FileSpreadsheet, Link2, Plus, ScanBarcode, Share2, Trash2, X } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { XLSXLite } from '../../simprosync/reader.js'
@@ -23,9 +23,13 @@ import {
   parseDevices, progressOf, sharedSerials, sortItems, stamp, stateOf, stepsFromText, stepsOf, summarise, tickOf,
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
+import StepChecks from './StepChecks.jsx'
 import {
   addDevice, createList, importInto, markLost, notifyShared, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
 } from './store.js'
+
+// The camera and its barcode reader load only when someone scans.
+const Scan = lazy(() => import('./Scan.jsx'))
 
 const EDIT_TEAMS = ['Engineers', 'Management']
 // The teams an ask can go to (rules: isAsk); a list is shared with the same ones.
@@ -146,6 +150,7 @@ function ListView({ id, me }) {
   const [dialog, setDialog] = useState('') // import | export | rename | add | share | steps
   const [more, setMore] = useState(false) // the filters under the search box, on a phone
   const [manage, setManage] = useState(false) // the owner's less-used buttons, on a phone
+  const [prefill, setPrefill] = useState(null) // what a scan that found nothing knows about the device to add
   const [toastMsg, toast] = useToast()
   const [confirmDialog, confirm] = useConfirm()
 
@@ -214,7 +219,8 @@ function ListView({ id, me }) {
           </p>
         </div>
         <div className="cl-head-actions">
-          <Button size="sm" className="cl-add-head" iconLeft={<Plus size={16} />} onClick={() => setDialog('add')}>Add a device</Button>
+          <Button size="sm" className="cl-add-head" iconLeft={<Plus size={16} />} onClick={() => { setPrefill(null); setDialog('add') }}>Add a device</Button>
+          <Button variant="secondary" size="sm" className="cl-scan-head" iconLeft={<ScanBarcode size={16} />} onClick={() => setDialog('scan')}>Scan</Button>
           <Button variant="secondary" size="sm" iconLeft={<Download size={16} />} onClick={() => setDialog('export')}>Export</Button>
           {isOwner && <Button variant="secondary" size="sm" iconLeft={<Share2 size={16} />} onClick={() => setDialog('share')}>Share</Button>}
           {isOwner && <Button variant="ghost" size="sm" className="cl-manage-toggle" aria-expanded={manage} onClick={() => setManage(!manage)}>Manage</Button>}
@@ -339,9 +345,17 @@ function ListView({ id, me }) {
         {!shown.length && <p className="data-table-empty">{all.length ? 'No devices match. Clear the filters to see them all.' : 'This checklist has no devices yet.'}</p>}
       </div>
 
-      <Button className="cl-fab" iconLeft={<Plus size={20} />} onClick={() => setDialog('add')}>Add device</Button>
+      <Button className="cl-fab" iconLeft={<Plus size={20} />} onClick={() => { setPrefill(null); setDialog('add') }}>Add device</Button>
+      <button type="button" className="cl-fab-scan" aria-label="Scan a device" title="Scan a device" onClick={() => setDialog('scan')}><ScanBarcode size={24} aria-hidden="true" /></button>
+      {dialog === 'scan' && (
+        <Suspense fallback={null}>
+          <Scan items={all} steps={steps} onToggle={toggle} onClose={() => setDialog('')}
+            onOpen={(oid) => { setDialog(''); setOpenId(oid) }}
+            onAdd={(p) => { setPrefill(p); setDialog('add') }} />
+        </Suspense>
+      )}
       {dialog === 'add' && (
-        <AddDialog items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
+        <AddDialog items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, ...(prefill || {}), department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
           onOpen={setOpenId} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />
       )}
       {open && (
@@ -382,24 +396,6 @@ function GroupRows({ group, grouped, total, shared, steps, onTick, onToggle, onO
         <DeviceRow key={it.id} it={it} steps={steps} grouped={grouped} shared={shared.has((it.serial || '').toLowerCase())} onTick={onTick} onToggle={onToggle} onOpen={onOpen} />
       ))}
     </>
-  )
-}
-
-/** One toggle per step: tick what has been done, with who and when on hover. */
-function StepChecks({ it, steps, onToggle }) {
-  return (
-    <span className="cl-steps">
-      {steps.map((st) => {
-        const t = tickOf(it, st.id)
-        return (
-          <button key={st.id} type="button" className={`cl-step${t ? ' on' : ''}`} aria-pressed={!!t}
-            title={t ? `${st.label}: ${t.byName || 'someone'}${t.at ? ', ' + stamp(t.at) : ''}` : st.label}
-            onClick={(e) => { e.stopPropagation(); onToggle(it, st, !t) }}>
-            {t && <Check size={14} strokeWidth={3} aria-hidden="true" />}{st.label}
-          </button>
-        )
-      })}
-    </span>
   )
 }
 
@@ -635,7 +631,7 @@ function StepsDialog({ list, steps, summary, run, onClose }) {
 
 /** Anyone who can see the list can add a device the spreadsheet didn't list. It goes on at once, and the team sees it. */
 function AddDialog({ items, steps, by, listId, run, defaults, onOpen, onClose }) {
-  const [v, setV] = useState({ name: '', serial: '', department: defaults.department, location: '', status: 'Working', version: '', note: '' })
+  const [v, setV] = useState({ name: defaults.name || '', serial: '', department: defaults.department, location: '', status: 'Working', version: '', note: '' })
   const [ticked, setTicked] = useState([])
   const [err, setErr] = useState('')
   const set = (k) => (e) => { setV({ ...v, [k]: e.target.value }); setErr('') }

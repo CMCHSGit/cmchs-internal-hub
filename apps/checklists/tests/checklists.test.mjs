@@ -5,7 +5,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   DEFAULT_STEPS, NO_DEPARTMENT, departmentOf, exportRows, exportHeaders, latestTick, newStepId, progressLabel, progressOf, stateOf, stepsFromText, stepsOf, tickOf, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
-  sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial,
+  sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial, matchScan, bestMatches, suggestName,
 } from '../src/model.js'
 
 const EXPORT_HEADERS = exportHeaders()
@@ -265,6 +265,52 @@ test('the export has a column set for each step', () => {
   assert.equal(row[col('Software upgraded at')], '27-Oct-2026 14:05')
   assert.equal(row[col('Changed config')], '')
   assert.equal(row[col('Changed config by')], '')
+})
+
+const onList = [
+  { id: 'a', name: 'N1-WHA303756', serial: 'AA3-41084014', deviceId: '00-0F-14-04-9B-3A-79-7F', wirelessMac: '00:17:23:98:5A:02', wiredMac: '00:0F:14:3A:79:7F' },
+  { id: 'b', name: 'N1-WHA304525', serial: 'AA3-41084001', deviceId: '00-0F-14-04-9B-3A-D1-9D', wirelessMac: '00:17:23:98:58:C4', wiredMac: '00:0F:14:3A:D1:9D' },
+  { id: 'c', name: 'N1-WHA3037561', serial: 'AA3-00000001' },
+  { id: 'd', name: 'N1-X1', serial: 'S1' },
+]
+
+test('a label that carries only the asset number finds the device the list calls N1-<number>', () => {
+  assert.deepEqual(bestMatches(onList, 'WHA303756').map((i) => i.id), ['a'], 'the longer name that only contains it is a weaker match')
+  assert.deepEqual(bestMatches(onList, ' wha-303756 ').map((i) => i.id), ['a'], 'case, spaces and dashes do not matter')
+  assert.deepEqual(bestMatches(onList, 'WHA304525').map((i) => i.id), ['b'])
+})
+
+test('the whole name, the serial number, a MAC address or the Device ID find it too', () => {
+  assert.deepEqual(bestMatches(onList, 'N1-WHA303756').map((i) => i.id), ['a'])
+  assert.deepEqual(bestMatches(onList, 'AA3-41084001').map((i) => i.id), ['b'])
+  assert.deepEqual(bestMatches(onList, '00:17:23:98:58:C4').map((i) => i.id), ['b'])
+  assert.deepEqual(bestMatches(onList, '00-0F-14-04-9B-3A-79-7F').map((i) => i.id), ['a'])
+  assert.equal(matchScan(onList, 'AA3-41084014')[0].score, 3)
+})
+
+test('a label that says more than the number still finds it', () => {
+  assert.deepEqual(bestMatches(onList, 'ASSET: WHA304525 / MINDRAY BENEVISION N1').map((i) => i.id), ['b'])
+  assert.deepEqual(bestMatches(onList, 'https://example.com/d?sn=AA3-41084014').map((i) => i.id), ['a'])
+})
+
+test('a code that is not on the list, or is too short to mean anything, finds nothing', () => {
+  assert.deepEqual(matchScan(onList, 'WHA999999'), [])
+  assert.deepEqual(matchScan(onList, 'N1'), [])
+  assert.deepEqual(matchScan(onList, ''), [])
+  assert.deepEqual(matchScan(onList, null), [])
+  assert.deepEqual(matchScan([], 'WHA303756'), [])
+})
+
+test('two devices that fit equally are both offered', () => {
+  const twin = [{ id: 'p', name: 'N1-WHA303756' }, { id: 'q', name: 'N2-WHA303756' }]
+  assert.deepEqual(bestMatches(twin, 'WHA303756').map((i) => i.id).sort(), ['p', 'q'])
+})
+
+test('a device not on the list is named like the others', () => {
+  assert.equal(suggestName(onList.slice(0, 3), 'WHA999999'), 'N1-WHA999999')
+  assert.equal(suggestName(onList, 'AA3-555'), 'AA3-555', 'not an asset number: as scanned')
+  assert.equal(suggestName([{ name: 'Bed 1' }, { name: 'Bed 2' }], 'WHA999999'), 'WHA999999', 'the list has no pattern to copy')
+  assert.equal(suggestName([], ' WHA999999 '), 'WHA999999')
 })
 
 test('dates and file names', () => {
