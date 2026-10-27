@@ -72,7 +72,7 @@ body { background: var(--chs-black-05); }
 .mini-stripes span:nth-child(3), .stripe-rule span:nth-child(3) { background: var(--stripe-3); }
 
 /* ---------- header ---------- */
-.header { position: sticky; top: 0; z-index: 10; background: var(--surface-page); }
+.header { position: sticky; top: 0; z-index: 30; /* above a section's own sticky bar (Asks' is 20), so the Service menu is not cut off by it; below panels and dialogs (39+) */  background: var(--surface-page); }
 .header-row { display: flex; align-items: center; gap: 20px; min-height: 64px; padding: 0 24px; }
 .stripe-rule { display: flex; height: 4px; }
 .stripe-rule span { flex: 1; }
