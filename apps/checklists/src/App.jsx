@@ -129,6 +129,7 @@ function ListView({ id, by, canEdit }) {
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [renaming, setRenaming] = useState(false)
+  const [more, setMore] = useState(false) // the filters under the search box, on a phone
   const [toastMsg, toast] = useToast()
   const [confirmDialog, confirm] = useConfirm()
 
@@ -183,10 +184,10 @@ function ListView({ id, by, canEdit }) {
           </p>
         </div>
         <div className="cl-head-actions">
-          <Button variant="secondary" iconLeft={<Download size={18} />} onClick={() => setExporting(true)}>Export</Button>
-          {canEdit && <Button variant="ghost" iconLeft={<FileSpreadsheet size={18} />} onClick={() => setImporting(true)}>Update from spreadsheet</Button>}
-          {canEdit && <Button variant="ghost" onClick={() => setRenaming(true)}>Rename</Button>}
-          {canEdit && <Button variant="ghost" className="cl-del" iconLeft={<Trash2 size={18} />} onClick={deleteList}>Delete</Button>}
+          <Button variant="secondary" size="sm" iconLeft={<Download size={16} />} onClick={() => setExporting(true)}>Export</Button>
+          {canEdit && <Button variant="ghost" size="sm" iconLeft={<FileSpreadsheet size={16} />} onClick={() => setImporting(true)}>Update from spreadsheet</Button>}
+          {canEdit && <Button variant="ghost" size="sm" onClick={() => setRenaming(true)}>Rename</Button>}
+          {canEdit && <Button variant="ghost" size="sm" className="cl-del" iconLeft={<Trash2 size={16} />} onClick={deleteList}>Delete</Button>}
         </div>
       </div>
 
@@ -206,9 +207,7 @@ function ListView({ id, by, canEdit }) {
 
       {meta.pending > 0 && <Alert tone="info" title="Waiting to sync">Your ticks are saved on this device and will go to everyone else when there is a signal. Keep this page open until it says All saved.</Alert>}
       {summary.sharedSerials > 0 && (
-        <Alert tone="info" title={`${summary.sharedSerials} serial number${summary.sharedSerials === 1 ? ' is' : 's are'} on more than one device`}>
-          The export lists them as separate devices (different Device ID), so they count as separate visits here. They’re tagged “Same serial” below.
-        </Alert>
+        <p className="cl-info">{summary.sharedSerials} serial number{summary.sharedSerials === 1 ? ' is' : 's are'} on more than one device (separate Device IDs, so separate visits). Tagged “Same serial”.</p>
       )}
 
       <nav className="cl-tiles" aria-label="Show">
@@ -223,6 +222,10 @@ function ListView({ id, by, canEdit }) {
         <label className="field cl-grow"><span className="field-label">Search</span>
           <input className="input" type="search" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Device name, serial, location, IP or note" autoComplete="off" />
         </label>
+        <button type="button" className="btn btn-secondary btn-sm cl-filters-toggle" aria-expanded={more} onClick={() => setMore(!more)}>
+          Filters and sort{[f.department, f.status, f.version].filter(Boolean).length ? ` (${[f.department, f.status, f.version].filter(Boolean).length})` : ''}
+        </button>
+        <div className={`cl-more${more ? ' open' : ''}`}>
         <label className="field"><span className="field-label">Department</span>
           <select value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })}>
             <option value="">All departments ({summary.departments.length})</option>
@@ -247,13 +250,14 @@ function ListView({ id, by, canEdit }) {
           <span className="field-label">Sort by</span>
           <div className="cl-sort-row">
             <select value={sort.key} onChange={(e) => setSort({ key: e.target.value, dir: 1 })} aria-label="Sort by">
-              {Object.entries(SORT_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+              {Object.entries(SORT_LABELS).map(([k, label]) => <option key={k} value={k}>Sort: {label}</option>)}
             </select>
             <button type="button" className="icon-btn icon-btn-md" aria-label={sort.dir > 0 ? 'Ascending: switch to descending' : 'Descending: switch to ascending'}
               title={sort.dir > 0 ? 'A to Z' : 'Z to A'} onClick={() => setSort({ ...sort, dir: -sort.dir })}>
               {sort.dir > 0 ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
             </button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -336,6 +340,7 @@ function DeviceRow({ it, grouped, shared, onTick, onOpen }) {
       </td>
       <td className="cl-c-serial" data-label="Serial number">
         <span className="cl-mono">{it.serial}</span>
+        <span className="cl-ver-inline cl-mono">{it.version}</span>
         {shared && <Badge tone="orange" className="cl-shared">Same serial</Badge>}
       </td>
       <td className="cl-c-status" data-label="Status">
