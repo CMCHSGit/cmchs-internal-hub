@@ -141,8 +141,8 @@ const COLUMNS = [
   ['department', 'Department'], ['name', 'Device'], ['serial', 'Serial number'], ['status', 'Status'],
   ['location', 'Last location'], ['version', 'Software'], ['result', 'Progress'],
 ]
-const SORT_LABELS = { department: 'Department', status: 'Status', serial: 'Serial number', name: 'Device name', location: 'Last location', version: 'Software version', lastSeen: 'Last seen', result: 'Progress' }
-const NO_FILTER = { q: '', status: '', department: '', version: '', missing: '', show: 'all' }
+const SORT_LABELS = { department: 'Department', facility: 'Facility', status: 'Status', serial: 'Serial number', name: 'Device name', location: 'Last location', version: 'Software version', lastSeen: 'Last seen', result: 'Progress' }
+const NO_FILTER = { q: '', status: '', department: '', facility: '', version: '', missing: '', show: 'all' }
 
 function ListView({ id, me }) {
   const by = me
@@ -187,7 +187,7 @@ function ListView({ id, me }) {
   const statuses = STATUS_ORDER.filter((s) => summary.byStatus[s]).concat(Object.keys(summary.byStatus).filter((s) => !STATUS_ORDER.includes(s)))
 
   const sortBy = (key) => setSort((s) => ({ key, dir: s.key === key ? -s.dir : 1 }))
-  const filtered = f.q || f.status || f.department || f.version || f.missing || f.show !== 'all'
+  const filtered = f.q || f.status || f.department || f.facility || f.version || f.missing || f.show !== 'all'
 
   async function run(promise, failed = 'Not saved') {
     try { await promise } catch (e) { toast(e?.code === 'permission-denied' ? 'Not saved: the database refused it. The checklists rule may not be published yet.' : `${failed}: ${e?.message || e}`) }
@@ -211,7 +211,7 @@ function ListView({ id, me }) {
   const open = all.find((x) => x.id === openId)
   const pct = summary.total ? Math.round((summary.done / summary.total) * 100) : 0
   const tiles = [['todo', 'To do', summary.todo], ['done', 'Done', summary.done], ['notfound', 'Couldn’t find', summary.notfound], ['all', 'All devices', summary.total]]
-  const activeFilters = [f.department, f.status, f.version, f.missing].filter(Boolean).length
+  const activeFilters = [f.department, f.facility, f.status, f.version, f.missing].filter(Boolean).length
 
   return (
     <div className="cl-page">
@@ -283,6 +283,14 @@ function ListView({ id, me }) {
           Filters and sort{activeFilters ? ` (${activeFilters})` : ''}
         </button>
         <div className={`cl-more${more ? ' open' : ''}`}>
+          {summary.facilities.length > 1 && (
+            <label className="field"><span className="field-label">Facility</span>
+              <select value={f.facility} onChange={(e) => setF({ ...f, facility: e.target.value })}>
+                <option value="">All facilities ({summary.facilities.length})</option>
+                {summary.facilities.map((x) => <option key={x.name || NO_DEPARTMENT} value={x.name || NO_DEPARTMENT}>{x.name || 'No facility'} ({x.count})</option>)}
+              </select>
+            </label>
+          )}
           <label className="field"><span className="field-label">Department</span>
             <select value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })}>
               <option value="">All departments ({summary.departments.length})</option>

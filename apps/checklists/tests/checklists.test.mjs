@@ -370,6 +370,19 @@ test('an item made by hand with its status left blank stays blank', () => {
   assert.equal(newDevice({ name: 'x' }).device.status, 'Unknown')
 })
 
+test('filtering by facility: counts, one facility, devices with none, and it is searchable and sortable', () => {
+  const list = [
+    mk({ id: 'a', name: 'A', facility: 'NSH' }), mk({ id: 'b', name: 'B', facility: 'NSH' }),
+    mk({ id: 'c', name: 'C', facility: 'THM' }), mk({ id: 'd', name: 'D', facility: '' }),
+  ]
+  assert.deepEqual(summarise(list).facilities, [{ name: 'NSH', count: 2 }, { name: '', count: 1 }, { name: 'THM', count: 1 }])
+  assert.deepEqual(filterItems(list, { facility: 'NSH' }).map((i) => i.id), ['a', 'b'])
+  assert.deepEqual(filterItems(list, { facility: 'THM', show: 'todo' }).map((i) => i.id), ['c'])
+  assert.deepEqual(filterItems(list, { facility: NO_DEPARTMENT }).map((i) => i.id), ['d'], 'devices with no facility')
+  assert.deepEqual(filterItems(list, { q: 'thm' }).map((i) => i.id), ['c'])
+  assert.deepEqual(sortItems(list, 'facility', 1).map((i) => i.id), ['a', 'b', 'c', 'd'], 'no facility last')
+})
+
 test('dates and file names', () => {
   assert.equal(niceStamp('2026-10-27 11:43'), '27-Oct-2026 11:43')
   assert.equal(niceStamp('2026-10-27'), '27-Oct-2026')

@@ -215,6 +215,7 @@ export function summarise(items, steps = DEFAULT_STEPS) {
   const byStatus = {}
   const byDept = new Map()
   const byVersion = new Map()
+  const byFacility = new Map()
   const stepCounts = Object.fromEntries(steps.map((st) => [st.id, 0]))
   let done = 0
   let notfound = 0
@@ -234,6 +235,8 @@ export function summarise(items, steps = DEFAULT_STEPS) {
     byDept.set(dn, dep)
     const vn = it.version || ''
     byVersion.set(vn, (byVersion.get(vn) || 0) + 1)
+    const fn = it.facility || ''
+    byFacility.set(fn, (byFacility.get(fn) || 0) + 1)
   }
   const departments = [...byDept.values()].sort(byName)
   return {
@@ -244,6 +247,7 @@ export function summarise(items, steps = DEFAULT_STEPS) {
     sharedSerials: [...bySerial.values()].filter((n) => n > 1).length,
     byStatus,
     departments,
+    facilities: [...byFacility].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
     versions: [...byVersion].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
   }
 }
@@ -262,6 +266,7 @@ const byName = (a, b) => (!a.name ? (b.name ? 1 : 0) : !b.name ? -1 : collate(a.
 const RANK = { todo: 0, partial: 1, lost: 2, done: 3 }
 const SORT_VALUE = {
   department: (it) => it.department || '',
+  facility: (it) => it.facility || '',
   status: (it) => { const i = STATUS_ORDER.indexOf(it.status); return i < 0 ? STATUS_ORDER.length : i },
   serial: (it) => it.serial || '',
   name: (it) => it.name || '',
@@ -287,13 +292,14 @@ export function sortItems(items, key = 'department', dir = 1, steps = DEFAULT_ST
   })
 }
 
-/** Narrows the list. f: { q, status, department, show: all|todo|done|notfound, version, missing: a step's id } — blank means no filter. */
+/** Narrows the list. f: { q, status, department, facility, show: all|todo|done|notfound, version, missing: a step's id } — blank means no filter. */
 export function filterItems(items, f = {}, steps = DEFAULT_STEPS) {
   const toks = String(f.q || '').toLowerCase().split(/\s+/).filter(Boolean)
   return items.filter((it) => {
     const state = stateOf(it, steps)
     if (f.status && it.status !== f.status) return false
     if (f.department !== undefined && f.department !== '' && (it.department || '') !== (f.department === NO_DEPARTMENT ? '' : f.department)) return false
+    if (f.facility && (it.facility || '') !== (f.facility === NO_DEPARTMENT ? '' : f.facility)) return false
     if (f.version && (it.version || '') !== f.version) return false
     if (f.show === 'todo' && (state === 'done' || state === 'lost')) return false
     if (f.show === 'done' && state !== 'done') return false
@@ -301,7 +307,7 @@ export function filterItems(items, f = {}, steps = DEFAULT_STEPS) {
     if (f.missing && (state === 'lost' || tickOf(it, f.missing))) return false
     if (toks.length) {
       const who = steps.map((st) => tickOf(it, st.id)?.byName || '').join(' ')
-      const hay = [it.name, it.serial, it.deviceId, it.location, it.department, it.ip, it.wirelessMac, it.wiredMac, it.note, who, it.category, it.model].join(' ').toLowerCase()
+      const hay = [it.name, it.serial, it.deviceId, it.location, it.department, it.facility, it.ip, it.wirelessMac, it.wiredMac, it.note, who, it.category, it.model].join(' ').toLowerCase()
       if (!toks.every((t) => hay.includes(t))) return false
     }
     return true
