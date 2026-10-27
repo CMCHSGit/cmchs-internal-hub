@@ -20,12 +20,12 @@ import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } fr
 import { XLSXLite } from '../../simprosync/reader.js'
 import {
   DEFAULT_STEPS, MAX_STEPS, NO_DEPARTMENT, mainOf, STATUSES, STATUS_ORDER, filterItems, findBySerial, groupByDepartment, latestTick, newDevice, newStepId, niceStamp,
-  parseDevices, progressOf, sharedSerials, sortItems, stamp, stateOf, stepsFromText, stepsOf, summarise, tickOf,
+  newOnly, parseDevices, parseManualLines, progressOf, sharedSerials, sortItems, stamp, stateOf, stepsFromText, stepsOf, summarise, tickOf,
 } from './model.js'
 import { downloadCsv, downloadXlsx } from './export.js'
 import StepChecks from './StepChecks.jsx'
 import {
-  addDevice, createList, importInto, markLost, notifyShared, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
+  addDevice, addDevices, createList, importInto, markLost, notifyShared, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
 } from './store.js'
 
 // The camera and its barcode reader load only when someone scans.
@@ -77,7 +77,7 @@ const sharedWith = (l) => Math.max(0, (l.people || []).filter((u) => u !== l.cre
 function Lists({ me, canCreate }) {
   const [lists, setLists] = useState(null)
   const [error, setError] = useState('')
-  const [importing, setImporting] = useState(false)
+  const [creating, setCreating] = useState('') // '' | 'new' (by hand) | 'sheet' (from a spreadsheet)
   const [toastMsg, toast] = useToast()
 
   useEffect(() => {
@@ -91,7 +91,12 @@ function Lists({ me, canCreate }) {
           <h1 className="cl-title">Checklists</h1>
           <p className="cl-sub">Things to check on equipment, ticked off by a team: a software upgrade, planned maintenance, a test round. You see the ones you made or that were shared with you.</p>
         </div>
-        {canCreate && <div className="cl-head-actions"><Button iconLeft={<FileSpreadsheet size={18} />} onClick={() => setImporting(true)}>New checklist from spreadsheet</Button></div>}
+        {canCreate && (
+          <div className="cl-head-actions">
+            <Button iconLeft={<Plus size={18} />} onClick={() => setCreating('new')}>New checklist</Button>
+            <Button variant="secondary" iconLeft={<FileSpreadsheet size={18} />} onClick={() => setCreating('sheet')}>From a spreadsheet</Button>
+          </div>
+        )}
       </div>
       {error && <Alert tone="critical" title="Not everything loaded">{error}</Alert>}
       {lists === null && !error && <Loading />}
@@ -99,7 +104,7 @@ function Lists({ me, canCreate }) {
         <div className="cl-empty">
           <p><b>No checklists here yet.</b></p>
           <p>{canCreate
-            ? 'Choose New checklist from spreadsheet and pick the device export (.xlsx or .csv). Then share it with the people doing the job.'
+            ? 'Choose New checklist to make one by hand, or From a spreadsheet to load a device export (.xlsx or .csv). Then share it with the people doing the job.'
             : 'Someone shares a checklist with you, or attaches one to an ask, and it appears here. An admin, or someone in the Engineers or Management team, makes them.'}</p>
         </div>
       )}
@@ -121,9 +126,10 @@ function Lists({ me, canCreate }) {
           ))}
         </ul>
       )}
-      {importing && (
-        <ImportDialog by={me} onClose={(msg, newId) => { setImporting(false); if (msg) toast(msg); if (newId) location.hash = '#/' + encodeURIComponent(newId) }} />
-      )}
+      {creating && (() => {
+        const done = (msg, newId) => { setCreating(''); if (msg) toast(msg); if (newId) location.hash = '#/' + encodeURIComponent(newId) }
+        return creating === 'new' ? <NewDialog by={me} onClose={done} /> : <ImportDialog by={me} onClose={done} />
+      })()}
       <Toast message={toastMsg} />
     </div>
   )
@@ -227,6 +233,7 @@ function ListView({ id, me }) {
           {isOwner && <Button variant="ghost" size="sm" className="cl-manage-toggle" aria-expanded={manage} onClick={() => setManage(!manage)}>Manage</Button>}
           {isOwner && (
             <span className={`cl-manage${manage ? ' open' : ''}`}>
+              <Button variant="ghost" size="sm" onClick={() => setDialog('many')}>Add several</Button>
               <Button variant="ghost" size="sm" onClick={() => setDialog('steps')}>Steps ({steps.length})</Button>
               <Button variant="ghost" size="sm" iconLeft={<FileSpreadsheet size={16} />} onClick={() => setDialog('import')}>Update from spreadsheet</Button>
               <Button variant="ghost" size="sm" onClick={() => setDialog('rename')}>Rename</Button>
@@ -343,7 +350,7 @@ function ListView({ id, me }) {
             ))}
           </tbody>
         </table>
-        {!shown.length && <p className="data-table-empty">{all.length ? 'No devices match. Clear the filters to see them all.' : 'This checklist has no devices yet.'}</p>}
+        {!shown.length && <p className="data-table-empty">{all.length ? 'No devices match. Clear the filters to see them all.' : (isOwner ? 'This checklist has no devices yet. Add them with Add a device or Add several, or load a spreadsheet from Manage.' : 'This checklist has no devices yet.')}</p>}
       </div>
 
       <Button className="cl-fab" iconLeft={<Plus size={20} />} onClick={() => { setPrefill(null); setDialog('add') }}>Add device</Button>
@@ -356,7 +363,7 @@ function ListView({ id, me }) {
         </Suspense>
       )}
       {dialog === 'add' && (
-        <AddDialog items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, ...(prefill || {}), department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
+        <AddDialog plain={isOwner && !!list.manual} items={all} steps={steps} by={by} listId={id} run={run} defaults={{ ...common, ...(prefill || {}), department: f.department && f.department !== NO_DEPARTMENT ? f.department : '' }}
           onOpen={setOpenId} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />
       )}
       {open && (
@@ -375,6 +382,7 @@ function ListView({ id, me }) {
         <ShareDialog list={list} me={me} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }}
           onNotified={(out) => toast(`Shared. ${out.pushed} ${out.pushed === 1 ? 'person' : 'people'} told${out.unreached ? `, ${out.unreached} without notifications on` : ''}.`)} />
       )}
+      {dialog === 'many' && <AddManyDialog items={all} defaults={common} listId={id} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
       {dialog === 'steps' && <StepsDialog list={list} steps={steps} summary={summary} run={run} onClose={(msg) => { setDialog(''); if (msg) toast(msg) }} />}
       {confirmDialog}
       <Toast message={toastMsg} />
@@ -436,11 +444,11 @@ function DeviceRow({ it, steps, grouped, shared, onTick, onToggle, onOpen }) {
         {shared && <Badge tone="orange" className="cl-shared">Same serial</Badge>}
       </td>
       <td className="cl-c-status" data-label="Status">
-        <Badge tone={STATUS_TONE[it.status] || 'neutral'}>{it.status || 'Unknown'}</Badge>
+        {it.status !== '' && <Badge tone={STATUS_TONE[it.status] || 'neutral'}>{it.status || 'Unknown'}</Badge>}
         {it.statusSince && <span className="cl-small">since {niceStamp(it.statusSince)}</span>}
       </td>
       <td className="cl-c-loc" data-label="Last location">
-        {it.location || <span className="cl-none">Unknown</span>}
+        {it.location || (it.status === '' ? null : <span className="cl-none">Unknown</span>)}
         {it.lastSeenAt && <span className="cl-small">seen {niceStamp(it.lastSeenAt)}</span>}
         <span className="cl-ver-inline cl-mono">{it.version}</span>
       </td>
@@ -465,7 +473,7 @@ function DetailDialog({ it, steps, shared, canRemove, by, listId, run, onClose, 
     ['Department', it.department ? it.department + (it.deptGuessed ? ' (from the location: not in the export)' : '') : NO_DEPT_LABEL],
     ['Device type', [it.category, it.model].filter(Boolean).join(' · ')],
     ['Serial number', it.serial],
-    ['Status', (it.status || 'Unknown') + (it.statusSince ? ` since ${niceStamp(it.statusSince)}` : '')],
+    ['Status', it.status === '' ? '' : (it.status || 'Unknown') + (it.statusSince ? ` since ${niceStamp(it.statusSince)}` : '')],
     ['Last location', it.location],
     ['Last seen', niceStamp(it.lastSeenAt) + (it.lastSeenIn && it.lastSeenIn !== it.location ? ` at ${it.lastSeenIn}` : '')],
     ['Facility', it.facility], ['Room', it.room], ['Bed', it.bed],
@@ -633,10 +641,92 @@ function StepsDialog({ list, steps, summary, run, onClose }) {
   )
 }
 
+// ── A checklist made by hand ─────────────────────────────────────────────────────────────────────────
+
+/** A checklist with no spreadsheet: its name, the steps, and optionally the first items typed or pasted from Excel. */
+function NewDialog({ by, onClose }) {
+  const [name, setName] = useState('')
+  const [stepText, setStepText] = useState('Done')
+  const [itemText, setItemText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const steps = stepsFromText(stepText)
+  const devices = parseManualLines(itemText)
+
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true); setError('')
+    try {
+      const id = await createList({ name: name.trim(), devices, by, steps: steps.length ? steps : DEFAULT_STEPS, manual: true })
+      onClose(devices.length ? `Checklist made with ${devices.length} items.` : 'Checklist made. Add items with Add a device or Add several.', id)
+    } catch (err) {
+      setError(readError(err, 'to make the checklist').replace(/^Could not /, 'Not made: could not '))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Dialog title="New checklist" width={620} onClose={() => !busy && onClose('')}
+      description="Make a checklist from scratch: name it, say what has to be ticked, and add the things to check now or later.">
+      <form onSubmit={save} className="cl-form">
+        <label className="field"><span className="field-label">Name</span>
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Annual PM, Waikato Hospital" autoComplete="off" />
+        </label>
+        <label className="field"><span className="field-label">What has to be ticked on each one? One step a line</span>
+          <textarea className="input" rows={3} value={stepText} onChange={(e) => setStepText(e.target.value)} placeholder={'Visual check\nElectrical safety test\nAlarm test'} />
+        </label>
+        <p className="cl-info">{steps.length > 1 ? `${steps.length} steps: done when all are ticked, or when the main step is, if you choose one later (Steps).` : 'One step. Add more any time with Steps.'}</p>
+        <label className="field"><span className="field-label">Items to check (optional): one a line, or paste from Excel</span>
+          <textarea className="input" rows={5} value={itemText} onChange={(e) => setItemText(e.target.value)}
+            placeholder={'Name, serial number, department, location\nBed 1 monitor, S-100, ICU, Bay 2\nBed 2 monitor, S-101, ICU, Bay 2'} />
+        </label>
+        {itemText.trim() && <p className="cl-info">{devices.length} {devices.length === 1 ? 'item' : 'items'} found.</p>}
+        {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" disabled={busy} onClick={() => onClose('')}>Cancel</Button>
+          <Button type="submit" disabled={busy || !name.trim()}>{busy ? 'Working…' : 'Make the checklist'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
+/** More items for the owner of a list: typed or pasted, one a line. Ones already on the list (same serial or name) are left out. */
+function AddManyDialog({ items, defaults, listId, run, onClose }) {
+  const [text, setText] = useState('')
+  const fresh = newOnly(parseManualLines(text, { category: defaults.category, model: defaults.model }), items)
+  const total = parseManualLines(text).length
+  function save(e) {
+    e.preventDefault()
+    if (!fresh.length) return
+    // Not waited for, like a tick: with no signal it is kept on this device and sent later.
+    run(addDevices(listId, fresh, items.length), 'Not added')
+    onClose(`Added ${fresh.length} ${fresh.length === 1 ? 'item' : 'items'}.`)
+  }
+  return (
+    <Dialog title="Add several items" width={620} onClose={() => onClose('')}
+      description="One a line: name, then serial number, department and location, separated by commas or tabs. You can paste straight from Excel.">
+      <form onSubmit={save} className="cl-form">
+        <textarea className="input" rows={8} value={text} onChange={(e) => setText(e.target.value)} aria-label="Items, one a line"
+          placeholder={'Bed 3 monitor, S-102, ICU, Bay 3\nBed 4 monitor, S-103, ICU, Bay 3'} />
+        {text.trim() && (
+          <p className="cl-info">
+            {fresh.length} new {fresh.length === 1 ? 'item' : 'items'}{total > fresh.length ? `, ${total - fresh.length} already on the list or repeated, left out` : ''}.
+          </p>
+        )}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={() => onClose('')}>Cancel</Button>
+          <Button type="submit" disabled={!fresh.length} iconLeft={<Plus size={18} />}>Add {fresh.length || ''} {fresh.length === 1 ? 'item' : 'items'}</Button>
+        </div>
+      </form>
+    </Dialog>
+  )
+}
+
 // ── A device found on site ───────────────────────────────────────────────────────────────────────────
 
 /** Anyone who can see the list can add a device the spreadsheet didn't list. It goes on at once, and the team sees it. */
-function AddDialog({ items, steps, by, listId, run, defaults, onOpen, onClose }) {
+function AddDialog({ plain = false, items, steps, by, listId, run, defaults, onOpen, onClose }) {
   const [v, setV] = useState({ name: defaults.name || '', serial: '', department: defaults.department, location: '', status: 'Working', version: '', note: '' })
   const [ticked, setTicked] = useState([])
   const [err, setErr] = useState('')
@@ -646,10 +736,12 @@ function AddDialog({ items, steps, by, listId, run, defaults, onOpen, onClose })
 
   function save(e) {
     e.preventDefault()
-    const out = newDevice(v, { category: defaults.category, model: defaults.model })
+    // An item the owner of a list made by hand adds is theirs, not found on site: no status, and an id that is not found-…
+    const out = newDevice(plain ? { ...v, status: '' } : v, { category: defaults.category, model: defaults.model })
     if (out.error) { setErr(out.error); return }
+    if (plain) out.device.id = out.device.id.replace(/^found-/, 'manual-')
     // Not waited for: with no signal the write is kept on this device and sent later, and the device is on the list already.
-    run(addDevice(listId, out.device, { note: out.note, stepIds: ticked }, by), 'Not added')
+    run(addDevice(listId, out.device, { note: out.note, stepIds: ticked, plain }, by), 'Not added')
     onClose(`Added ${out.device.name || out.device.serial}${ticked.length ? ' with its ticks' : ''}.`)
   }
 
@@ -663,12 +755,12 @@ function AddDialog({ items, steps, by, listId, run, defaults, onOpen, onClose })
             <input className="input" value={v.serial} onChange={set('serial')} placeholder="AA3-…" autoComplete="off" /></label>
           <label className="field"><span className="field-label">Department</span>
             <input className="input" list="cl-depts" value={v.department} onChange={set('department')} placeholder="Where it lives" autoComplete="off" /></label>
-          <label className="field"><span className="field-label">Where you found it</span>
+          <label className="field"><span className="field-label">{plain ? 'Location' : 'Where you found it'}</span>
             <input className="input" value={v.location} onChange={set('location')} placeholder="Ward, room or bed" autoComplete="off" /></label>
-          <label className="field"><span className="field-label">Status</span>
-            <select value={v.status} onChange={set('status')}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>
-          <label className="field"><span className="field-label">Software version</span>
-            <input className="input" list="cl-versions" value={v.version} onChange={set('version')} placeholder="If you know it" autoComplete="off" /></label>
+          {!plain && <label className="field"><span className="field-label">Status</span>
+            <select value={v.status} onChange={set('status')}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>}
+          {!plain && <label className="field"><span className="field-label">Software version</span>
+            <input className="input" list="cl-versions" value={v.version} onChange={set('version')} placeholder="If you know it" autoComplete="off" /></label>}
         </div>
         <datalist id="cl-depts">{distinct('department').map((d) => <option key={d} value={d} />)}</datalist>
         <datalist id="cl-versions">{distinct('version').map((d) => <option key={d} value={d} />)}</datalist>
