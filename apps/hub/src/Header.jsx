@@ -139,9 +139,9 @@ const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/sched
 // Phones: the sections used most on a phone as bottom tabs; the rest, and
 // Settings, under More. Projects is mostly used at a desk.
 const BAR = ['home', 'schedule', 'asks', 'equipment']
-// Service isn't a page: on a laptop it's a drop-down of the service tools, on a phone they sit under More.
+// Service: on a laptop a drop-down of the service tools (and "All service tools"); on a phone one entry under More that opens the Service page.
 const MORE = [...NAV.filter(([id]) => !BAR.includes(id) && id !== 'service'),
-  ['service', 'Service', '/service/', Wrench], ...serviceTools.map(t => [t.id, t.short || t.name, t.link, Wrench]), ['settings', 'Settings', '/settings/', Settings]]
+  ['service', 'Service', '/service/', Wrench], ['settings', 'Settings', '/settings/', Settings]]
 
 function BottomNav({ page }) {
   const [open, setOpen] = useState(false)
