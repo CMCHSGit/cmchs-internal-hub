@@ -25,6 +25,7 @@ import {
 import { downloadCsv, downloadXlsx } from './export.js'
 import StepChecks from './StepChecks.jsx'
 import MultiSelect from './MultiSelect.jsx'
+import { NO_FILTER, loadView, saveView } from './prefs.js'
 import {
   addDevice, addDevices, createList, importInto, markLost, notifyShared, removeItem, removeList, renameList, resetItem, saveSharing, saveSteps, setNote, setStep, watchItems, watchLists, watchPeople,
 } from './store.js'
@@ -143,7 +144,6 @@ const COLUMNS = [
   ['location', 'Last location'], ['version', 'Software'], ['result', 'Progress'],
 ]
 const SORT_LABELS = { department: 'Department', facility: 'Facility', status: 'Status', serial: 'Serial number', name: 'Device name', location: 'Last location', version: 'Software version', lastSeen: 'Last seen', result: 'Progress' }
-const NO_FILTER = { q: '', status: [], department: [], facility: [], version: [], missing: [], show: 'all' }
 
 function ListView({ id, me }) {
   const by = me
@@ -151,8 +151,11 @@ function ListView({ id, me }) {
   const [meta, setMeta] = useState({ pending: 0, fromCache: false })
   const [lists, setLists] = useState(null)
   const [error, setError] = useState('')
-  const [f, setF] = useState(NO_FILTER)
-  const [sort, setSort] = useState({ key: 'department', dir: 1 })
+  // What was filtered and sorted last time on this list, on this device: it stays until the person clears it.
+  const [view0] = useState(() => loadView(id, Object.keys(SORT_LABELS)))
+  const [f, setF] = useState(view0.f)
+  const [sort, setSort] = useState(view0.sort)
+  useEffect(() => { saveView(id, f, sort) }, [id, f, sort])
   const [openId, setOpenId] = useState('')
   const [dialog, setDialog] = useState('') // import | export | rename | add | share | steps
   const [more, setMore] = useState(false) // the filters under the search box, on a phone
@@ -213,6 +216,15 @@ function ListView({ id, me }) {
   const pct = summary.total ? Math.round((summary.done / summary.total) * 100) : 0
   const tiles = [['todo', 'To do', summary.todo], ['done', 'Done', summary.done], ['notfound', 'Couldn’t find', summary.notfound], ['all', 'All devices', summary.total]]
   const activeFilters = [f.department, f.facility, f.status, f.version, f.missing].filter((x) => x.length).length
+  const nameOf = { department: (v) => (v === NO_DEPARTMENT ? NO_DEPT_LABEL : v), facility: (v) => (v === NO_DEPARTMENT ? 'No facility' : v), version: (v) => (v === NO_DEPARTMENT ? 'Unknown' : v), status: (v) => v, missing: (v) => steps.find((s) => s.id === v)?.label || v }
+  // One chip a filter that is on, so it is plain what the list is narrowed by and each can be taken off on its own.
+  const activeChips = [
+    ...[['facility', 'Facility'], ['department', 'Department'], ['status', 'Status'], ['version', 'Software'], ['missing', 'Missing step']]
+      .filter(([k]) => f[k].length)
+      .map(([k, label]) => ({ key: k, label, text: f[k].map(nameOf[k]).join(', '), clear: () => setF({ ...f, [k]: [] }) })),
+    ...(f.q ? [{ key: 'q', label: 'Search', text: `“${f.q}”`, clear: () => setF({ ...f, q: '' }) }] : []),
+    ...(f.show !== 'all' ? [{ key: 'show', label: 'Showing', text: { todo: 'To do', done: 'Done', notfound: 'Couldn’t find' }[f.show], clear: () => setF({ ...f, show: 'all' }) }] : []),
+  ]
 
   return (
     <div className="cl-page">
@@ -248,6 +260,7 @@ function ListView({ id, me }) {
         <div className="cl-progress-top">
           <b>{summary.done} of {summary.total} done</b>
           <span>{pct}%{summary.notfound ? ` · ${summary.notfound} couldn’t find` : ''}</span>
+          {filtered && <button type="button" className="cl-flag" onClick={() => setF(NO_FILTER)} title="Clear every filter">Filtered: {shown.length} of {summary.total} <X size={14} aria-hidden="true" /></button>}
           <span className={`cl-sync${meta.pending ? ' wait' : ''}`} role="status">
             {meta.pending ? `${meta.pending} waiting to sync` : meta.fromCache ? 'Offline: showing the last copy' : 'All saved'}
           </span>
@@ -280,7 +293,7 @@ function ListView({ id, me }) {
         <label className="field cl-grow"><span className="field-label">Search</span>
           <input className="input" type="search" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Device name, serial, location, IP, note or who ticked" autoComplete="off" />
         </label>
-        <button type="button" className="btn btn-secondary btn-sm cl-filters-toggle" aria-expanded={more} onClick={() => setMore(!more)}>
+        <button type="button" className={`btn btn-secondary btn-sm cl-filters-toggle${activeFilters ? ' on' : ''}`} aria-expanded={more} onClick={() => setMore(!more)}>
           Filters and sort{activeFilters ? ` (${activeFilters})` : ''}
         </button>
         <div className={`cl-more${more ? ' open' : ''}`}>
@@ -315,8 +328,19 @@ function ListView({ id, me }) {
         </div>
       </div>
 
-      <div className="cl-count">
-        <span>Showing {shown.length} of {summary.total}</span>
+      {filtered && (
+        <div className="cl-active" aria-label="Filters that are on">
+          <span className="cl-active-title">Filters on:</span>
+          {activeChips.map((c) => (
+            <button key={c.key} type="button" className="cl-chip-btn" onClick={c.clear} title={`Remove this filter: ${c.label}`}>
+              <b>{c.label}</b> {c.text}<X size={14} aria-hidden="true" />
+            </button>
+          ))}
+          <button type="button" className="cl-link" onClick={() => setF(NO_FILTER)}>Clear all filters</button>
+        </div>
+      )}
+      <div className={`cl-count${filtered ? ' filtered' : ''}`}>
+        <span>Showing {shown.length} of {summary.total}{filtered ? ' (filtered)' : ''}</span>
         {filtered && <button type="button" className="cl-link" onClick={() => setF(NO_FILTER)}>Clear filters</button>}
       </div>
 

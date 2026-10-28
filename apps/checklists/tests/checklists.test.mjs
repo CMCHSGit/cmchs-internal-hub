@@ -7,6 +7,7 @@ import {
   DEFAULT_STEPS, NO_DEPARTMENT, mainOf, departmentOf, exportRows, exportHeaders, latestTick, newStepId, progressLabel, progressOf, stateOf, stepsFromText, stepsOf, tickOf, filterItems, groupByDepartment, lastSeen, parseDevices, parseStatus,
   sharedSerials, sortItems, summarise, toCsv, fileSafe, niceStamp, newDevice, findBySerial, matchScan, bestMatches, suggestName, parseManualLines, newOnly,
 } from '../src/model.js'
+import { NO_FILTER, normaliseView } from '../src/prefs.js'
 
 const EXPORT_HEADERS = exportHeaders()
 
@@ -399,6 +400,17 @@ test('every filter takes several choices: any of them within a filter, all the f
   assert.deepEqual(ids({ status: 'Offline' }), ['b'], 'one value as a string still works')
   assert.deepEqual(ids({ missing: ['sw', 'cfg'] }, STEPS), ['a', 'b', 'c', 'd', 'e'], 'missing any of the chosen steps')
   assert.deepEqual(ids({ missing: ['sw'] }, STEPS), ['a', 'b', 'c', 'd'])
+})
+
+test('what was filtered and sorted is remembered: valid parts kept, anything bad falls back to none', () => {
+  const keys = ['department', 'status', 'result']
+  const kept = normaliseView({ f: { q: 'wha', facility: ['NSH', 'THM'], status: ['Offline'], show: 'todo' }, sort: { key: 'status', dir: -1 } }, keys)
+  assert.deepEqual(kept.f, { q: 'wha', status: ['Offline'], department: [], facility: ['NSH', 'THM'], version: [], missing: [], show: 'todo' })
+  assert.deepEqual(kept.sort, { key: 'status', dir: -1 })
+  assert.deepEqual(normaliseView(null, keys), { f: NO_FILTER, sort: { key: 'department', dir: 1 } }, 'nothing stored: no filter, by department')
+  const bad = normaliseView({ f: { q: 5, status: 'Offline', department: [1, 'ICU', null], show: 'everything' }, sort: { key: 'nonsense', dir: 7 } }, keys)
+  assert.deepEqual(bad.f.department, ['ICU']); assert.deepEqual(bad.f.status, []); assert.equal(bad.f.q, ''); assert.equal(bad.f.show, 'all')
+  assert.deepEqual(bad.sort, { key: 'department', dir: 1 })
 })
 
 test('dates and file names', () => {

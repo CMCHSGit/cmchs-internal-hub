@@ -322,3 +322,18 @@
 }
 
 .cl-ms-all { border-bottom: 1px solid var(--border-subtle); font-weight: 600; color: var(--text-strong); }
+
+/* A filter that is on has to be plain to see: a flag in the sticky strip, chips under the filters, a coloured count */
+.cl-flag { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; background: var(--accent-fg); color: var(--text-inverse, #fff);
+  font: var(--weight-semibold) 13px/1.5 var(--font-body); }
+.cl-flag:hover { filter: brightness(1.12); }
+.cl-flag:focus-visible { box-shadow: var(--focus-ring); }
+.cl-active { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 12px; border: 1px solid var(--accent-fg); border-radius: var(--radius-lg); background: var(--surface-brand-tint); }
+.cl-active-title { font: var(--weight-semibold) 13px/1.4 var(--font-body); color: var(--accent-fg); }
+.cl-chip-btn { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 6px 3px 10px; border-radius: 999px; background: var(--chs-purple-20); color: var(--text-strong);
+  font: var(--type-body-sm); overflow-wrap: anywhere; }
+.cl-chip-btn b { color: var(--accent-fg); font-weight: 600; }
+.cl-chip-btn:hover, .cl-chip-btn:focus-visible { box-shadow: inset 0 0 0 1.5px var(--accent-fg); }
+.cl-count.filtered { color: var(--accent-fg); font-weight: 600; }
+.cl-filters:has(.cl-ms-btn.on), .cl-filters:has(input[type=search]:not(:placeholder-shown)) { border-color: var(--accent-fg); box-shadow: inset 0 0 0 1px var(--accent-fg); }
+.cl-filters-toggle.on { background: var(--accent-fg); color: var(--text-inverse, #fff); border-color: var(--accent-fg); }
