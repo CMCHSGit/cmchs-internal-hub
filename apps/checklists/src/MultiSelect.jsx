@@ -23,8 +23,11 @@ export default function MultiSelect({ label, all, noun = ['item', 'items'], opti
   }, [open])
 
   const chosen = options.filter((o) => selected.includes(o.value))
-  const text = !chosen.length ? all : chosen.length === 1 ? chosen[0].label.replace(/\s*\(.*\)$/, '') : chosen.length === 2 ? chosen.map((o) => o.label.replace(/\s*\(.*\)$/, '')).join(', ') : `${chosen.length} ${noun[1]}`
+  const allOn = options.length > 0 && chosen.length === options.length
+  const text = !chosen.length ? all : allOn && options.length > 2 ? `All ${options.length} ${noun[1]}` : chosen.length === 1 ? chosen[0].label.replace(/\s*\(.*\)$/, '') : chosen.length === 2 ? chosen.map((o) => o.label.replace(/\s*\(.*\)$/, '')).join(', ') : `${chosen.length} ${noun[1]}`
   const toggle = (v) => onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v])
+  const allBox = useRef(null)
+  useEffect(() => { if (allBox.current) allBox.current.indeterminate = chosen.length > 0 && !allOn }, [chosen.length, allOn, open])
 
   return (
     <div className="field cl-ms" ref={box}>
@@ -39,6 +42,10 @@ export default function MultiSelect({ label, all, noun = ['item', 'items'], opti
             <span>{chosen.length ? `${chosen.length} chosen` : 'Tick any number'}</span>
             {chosen.length > 0 && <button type="button" className="cl-link" onClick={() => onChange([])}>Clear</button>}
           </div>
+          <label className="cl-ms-opt cl-ms-all">
+            <input ref={allBox} type="checkbox" checked={allOn} onChange={() => onChange(allOn ? [] : options.map((o) => o.value))} />
+            <span>Select all ({options.length})</span>
+          </label>
           <div className="cl-ms-list">
             {options.map((o) => (
               <label key={o.value} className="cl-ms-opt">
