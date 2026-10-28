@@ -261,12 +261,37 @@ async function loadStatusCodes() {
 // ── what we'd attach ──────────────────────────────────────────────────────
 const reports = () => (window.ansurPvt?.reports() || [])
 
+// Files the person adds themselves, attached as they are (the reports above are the converted .mtr records).
+const MAX_OWN_BYTES = 14 * 1024 * 1024 // the proxy's limit is about 15 MB once encoded
+let extras = []
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+const size = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`)
+
+function renderExtras() {
+  $('sp-filelist').innerHTML = extras.map((e, i) =>
+    `<li><span class="sp-fname">${esc(e.name)}</span><span class="note">${size(e.file.size)}</span><button type="button" class="plain" data-rm="${i}" aria-label="Remove ${esc(e.name)}">Remove</button></li>`).join('')
+}
+
+function addExtras(fileList) {
+  const tooBig = []
+  for (const file of fileList) {
+    if (file.size > MAX_OWN_BYTES) { tooBig.push(file.name); continue }
+    if (extras.some((e) => e.name === file.name && e.file.size === file.size)) continue
+    extras.push({ name: file.name, file })
+  }
+  if (tooBig.length) note(`Too big to attach (over 14 MB): ${tooBig.join(', ')}.`, 'warn')
+  renderExtras()
+  refreshAttachCount()
+}
+
 function refreshAttachCount() {
-  const n = reports().length
+  const r = reports().length
+  const n = r + extras.length
   $('sp-go').disabled = !job || !n
   $('sp-count').textContent = n
-    ? `${n} report${n === 1 ? '' : 's'} ready to attach`
-    : 'No reports yet — add some .mtr files above'
+    ? [r ? plural(r, 'report', 'reports') : '', extras.length ? plural(extras.length, 'of your own file', 'of your own files') : ''].filter(Boolean).join(' and ') + ' ready to attach'
+    : 'Nothing to attach yet: add .mtr files above, or choose your own files'
 }
 
 const toBase64 = (bytes) => {
@@ -278,7 +303,11 @@ const toBase64 = (bytes) => {
 
 // ── do it ─────────────────────────────────────────────────────────────────
 async function run() {
-  const list = reports()
+  // The converted reports, then the person's own files (read only when it's their turn, so big ones aren't all held at once).
+  const list = [
+    ...reports().map((rep) => ({ name: rep.name, bytes: async () => rep.pdf })),
+    ...extras.map((e) => ({ name: e.name, bytes: async () => new Uint8Array(await e.file.arrayBuffer()) })),
+  ]
   if (!job || !list.length) return
 
   const stage = $('sp-stage').value
@@ -297,7 +326,7 @@ async function run() {
         const r = await call('POST', `/companies/${companyId}/jobs/${job.ID}/attachments/files/`, {
           Filename: rep.name,
           Public: false,
-          Base64Data: toBase64(rep.pdf),
+          Base64Data: toBase64(await rep.bytes()),
         })
         // Simpro refuses a file whose name is already attached to the job.
         // Report names carry the serial and test date, so that's this same
@@ -309,7 +338,7 @@ async function run() {
       } catch (e) {
         failed.push(`${rep.name}: ${e.message || e}`)
       }
-      step('Attaching reports…')
+      step('Attaching files…')
     }
 
     if (notes) {
@@ -366,8 +395,11 @@ async function run() {
       note(`${total - failed.length} of ${total} done. Failed: ${failed.join('; ')}.${already}${locked}`, 'warn')
     } else {
       const attached = list.length - skipped.length
-      note(`Done — ${attached} report${attached === 1 ? '' : 's'} attached to job #${job.ID}.${already}`, 'ok')
+      note(`Done — ${plural(attached, 'file', 'files')} attached to job #${job.ID}.${already}`, 'ok')
       $('sp-notes').value = ''
+      extras = []
+      renderExtras()
+      refreshAttachCount()
     }
   } catch (e) {
     note(e.message || String(e), 'warn')
@@ -423,6 +455,15 @@ $('sp-jobcard').addEventListener('click', () => {
   note('Opened in Simpro - for the job card, go to Forms, then Jobcard. Close that tab before Attach and update: Simpro locks a job while it is open.')
 })
 $('sp-go').addEventListener('click', run)
+$('sp-addfiles').addEventListener('click', () => $('sp-files').click())
+$('sp-files').addEventListener('change', (e) => { addExtras([...e.target.files]); e.target.value = '' })
+$('sp-filelist').addEventListener('click', (e) => {
+  const i = e.target.closest('[data-rm]')?.dataset.rm
+  if (i === undefined) return
+  extras.splice(Number(i), 1)
+  renderExtras()
+  refreshAttachCount()
+})
 
 // The report list changes as files are added or cleared; the page tells us.
 window.addEventListener('ansur:reports', refreshAttachCount)

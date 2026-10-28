@@ -17,6 +17,7 @@ export const SECTIONS = [
   { id: 'service-orders', prefix: '/service-orders/' },
   { id: 'maintenance', prefix: '/maintenance/' },
   { id: 'oncall', prefix: '/oncall/' },
+  { id: 'service', prefix: '/service/' },
   { id: 'checklists', prefix: '/checklists/' },
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },

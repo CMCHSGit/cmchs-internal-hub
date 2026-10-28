@@ -29,7 +29,7 @@ function Gate() {
   if (profile?.role !== 'admin' && profile?.simproAccess !== true) {
     return (
       <div className="ss-host">
-        <Alert tone="info" title="SimproSync needs Simpro access">
+        <Alert tone="info" title="Simpro Asset Sync needs Simpro access">
           {user?.email} doesn’t have Simpro access. An admin can turn it on for you in Settings → People and access.
         </Alert>
       </div>
@@ -50,7 +50,7 @@ function Tool({ user, profile }) {
   return (
     <div className="ss-host">
       <div className="ss-head">
-        <h1 className="ss-title">SimproSync</h1>
+        <h1 className="ss-title">Simpro Asset Sync</h1>
         <p className="ss-sub">Updates and adds customer assets in cass.simprosuite.com from an asset list.</p>
       </div>
       <div ref={box} className="ss-page" dangerouslySetInnerHTML={{ __html: page }} />

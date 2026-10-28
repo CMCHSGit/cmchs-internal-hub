@@ -1,0 +1,13 @@
+/* The Service page (App.jsx): the same page, heading and cards as Checklists' list. */
+.sv-page { max-width: 1440px; margin: 0 auto; padding: 14px 24px 48px; display: flex; flex-direction: column; gap: 10px; }
+.sv-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
+.sv-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.sv-title { margin: 0; font: var(--type-h2); font-size: 22px; color: var(--text-strong); }
+.sv-sub { margin: 4px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+
+.sv-lists { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.sv-card { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px; min-height: 96px; height: 100%; box-sizing: border-box; border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
+  background: var(--surface-card); box-shadow: var(--shadow-card); color: var(--text-body); text-decoration: none; }
+.sv-card:hover { text-decoration: none; border-color: var(--accent-fg); }
+.sv-name { font: var(--weight-semibold) 18px/1.3 var(--font-display); color: var(--text-strong); overflow-wrap: anywhere; }
+.sv-meta { font: var(--type-body-sm); color: var(--text-muted); }

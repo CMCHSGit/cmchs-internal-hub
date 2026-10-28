@@ -57,7 +57,7 @@
   {
     "id": "simpro",
     "name": "Simpro Asset Sync",
-    "short": "Simpro sync",
+    "short": "Simpro Asset Sync",
     "description": "Updates and adds customer assets in cass.simprosuite.com from an asset list",
     "link": "/simprosync/",
     "category": "Service",

@@ -92,6 +92,15 @@
           <label class="sp-field">Status<select id="sp-status"><option value="">Leave unchanged</option></select></label>
         </div>
 
+        <div class="sp-own">
+          <div class="sp-field">Your own files <span class="note">Optional. Attached to the job as they are, alongside any reports above (nothing is converted). Up to 14 MB each.</span></div>
+          <div class="sp-row">
+            <button id="sp-addfiles" type="button" class="ghost">Choose files…</button>
+            <input id="sp-files" type="file" multiple hidden>
+          </div>
+          <ul id="sp-filelist" class="sp-filelist"></ul>
+        </div>
+
         <div class="sp-row">
           <button id="sp-go" type="button" class="primary" disabled>Attach and update</button>
           <span class="note" id="sp-count"></span>

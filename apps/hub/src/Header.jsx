@@ -117,6 +117,9 @@ function ServiceMenu({ on }) {
       </button>
       {open && (
         <div className="menu nav-dropdown" role="menu">
+          <a className="menu-item" role="menuitem" href="/service/" onClick={() => setOpen(false)}>
+            <Icon name="wrench" size={16} /> All service tools
+          </a>
           {serviceTools.map(t => (
             <a key={t.id} className="menu-item" role="menuitem" href={t.link} onClick={() => setOpen(false)}>
               <Icon name={t.icon} size={16} /> {t.short || t.name}
@@ -138,7 +141,7 @@ const NAV = [['home', 'Home', '/#/', HomeIcon], ['schedule', 'Schedule', '/sched
 const BAR = ['home', 'schedule', 'asks', 'equipment']
 // Service isn't a page: on a laptop it's a drop-down of the service tools, on a phone they sit under More.
 const MORE = [...NAV.filter(([id]) => !BAR.includes(id) && id !== 'service'),
-  ...serviceTools.map(t => [t.id, t.short || t.name, t.link, Wrench]), ['settings', 'Settings', '/settings/', Settings]]
+  ['service', 'Service', '/service/', Wrench], ...serviceTools.map(t => [t.id, t.short || t.name, t.link, Wrench]), ['settings', 'Settings', '/settings/', Settings]]
 
 function BottomNav({ page }) {
   const [open, setOpen] = useState(false)

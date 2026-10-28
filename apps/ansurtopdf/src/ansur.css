@@ -121,3 +121,9 @@ body.busy .an-host { cursor: progress; }
    display on buttons and rows beat the browser's own `[hidden] { display: none }`, so "Sign in to attach to a job"
    stayed on screen after someone had signed in and was working with a job. */
 .an-host [hidden] { display: none !important; }
+
+/* Simpro job: the person's own files */
+.an-host .sp-own { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+.an-host .sp-filelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.an-host .sp-filelist li { display: flex; align-items: center; gap: 10px; }
+.an-host .sp-fname { overflow-wrap: anywhere; }
