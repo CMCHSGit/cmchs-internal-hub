@@ -35,7 +35,14 @@ export async function openSource(bytes) {
       geoms[i + k] = { x0, y0, w: x1 - x0, h: y1 - y0, rot: norm(page.rotate) }
     }))
   }
-  return { bytes, doc, geoms }
+  // `refs`: how many open documents use this file. Copying pages between documents shares it, so it is only freed when none do.
+  return { bytes, doc, geoms, refs: 0 }
+}
+
+export const retainSource = (src) => { src.refs = (src.refs || 0) + 1 }
+export function releaseSource(src) {
+  src.refs = (src.refs || 1) - 1
+  if (src.refs <= 0) closeSource(src)
 }
 
 /**

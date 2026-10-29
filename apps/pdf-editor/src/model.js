@@ -323,7 +323,21 @@ export function nudgePages(pages, ids, dir) {
   return out
 }
 
-const cloneObject = (o) => ({ ...o, id: uid('o'), ...(o.points ? { points: o.points.map(p => p.slice()) } : {}) })
+/**
+ * Copies of objects under new ids, moved by `offset` points. Objects that were
+ * a group (a picked-up banner and its text) stay a group, under a new group id.
+ */
+export function cloneObjects(objs, offset = 0) {
+  const groups = new Map()
+  return objs.map(o => {
+    const c = { ...moveObject(o, offset, offset), id: uid('o') }
+    if (o.group) {
+      if (!groups.has(o.group)) groups.set(o.group, uid('g'))
+      c.group = groups.get(o.group)
+    }
+    return c
+  })
+}
 
 /** Each selected page copied just after itself, objects included. */
 export function duplicatePages(pages, ids) {
@@ -331,7 +345,7 @@ export function duplicatePages(pages, ids) {
   const out = []
   for (const p of pages) {
     out.push(p)
-    if (s.has(p.id)) out.push({ ...p, id: uid('p'), blank: p.blank && { ...p.blank }, objects: p.objects.map(cloneObject) })
+    if (s.has(p.id)) out.push({ ...p, id: uid('p'), blank: p.blank && { ...p.blank }, objects: cloneObjects(p.objects) })
   }
   return out
 }

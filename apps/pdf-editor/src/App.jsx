@@ -10,14 +10,14 @@
    move and resize them, undo and redo. (Editing the page's own text is a later stage.) */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDown, ArrowUp, Bold, BoxSelect, Circle, Copy, Download, Eraser, FileOutput, FilePlus2, FolderOpen, Highlighter, Image as ImageIcon,
-  Italic, Files, Maximize, Minus, MousePointer2, PanelLeft, Pencil, Redo2, RotateCcw, RotateCw, Square, Trash2, Type, Undo2, ZoomIn, ZoomOut,
+  ArrowDown, ArrowUp, Bold, BoxSelect, Circle, ClipboardCopy, ClipboardPaste, Copy, Download, Eraser, FileOutput, FilePlus2, FolderOpen, Highlighter, Image as ImageIcon,
+  Italic, Files, Maximize, Minus, MousePointer2, PanelLeft, Pencil, Plus, Redo2, RotateCcw, RotateCw, Square, Trash2, Type, Undo2, X, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Alert, Button, IconButton, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
-import { PasswordError, closeSource, openSource } from './engine.js'
+import { PasswordError, closeSource, openSource, releaseSource, retainSource } from './engine.js'
 import {
-  FAMILIES, addObject, blankGeom, blankPage, commit, deletePages, deltaToPage, displaySize, duplicatePages, geometry, insertPages,
-  live, mapObjects, moveObject, movePages, newHistory, newImage, norm, nudgePages, redo, removeObject, rotatePages, settle,
+  FAMILIES, addObject, blankGeom, blankPage, cloneObjects, commit, deletePages, deltaToPage, displaySize, duplicatePages, geometry, insertPages,
+  live, mapObjects, moveObject, movePages, newHistory, newImage, newText, norm, nudgePages, redo, removeObject, rotatePages, settle,
   sourcePage, uid, undo, updateObject,
 } from './model.js'
 import { buildPdf } from './save.js'
@@ -94,12 +94,18 @@ export default function App() {
   const [sideOpen, setSideOpen] = useState(false)
   const [toast, showToast] = useToast()
   const [confirmDialog, confirm] = useConfirm()
+  // Several PDFs open at once: each is a tab. The one showing lives in the state above; the others are kept whole in `stash`.
+  const [tabs, setTabs] = useState([])            // [{ id, name }]
+  const [activeId, setActiveId] = useState(null)
+  const [clipKind, setClipKind] = useState(null)  // what the editor's clipboard holds: 'pages' or 'objects'
 
   const scroller = useRef(null), fileRef = useRef(null), addRef = useRef(null), imgRef = useRef(null)
   const images = useRef(new Map()), imageUrls = useRef(new Map()), blankGeoms = useRef(new Map())
   const anchor = useRef(null), zoomFix = useRef(null)
+  const stash = useRef(new Map()), pendingScroll = useRef(null), clip = useRef(null), focusArea = useRef('objects')
   const pages = hist.present
   const dirty = pages !== saved
+  const anyDirty = dirty || [...stash.current.values()].some(s => s.hist.present !== s.saved)
 
   const geomOf = useCallback((p) => {
     if (p.src >= 0) return sources[p.src].geoms[p.n]
@@ -110,7 +116,7 @@ export default function App() {
 
   // What the keyboard handler and the stable api need to see without being rebuilt.
   const latest = useRef({})
-  latest.current = { hist, pages, sel, selPages, tool, currentId, z, geomOf }
+  latest.current = { hist, pages, sel, selPages, tool, currentId, z, geomOf, sources, saved, fileName, activeId, tabs }
 
   const api = useMemo(() => ({
     scroller,
@@ -157,14 +163,64 @@ export default function App() {
     return clamp(((el?.clientWidth || 900) - 56) / widest, 0.3, 1.6)
   }
 
-  const start = (src, name, list) => {
-    sources.forEach(closeSource)
-    freeImages()
-    setSources(src ? [src] : [])
-    setHist(newHistory(list)); setSaved(list)
-    setFileName(name); setSel(null); setSelPages(new Set()); setTool('select'); setCurrentId(list[0].id)
-    setZ(fitZoom(src ? src.geoms : [blankGeom(595, 842)]))
-    if (scroller.current) scroller.current.scrollTop = 0
+  /** Everything about the document on show, to put away while another one is. */
+  const snapshotNow = () => {
+    const l = latest.current, el = scroller.current
+    return { hist: l.hist, sources: l.sources, saved: l.saved, fileName: l.fileName, z: l.z, sel: l.sel, selPages: l.selPages, currentId: l.currentId, scroll: { top: el?.scrollTop || 0, left: el?.scrollLeft || 0 } }
+  }
+  const show = (s) => {
+    setHist(s.hist); setSources(s.sources); setSaved(s.saved); setFileName(s.fileName); setZ(s.z)
+    setSel(s.sel); setSelPages(s.selPages); setCurrentId(s.currentId); setTool('select'); setSideOpen(false)
+    pendingScroll.current = s.scroll
+  }
+  useLayoutEffect(() => {
+    const s = pendingScroll.current
+    pendingScroll.current = null
+    if (s && scroller.current) { scroller.current.scrollTop = s.top; scroller.current.scrollLeft = s.left }
+  }, [activeId])
+
+  /** A new tab: the document is added and shown; the one that was showing is put away as it was. */
+  const addDoc = (srcs, name, list) => {
+    const l = latest.current
+    if (l.activeId) stash.current.set(l.activeId, snapshotNow())
+    srcs.forEach(retainSource)
+    const id = uid('d')
+    setTabs(t => [...t, { id, name }]); setActiveId(id)
+    show({ hist: newHistory(list), sources: srcs, saved: list, fileName: name, z: fitZoom(srcs.length ? srcs[0].geoms : [blankGeom(595, 842)]), sel: null, selPages: new Set(), currentId: list[0].id, scroll: { top: 0, left: 0 } })
+  }
+
+  const switchTo = (id) => {
+    const l = latest.current
+    if (id === l.activeId) return
+    const s = stash.current.get(id)
+    if (!s) return
+    stash.current.set(l.activeId, snapshotNow())
+    stash.current.delete(id)
+    show(s); setActiveId(id)
+  }
+
+  const closeTab = async (id) => {
+    const l = latest.current
+    const isActive = id === l.activeId
+    const snap = isActive ? snapshotNow() : stash.current.get(id)
+    const name = l.tabs.find(t => t.id === id)?.name
+    if (snap.hist.present !== snap.saved && !(await confirm({ title: `Close ${name || 'this PDF'}?`, message: 'Your changes to it haven’t been saved. Closing it throws them away.', confirmLabel: 'Discard and close', danger: true }))) return
+    snap.sources.forEach(releaseSource)
+    stash.current.delete(id)
+    const rest = l.tabs.filter(t => t.id !== id)
+    setTabs(rest)
+    if (!isActive) return
+    if (rest.length) {
+      const next = rest[Math.min(l.tabs.findIndex(t => t.id === id), rest.length - 1)]
+      const s = stash.current.get(next.id)
+      stash.current.delete(next.id)
+      show(s); setActiveId(next.id)
+    } else {
+      const empty = newHistory([])
+      setHist(empty); setSaved(empty.present); setSources([]); setFileName(''); setActiveId(null)
+      setSel(null); setSelPages(new Set()); setCurrentId(null)
+      freeImages()
+    }
   }
 
   const run = async (label, fn) => {
@@ -178,18 +234,16 @@ export default function App() {
 
   const readPdf = async (file) => openSource(new Uint8Array(await file.arrayBuffer()))
 
+  /** Opens a PDF in a tab of its own, beside any already open. */
   const openPdf = async (file) => {
-    if (dirty && !(await confirm({ title: 'Open another PDF?', message: `Your changes to ${fileName || 'this document'} haven’t been saved. Opening another PDF throws them away.`, confirmLabel: 'Discard and open', danger: true }))) return
     await run('Opening…', async () => {
       const src = await readPdf(file)
-      start(src, file.name.replace(/\.pdf$/i, ''), src.geoms.map((_, i) => sourcePage(0, i)))
+      addDoc([src], file.name.replace(/\.pdf$/i, ''), src.geoms.map((_, i) => sourcePage(0, i)))
     })
   }
+  const openAll = (files) => files.reduce((p, f) => p.then(() => openPdf(f)), Promise.resolve())
 
-  const blankDocument = async () => {
-    if (dirty && !(await confirm({ title: 'Start a new document?', message: 'Your changes haven’t been saved. Starting again throws them away.', confirmLabel: 'Discard', danger: true }))) return
-    start(null, 'Untitled', [blankPage()])
-  }
+  const blankDocument = () => addDoc([], 'Untitled', [blankPage()])
 
   const lastSelectedId = () => {
     const l = latest.current
@@ -202,6 +256,7 @@ export default function App() {
       const src = await readPdf(file)
       const idx = sources.length
       const added = src.geoms.map((_, i) => sourcePage(idx, i))
+      retainSource(src)
       setSources(s => [...s, src])
       change(ps => insertPages(ps, added, lastSelectedId()))
       setSelPages(new Set(added.map(p => p.id)))
@@ -228,7 +283,7 @@ export default function App() {
     const list = [...files]
     const pdfs = list.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name))
     const pics = list.filter(f => /^image\//.test(f.type))
-    if (pdfs.length) { if (pages.length) pdfs.reduce((p, f) => p.then(() => addPdf(f)), Promise.resolve()); else openPdf(pdfs[0]) }
+    if (pdfs.length) openAll(pdfs)
     else if (pics.length && pages.length) pics.forEach(addImage)
     else if (list.length) setError('That isn’t a PDF or a picture.')
   }
@@ -279,6 +334,104 @@ export default function App() {
     setSelPages(new Set([page.id]))
     setTimeout(() => goTo(page.id), 50)
   }
+
+  /* ── Copy and paste: pages and objects, between PDFs too ── */
+
+  // The editor's own clipboard (what the system clipboard can't hold). The system clipboard gets a token so a
+  // paste knows whether it is ours: anything else copied since (text, a picture) is pasted as itself.
+  const sourcesOfClip = (c) => (c?.kind === 'pages' ? c.items.map(it => it.src).filter(Boolean) : [])
+  const clipboard = (next) => {
+    sourcesOfClip(clip.current).forEach(releaseSource)
+    sourcesOfClip(next).forEach(retainSource) // a copied page keeps its file alive even if its document is closed
+    clip.current = next
+    setClipKind(next?.kind || null)
+    return next
+  }
+
+  const copyPages = () => {
+    const t = targets()
+    const list = pages.filter(p => t.has(p.id))
+    if (!list.length) return null
+    showToast(`Copied ${list.length} page${list.length === 1 ? '' : 's'}`)
+    return clipboard({ kind: 'pages', token: uid('clip'), items: list.map(p => ({ src: p.src >= 0 ? sources[p.src] : null, n: p.n, blank: p.blank && { ...p.blank }, rotate: p.rotate, objects: p.objects })) })
+  }
+  const pastePages = () => {
+    const c = clip.current
+    if (!c || c.kind !== 'pages') return
+    const next = [...sources]
+    const indexOf = (src) => {
+      let i = next.indexOf(src)
+      if (i < 0) { next.push(src); retainSource(src); i = next.length - 1 }
+      return i
+    }
+    const added = c.items.map(it => ({ id: uid('p'), src: it.src ? indexOf(it.src) : -1, n: it.n, blank: it.blank && { ...it.blank }, rotate: it.rotate, objects: cloneObjects(it.objects) }))
+    if (next.length !== sources.length) setSources(next)
+    const after = lastSelectedId()
+    change(ps => insertPages(ps, added, after))
+    setSelPages(new Set(added.map(p => p.id)))
+    setTimeout(() => goTo(added[0].id), 50)
+    showToast(`Pasted ${added.length} page${added.length === 1 ? '' : 's'}`)
+  }
+
+  const copyObject = () => {
+    const l = latest.current
+    const page = l.pages.find(p => p.id === l.sel?.pageId)
+    const o = page?.objects.find(x => x.id === l.sel.id)
+    if (!o) return null
+    const items = o.group ? page.objects.filter(x => x.group === o.group) : [o]
+    showToast(items.length > 1 ? `Copied ${items.length} objects` : 'Copied')
+    return clipboard({ kind: 'objects', token: uid('clip'), items, from: page.id, count: 0 })
+  }
+  const pasteObjects = () => {
+    const c = clip.current
+    const l = latest.current
+    const pageId = l.sel?.pageId || l.currentId || l.pages[0]?.id
+    if (!c || c.kind !== 'objects' || !pageId) return
+    c.count += 1
+    const cloned = cloneObjects(c.items, pageId === c.from ? 12 * c.count : 0) // on the page it came from, a little aside; on another, in place
+    api.addMany(pageId, cloned, { select: cloned[0].id })
+    setTool('select')
+  }
+  const pasteText = (text) => {
+    const l = latest.current
+    const pageId = l.sel?.pageId || l.currentId || l.pages[0]?.id
+    if (pageId) api.add(pageId, { ...newText(60, 60, d), text: text.replace(/\r\n?/g, '\n').slice(0, 2000) }, { select: true })
+  }
+  const copyAny = () => {
+    const l = latest.current
+    const hasObj = l.sel && l.pages.find(p => p.id === l.sel.pageId)?.objects.some(o => o.id === l.sel.id)
+    return hasObj && focusArea.current !== 'pages' ? copyObject() : copyPages()
+  }
+  const cutAny = () => {
+    const made = copyAny()
+    if (!made) return null
+    if (made.kind === 'objects') {
+      const ids = new Set(made.items.map(o => o.id))
+      change(ps => mapObjects(ps, made.from, os => os.filter(o => !ids.has(o.id))))
+      setSel(null)
+    } else if (made.items.length < pages.length) {
+      const t = targets()
+      change(ps => deletePages(ps, t)); setSelPages(new Set())
+    }
+    return made
+  }
+  const pasteAny = (e) => {
+    const c = clip.current
+    const text = e.clipboardData?.getData('text/plain') || ''
+    if (c && text === c.token) { e.preventDefault(); if (c.kind === 'pages') pastePages(); else pasteObjects(); return }
+    const pic = [...(e.clipboardData?.files || [])].find(f => /^image\//.test(f.type))
+    if (pic && latest.current.pages.length) { e.preventDefault(); addImage(pic); return }
+    if (text.trim() && latest.current.pages.length) { e.preventDefault(); pasteText(text) }
+  }
+  const acts = useRef({}); acts.current = { copy: copyAny, cut: cutAny, paste: pasteAny }
+  useEffect(() => {
+    const typing = (t) => !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+    const onCopy = (e) => { if (typing(e.target) || window.getSelection()?.toString()) return; const m = acts.current.copy(); if (m) { e.clipboardData.setData('text/plain', m.token); e.preventDefault() } }
+    const onCut = (e) => { if (typing(e.target) || window.getSelection()?.toString()) return; const m = acts.current.cut(); if (m) { e.clipboardData.setData('text/plain', m.token); e.preventDefault() } }
+    const onPaste = (e) => { if (!typing(e.target)) acts.current.paste(e) }
+    document.addEventListener('copy', onCopy); document.addEventListener('cut', onCut); document.addEventListener('paste', onPaste)
+    return () => { document.removeEventListener('copy', onCopy); document.removeEventListener('cut', onCut); document.removeEventListener('paste', onPaste) }
+  }, [])
 
   /* ── Saving ── */
 
@@ -403,13 +556,18 @@ export default function App() {
 
   // Leaving with unsaved work asks first (a reload from a new deploy also waits: data-working below).
   useEffect(() => {
-    if (!dirty) return undefined
+    if (!anyDirty) return undefined
     const warn = (e) => { e.preventDefault(); e.returnValue = '' }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty])
+  }, [anyDirty])
 
-  useEffect(() => () => { sources.forEach(closeSource); freeImages() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => {
+    // Leaving the editor: every file's worker memory and every picture's URL go.
+    const all = new Set([...latest.current.sources, ...[...stash.current.values()].flatMap(s => s.sources), ...sourcesOfClip(clip.current)])
+    all.forEach(closeSource)
+    freeImages()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = pages.length > 0
   const nSel = selPages.size
@@ -421,8 +579,28 @@ export default function App() {
   )
 
   return (
-    <div className="pe" data-working={dirty ? '' : undefined} onDragOver={overFiles} onDrop={dropFiles}>
-      {picker(fileRef, 'application/pdf,.pdf', false, f => openPdf(f[0]))}
+    <div className="pe" data-working={anyDirty ? '' : undefined} onDragOver={overFiles} onDrop={dropFiles}>
+      {picker(fileRef, 'application/pdf,.pdf', true, openAll)}
+
+      {tabs.length > 0 && (
+        <div className="pe-tabs" role="tablist" aria-label="Open PDFs">
+          {tabs.map(t => {
+            const active = t.id === activeId
+            const s = active ? null : stash.current.get(t.id)
+            const unsaved = active ? dirty : !!s && s.hist.present !== s.saved
+            return (
+              <div key={t.id} role="tab" aria-selected={active} tabIndex={0} className={`pe-tab${active ? ' on' : ''}`} title={t.name}
+                onClick={() => switchTo(t.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTo(t.id) } }}
+                onAuxClick={e => { if (e.button === 1) { e.preventDefault(); closeTab(t.id) } }}>
+                <span className="pe-tab-name">{t.name}</span>
+                {unsaved && <i className="pe-tab-dot" title="Unsaved changes" />}
+                <button type="button" className="pe-tab-x" aria-label={`Close ${t.name}`} onClick={e => { e.stopPropagation(); closeTab(t.id) }}><X size={14} /></button>
+              </div>
+            )
+          })}
+          <button type="button" className="pe-tab-add" aria-label="Open another PDF" title="Open another PDF" onClick={() => fileRef.current.click()}><Plus size={16} /></button>
+        </div>
+      )}
       {picker(addRef, 'application/pdf,.pdf', true, f => f.reduce((p, x) => p.then(() => addPdf(x)), Promise.resolve()))}
       {picker(imgRef, 'image/*', true, f => f.forEach(addImage))}
 
@@ -483,6 +661,8 @@ export default function App() {
             <label className="pe-field"><span>Width</span>
               <input className="input pe-num" type="number" min="0.5" max="30" step="0.5" value={val('sw')} onChange={e => setProp('sw', clamp(+e.target.value || 1, 0.5, 30))} /></label>
           </>}
+          {selObj && <IconButton label="Copy (Ctrl+C): paste it here or into another PDF" onClick={() => { focusArea.current = 'objects'; copyObject() }}><ClipboardCopy size={16} /></IconButton>}
+          {clipKind === 'objects' && <IconButton label="Paste (Ctrl+V)" onClick={pasteObjects}><ClipboardPaste size={16} /></IconButton>}
           {selObj && <>
             <IconButton label="Duplicate (Ctrl+D)" onClick={() => api.add(sel.pageId, { ...moveObject(selObj, 12, 12), id: uid('o'), group: undefined }, { select: true })}><Copy size={16} /></IconButton>
             <IconButton label="Delete (Delete key)" onClick={() => api.remove(sel.pageId, selObj.id)}><Trash2 size={16} /></IconButton>
@@ -494,6 +674,8 @@ export default function App() {
             <IconButton label="Move earlier" size="sm" onClick={() => nudge(-1)}><ArrowUp size={16} /></IconButton>
             <IconButton label="Move later" size="sm" onClick={() => nudge(1)}><ArrowDown size={16} /></IconButton>
             <IconButton label="Duplicate page" size="sm" onClick={duplicate}><Copy size={16} /></IconButton>
+            <IconButton label="Copy pages (to paste into this or another PDF)" size="sm" onClick={copyPages}><ClipboardCopy size={16} /></IconButton>
+            <IconButton label="Paste pages" size="sm" disabled={clipKind !== 'pages'} onClick={pastePages}><ClipboardPaste size={16} /></IconButton>
             <IconButton label="Delete page" size="sm" onClick={remove}><Trash2 size={16} /></IconButton>
             <IconButton label="Add a blank page" size="sm" onClick={addBlank}><FilePlus2 size={16} /></IconButton>
             <IconButton label="Add pages from another PDF" size="sm" onClick={() => addRef.current.click()}><Files size={16} /></IconButton>
@@ -506,12 +688,12 @@ export default function App() {
 
       <div className="pe-body">
         {open && (
-          <aside className={`pe-side${sideOpen ? ' open' : ''}`}>
+          <aside className={`pe-side${sideOpen ? ' open' : ''}`} onPointerDownCapture={() => { focusArea.current = 'pages' }}>
             <Thumbs pages={pages} sources={sources} geomOf={geomOf} selected={selPages} currentId={currentId} onPick={pick}
               onMove={(ids, before) => change(ps => movePages(ps, ids, before))} />
           </aside>
         )}
-        <div className="pe-scroll" ref={scroller}>
+        <div className="pe-scroll" ref={scroller} onPointerDownCapture={() => { focusArea.current = 'objects' }}>
           {open ? (
             <div className="pe-pages">
               {pages.map(p => (

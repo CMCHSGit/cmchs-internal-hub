@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  addObject, addPenPoint, blankPage, boxFrom, commit, deletePages, deltaToPage, displaySize, displayToPage, duplicatePages,
+  addObject, addPenPoint, blankPage, boxFrom, cloneObjects, commit, deletePages, deltaToPage, displaySize, displayToPage, duplicatePages,
   geometry, insertPages, live, moveObject, movePages, newHistory, newText, norm, nudgePages, redo, removeObject,
   resizeBox, rotatePages, settle, sourcePage, undo, updateObject,
   bestStyle, familyOf, imageBoxes, pageToDisplay, pickColours, resizePen, resizeText, shapeBoxes, textHotspots,
@@ -111,6 +111,23 @@ test('duplicate a page with its objects under new ids', () => {
   assert.notEqual(d[1].objects[0].id, 'o1')
   d[1].objects[0].points[0][0] = 99
   assert.equal(d[0].objects[0].points[0][0], 1)
+})
+
+test('cloned objects get new ids, keep their groups as new groups, and move', () => {
+  const objs = [
+    { id: 'a', type: 'image', x: 10, y: 10, w: 5, h: 5, group: 'g1' },
+    { id: 'b', type: 'text', x: 20, y: 20, text: 'hi', group: 'g1' },
+    { id: 'c', type: 'pen', points: [[0, 0], [1, 1]] },
+  ]
+  const copy = cloneObjects(objs, 12)
+  assert.equal(copy.length, 3)
+  assert.ok(copy.every((o, i) => o.id !== objs[i].id))
+  assert.equal(copy[0].group, copy[1].group); assert.notEqual(copy[0].group, 'g1')
+  assert.equal(copy[2].group, undefined)
+  assert.deepEqual([copy[0].x, copy[0].y], [22, 22])
+  assert.deepEqual(copy[2].points, [[12, 12], [13, 13]])
+  assert.deepEqual(objs[2].points, [[0, 0], [1, 1]], 'the originals are untouched')
+  assert.deepEqual([cloneObjects(objs)[0].x, cloneObjects(objs)[0].y], [10, 10], 'no offset: in place')
 })
 
 test('insert after a page, at the start, at the end', () => {
