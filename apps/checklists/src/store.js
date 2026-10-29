@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from '../../schedule/src/firebase.js'
 import { PROXY_URL } from '../../../shared/proxy.js'
+import { logActivity } from '../../../shared/activity.js'
 
 export const COL = 'checklists'
 const CHUNK = 400 // a batch holds 500 writes
@@ -29,12 +30,20 @@ const BLANK_PROGRESS = { ...UNDONE, checks: {}, note: '', noteByName: '' }
 
 const strip = ({ id: _id, ...fields }) => fields
 
+// List names as the screen last saw them, so the activity log can say which list ("Rename", "Delete" only have an id).
+const listNames = new Map()
+const nameOf = (listId) => listNames.get(listId) || 'a checklist'
+
 /** Several live queries as one list: cb fires once all have answered, then on every change. */
 function watchMerged(queries, cb, onError) {
   const parts = queries.map(() => null)
   const unsubs = queries.map((q, i) => onSnapshot(q, (snap) => {
     parts[i] = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-    if (parts.every(Boolean)) cb([...new Map(parts.flat().map((x) => [x.id, x])).values()])
+    if (parts.every(Boolean)) {
+      const merged = [...new Map(parts.flat().map((x) => [x.id, x])).values()]
+      for (const l of merged) listNames.set(l.id, l.name)
+      cb(merged)
+    }
   }, onError))
   return () => unsubs.forEach((u) => u())
 }
@@ -202,6 +211,35 @@ const real = {
     return Object.keys(upd).length ? updateDoc(doc(db, COL, listId), upd) : Promise.resolve()
   },
 }
+
+/**
+ * The hub's activity log (shared/activity.js): one line when a list is made, imported into, renamed, shared,
+ * changed or deleted, or an item is added or removed. Not each tick: a device keeps who ticked it and when.
+ * `was` is the list's name before the change. Logged once the write has gone through (on a dead spot, when it is sent).
+ */
+function logged(methods, lines) {
+  for (const [key, line] of Object.entries(lines)) {
+    const fn = methods[key]
+    methods[key] = (...a) => {
+      const was = nameOf(a[0])
+      const r = fn.apply(methods, a)
+      Promise.resolve(r).then((res) => { const text = line(res, was, ...a); if (text) logActivity(null, text, { app: 'checklists' }) }, () => {})
+      return r
+    }
+  }
+}
+logged(real, {
+  createList: (id, _was, o) => `Made the checklist “${o.name}” with ${o.devices.length} item${o.devices.length === 1 ? '' : 's'}`,
+  importInto: (r, was) => `Imported into “${was}”: ${r.added} added, ${r.updated} refreshed`,
+  removeItem: (_r, was) => `Removed an item from “${was}”`,
+  addDevice: (_r, was, _id, device, o) => `${o.plain ? 'Added' : 'Found on site and added'} ${device.name || device.serial || 'a device'} on “${was}”`,
+  addDevices: (_r, was, _id, devices) => `Added ${devices.length} item${devices.length === 1 ? '' : 's'} to “${was}”`,
+  removeList: (_r, was) => `Deleted the checklist “${was}”`,
+  renameList: (_r, was, _id, name) => `Renamed the checklist “${was}” to “${name}”`,
+  saveSteps: (_r, was) => `Changed the steps on “${was}”`,
+  saveSharing: (_r, was, _id, s) => `Changed who “${was}” is shared with (${(s.people || []).length} people, ${(s.teams || []).length} teams)`,
+  markLost: (_r, was) => `Marked an item as not found on “${was}”`,
+})
 
 // ── `npm run dev` without a .env: no Firestore, so a made-up list kept in this tab ───────────────────
 // (A real build always has the database; this drops out of it.)

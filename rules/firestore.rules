@@ -188,14 +188,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Activity log — "who changed what", read on Admin → Activity log.
-    // Anyone signed in can log their own action (so a non-admin saving their
-    // own week or booking their own leave still gets recorded); only admins
-    // can read it back. Immutable: no update or delete, not even for admins —
-    // an audit trail that can be edited isn't one.
+    // Activity log — "who did what, when", for every tool (shared/activity.js),
+    // read on Settings → Staff schedule → Activity log and copied nightly to
+    // Drive. Anyone signed in can log their own action (so a non-admin saving
+    // their own week or booking their own leave still gets recorded); only
+    // admins can read it back. Immutable: no update or delete, not even for
+    // admins — an audit trail that can be edited isn't one. The time is the
+    // server's (a person can't backdate a line), the line is a short piece of
+    // text and has only these fields (older copies of the apps send no `app`).
     match /activity/{entryId} {
       allow read:   if isAdmin();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.at == request.time
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'email', 'summary', 'app', 'at'])
+        && request.resource.data.summary is string
+        && request.resource.data.summary.size() > 0
+        && request.resource.data.summary.size() <= 500;
     }
 
     // Maintenance schedule (internal.chsnz.co.nz/maintenance/) — replaces the

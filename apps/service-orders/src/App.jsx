@@ -383,7 +383,7 @@ function EditDialog({ order, prefill, auto, canEdit, who, orders, sites, confirm
 
   async function del() {
     if (!(await confirm({ title: `Delete S.O ${order.so || '(no number)'}?`, message: 'This can’t be undone.', confirmLabel: 'Delete', danger: true }))) return
-    try { await removeOrder(order.id); toast('Deleted'); onClose() }
+    try { await removeOrder(order.id, order.so ? `S.O ${order.so}` : order.title || ''); toast('Deleted'); onClose() }
     catch (err) { setNote({ text: 'Could not delete: ' + (err.message || err), tone: 'critical' }) }
   }
 

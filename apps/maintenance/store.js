@@ -9,6 +9,7 @@ import {
   serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../schedule/src/firebase.js'
+import { logActivity } from '../../shared/activity.js'
 import * as devStore from './store-local.js'
 
 // `npm run dev` without a .env has no Firestore: made-up entries instead
@@ -147,23 +148,31 @@ function tidy(entry) {
   return out
 }
 
+const label = (e) => `${e.site || 'a site'}${e.pmType ? ' (' + e.pmType + ')' : ''}`
+
 export async function createEntry(entry, who) {
   if (local) return local.createEntry(tidy(entry), who)
-  return addDoc(collection(db, COL), {
+  const r = await addDoc(collection(db, COL), {
     ...tidy(entry),
     createdAt: serverTimestamp(), createdBy: who,
     updatedAt: serverTimestamp(), updatedBy: who,
   })
+  logActivity(null, `Added a PM for ${label(entry)}`, { app: 'maintenance' })
+  return r
 }
 
 export async function saveEntry(id, entry, who) {
   if (local) return local.saveEntry(id, tidy(entry), who)
-  return updateDoc(doc(db, COL, id), { ...tidy(entry), updatedAt: serverTimestamp(), updatedBy: who })
+  const r = await updateDoc(doc(db, COL, id), { ...tidy(entry), updatedAt: serverTimestamp(), updatedBy: who })
+  logActivity(null, `Updated the PM for ${label(entry)}${entry.status ? ' — ' + entry.status : ''}`, { app: 'maintenance' })
+  return r
 }
 
-export async function removeEntry(id) {
+/** `what` names it in the log ("Waikato (First PM)"); the id alone says nothing to a person reading the log. */
+export async function removeEntry(id, what = '') {
   if (local) return local.removeEntry(id)
-  return deleteDoc(doc(db, COL, id))
+  await deleteDoc(doc(db, COL, id))
+  logActivity(null, `Deleted the PM for ${what || 'a site'}`, { app: 'maintenance' })
 }
 
 /** Import writes in batches — 500 is Firestore's hard limit per batch. */
@@ -184,6 +193,7 @@ export async function createMany(entries, who, onProgress) {
     done += chunk.length
     onProgress?.(done, entries.length)
   }
+  logActivity(null, `Imported ${done} PM${done === 1 ? '' : 's'}`, { app: 'maintenance' })
   return done
 }
 
@@ -203,11 +213,12 @@ export function watchSettings(onChange, onError) {
 
 export async function savePmTypes(pmTypes, who) {
   if (local) return local.savePmTypes(pmTypes, who)
-  return setDoc(
+  await setDoc(
     doc(db, COL, SETTINGS_ID),
     { pmTypes, updatedAt: serverTimestamp(), updatedBy: who },
     { merge: true },
   )
+  logActivity(null, `Changed the PM types (${pmTypes.length})`, { app: 'maintenance' })
 }
 
 /** Bulk delete, same 400-per-batch limit as the import. */
@@ -224,5 +235,6 @@ export async function removeMany(ids, onProgress) {
     done += chunk.length
     onProgress?.(done, ids.length)
   }
+  logActivity(null, `Deleted ${done} PM${done === 1 ? '' : 's'}`, { app: 'maintenance' })
   return done
 }

@@ -30,6 +30,7 @@ export function watchUser(callback) {
 export async function signIn() {
   if (!auth) throw new Error('Sign-in is not configured for this build.')
   await signInWithPopup(auth, provider)
+  import('./activity.js').then((m) => m.logSignedIn()).catch(() => {}) // the hub's activity log; loaded after, so sign-in isn't slower
 }
 
 /** The test copy only: sign in as one of shared/test-accounts.js's made-up staff (they exist only in the local emulator). */
@@ -41,6 +42,7 @@ export async function signInAsTest(email, password) {
 export async function signOutUser() {
   clearBadges() // the counts were this person's (shared/badges.js)
   if (!auth) return
+  try { await (await import('./activity.js')).logSignedOut() } catch { /* never stops a sign-out */ }
   await signOut(auth)
   // This person's data kept on the device (shared/firestore.js) goes with
   // them. Loaded only now, so plain pages that never use Firestore don't

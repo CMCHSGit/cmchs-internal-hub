@@ -234,10 +234,8 @@ export async function loadProfile(key) {
 async function activity(me, summary) {
   if (devMode) return
   try {
-    const { f, db } = await fs()
-    await f.addDoc(f.collection(db, 'activity'), {
-      uid: me.uid, name: me.displayName || me.email || 'Someone', email: me.email || null, summary, at: f.serverTimestamp(),
-    })
+    const { logActivity } = await import('../../../shared/activity.js')
+    await logActivity(me, summary, { app: 'hub' })
   } catch (e) {
     console.error('Activity log failed:', e)
   }

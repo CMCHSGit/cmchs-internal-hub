@@ -110,6 +110,31 @@ Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's cate
 
 **Moving a tool's address:** add the old path to `MOVED` in `apps/hub/public/404.html` so bookmarks forward (e.g. `/order-parser/` → `/service-orders/`).
 
+## Activity log: who did what, when
+
+One log for the whole hub (Firestore `activity`, written by `shared/activity.js`). Every tool adds a line when
+someone changes something ("Waikato: moved the job later", "Loan for Hutt extended", "Marked an ask done"), and
+when they sign in or out. Admins read it on **Settings → Staff schedule → Activity log** (filter by tool, person
+or words; download as CSV). Nothing in it can be edited or deleted, not even by an admin (the rules). Every night
+at 3am the backup script copies the new lines to Google Drive, folder **CMCHS Hub Activity Log Backups**: a
+spreadsheet a month and a JSON file a night (`backend/apps-script/backup`, `activityBackup_`). Drive keeps it for
+good; the other backups keep a year.
+
+**A new tool, or a new way to change data, must log it:**
+
+```js
+import { logActivity } from '../../../shared/activity.js'
+await saveThing(...)                              // the change worked...
+logActivity(null, 'Added a PM for Hutt (First PM)') // ...then say what happened, in words
+```
+
+- The tool is read from the page's address; pass `{ app: 'oncall' }` as a third argument to override it, and add a new tool's
+  address and name to `APP_LABELS` in `shared/activity-core.js` (and `ACTIVITY_TOOLS` in the backup script).
+- **Say what was done, not private content.** Admins read the log and it is copied to Drive. Asks log "Marked an ask done",
+  never its title; project comments log "Commented on <job>", never the words. No pay, health, emergency contacts, keys or passwords.
+- Log once per action, not per keystroke or tick (a checklist logs "Imported 40 devices", not every tick: each device keeps who ticked it and when).
+- It never blocks the action: a failure (offline, rules not published) only means that line is lost. Call it after the write succeeds.
+
 ## The home page
 
 Built from `design/CMCHS Internal Hub v2.dc.html` (notes in `design/UPGRADE-v2.md`). What feeds each part:

@@ -7,6 +7,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { getBackend } from './backend.js'
+import { logActivity } from '../../../shared/activity.js'
 import {
   withDefaults, initialsOf, todayISO, addDays, fmt, dueForAutoArchive, COMPLETE, WAITING, mondayOf, rid,
   matchStaff, scheduleDays, awayInWeek,
@@ -182,8 +183,12 @@ export function StoreProvider({ children }) {
 
   // ── changes ──
   const stamp =() => ({ updatedAtMs: Date.now(), updatedBy: me?.name || '' })
-  const hist = useCallback((jobId, what) => be.set('history', be.newId('history'),
-    { jobId, who: me.name, uid: me.uid, what, atMs: Date.now() }).catch(() => {}), [be, me])
+  // The job's own history, and a line in the hub's activity log (shared/activity.js)
+  const note = useCallback((what) => logActivity(me, what, { app: 'projects' }), [me])
+  const hist = useCallback((jobId, what) => {
+    note(`${latest.current.jobs?.find((j) => j.id === jobId)?.name || 'A job'}: ${what}`)
+    return be.set('history', be.newId('history'), { jobId, who: me.name, uid: me.uid, what, atMs: Date.now() }).catch(() => {})
+  }, [be, me, note])
 
   const actions = useMemo(() => {
     if (!be || !me) return {}
@@ -220,6 +225,7 @@ export function StoreProvider({ children }) {
         for (const x of data.assignments) if (x.jobId === job.id) ops.push({ op: 'delete', col: 'assignments', id: x.id })
         for (const x of data.comments) if (x.jobId === job.id) ops.push({ op: 'delete', col: 'comments', id: x.id })
         await be.batch(ops)
+        note(`Deleted the job "${job.name}"`)
       },
       /** Returns true when the person should be asked whether to archive. */
       async setStatus(job, status) {
@@ -313,10 +319,11 @@ export function StoreProvider({ children }) {
         const id = be.newId('comments')
         const mentions = [...text.matchAll(/@([A-Za-zĀ-ž'-]+)/g)].map((m) => m[1])
         await be.set('comments', id, { jobId, text, mentions, uid: me.uid, byName: me.name, atMs: Date.now() })
+        note(`Commented on ${latest.current.jobs?.find((j) => j.id === jobId)?.name || 'a job'}`) // not the words: comments can be private
       },
-      removeComment: (c) => be.remove('comments', c.id),
+      removeComment: async (c) => { await be.remove('comments', c.id); note('Deleted a comment') },
 
-      saveSettings: (patch) => be.saveSettings(patch),
+      saveSettings: async (patch) => { const r = await be.saveSettings(patch); note(`Changed the project settings (${Object.keys(patch || {}).join(', ') || 'settings'})`); return r },
 
       async loadSample() {
         const ops = []
@@ -355,6 +362,7 @@ export function StoreProvider({ children }) {
           },
         }))
         await be.batch(ops)
+        note(`Imported ${ops.length} job${ops.length === 1 ? '' : 's'}`)
         return ops.length
       },
       /**
@@ -414,6 +422,7 @@ export function StoreProvider({ children }) {
         }
         await be.batch(ops)
         latest.current = { ...latest.current, jobs: [...(current || []), ...ops.filter((o) => o.col === 'jobs').map((o) => ({ id: o.id, ...o.data }))] }
+        note(`Imported ${Object.keys(jobIds).length} job${Object.keys(jobIds).length === 1 ? '' : 's'} and ${weeks} week${weeks === 1 ? '' : 's'} from a file`)
         return { jobs: Object.keys(jobIds).length, skipped, weeks, staffAdded }
       },
       /**
@@ -433,6 +442,7 @@ export function StoreProvider({ children }) {
           const part = append.slice(i, i + 400)
           try { await be.batch(part) } catch { notAppended += part.length }
         }
+        note(`Restored the project tracker from a backup (${mode})`)
         return { ...summary, notAppended }
       },
       resetDev: be.reset ? () => be.reset() : null,
@@ -440,7 +450,7 @@ export function StoreProvider({ children }) {
     if (import.meta.env.DEV) window.__ptImport = a.importBundle // for trying import files in `npm run dev`
     return a
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [be, me, settings, settingsRaw, data.assignments, data.comments, data.jobs, data.history, hist, today])
+  }, [be, me, settings, settingsRaw, data.assignments, data.comments, data.jobs, data.history, hist, note, today])
 
   // ── auto-archive: whoever has the tracker open does it, once the day comes ──
   const archiving = useRef(new Set())

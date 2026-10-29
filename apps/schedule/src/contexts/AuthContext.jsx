@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db, microsoftProvider } from '../firebase'
+import { logSignedIn, logSignedOut } from '../../../../shared/activity.js'
 // A first sign-in's record is made there, shared with the hub's shell and the demo tracker
 import { ensureProfile } from '../profile'
 
@@ -80,9 +81,11 @@ export function AuthProvider({ children }) {
 
   async function signInWithMicrosoft() {
     await signInWithPopup(auth, microsoftProvider)
+    logSignedIn() // the hub's activity log (shared/activity.js)
   }
 
   async function signOutUser() {
+    await logSignedOut()
     await signOut(auth)
   }
 

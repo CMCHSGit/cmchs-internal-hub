@@ -10,6 +10,7 @@
    one thing every open tracker watches. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { watchUser } from '../../../shared/session.js'
+import { logActivity } from '../../../shared/activity.js'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { auth } from '../../schedule/src/firebase.js'
 import { collection, doc as fsDoc, getDoc, getDocs } from 'firebase/firestore'
@@ -154,7 +155,8 @@ export function StoreProvider({ children }) {
   const audit = useCallback(async (type, summary, detail, op = operator) => {
     const entry = { id: newId(), ts: nzNow(), type, summary, detail: detail || {}, operator: op, source: 'hub' }
     try { await write('auditLog/' + enc(entry.id), entry) } catch (e) { console.warn('[equipment] audit entry not saved', e) }
-  }, [operator])
+    logActivity(user, summary, { app: 'equipment' }) // the hub's own log (shared/activity.js), alongside the tracker's
+  }, [operator, user])
 
   /** activateBookings' changes, saved to /upcomingLoans and shown. */
   const applyBookingChanges = useCallback(async (changes) => {

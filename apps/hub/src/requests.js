@@ -24,6 +24,7 @@ export const statusOf = id => STATUSES.find(s => s.id === id) || STATUSES[0]
 export const isEngineering = me => !!me && (me.role === 'admin' || me.team === 'Engineers')
 
 import { PROXY_URL } from '../../../shared/proxy.js'
+import { log } from './log.js'
 
 /** Average rating and count per tool, best-rated last so problems come first. */
 export function feedbackSummary(items) {
@@ -96,6 +97,7 @@ export async function sendRequest(user, input) {
   const { f, db } = await fs()
   const ref = await f.addDoc(f.collection(db, 'hubRequests'), { ...data, createdAt: f.serverTimestamp() })
   notify(ref.id) // fire and forget: the request is saved either way
+  log(data.kind === 'tool' ? `Asked for a new tool: ${data.title}` : `Sent feedback on ${data.tool}`)
   return ref.id
 }
 
@@ -125,6 +127,7 @@ export async function respond(user, r, { status, response }) {
   if (devMode) { Object.assign(local.get(r.id), data); return data }
   const { f, db } = await fs()
   await f.updateDoc(f.doc(db, 'hubRequests', r.id), { ...data, updatedAt: f.serverTimestamp() })
+  log(`Replied to a ${r.kind === 'tool' ? 'tool request' : 'feedback'} and set it to "${statusOf(status).label}"`)
   return data
 }
 
@@ -132,4 +135,5 @@ export async function deleteRequest(r) {
   if (devMode) { local.delete(r.id); return }
   const { f, db } = await fs()
   await f.deleteDoc(f.doc(db, 'hubRequests', r.id))
+  log(`Deleted a ${r.kind === 'tool' ? 'tool request' : 'feedback entry'}`)
 }

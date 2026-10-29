@@ -92,6 +92,23 @@
  *   Same service account and IAM grant as the project tracker's backup;
  *   checkAsksBackup() says whether it can read. Independent of the others.
  *
+ * THE HUB ACTIVITY LOG TOO (2026-10-30):
+ *   And the hub's activity log — one line per action, who did what and when, from
+ *   every tool (cmchs-internal-hub shared/activity.js; Firestore `activity` in the
+ *   staff schedule's project). Admins read it on Settings → Staff schedule → Activity
+ *   log; this copies it to Drive each night so a copy exists outside Firebase. Drive
+ *   folder "CMCHS Hub Activity Log Backups":
+ *     - Hub activity log YYYY-MM — one spreadsheet a month (New Zealand time), the
+ *       night's new lines added at the bottom: When, Who, Email, Tool, What, Entry id.
+ *     - Hub-Activity-YYYY-MM-DD-HHmm.json — that night's lines exactly as stored.
+ *   Only lines since the last good run are copied (Script Property
+ *   ACTIVITY_BACKUP_CURSOR_MS); lines from the last ten minutes wait for tomorrow. A
+ *   failed run emails and the next one carries on from the same place. Unlike the
+ *   backups above nothing is deleted after a year: the log is the record. It holds
+ *   people's names and what they did, so keep the folder private. Same service
+ *   account and Datastore Viewer grant as the project tracker's backup;
+ *   checkActivityBackup() says whether it can read. Independent of the others.
+ *
  * LIVE vs REPO (found 2026-10-15): the "CHS Daily Backup" project in Apps
  *   Script was still running an older copy of this file — no Current/Upcoming
  *   Loans sheets and no signed reads. Pushing this file (clasp, see
@@ -140,7 +157,8 @@ const UPCOMING_LOAN_HEADERS = [
 ];
 
 // The trigger's handler (installed by installDailyBackupTrigger): the demo
-// tracker's backup, then the project tracker's, then Asks, each failing on its own.
+// tracker's backup, then the project tracker's, then Asks, then the hub's activity
+// log, each failing on its own.
 function dailyBackup() {
   // Each half reports its own failure; these catch what escapes that (a
   // failure email that itself can't be sent), so one never stops the other.
@@ -148,6 +166,7 @@ function dailyBackup() {
   try { trackerJsonBackup_(); } catch (err) { console.error('Demo tracker JSON backup stopped:', err.toString()); }
   try { projectsBackup_(); } catch (err) { console.error('Project tracker backup stopped:', err.toString()); }
   try { asksBackup_(); } catch (err) { console.error('Asks backup stopped:', err.toString()); }
+  try { activityBackup_(); } catch (err) { console.error('Activity log backup stopped:', err.toString()); }
 }
 
 function equipmentBackup_() {
@@ -684,6 +703,7 @@ function setupBackups() {
   checkTrackerJsonBackup();
   checkProjectsBackup();
   checkAsksBackup();
+  checkActivityBackup();
 }
 
 // ── Asks backup ──────────────────────────────────────────────────────────────
@@ -829,6 +849,170 @@ function checkAsksBackup() {
 // Run from the editor to take an Asks backup now.
 function asksBackupNow() {
   asksBackup_();
+}
+
+// ── Hub activity log backup ──────────────────────────────────────────────────
+// See "THE HUB ACTIVITY LOG TOO" at the top. Only counts go to the log, never names.
+
+const ACTIVITY_FOLDER_NAME = 'CMCHS Hub Activity Log Backups';
+// Script Property: the time (ms) up to which lines are already in Drive. Absent = nothing yet, so the first run takes them all.
+const ACTIVITY_CURSOR_PROP = 'ACTIVITY_BACKUP_CURSOR_MS';
+// Lines this recent are left for tomorrow: a phone that was offline can send a line a few minutes late.
+const ACTIVITY_SETTLE_MS = 10 * 60 * 1000;
+const ACTIVITY_PAGE = 1000;
+const ACTIVITY_HEADERS = ['When (NZ)', 'Who', 'Email', 'Tool', 'What', 'Entry id'];
+// Same names as shared/activity-core.js APP_LABELS. A tool not listed shows as its own key.
+const ACTIVITY_TOOLS = {
+  hub: 'Hub', schedule: 'Schedule', oncall: 'On call', maintenance: 'Maintenance', 'service-orders': 'Service orders',
+  equipment: 'Equipment', projects: 'Projects', asks: 'Asks', checklists: 'Checklists', admin: 'Admin',
+  settings: 'Settings', 'pdf-editor': 'PDF editor', simprosync: 'SimproSync', ansurtopdf: 'Ansur'
+};
+
+// Lines with fromMs <= at < toMs, oldest first: [{ id, uid, name, email, app, summary, atMs }]. Throws if Firestore refuses.
+function readActivity_(token, fromMs, toMs) {
+  const url = 'https://firestore.googleapis.com/v1/projects/' + scheduleProjectId_() + '/databases/(default)/documents:runQuery';
+  const at = function(op, ms) {
+    return { fieldFilter: { field: { fieldPath: 'at' }, op: op, value: { timestampValue: new Date(ms).toISOString() } } };
+  };
+  const out = [];
+  for (let offset = 0; ; offset += ACTIVITY_PAGE) {
+    const resp = UrlFetchApp.fetch(url, {
+      method: 'post', contentType: 'application/json', headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true,
+      payload: JSON.stringify({ structuredQuery: {
+        from: [{ collectionId: 'activity' }],
+        where: { compositeFilter: { op: 'AND', filters: [at('GREATER_THAN_OR_EQUAL', fromMs), at('LESS_THAN', toMs)] } },
+        orderBy: [{ field: { fieldPath: 'at' }, direction: 'ASCENDING' }],
+        limit: ACTIVITY_PAGE, offset: offset
+      } })
+    });
+    const code = resp.getResponseCode();
+    if (code !== 200) throw new Error('Firestore refused to read activity (' + code + ')');
+    const docs = JSON.parse(resp.getContentText()).filter(function(r) { return r.document; });
+    docs.forEach(function(r) {
+      const d = fsFields_(r.document.fields);
+      out.push({ id: r.document.name.split('/').pop(), uid: d.uid || '', name: d.name || '', email: d.email || '', app: d.app || 'schedule',
+        summary: d.summary || '', atMs: Date.parse(d.at) || 0 });
+    });
+    if (docs.length < ACTIVITY_PAGE) return out;
+  }
+}
+
+// A cell as text: the log holds what people typed, and a value starting with = + - @ would be run as a formula.
+function activityCell_(v) {
+  const s = String(v == null ? '' : v);
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
+
+// One spreadsheet row per line, in the order given.
+function activityRows_(entries, tz) {
+  return entries.map(function(e) {
+    return [Utilities.formatDate(new Date(e.atMs), tz, 'yyyy-MM-dd HH:mm'), activityCell_(e.name), activityCell_(e.email),
+      ACTIVITY_TOOLS[e.app || 'schedule'] || e.app, activityCell_(e.summary), e.id];
+  });
+}
+
+// { 'yyyy-MM': [lines…] } by the month in New Zealand, each oldest first.
+function activityByMonth_(entries, tz) {
+  const months = {};
+  entries.forEach(function(e) {
+    const m = Utilities.formatDate(new Date(e.atMs), tz, 'yyyy-MM');
+    (months[m] = months[m] || []).push(e);
+  });
+  return months;
+}
+
+// Appends this month's lines to its spreadsheet in the folder, making it (with its header) the first time.
+function activityAppendMonth_(folder, month, entries, tz) {
+  const name = 'Hub activity log ' + month;
+  const found = folder.getFilesByName(name);
+  let ss;
+  if (found.hasNext()) {
+    ss = SpreadsheetApp.openById(found.next().getId());
+  } else {
+    ss = SpreadsheetApp.create(name);
+    DriveApp.getFileById(ss.getId()).moveTo(folder);
+    const sheet = ss.getActiveSheet();
+    sheet.setName('Activity');
+    writeSheetRows_(sheet, [ACTIVITY_HEADERS], ACTIVITY_HEADERS.length);
+    sheet.setColumnWidths(1, 1, 130); sheet.setColumnWidths(2, 2, 170); sheet.setColumnWidth(4, 110); sheet.setColumnWidth(5, 520);
+  }
+  const sheet = ss.getSheets()[0];
+  const rows = activityRows_(entries, tz);
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, ACTIVITY_HEADERS.length).setValues(rows);
+}
+
+// Copies the lines since the last run to Drive: a spreadsheet a month to read, and a JSON file a night to restore from.
+// Returns the number of lines copied. The log is kept for good: nothing here is deleted after a year.
+function activityBackup_() {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const token = serviceAccountToken_('https://www.googleapis.com/auth/datastore', 'firestoreAccessToken');
+    if (!token) throw new Error('No service account token: set FIREBASE_SERVICE_ACCOUNT_KEY.');
+    const tz = 'Pacific/Auckland';
+    const fromMs = Number(props.getProperty(ACTIVITY_CURSOR_PROP)) || 0;
+    const toMs = Date.now() - ACTIVITY_SETTLE_MS;
+    const entries = readActivity_(token, fromMs, toMs);
+    if (!entries.length) {
+      props.setProperty(ACTIVITY_CURSOR_PROP, String(toMs));
+      console.log('Activity log backup: no new lines.');
+      return 0;
+    }
+    const folders = DriveApp.getFoldersByName(ACTIVITY_FOLDER_NAME);
+    const folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(ACTIVITY_FOLDER_NAME);
+
+    // 1. The restore file: these lines exactly as stored
+    const stamp = Utilities.formatDate(new Date(toMs), tz, 'yyyy-MM-dd-HHmm');
+    folder.createFile(Utilities.newBlob(JSON.stringify({
+      kind: 'hub-activity-backup', version: 1, takenAt: new Date().toISOString(),
+      from: fromMs ? new Date(fromMs).toISOString() : null, to: new Date(toMs).toISOString(),
+      entries: entries.map(function(e) { return { id: e.id, at: new Date(e.atMs).toISOString(), uid: e.uid, name: e.name, email: e.email, app: e.app, summary: e.summary }; })
+    }), 'application/json', 'Hub-Activity-' + stamp + '.json'));
+
+    // 2. A spreadsheet a month to read without the hub
+    const months = activityByMonth_(entries, tz);
+    Object.keys(months).sort().forEach(function(m) { activityAppendMonth_(folder, m, months[m], tz); });
+
+    // Only now, with both written, is the cursor moved: a failure above is retried from the same place tomorrow.
+    props.setProperty(ACTIVITY_CURSOR_PROP, String(toMs));
+    console.log('Activity log backup complete: ' + entries.length + ' new line' + (entries.length === 1 ? '' : 's') + ' in ' + Object.keys(months).length + ' month' + (Object.keys(months).length === 1 ? '' : 's') + '.');
+    return entries.length;
+  } catch (err) {
+    console.error('Activity log backup failed:', err.toString());
+    try {
+      MailApp.sendEmail(NOTIFY_EMAIL, 'Hub Activity Log Backup Failed - ' + new Date().toDateString(),
+        'The nightly backup of the hub activity log failed.\n\nError: ' + err.toString() + '\n\nRun checkActivityBackup() in the Apps Script editor to see why. Nothing is lost: the next run starts from where the last good one stopped.');
+    } catch (mailErr) { console.error('Could not send the failure email:', mailErr.toString()); }
+    return -1;
+  }
+}
+
+// Run from the editor: reads the log and says how much is waiting to be copied, writes nothing.
+function checkActivityBackup() {
+  CacheService.getScriptCache().remove('firestoreAccessToken');
+  try {
+    const token = serviceAccountToken_('https://www.googleapis.com/auth/datastore', 'firestoreAccessToken');
+    if (!token) throw new Error('No service account token: set FIREBASE_SERVICE_ACCOUNT_KEY.');
+    const from = Number(PropertiesService.getScriptProperties().getProperty(ACTIVITY_CURSOR_PROP)) || 0;
+    const waiting = readActivity_(token, from, Date.now() - ACTIVITY_SETTLE_MS).length;
+    Logger.log('READY — the activity log backup can read the log: ' + waiting + ' line' + (waiting === 1 ? '' : 's') + ' waiting to be copied' +
+      (from ? ' (copied up to ' + Utilities.formatDate(new Date(from), 'Pacific/Auckland', 'yyyy-MM-dd HH:mm') + ').' : ' (nothing copied yet).'));
+  } catch (err) {
+    const why = String(err.message).replace(/\.+$/, '');
+    Logger.log('NOT READY — ' + why + '. ' + (/\(40[13]\)/.test(why)
+      ? 'Grant the service account "Cloud Datastore Viewer" in the staff schedule project\'s Google Cloud IAM (the same grant as checkProjectsBackup).'
+      : 'Same fix as checkProjectsBackup(): it uses the same service account.'));
+  }
+}
+
+// Run from the editor to copy the log to Drive now.
+function activityBackupNow() {
+  activityBackup_();
+}
+
+// Run from the editor only to copy the whole log again from the start (after deleting the Drive folder): forgets how far it got.
+function resetActivityBackup() {
+  PropertiesService.getScriptProperties().deleteProperty(ACTIVITY_CURSOR_PROP);
+  Logger.log('The next activity log backup copies everything from the beginning. Delete the "' + ACTIVITY_FOLDER_NAME + '" folder first, or its spreadsheets get every line twice.');
 }
 
 // Run once from the Apps Script editor to install the daily trigger.

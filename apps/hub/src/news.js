@@ -17,6 +17,7 @@
 // (Manage → News → "Move into Manage").
 import legacy from '../../../announcements.json' with { type: 'json' }
 import { REGIONS, SECTIONS } from './emailSplit.js'
+import { log } from './log.js'
 
 export const CATEGORIES = ['Announcements', 'Team news', 'Events', 'Tool updates']
 export const TONE = { Announcements: 'purple', 'Team news': 'green', Events: 'green', 'Tool updates': 'orange' }
@@ -337,6 +338,7 @@ export async function saveAnnouncement(me, a, photos) {
   }
   await batch.commit()
   touched.forEach(k => photoCache.delete(k))
+  log(`${a.id ? 'Edited' : 'Posted'} the news post "${clean(a.title, 80)}"`)
   return { id: ref.id, ...rec }
 }
 
@@ -360,6 +362,7 @@ export async function postDrafts(me, drafts, { date, weekOf, notifyTeam = false 
     }
     await batch.commit()
   }
+  log(`Posted ${recs.length} news item${recs.length === 1 ? '' : 's'} from a pasted email`)
   return { count: recs.length, firstId }
 }
 
@@ -382,6 +385,7 @@ export async function deleteAnnouncement(a) {
   else batch.delete(ref)
   for (const k of photoKeys) batch.delete(f.doc(db, 'announcementPhotos', k))
   await batch.commit()
+  log(`Deleted the news post "${clean(a.title, 80)}"`)
 }
 
 /** Admin: copies the old announcements.json entries into Firestore, same ids, so they can be edited here. */

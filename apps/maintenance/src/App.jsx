@@ -279,7 +279,7 @@ function EditDialog({ entry, pmTypes, canEdit, who, confirm, toast, onClose }) {
 
   async function del() {
     if (!(await confirm({ title: `Delete the ${base.site} entry?`, message: 'This can’t be undone.', confirmLabel: 'Delete', danger: true }))) return
-    try { await removeEntry(base.id); toast('Entry deleted'); onClose() }
+    try { await removeEntry(base.id, `${base.site}${base.pmType ? ' (' + base.pmType + ')' : ''}`); toast('Entry deleted'); onClose() }
     catch (err) { setNote({ text: 'Could not delete: ' + (err.message || err), tone: 'critical' }) }
   }
 

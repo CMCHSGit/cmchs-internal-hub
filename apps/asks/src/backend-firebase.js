@@ -24,6 +24,7 @@ import { clean } from './backend.js'
 import { statsOf } from './model.js'
 
 import { PROXY_URL } from '../../../shared/proxy.js'
+import { logSignedIn } from '../../../shared/activity.js'
 const OUTSTANDING = ['open', 'picked', 'waiting']
 
 const withId = (d) => ({ id: d.id, ...d.data() })
@@ -44,7 +45,7 @@ export default {
   watchAuth(cb) {
     return onAuthStateChanged(auth, (u) => cb(u ? { uid: u.uid, name: u.displayName || u.email, email: u.email } : null))
   },
-  signIn: () => signInWithPopup(auth, microsoftProvider),
+  signIn: () => signInWithPopup(auth, microsoftProvider).then((r) => { logSignedIn(); return r }),
 
   /** The person's record in the staff schedule: role and team decide what they see. */
   async profile(uid) {

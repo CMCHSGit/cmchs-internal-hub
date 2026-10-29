@@ -14,6 +14,7 @@
 // comment goes to the post's author and everyone else who has commented.
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { fs } from './news.js'
+import { log } from './log.js'
 
 export const REACTIONS = [
   { id: 'like', emoji: '👍', label: 'Like' },
@@ -110,6 +111,7 @@ export async function addComment(postId, me, text) {
   b.set(ref, c)
   b.update(f.doc(db, 'announcements', postId), { commentCount: f.increment(1) })
   await b.commit()
+  log('Commented on a news post')
   notifyNews({ id: postId, cid: ref.id })
 }
 
@@ -128,6 +130,7 @@ export async function deleteComment(postId, cid) {
   b.delete(f.doc(db, 'announcements', postId, 'comments', cid))
   b.update(f.doc(db, 'announcements', postId), { commentCount: f.increment(-1) })
   await b.commit()
+  log('Deleted a comment on a news post')
 }
 
 /**

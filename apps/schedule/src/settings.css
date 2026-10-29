@@ -43,7 +43,10 @@
 .activity-row:last-child { border-bottom: none; }
 .activity-when { flex: 0 0 auto; width: 120px; color: var(--text-muted); font: var(--type-caption); }
 .activity-who { flex: 0 0 auto; font-weight: var(--weight-semibold); color: var(--text-strong); }
+.activity-app { flex: 0 0 auto; padding: 1px 8px; border-radius: 999px; background: var(--surface-sunken, var(--border-subtle)); color: var(--text-muted); font: var(--type-caption); }
 .activity-what { flex: 1 1 260px; min-width: 0; color: var(--text-body); }
+.activity-filters { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.activity-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* Excel import. (.excel-details stays in the schedule's stylesheet: its Out of
    town page uses it too.) */

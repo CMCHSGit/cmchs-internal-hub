@@ -11,6 +11,7 @@
    rules/firestore.rules at the top of this repo. */
 
 import { onAuthStateChanged, signInWithPopup } from 'firebase/auth'
+import { logSignedIn } from '../../../shared/activity.js'
 import {
   collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, getDoc, getDocs, query, where, runTransaction, writeBatch,
 } from 'firebase/firestore'
@@ -35,7 +36,7 @@ export default {
   watchAuth(cb) {
     return onAuthStateChanged(auth, (u) => cb(u ? { uid: u.uid, name: u.displayName || u.email, email: u.email } : null))
   },
-  signIn: () => signInWithPopup(auth, microsoftProvider),
+  signIn: () => signInWithPopup(auth, microsoftProvider).then((r) => { logSignedIn(); return r }),
 
   /** The person's record in the staff schedule: role and team decide who may edit. */
   async profile(uid) {

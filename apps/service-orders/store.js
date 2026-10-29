@@ -11,6 +11,7 @@ import {
   serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../schedule/src/firebase.js'
+import { logActivity } from '../../shared/activity.js'
 import * as devStore from './store-local.js'
 
 // `npm run dev` without a .env has no Firestore: made-up orders instead
@@ -104,29 +105,37 @@ function tidy(order) {
   return out
 }
 
+const label = (o) => (o.so ? `S.O ${o.so}` : o.title || 'an order')
+
 export async function createOrder(order, who) {
   if (local) return local.createOrder(tidy(order), who)
-  return addDoc(collection(db, COL), {
+  const r = await addDoc(collection(db, COL), {
     ...tidy(order),
     stageAt: serverTimestamp(),
     createdAt: serverTimestamp(), createdBy: who,
     updatedAt: serverTimestamp(), updatedBy: who,
   })
+  logActivity(null, `Added service order ${label(order)}`, { app: 'service-orders' })
+  return r
 }
 
 /** `stageChanged` stamps when it moved, so "how long has it sat here" is answerable later. */
 export async function saveOrder(id, order, who, stageChanged = false) {
   if (local) return local.saveOrder(id, tidy(order), who)
-  return updateDoc(doc(db, COL, id), {
+  const r = await updateDoc(doc(db, COL, id), {
     ...tidy(order),
     ...(stageChanged ? { stageAt: serverTimestamp() } : {}),
     updatedAt: serverTimestamp(), updatedBy: who,
   })
+  logActivity(null, `Updated service order ${label(order)}${stageChanged && order.stage ? ' — now ' + order.stage : ''}`, { app: 'service-orders' })
+  return r
 }
 
-export async function removeOrder(id) {
+/** `what` names it in the log ("S.O 1234"). */
+export async function removeOrder(id, what = '') {
   if (local) return local.removeOrder(id)
-  return deleteDoc(doc(db, COL, id))
+  await deleteDoc(doc(db, COL, id))
+  logActivity(null, `Deleted service order ${what || ''}`.trim(), { app: 'service-orders' })
 }
 
 /** Import writes in batches — 500 is Firestore's hard limit per batch. */
@@ -148,5 +157,6 @@ export async function createMany(orders, who, onProgress) {
     done += chunk.length
     onProgress?.(done, orders.length)
   }
+  logActivity(null, `Imported ${done} service order${done === 1 ? '' : 's'}`, { app: 'service-orders' })
   return done
 }

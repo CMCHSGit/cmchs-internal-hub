@@ -3,6 +3,7 @@
 // an admin imports it (rules/firestore.rules).
 import { collection, doc, getDocs, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../schedule/src/firebase'
+import { logActivity } from '../../../shared/activity.js'
 import { sheetId } from './parse.js'
 import { renameEngineer } from './roster.js'
 import { sampleHistory } from './sample.js'
@@ -33,6 +34,7 @@ export async function saveImport({ sheets, engineers }, by) {
   }
   batch.set(doc(db, COL, 'engineers'), { names: engineers, importedAt: serverTimestamp(), importedBy: by })
   await batch.commit()
+  logActivity(null, `Imported the on-call history (${sheets.length} sheet${sheets.length === 1 ? '' : 's'})`, { app: 'oncall' })
 }
 
 // ── Editing (admins; the same rule) ────────────────────────────────────────────────────────────
@@ -46,6 +48,7 @@ export async function saveWeek(sheet, start, week, by) {
   const batch = writeBatch(db)
   batch.update(doc(db, COL, sheetId(sheet.name)), { weeks, editedAt: serverTimestamp(), editedBy: by })
   await batch.commit()
+  logActivity(null, `${week ? 'Changed' : 'Cleared'} the on-call week starting ${start} (${sheet.name})`, { app: 'oncall' })
 }
 
 /**
@@ -69,4 +72,5 @@ export async function savePeople(sheets, names, renames, by) {
   }
   batch.set(doc(db, COL, 'engineers'), { names, importedAt: serverTimestamp(), importedBy: by })
   await batch.commit()
+  logActivity(null, renames.length ? `Renamed on-call people: ${renames.map(([a, b]) => `${a} → ${b}`).join(', ')}` : 'Changed the on-call people list', { app: 'oncall' })
 }

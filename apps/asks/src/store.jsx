@@ -4,6 +4,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getBackend } from './backend.js'
+import { logActivity } from '../../../shared/activity.js'
 import { cleanAsk, cleanComment, eventOf, findMentions, myCount, peopleOf, todayISO, LIMITS } from './model.js'
 
 const Ctx = createContext(null)
@@ -85,6 +86,14 @@ export function StoreProvider({ children }) {
   const actions = useMemo(() => {
     if (!be || !me) return {}
 
+    // The hub's activity log (shared/activity.js). Says what was done, never which ask or what it said:
+    // asks are private to the people on them, and the log is read by every admin.
+    const ASK_DOES = {
+      created: 'Sent an ask', claimed: 'Took an ask', handed: 'Handed an ask back', given: 'Gave an ask to someone', waiting: 'Marked an ask as waiting',
+      done: 'Marked an ask done', reopened: 'Reopened an ask', added: 'Added people to an ask', comment: 'Commented on an ask',
+    }
+    const note = (type) => logActivity(me, ASK_DOES[type] || 'Changed an ask', { app: 'asks' })
+
     /** Tell the people concerned, then say how it went (Shell shows it). */
     const tell = (id) => be.notify(id).then((r) => { if (r && !r.already) setNotice({ ...r, at: Date.now() }) })
 
@@ -92,14 +101,15 @@ export function StoreProvider({ children }) {
     async function change(a, fn) {
       // A change reads the ask first (a transaction), which can't be done with no connection: say so at once.
       if (navigator.onLine === false) throw new Error('You’re offline. Try again when you’re back online.')
-      let notify = false
+      let notify = false, kind = ''
       const next = await be.mutate(a.id, (cur) => {
         const r = fn(cur)
         if (!r) return null
         notify = !!r.patch.event
+        kind = r.patch.event?.type || ''
         return { ...r, patch: { ...r.patch, updatedAtMs: Date.now() } }
       })
-      if (next && notify) tell(a.id)
+      if (next && notify) { tell(a.id); note(kind) }
       return next
     }
     const photoDocs = (askId, photos, commentId = '') => photos.map((p) => ({
@@ -128,13 +138,14 @@ export function StoreProvider({ children }) {
           // No connection: the ask is kept on this device and goes when it's back, which can be long after this form
           // closes, so don't wait for it. The people are told when it arrives: from here if it's quick (the server
           // only takes a tell within ten minutes), otherwise by the server's own sweep (sweepAsks in the proxy).
-          saving.then(() => { if (Date.now() - now < 9 * 60 * 1000) tell(id) }).catch((e) => console.warn('[asks] queued ask not sent', e))
+          saving.then(() => { note('created'); if (Date.now() - now < 9 * 60 * 1000) tell(id) }).catch((e) => console.warn('[asks] queued ask not sent', e))
           markSeen(id)
           return id
         }
         await saving
         markSeen(id)
         tell(id)
+        note('created')
         return id
       },
 
@@ -227,7 +238,7 @@ export function StoreProvider({ children }) {
         await change(a, (cur) => ({ patch: { commentCount: Math.max(0, (cur.commentCount || 0) - 1), photoCount: Math.max(0, (cur.photoCount || 0) - (c.photoIds || []).length) } }))
       },
 
-      remove: (a) => be.remove(a.id),
+      remove: async (a) => { await be.remove(a.id); logActivity(me, 'Deleted an ask', { app: 'asks' }) },
 
       async enablePush() {
         await be.push.enable(me.uid)

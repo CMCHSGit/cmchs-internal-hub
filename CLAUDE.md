@@ -37,5 +37,7 @@ Several people work on these repos with Claude, often at the same time.
   Tile sync). `clasp push` does not make Apps Script code live: `git pull`, push,
   then `clasp deploy -i <id>` and check the live `/exec` address, exactly as in
   `backend/README.md`. This has bitten twice.
+- **Every change to data logs one line to the activity log** (`shared/activity.js`, "Activity log" in
+  `README.md`): say what was done in words, never private content (ask titles, comment text, pay, keys).
 - **Ask before anything people would notice and can't undo:** deleting data,
   changing rules, anything that signs people out.
