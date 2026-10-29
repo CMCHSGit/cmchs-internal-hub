@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { fmtDate, historyFor, isLoanLongTerm, mergeEquipmentAndHistory, safeKeys, searchEquipment, statusOf, upcomingFor, heldUpBy } from '../src/model.js'
+import { fmtDate, historyFor, isLoanLongTerm, mergeEquipmentAndHistory, safeKeys, searchEquipment, statusOf, tileSeen, upcomingFor, heldUpBy } from '../src/model.js'
 
 const today = '2026-10-17'
 const item = (o = {}) => ({ id: 'id_1', CHSAssetNo: '100166', Model: 'TEX20', Returned: 'No', ...o })
@@ -103,4 +103,16 @@ test('a device waiting on a booking: held up by a loan out now or clashing, not 
   assert.equal(heldUpBy(on({ Returned: 'Yes' }), g, today), null)
   assert.equal(heldUpBy(on({ BatchID: 'sc' }), g, today), null) // already on this loan
   assert.equal(heldUpBy({ OnLoanTo: '' }, g, today), null)
+})
+
+test('tile: last seen is worked out from the Tile\'s own timestamp, not the sync\'s frozen text', () => {
+  const now = Date.parse('2026-10-29T12:00:00Z')
+  const t = { location: 'Ward 4', lastUpdated: '25 min ago', lastTimestamp: '2026-10-29T09:00:00Z' }
+  assert.equal(tileSeen(t, now).ago, '3h ago')
+  assert.equal(tileSeen({ ...t, lastTimestamp: '2026-10-27T12:00:00Z' }, now).ago, '2d ago')
+  assert.match(tileSeen(t, now).at, /29 Oct/)
+  // no timestamp (an old record): the sync's own text, no date
+  assert.deepEqual(tileSeen({ location: 'Ward 4', lastUpdated: '25 min ago', lastTimestamp: null }, now), { ago: '25 min ago', at: '' })
+  assert.deepEqual(tileSeen({ location: 'Ward 4' }, now), { ago: '', at: '' })
+  assert.deepEqual(tileSeen(null, now), { ago: '', at: '' })
 })

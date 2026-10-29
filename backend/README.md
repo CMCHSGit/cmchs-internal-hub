@@ -51,9 +51,21 @@ batches calls) is in `chs-equipment/PROJECT-CONTEXT.md` §2–§3.
 
 Runs daily at 07:00 NZST once the repository variable `TILE_SYNC_HERE` is
 `true`; a manual run from the Actions tab always works. Needs the secrets
-`TILE_EMAIL`, `TILE_PASSWORD` and `CHS_EQUIPMENT_SERVICE_ACCOUNT` (the
-chs-equipment project's service-account JSON, not the staff schedule's
-`FIREBASE_*` one). Logs give counts only.
+`TILE_EMAIL`, `TILE_PASSWORD`, `CHS_EQUIPMENT_SERVICE_ACCOUNT` (the
+chs-equipment project's service-account JSON, for the old Realtime Database) and
+the staff schedule's `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`
+(already set: the Thursday reminder uses them), for Firestore.
+
+**It writes where the tracker reads.** It reads `settings/equipmentCutover` in the hub's
+Firestore: while the tracker is on the old database it writes `/tileLocations` there, as
+before; once the switch says `firestore` it writes Firestore's `tileLocations/{tileNo}`
+(each tile set whole, tiles no longer on the account removed, nothing removed if
+the fetch found none). If the switch can't be read it stays on the old database.
+A manual run has a `target` choice: `both` fills Firestore ahead of the cutover.
+The Firestore side is `hub_firestore.py` (tests: `python -m unittest test_hub_firestore`
+in this folder, also run by the workflow). The tracker shows the places in the
+Equipment list and an item's record (`readTiles` in `apps/equipment/src/db.js`).
+Logs give counts only.
 
 ## `tracker-migration/`: the demo tracker into Firestore
 

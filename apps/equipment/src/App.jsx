@@ -16,9 +16,9 @@ import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
-import { FIELDS, STATUSES, actionCount, findByIdOrNo, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, upcomingFor } from './model.js'
+import { FIELDS, STATUSES, actionCount, findByIdOrNo, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, tileSeen, upcomingFor } from './model.js'
 import { badgeText, setBadge } from '../../../shared/badges.js'
-import { isLocal, readOld } from './db.js'
+import { isLocal, readTiles } from './db.js'
 import Loans from './Loans.jsx'
 import { AddAssets, AdminDialog, ItemForm, RetireDialog } from './Items.jsx'
 import Overview from './Overview.jsx'
@@ -131,9 +131,9 @@ function Equipment({ s, params, setParams, go, onDone }) {
   const [confirmDialog, confirm] = useConfirm()
   const filter = STATUSES.some((x) => x.key === params.show) ? params.show : 'all'
   const [sort, setSort] = useState({ key: 'CHSAssetNo', dir: 1, auto: true })
-  // Tile sync's last-seen places, by Tile number (old: _tileLocationCache): always in the old database, whatever the switch says.
+  // Tile sync's last-seen places, by Tile number (old: _tileLocationCache): the old database before the cutover, Firestore after it (db.js readTiles).
   const [tiles, setTiles] = useState(null)
-  useEffect(() => { readOld('tileLocations').then((r) => setTiles(r.data || {})).catch(() => setTiles({})) }, [])
+  useEffect(() => { readTiles().then(setTiles) }, [])
   const tileOf = (e) => (e.TileNo ? (tiles ? tiles[String(e.TileNo).trim()] || null : undefined) : null)
   // An item's id; ?item= opens one (a loan's device row links here, as the old openDetailByAssetNo).
   const [open, setOpen] = useState(params.item || null)
@@ -258,7 +258,12 @@ function Equipment({ s, params, setParams, go, onDone }) {
                 <td data-label="Status"><Status st={st} /></td>
                 <td data-label="Location">{isOut(e) ? e.Location : ''}</td>
                 <td data-label="Shelf">{e.ShelfLocation}</td>
-                <td data-label="Tile">{(() => { const t = tileOf(e); return t?.location ? <span className="eq-small">{t.alert && <Badge tone="orange">{t.alert}</Badge>} {t.location}</span> : '' })()}</td>
+                <td data-label="Tile">{(() => {
+                  const t = tileOf(e)
+                  if (!t?.location) return ''
+                  const seen = tileSeen(t)
+                  return <span className="eq-small">{t.alert && <Badge tone="orange">{t.alert}</Badge>} {t.location}{seen.ago && <span className="eq-small" title={seen.at || undefined}>Seen {seen.ago}</span>}</span>
+                })()}</td>
               </tr>
             ))}
           </tbody>
@@ -339,6 +344,7 @@ function FindOnTile({ uuid }) {
 function TileSection({ tileNo, tile }) {
   if (tile === undefined) return <p className="eq-note">Fetching the Tile’s location…</p>
   if (!tile?.location) return <p className="eq-note">No Tile location yet (Tile sync fills it in).</p>
+  const seen = tileSeen(tile)
   const lat = Number(tile.latitude), lng = Number(tile.longitude), has = Number.isFinite(lat) && Number.isFinite(lng) && (lat || lng)
   const map = has ? `https://www.google.com/maps?q=${lat},${lng}` : `https://www.google.com/maps/search/${encodeURIComponent(tile.location)}`
   return (
@@ -346,7 +352,7 @@ function TileSection({ tileNo, tile }) {
       {tile.alert && <Alert tone="warning" title={`Tile ${tileNo}`}>{tile.alert}</Alert>}
       <dl className="eq-fields">
         <div><dt>Address</dt><dd>{tile.location}</dd></div>
-        <div><dt>Last updated</dt><dd>{tile.lastUpdated || '—'}</dd></div>
+        <div><dt>Last seen</dt><dd>{seen.ago || '—'}{seen.at && <span className="eq-small">{seen.at}</span>}</dd></div>
         {has && <div><dt>Coordinates</dt><dd className="eq-mono">{lat.toFixed(5)}, {lng.toFixed(5)}</dd></div>}
       </dl>
       <a href={map} target="_blank" rel="noopener noreferrer">Open in Google Maps</a>

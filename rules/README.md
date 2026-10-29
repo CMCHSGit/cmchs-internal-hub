@@ -6,7 +6,7 @@ They moved here on 16 Oct 2026 from the repos they grew up in (step 1 of
 
 | File | Database | Was |
 |---|---|---|
-| `firestore.rules` | Firestore in the staff schedule's Firebase project: `users`, `schedules`, `oncall`, `locations`, `activity`, `maintenance`, `serviceOrders`, `checklists` (27 Oct 2026), `project*`, People, Manage (news, tool requests, feedback), `asks`; and, not used until step 5's cutover, the demo tracker (`equipment`, `retiredEquipment`, `loans`, `equipmentHistory`, `equipmentAudit`, `equipmentKits`, `settings/equipment`) | `cmchs-staff-schedule/firestore.rules` |
+| `firestore.rules` | Firestore in the staff schedule's Firebase project: `users`, `schedules`, `oncall`, `locations`, `activity`, `maintenance`, `serviceOrders`, `checklists` (27 Oct 2026), `project*`, People, Manage (news, tool requests, feedback), `asks`; and, not used until step 5's cutover, the demo tracker (`equipment`, `retiredEquipment`, `loans`, `equipmentHistory`, `equipmentAudit`, `equipmentKits`, `settings/equipment`, `tileLocations`) | `cmchs-staff-schedule/firestore.rules` |
 | `database.rules.json` | Realtime Database in the `chs-equipment` project: the demo tracker | `chs-equipment/database.rules.json` |
 
 ## Publishing: a push does NOT do it

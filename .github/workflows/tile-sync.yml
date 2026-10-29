@@ -1,7 +1,8 @@
 # Daily Tile location sync: where each demo device's Tile tracker last was,
-# written to the demo tracker's Realtime Database (/tileLocations). See
-# backend/tile-sync/tile_sync.py. Moved here from the chs-equipment repo
-# (INTEGRATION-PLAN.md step 1).
+# written to the demo tracker's database (tileLocations): the old Realtime Database
+# until the tracker's cutover, the hub's Firestore after it (it follows
+# settings/equipmentCutover; see backend/tile-sync/tile_sync.py and
+# STEP-5-PLAN.md). Moved here from the chs-equipment repo (INTEGRATION-PLAN.md step 1).
 #
 # The daily run only happens once the repository variable TILE_SYNC_HERE is
 # 'true', so it can't run here and in chs-equipment on the same morning. A
@@ -16,6 +17,12 @@ on:
   schedule:
     - cron: '0 18 * * *' # 18:00 UTC = 07:00 NZST (06:00 during daylight saving)
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Where to write: auto follows the tracker (old database before the cutover, Firestore after); both fills Firestore ahead of the cutover'
+        type: choice
+        options: [auto, both, rtdb, firestore]
+        default: auto
 
 permissions:
   contents: read
@@ -31,13 +38,22 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install -r backend/tile-sync/requirements.txt
+      - run: python -m unittest test_hub_firestore
+        working-directory: backend/tile-sync
       - run: python backend/tile-sync/tile_sync.py
         env:
           TILE_EMAIL:    ${{ secrets.TILE_EMAIL }}
           TILE_PASSWORD: ${{ secrets.TILE_PASSWORD }}
           # The chs-equipment project's service account (the demo tracker's
-          # database), not the staff schedule's FIREBASE_* one.
+          # old Realtime Database).
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.CHS_EQUIPMENT_SERVICE_ACCOUNT }}
+          # The staff schedule's (hub's) service account, for Firestore: the
+          # same three secrets the Thursday reminder uses. Read for the cutover
+          # switch; written once the tracker is on Firestore.
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          TILE_SYNC_TARGET:      ${{ inputs.target || 'auto' }}
       # GitHub pauses timed workflows after 60 days without repo activity -
       # re-enabling this one on every run keeps it alive.
       - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/tile-sync.yml/enable"

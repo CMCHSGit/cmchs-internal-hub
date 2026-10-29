@@ -18,7 +18,7 @@
    hour while the data is copied across). An admin sets it (Manage, Data
    source); everything open follows within a second. On the dev server the
    switch is kept in this browser instead. */
-import { doc, getDoc, onSnapshot } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, onSnapshot } from 'firebase/firestore'
 import { auth, db as firestore } from '../../schedule/src/firebase.js'
 import { ensureProfile } from '../../schedule/src/profile.js'
 import * as fsPaths from './db-paths.js'
@@ -71,6 +71,24 @@ export async function readOld(path) {
   const res = await fetchDb(path, {}, {})
   if (!res.ok) throw new Error(`Could not read the demo tracker's ${path} (${res.status})`)
   return { data: await res.json(), etag: null }
+}
+/**
+ * Tile sync's last-seen places, by Tile number: { [tileNo]: { location, lastTimestamp, … } }.
+ * Before the cutover they are in the old database (/tileLocations); after it, in the hub's
+ * Firestore (tileLocations/{tileNo}, written by backend/tile-sync/tile_sync.py). If Firestore
+ * has none yet (the sync hasn't run since the switch), the old database's last copy is shown
+ * rather than nothing. Never throws: no Tile data is an empty list.
+ */
+export async function readTiles() {
+  if (onFirestore() && !local && firestore) {
+    try {
+      const snap = await getDocs(collection(firestore, 'tileLocations'))
+      const out = {}
+      snap.forEach((d) => { out[d.id] = d.data() })
+      if (Object.keys(out).length) return out
+    } catch { /* fall back to the old copy below */ }
+  }
+  try { return (await readOld('tileLocations')).data || {} } catch { return {} }
 }
 const readOnlyError = () => new Error('The demo tracker is read-only for a few minutes while its data moves. Try again shortly.')
 

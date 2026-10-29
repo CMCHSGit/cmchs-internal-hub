@@ -33,13 +33,16 @@ Everything sits on the old database until the switch is moved. What's left, in o
 - Going back: Manage → "Back to the old database". Changes made on Firestore since are not in it.
 
 ### 3. Code still to write (Peter's Claude)
-- [ ] **Tile locations.** `backend/tile-sync/tile_sync.py` writes `/tileLocations/{tileNo}` to the old
-      database. The old tracker showed them (tag `old-tracker-final` in chs-equipment, `index.html`
-      around lines 6155 and 11481); **the new tracker doesn't read them at all**. Rebuild that in
-      `apps/equipment` (an item's last seen place and time), reading Firestore `tileLocations/{tileNo}`;
-      make `tile_sync.py` write there once `settings/equipmentCutover` says `firestore` (it needs a
-      hub service-account secret beside `CHS_EQUIPMENT_SERVICE_ACCOUNT`: ask Jonathan); add the rules
-      (staff read, nobody writes from the browser) with tests in `rules/tests/`.
+- [x] **Tile locations** (29 Oct). The new tracker already read `/tileLocations` from the old database
+      (the Equipment list's Tile column and the item's record); it now also shows when the Tile was last
+      seen ("Seen 3h ago", worked out from the Tile's own timestamp), and `readTiles` in `db.js` reads
+      Firestore `tileLocations/{tileNo}` once the switch says `firestore` (the old copy if Firestore has none yet).
+      `tile_sync.py` follows the switch (`hub_firestore.py`; a manual run's `target` choice `both`
+      fills Firestore ahead of the cutover) and needs **no new secret**: it uses the staff schedule's
+      `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` the Thursday reminder already has.
+      Rules (staff read, nobody writes from a browser) tested in `equipment-rules.test.mjs`.
+      **Needs publishing:** `rules/firestore.rules` (the `tileLocations` block; until then Firestore reads of it are
+      denied and the tracker falls back to the old copy). Not yet run against the live Tile account or Firestore.
 - [ ] **5A, the team out of `accountManagers`:** the tracker (`store.jsx`'s team via `teamFrom`,
       `memberFor`), the proxy (`Code.js` reminders, `sendTestPush_`, `pruneDeadTokens_`,
       `SERVICE_TEAM_OPERATORS` ~410) and `apps/admin/src/tracker.js` read `users` only. Then

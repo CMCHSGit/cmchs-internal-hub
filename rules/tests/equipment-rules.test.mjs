@@ -47,6 +47,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'equipmentHistory/h1'), entry('h1'))
   await setDoc(doc(db, 'equipmentAudit/a1'), { id: 'a1', ts: TS, type: 'loan_created', summary: 'Loan created', detail: {}, operator: 'Sam', source: 'hub' })
   await setDoc(doc(db, 'equipmentKits/k1'), { label: 'TEX20 ultrasound kit', triggers: ['100166'], accessories: [] })
+  await setDoc(doc(db, 'tileLocations/56'), { tileNo: '56', tileName: '56) N15 monitor', location: 'Queen Street, Hamilton', lastTimestamp: '2026-10-29T01:00:00Z', latitude: -37.78, longitude: 175.28, alert: '' })
   await setDoc(doc(db, 'settings/equipment'), { simproConfig: { createJobs: false, windDownFrom: '2026-10-01' }, demoTypes: ['Evaluation'] })
 })
 
@@ -70,6 +71,10 @@ await check('Sam reads loans, history, the audit log, kits and settings', true, 
   const db = as('sam')
   await getDocs(collection(db, 'loans')); await getDocs(collection(db, 'equipmentHistory')); await getDocs(collection(db, 'equipmentAudit'))
   await getDocs(collection(db, 'equipmentKits')); await getDoc(doc(db, 'settings/equipment')); await getDocs(collection(db, 'retiredEquipment'))
+})
+await check('Sam reads the Tile locations (an item\'s last seen place)', true, async () => {
+  const db = as('sam')
+  await getDocs(collection(db, 'tileLocations')); await getDoc(doc(db, 'tileLocations/56'))
 })
 await check('Sam makes a new loan: the item, the loan and its history entry together', true, () => batch(as('sam'), (b, db) => {
   b.update(doc(db, 'equipment/i2'), { OnLoanTo: 'Hutt Hospital', Location: 'Ward 4', LoanStartDate: '2026-10-19', LoanEndDate: '2026-11-02', Returned: 'No', BatchID: 'batch_2' })
@@ -170,6 +175,12 @@ await check('Sam makes himself a test-mode tester', false, () => updateDoc(doc(a
 await check('HR makes someone a tester', false, () => updateDoc(doc(as('hr1'), 'users/sam'), { trackerTester: true }))
 await check('HR changes someone\'s tracker role', false, () => updateDoc(doc(as('hr1'), 'users/kiri'), { trackerRole: 'am' }))
 await check('Sam turns his demo reminders on with something that isn\'t on or off', false, () => updateDoc(doc(as('sam'), 'users/sam'), { notifications: { demoReminders: 'yes' } }))
+await check('Sam writes a Tile location', false, () => setDoc(doc(as('sam'), 'tileLocations/57'), { tileNo: '57', location: 'Somewhere' }))
+await check('Sam changes a Tile location', false, () => updateDoc(doc(as('sam'), 'tileLocations/56'), { location: 'Elsewhere' }))
+await check('Sam deletes a Tile location', false, () => deleteDoc(doc(as('sam'), 'tileLocations/56')))
+await check('an admin writes a Tile location from the browser', false, () => setDoc(doc(as('admin1'), 'tileLocations/57'), { tileNo: '57', location: 'Somewhere' }))
+await check('a placeholder account (not signed in yet) reads the Tile locations', false, () => getDocs(collection(as('placeholder'), 'tileLocations')))
+await check('someone signed out reads the Tile locations', false, () => getDocs(collection(anon, 'tileLocations')))
 await check('Sam gives himself a tracker role', false, () => updateDoc(doc(as('sam'), 'users/sam'), { trackerRole: 'service' }))
 
 console.log(`\n${pass} passed, ${fail} failed`)

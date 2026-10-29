@@ -572,6 +572,14 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create, update, delete: if isStaff();
     }
+    // tileLocations/{tileNo}: where Tile sync last saw each demo device's Tile
+    // (backend/tile-sync/tile_sync.py, written daily by a GitHub Action with the
+    // hub's service account, which the rules don't hold to anything). Staff read
+    // it, for an item's last seen place; nobody writes it from a browser.
+    match /tileLocations/{tileNo} {
+      allow read: if isStaff();
+      allow write: if false;
+    }
     // settings/equipmentCutover: where the tracker's data is ({ source: 'rtdb' |
     // 'firestore', readOnly, by, at }; apps/equipment/src/db.js). Staff read it;
     // an admin moves it (Manage, Data source).

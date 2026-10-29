@@ -3,8 +3,12 @@ CHS Tile Location Sync
 =======================
 Reads every Tile's last-known location straight from Tile's own cloud API via
 pytile (https://github.com/bachya/pytile - the same library Home Assistant's
-built-in Tile integration uses) and writes it to Firebase under
-/tileLocations/{tileNo}.
+built-in Tile integration uses) and writes it to the demo tracker's database
+under tileLocations/{tileNo}: the old Realtime Database until the tracker's
+cutover to Firestore (STEP-5-PLAN.md), the hub's Firestore after it. Which one
+follows settings/equipmentCutover, read with the hub's service account
+(hub_firestore.py); TILE_SYNC_TARGET (auto | rtdb | firestore | both) forces it,
+e.g. "both" before the cutover so Firestore already has the places on the day.
 
 Replaces the old BlueStacks-based tile_sync.py, which drove an Android
 emulator over ADB and scraped the Tile app's UI one scroll at a time -
@@ -41,6 +45,8 @@ import aiohttp
 from pytile import async_login
 from pytile.errors import TileError
 
+import hub_firestore
+
 FIREBASE_URL = os.environ.get(
     "FIREBASE_URL",
     "https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -51,6 +57,11 @@ FIREBASE_URL = os.environ.get(
 # secret (the JSON key, whole). Without it the writes go unsigned, which only
 # works while the database is still open.
 FIREBASE_SERVICE_ACCOUNT = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+# Writing to the hub's Firestore needs FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL
+# and FIREBASE_PRIVATE_KEY (the staff schedule project's service account); see
+# hub_firestore.py. TILE_SYNC_TARGET: auto (follow the tracker's switch), rtdb,
+# firestore or both.
+TILE_SYNC_TARGET = os.environ.get("TILE_SYNC_TARGET", "auto")
 
 
 def firebase_auth_query() -> str:
@@ -210,25 +221,64 @@ async def main():
             + (f", {skipped_no_location} with no location yet" if skipped_no_location else "")
         )
 
-        auth = firebase_auth_query()
-        print("Clearing old tile data from Firebase...")
-        async with session.delete(f"{FIREBASE_URL}/tileLocations.json{auth}") as resp:
-            if resp.status != 200:
-                print(f"  WARNING: could not clear old data ({resp.status})")
+        # Where is the tracker reading from now? (the cutover switch in the hub's Firestore)
+        info = hub_firestore.credentials_info()
+        hub_token = source = None
+        if info:
+            try:
+                hub_token = hub_firestore.access_token(info)
+                source = await hub_firestore.read_source(session, info["project_id"], hub_token)
+            except Exception as err:  # auto then stays on the old database
+                print(f"  WARNING: could not read the cutover switch: {type(err).__name__}")
+        else:
+            print("  NOTE: FIREBASE_PROJECT_ID / FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY not all set - cannot read the cutover switch.")
+        try:
+            target = hub_firestore.choose_target(TILE_SYNC_TARGET, source)
+        except ValueError as err:
+            print(f"ERROR: {err}")
+            sys.exit(1)
+        print(f"Tracker data source: {source or 'unknown'}; writing to: {target}")
+        if target in ("firestore", "both") and not hub_token:
+            print("ERROR: no access to the hub's Firestore (see the FIREBASE_* secrets), so Firestore can't be written.")
+            sys.exit(1)
 
-        print(f"Writing {len(records)} tile(s) to Firebase...")
-        success = 0
-        for tile_no, payload in records.items():
-            async with session.put(
-                f"{FIREBASE_URL}/tileLocations/{tile_no}.json{auth}", json=payload
-            ) as resp:
-                if resp.status == 200:
-                    success += 1
-                else:
-                    print(f"  WARNING: Firebase returned {resp.status} for tile {tile_no}")
+        failed = 0
+        if target in ("rtdb", "both"):
+            await write_rtdb(session, records)
+        if target in ("firestore", "both"):
+            print(f"Writing {len(records)} tile(s) to Firestore...")
+            try:
+                written, deleted, failed = await hub_firestore.write_records(session, info["project_id"], hub_token, records)
+            except Exception as err:
+                print(f"ERROR: Firestore write failed: {err}")
+                sys.exit(1)
+            print(f"Firestore: {written}/{len(records)} tiles written, {deleted} removed, {failed} failed.")
 
-        print(f"\nDone: {success}/{len(records)} tiles written.")
         print(f"Finished: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+        if failed:
+            sys.exit(1)
+
+
+async def write_rtdb(session, records):
+    """The old Realtime Database: cleared, then each tile put."""
+    auth = firebase_auth_query()
+    print("Clearing old tile data from Firebase...")
+    async with session.delete(f"{FIREBASE_URL}/tileLocations.json{auth}") as resp:
+        if resp.status != 200:
+            print(f"  WARNING: could not clear old data ({resp.status})")
+
+    print(f"Writing {len(records)} tile(s) to Firebase...")
+    success = 0
+    for tile_no, payload in records.items():
+        async with session.put(
+            f"{FIREBASE_URL}/tileLocations/{tile_no}.json{auth}", json=payload
+        ) as resp:
+            if resp.status == 200:
+                success += 1
+            else:
+                print(f"  WARNING: Firebase returned {resp.status} for tile {tile_no}")
+
+    print(f"\nDone: {success}/{len(records)} tiles written.")
 
 
 if __name__ == "__main__":

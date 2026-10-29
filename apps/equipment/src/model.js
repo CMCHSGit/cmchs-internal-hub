@@ -1149,6 +1149,17 @@ export function relTime(ts, now = Date.now()) {
   return mins < 1 ? 'just now' : mins < 60 ? mins + 'm ago' : mins < 1440 ? Math.floor(mins / 60) + 'h ago' : Math.floor(mins / 1440) + 'd ago'
 }
 
+/**
+ * When Tile sync last saw an item's Tile ({ ago: "3h ago", at: "15 Oct, 17:40" }): worked out from
+ * the Tile's own timestamp (lastTimestamp, UTC), so it stays right between daily syncs. The
+ * sync's own text ("25 min ago", frozen at sync time) is only the fallback for a record with none.
+ */
+export function tileSeen(tile, now = Date.now()) {
+  if (!tile) return { ago: '', at: '' }
+  const ago = relTime(tile.lastTimestamp, now)
+  return ago ? { ago, at: fmtWhen(tile.lastTimestamp) } : { ago: String(tile.lastUpdated || ''), at: '' }
+}
+
 /** Each kind of audit entry's colour, as the old badges (old: _auditBadge): made / back green, gone red, changed purple, taken off orange. */
 export function auditTone(type) {
   const t = String(type || '')
