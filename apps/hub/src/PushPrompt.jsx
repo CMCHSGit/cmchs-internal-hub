@@ -97,6 +97,25 @@ export async function enable(uid) {
   try { localStorage.setItem(ENABLED_KEY, '1') } catch { /* the schedule's card may show once more */ }
 }
 
+/**
+ * A phone that turned notifications on keeps saying so (this device's own flag), so it is never asked again, but its
+ * registration can be missing from the person's record: removed as dead, or lost when the record was rewritten. Then
+ * nothing is ever sent to that phone and nobody can tell why. So once a visit, a phone that is on gets its current
+ * registration put back; adding one that is already there changes nothing.
+ */
+async function restoreRegistration(uid) {
+  if (!pushEnabledOnThisDevice() || !canUsePush()) return
+  try { if (sessionStorage.getItem('hub:push_restored') === uid) return; sessionStorage.setItem('hub:push_restored', uid) } catch { /* private mode: once per load */ }
+  const { app, fs, msg, db } = await firebaseParts()
+  if (!(await msg.isSupported())) return
+  const registration = await within(15000, 'waiting for the app', navigator.serviceWorker.ready)
+  const token = await within(20000, 'checking this phone', msg.getToken(msg.getMessaging(app), {
+    vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+    serviceWorkerRegistration: registration,
+  }))
+  if (token) await fs.updateDoc(fs.doc(db, 'users', uid), { fcmTokens: fs.arrayUnion(token) })
+}
+
 export default function PushPrompt({ user }) {
   const [state, setState] = useState('hidden') // hidden | ask | busy | done | error
   const [error, setError] = useState('')
@@ -104,6 +123,7 @@ export default function PushPrompt({ user }) {
   useEffect(() => {
     if (!user?.uid || user.uid === 'dev') return
     let live = true
+    restoreRegistration(user.uid).catch(e => console.warn('[hub] could not re-check this phone for notifications', e))
     shouldAsk(user.uid)
       .then(ask => { if (live && ask) setState('ask') })
       .catch(e => console.warn('[hub] notification prompt skipped', e))
