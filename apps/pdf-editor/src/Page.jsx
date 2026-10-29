@@ -77,6 +77,8 @@ function ObjectNode({ o, selected, editing, imageUrl, onText }) {
       <div data-oid={o.id} className={cls + (editing ? ' editing' : '')}
         style={{ left: o.x, top: o.y, fontSize: o.size, lineHeight: LINE, fontFamily: f.css, fontWeight: o.bold ? 700 : 400, fontStyle: o.italic ? 'italic' : 'normal', color: o.color }}>
         {editing ? <TextEditor text={o.text} onDone={onText} /> : o.text}
+        {/* While typing, a grip to move the text by: the mouse press must not take focus out of the editor. */}
+        {editing && <i className="pe-grip" data-grip="1" title="Drag to move" onMouseDown={e => e.preventDefault()} />}
         {selected && !editing && <Handles />}
       </div>
     )
@@ -209,7 +211,14 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
   const find = (id) => entry.objects.find(o => o.id === id)
 
   const down = (e) => {
-    if (e.button !== 0 || e.target.isContentEditable) return
+    if (e.button !== 0) return
+    if (e.target.closest?.('[data-grip]')) {
+      // The grip on text that is being typed into: drag the text (the new text, or one already placed).
+      const o = editId === 'draft' ? draft : find(editId)
+      if (o) { e.currentTarget.setPointerCapture(e.pointerId); drag.current = { sx: e.clientX, sy: e.clientY, kind: 'grip', obj: o, moved: false } }
+      return
+    }
+    if (e.target.isContentEditable) return
     const hit = e.target.closest('[data-oid]')
     const handle = e.target.closest('[data-h]')?.dataset.h
     const obj = hit && find(hit.dataset.oid)
@@ -281,7 +290,10 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
     d.moved = true
     const [dx, dy] = deltaToPage(sdx, sdy, entry.rotate).map(v => v / z)
     if (d.kind === 'move') api.live(entry.id, d.obj.id, moveObject(d.obj, dx, dy))
-    else if (d.kind === 'resize') {
+    else if (d.kind === 'grip') {
+      if (editId === 'draft') setDraft(moveObject(d.obj, dx, dy))
+      else api.live(entry.id, d.obj.id, moveObject(d.obj, dx, dy))
+    } else if (d.kind === 'resize') {
       const o = d.obj
       let next
       if (o.type === 'line') next = d.handle === 'p1' ? { ...o, x1: o.x1 + dx, y1: o.y1 + dy } : { ...o, x2: o.x2 + dx, y2: o.y2 + dy }
