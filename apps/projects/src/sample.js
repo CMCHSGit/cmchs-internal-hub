@@ -123,21 +123,21 @@ export const SAMPLE_JOBS = [
 
 // [jobId, staffId, week (Monday), activity]
 const A = [
-  ['sample-waikato', 's-sl', '2026-10-12', 'Training'], ['sample-waikato', 's-tb', '2026-10-12', 'Training'],
-  ['sample-waikato', 's-sl', '2026-10-19', 'Training'], ['sample-waikato', 's-tb', '2026-10-19', 'Travel'],
-  ['sample-waikato', 's-sl', '2026-10-26', 'Training'], ['sample-waikato', 's-sl', '2026-11-02', 'Support'],
-  ['sample-hutt', 's-tb', '2026-10-26', 'Install'],
-  ['sample-southerncross', 's-km', '2026-10-26', 'Prep'], ['sample-southerncross', 's-dw', '2026-11-02', 'Install'], ['sample-southerncross', 's-km', '2026-11-02', 'Training'],
-  ['sample-waitakere', 's-rp', '2026-11-02', 'Superuser training'], ['sample-waitakere', 's-rp', '2026-11-09', 'Superuser training'], ['sample-waitakere', 's-lw', '2026-11-09', 'Training'],
-  ['sample-waitakere', 's-rp', '2026-11-16', 'Go-live'], ['sample-waitakere', 's-sl', '2026-11-16', 'Go-live'], ['sample-waitakere', 's-rp', '2026-11-23', 'Support'],
-  ['sample-waitakere', 's-lw', '2026-11-30', 'Support'], ['sample-waitakere', 's-rp', '2026-12-07', 'Support'], ['sample-waitakere', 's-rp', '2026-12-14', 'Support'],
-  ['sample-vocera', 's-km', '2026-10-12', 'Prep'], ['sample-vocera', 's-km', '2026-10-19', 'Prep'], ['sample-vocera', 's-tb', '2026-11-02', 'Prep'],
-  ['sample-vocera', 's-tb', '2026-11-09', 'Go-live'], ['sample-vocera', 's-km', '2026-11-09', 'Go-live'], ['sample-vocera', 's-tb', '2026-11-16', 'Support'],
-  ['sample-hinz', 's-gh', '2026-11-09', 'Prep'], ['sample-hinz', 's-gh', '2026-11-16', 'Support'], ['sample-hinz', 's-km', '2026-11-16', 'Support'], ['sample-hinz', 's-lw', '2026-11-16', 'Support'],
-  ['sample-whanganui', 's-dw', '2026-11-16', 'Install'], ['sample-whanganui', 's-km', '2026-11-16', 'Training'],
-  ['sample-whanganui', 's-dw', '2026-11-23', 'Trial'], ['sample-whanganui', 's-dw', '2026-11-30', 'Trial'],
-  ['sample-pn', 's-tb', '2026-09-21', 'Install'], ['sample-pn', 's-tb', '2026-09-28', 'Go-live'], ['sample-pn', 's-km', '2026-09-28', 'Training'],
-  ['sample-wa9', 's-sl', '2025-02-24', 'Install'], ['sample-wa9', 's-km', '2025-02-24', 'Training'], ['sample-wa9', 's-km', '2025-03-03', 'Trial'],
+  ['sample-waikato', 's-sl', '2026-10-12', 'Apps Training'], ['sample-waikato', 's-tb', '2026-10-12', 'Apps Training'],
+  ['sample-waikato', 's-sl', '2026-10-19', 'Apps Training'], ['sample-waikato', 's-tb', '2026-10-19', 'Biomed Training'],
+  ['sample-waikato', 's-sl', '2026-10-26', 'Apps Training'], ['sample-waikato', 's-sl', '2026-11-02', 'Apps support'],
+  ['sample-hutt', 's-tb', '2026-10-26', 'Infrastructure'],
+  ['sample-southerncross', 's-km', '2026-10-26', 'Prep week'], ['sample-southerncross', 's-dw', '2026-11-02', 'Infrastructure'], ['sample-southerncross', 's-km', '2026-11-02', 'Apps Training'],
+  ['sample-waitakere', 's-rp', '2026-11-02', 'Apps Training'], ['sample-waitakere', 's-rp', '2026-11-09', 'Apps Training'], ['sample-waitakere', 's-lw', '2026-11-09', 'Apps Training'],
+  ['sample-waitakere', 's-rp', '2026-11-16', 'Go-live week'], ['sample-waitakere', 's-sl', '2026-11-16', 'Go-live week'], ['sample-waitakere', 's-rp', '2026-11-23', 'Apps support'],
+  ['sample-waitakere', 's-lw', '2026-11-30', 'Apps support'], ['sample-waitakere', 's-rp', '2026-12-07', 'Apps support'], ['sample-waitakere', 's-rp', '2026-12-14', 'Apps support'],
+  ['sample-vocera', 's-km', '2026-10-12', 'Prep week'], ['sample-vocera', 's-km', '2026-10-19', 'Prep week'], ['sample-vocera', 's-tb', '2026-11-02', 'Prep week'],
+  ['sample-vocera', 's-tb', '2026-11-09', 'Go-live week'], ['sample-vocera', 's-km', '2026-11-09', 'Go-live week'], ['sample-vocera', 's-tb', '2026-11-16', 'Apps support'],
+  ['sample-hinz', 's-gh', '2026-11-09', 'Prep week'], ['sample-hinz', 's-gh', '2026-11-16', 'Apps support'], ['sample-hinz', 's-km', '2026-11-16', 'Apps support'], ['sample-hinz', 's-lw', '2026-11-16', 'Apps support'],
+  ['sample-whanganui', 's-dw', '2026-11-16', 'Infrastructure'], ['sample-whanganui', 's-km', '2026-11-16', 'Apps Training'],
+  ['sample-whanganui', 's-dw', '2026-11-23', 'Demo /Trial'], ['sample-whanganui', 's-dw', '2026-11-30', 'Demo /Trial'],
+  ['sample-pn', 's-tb', '2026-09-21', 'Infrastructure'], ['sample-pn', 's-tb', '2026-09-28', 'Go-live week'], ['sample-pn', 's-km', '2026-09-28', 'Apps Training'],
+  ['sample-wa9', 's-sl', '2025-02-24', 'Infrastructure'], ['sample-wa9', 's-km', '2025-02-24', 'Apps Training'], ['sample-wa9', 's-km', '2025-03-03', 'Demo /Trial'],
 ]
 export const SAMPLE_ASSIGNMENTS = A.map(([jobId, staffId, week, activity], i) => ({ id: `sample-a${i}`, jobId, staffId, week, activity, sample: true }))
 

@@ -15,7 +15,8 @@ export function StatusPill({ status, small = false }) {
 
 export function ActivityChip({ activity, who, title }) {
   const { activityByName } = useStore()
-  const s = pillStyle(activityByName.get(activity))
+  const e = activityByName.get(activity)
+  const s = pillStyle(e && { ...e, outline: false }) // solid, as in the workbook's legend
   return (
     <span className="pt-act" style={s} title={title || activity}>
       {who && <b>{who}</b>}{activity}

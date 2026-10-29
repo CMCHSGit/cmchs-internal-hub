@@ -172,19 +172,24 @@ test('leave: from the staff schedule and Settings, full weeks vs some days', asy
   assert.equal(awayInWeek(staff[1], '2026-10-26', s2, { has: (d) => d === '2026-10-26' }).full, true)
 })
 
-test('job stages: what the job is doing that week, apart from what people do', async () => {
-  const { isStage, stageOf } = await import('../src/model.js')
-  const acts = [{ name: 'Prep week' }, { name: 'EST Testing' }, { name: 'Apps support' }, { name: 'Workshop', stage: true }, { name: 'Upgrade', stage: false }]
-  const by = Object.fromEntries(acts.map((a) => [a.name, a]))
-  assert.equal(isStage(by['EST Testing']), true, 'the usual stage names count when nothing is set')
-  assert.equal(isStage(by['Apps support']), false)
-  assert.equal(isStage(by.Workshop), true, 'a setting beats the name')
-  assert.equal(isStage(by.Upgrade), false)
-  assert.equal(isStage(undefined), false)
-  const job = { id: 'j1', weekStages: { '2026-11-16': 'Go-live week' } }
-  const asg = [{ jobId: 'j1', week: '2026-11-23', activity: 'EST Testing' }, { jobId: 'j1', week: '2026-11-30', activity: 'Apps support' }, { jobId: 'j2', week: '2026-11-16', activity: 'Prep week' }]
-  assert.equal(stageOf(job, '2026-11-16', asg, acts), 'Go-live week', 'the job\'s own stage first')
-  assert.equal(stageOf(job, '2026-11-23', asg, acts), 'EST Testing', 'a week tagged on someone before stages were the job\'s still shows')
-  assert.equal(stageOf(job, '2026-11-30', asg, acts), '')
-  assert.equal(stageOf(job, '2026-12-07', asg, acts), '')
+test("a job's week as the workbook shows it: one colour, the people as MH/TF, a few words", async () => {
+  const { weekColourOf, weekNoteOf, peopleText, DEFAULT_SETTINGS } = await import('../src/model.js')
+  const job = { id: 'j1', weekColours: { '2026-11-16': 'Go-live week' }, weekNotes: { '2026-11-16': 'Wifi survey' } }
+  const asg = [
+    { jobId: 'j1', week: '2026-11-23', activity: 'EST Testing' }, { jobId: 'j1', week: '2026-11-23', activity: 'EST Testing' }, { jobId: 'j1', week: '2026-11-23', activity: 'Prep week' },
+    { jobId: 'j1', week: '2026-11-30', activity: '' }, { jobId: 'j2', week: '2026-11-16', activity: 'Prep week' },
+  ]
+  assert.equal(weekColourOf(job, '2026-11-16', asg), 'Go-live week', 'the colour set on the job comes first')
+  assert.equal(weekColourOf(job, '2026-11-23', asg), 'EST Testing', 'weeks recorded before: the colour most of the people carried')
+  assert.equal(weekColourOf(job, '2026-11-30', asg), '')
+  assert.equal(weekColourOf(job, '2026-12-07', asg), '')
+  assert.equal(weekNoteOf(job, '2026-11-16'), 'Wifi survey')
+  assert.equal(weekNoteOf(job, '2026-11-23'), '')
+  const staff = new Map([['a', { initials: 'MH' }], ['b', { initials: 'TF' }], ['c', { initials: 'AK' }]])
+  assert.equal(peopleText([{ staffId: 'a' }, { staffId: 'b' }], staff), 'MH/TF')
+  assert.equal(peopleText([{ staffId: 'c', tentative: true }, { staffId: 'a' }, { staffId: 'zz' }], staff), '?AK/MH/?')
+  assert.equal(peopleText([], staff), '')
+  // the defaults are the workbook's legend, in its order
+  assert.deepEqual(DEFAULT_SETTINGS.activities.map((a) => a.name), ['Prep week', 'Go-live week', 'Apps support', 'Infrastructure', 'Biomed Training', 'Demo /Trial', 'Conference', 'Apps Training', 'Upgrade', 'EST Testing', 'Change Freeze', 'Workshop'])
+  assert.equal(DEFAULT_SETTINGS.activities.find((a) => a.name === 'EST Testing').color, '#FFFF00')
 })

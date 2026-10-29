@@ -40,15 +40,20 @@ export const DEFAULT_SETTINGS = {
     { name: 'Delayed', color: '#c8102e' },
     { name: 'Complete', color: '#575756' },
   ],
+  // The planning workbook's legend (its Team Names sheet), names and colours as there
   activities: [
-    { name: 'Prep', color: '#e8e9ea' },
-    { name: 'Training', color: '#dbd7ed' },
-    { name: 'Superuser training', color: '#554596' },
-    { name: 'Go-live', color: '#80bd01' },
-    { name: 'Support', color: '#e9f2da' },
-    { name: 'Install', color: '#fddab4' },
-    { name: 'Trial', color: '#ef7d00' },
-    { name: 'Travel', color: '#a7a9ac', outline: true },
+    { name: 'Prep week', color: '#BDD7EE' },
+    { name: 'Go-live week', color: '#A9D18E' },
+    { name: 'Apps support', color: '#F4B183' },
+    { name: 'Infrastructure', color: '#FFCCFF' },
+    { name: 'Biomed Training', color: '#D0CECE' },
+    { name: 'Demo /Trial', color: '#FFF2CC' },
+    { name: 'Conference', color: '#FFD966' },
+    { name: 'Apps Training', color: '#E2F0D9' },
+    { name: 'Upgrade', color: '#FF3399' },
+    { name: 'EST Testing', color: '#FFFF00' },
+    { name: 'Change Freeze', color: '#7030A0' },
+    { name: 'Workshop', color: '#0070C0' },
   ],
   staff: [],
   // The demo pool, by model. Stands in for the demo tracker feed until that is
@@ -150,31 +155,31 @@ export function inkOn(hex) {
   return (L + 0.05) / (0.0118 + 0.05) > (1.05) / (L + 0.05) ? '#1d1d1d' : '#ffffff'
 }
 
-// ── job stages vs what people do ──────────────────────────────────────────
+// ── a job's week, as the planning workbook shows it ───────────────────────
 /*
- * The activity list mixes two things: what a person is doing that week
- * (Apps support, Training, Travel…) and what stage the job's week is in
- * (Prep week, Go-live week, EST Testing, Upgrade, Change Freeze). A stage
- * belongs to the job, not to anyone on it, so it is stored on the job
- * (job.weekStages: { [monday]: activity name }) and shown on the job's week,
- * while a person's activity is only what they do.
- * An activity is a stage when its settings entry says `stage` (Settings →
- * Activity types → Job stage); where that was never set, the usual stage
- * names count, so the existing list works as it is.
+ * In the workbook a week of a job is one coloured cell (the legend: Prep week,
+ * Go-live week, Apps support, Infrastructure, Demo /Trial, EST Testing…) with
+ * the people written in it as "MH/TF" ("?" before a name: not confirmed) and
+ * sometimes a few words ("Superuser", "Wifi survey"). The colour is the
+ * week's, not any one person's, so it is kept on the job:
+ * job.weekColours { [monday]: legend name } and job.weekNotes { [monday]: text }.
+ * Weeks recorded before that (a colour on each person's entry) still show:
+ * the colour most of the week's people carried.
  */
-const STAGE_NAMES = /^(prep|go-live)( week)?$|^est testing$|^upgrade$|^change freeze$/i
-export const isStage = (entry) => !!entry && (typeof entry.stage === 'boolean' ? entry.stage : STAGE_NAMES.test(entry.name))
-
-/**
- * The stage of a job's week: what the job says, else (for weeks tagged
- * before stages were the job's) the stage that someone's activity carries.
- */
-export function stageOf(job, week, assignments, activities) {
-  const own = job?.weekStages?.[week]
+export function weekColourOf(job, week, assignments) {
+  const own = job?.weekColours?.[week]
   if (own) return own
-  const by = new Map((activities || []).map((a) => [a.name, a]))
-  const hit = (assignments || []).find((a) => a.jobId === job?.id && a.week === week && isStage(by.get(a.activity)))
-  return hit ? hit.activity : ''
+  const counts = new Map()
+  for (const a of assignments || []) if (a.jobId === job?.id && a.week === week && a.activity) counts.set(a.activity, (counts.get(a.activity) || 0) + 1)
+  let best = '', n = 0
+  for (const [k, v] of counts) if (v > n) { best = k; n = v }
+  return best
+}
+export const weekNoteOf = (job, week) => job?.weekNotes?.[week] || ''
+
+/** "MH/TF", "?AK/GH": a week's people as the workbook writes them. */
+export function peopleText(entries, staffById) {
+  return (entries || []).map((a) => (a.tentative ? '?' : '') + (staffById.get(a.staffId)?.initials || '?')).join('/')
 }
 
 /** Inline style for a status or activity pill from its settings entry. */

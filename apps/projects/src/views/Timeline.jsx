@@ -16,7 +16,7 @@ import { Alert, Button } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { ActivityChip, Avatar, StatusPill, Empty, DensityToggle, useDense, usePref, useFitHeight } from '../ui.jsx'
-import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, isISO, isStage, stageOf, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
+import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, isISO, weekColourOf, weekNoteOf, peopleText, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
 
 const NAME_W = 290
 const NAME_W_DENSE = 230
@@ -111,10 +111,8 @@ export default function Timeline({ params }) {
       </div>
 
       <div className="pt-legend">
-        <span className="overline" title="What the job's week is: shown on the job, not on a person">Job stage</span>
-        {s.settings.activities.filter(isStage).map((a) => <ActivityChip key={a.name} activity={a.name} />)}
-        <span className="overline pt-legend-gap" title="What a person is doing that week">Activity</span>
-        {s.settings.activities.filter((a) => !isStage(a)).map((a) => <ActivityChip key={a.name} activity={a.name} />)}
+        <span className="overline" title="The colour a job's week is shown in, as in the planning workbook">Week colours</span>
+        {s.settings.activities.map((a) => <ActivityChip key={a.name} activity={a.name} />)}
       </div>
 
       {layout === 'person' && upcomingClashes.length > 0 && (
@@ -205,8 +203,8 @@ export default function Timeline({ params }) {
                     {items.map((a) => {
                       const job = s.jobById.get(a.jobId)
                       return zoom === 'week'
-                        ? <span key={a.id} className="pt-act pt-act-job" style={pillStyle(s.activityByName.get(a.activity))} title={`${job?.name}: ${a.activity}${a.tentative ? ' (not confirmed)' : ''}`}>{a.tentative ? '? ' : ''}{job?.customer || job?.name}</span>
-                        : <span key={a.id} className="pt-dot" style={pillStyle(s.activityByName.get(a.activity))} title={`${job?.name}: ${a.activity}`} />
+                        ? <span key={a.id} className="pt-act pt-act-job" style={pillStyle(weekEntry(s, job, w))} title={`${job?.name}${weekColourOf(job, w, s.assignments) ? ': ' + weekColourOf(job, w, s.assignments) : ''}${a.tentative ? ' (not confirmed)' : ''}`}>{a.tentative ? '? ' : ''}{job?.customer || job?.name}</span>
+                        : <span key={a.id} className="pt-dot" style={pillStyle(weekEntry(s, job, w))} title={`${job?.name}: ${weekColourOf(job, w, s.assignments) || 'booked'}`} />
                     })}
                     {zoom === 'week' && why && <span className="pt-flag" title={why === 'leave' ? 'On leave, booked' : 'Double-booked'}>{dense ? (why === 'leave' ? 'Leave!' : 'Double') : why === 'leave' ? 'On leave, booked' : 'Double-booked'}</span>}
                     {zoom === 'week' && !why && leave && <span className="text-sm text-muted">{dense ? 'Leave' : 'On leave'}</span>}
@@ -314,27 +312,28 @@ function JobRow({ job, cat, weeks, first, last, template, colW, zoom, dense, hig
       )}
       {weeks.map((w, i) => {
         const items = s.assignments.filter((a) => a.jobId === job.id && a.week === w)
-        const stage = stageOf(job, w, s.assignments, s.settings.activities)
-        const stageEntry = stage ? s.activityByName.get(stage) : null
+        const colour = weekColourOf(job, w, s.assignments)
+        const entry = colour ? s.activityByName.get(colour) : null
+        const note = weekNoteOf(job, w)
+        const text = [peopleText(items, s.staffById), note].filter(Boolean).join(' ')
+        const names = items.map((a) => `${s.staffById.get(a.staffId)?.name || '?'}${a.tentative ? ' (not confirmed)' : ''}`).join(', ')
         return (
-          <button key={w} type="button" className={`pt-tl-cell${stage ? ' staged' : ''}`} style={{ gridColumn: i + 2, ...(stageEntry ? { '--stage': stageEntry.color } : {}) }} onClick={(e) => onCell(e, w)}
-            aria-label={`${job.name}, week of ${fmt(w)}${stage ? `, ${stage}` : ''}: ${items.map((a) => `${s.staffById.get(a.staffId)?.initials || '?'}${a.activity ? ' ' + a.activity : ''}`).join(', ') || 'nobody'}`}>
-            {stage && <span className="pt-stage" title={`The job's week: ${stage}`}>{zoom === 'week' && !dense ? stage : ''}</span>}
-            {items.map((a) => {
-              const p = s.staffById.get(a.staffId)
-              const q = a.tentative ? '?' : ''
-              const title = `${p?.name || '?'}: ${a.activity}${a.tentative ? ' (not confirmed)' : ''}`
-              return zoom === 'week' && dense
-                ? <span key={a.id} className="pt-act pt-act-mini" style={pillStyle(s.activityByName.get(a.activity))} title={title}>{q + (p?.initials || '?')}</span>
-                : zoom === 'week'
-                ? <ActivityChip key={a.id} activity={a.activity} who={q + (p?.initials || '?')} title={title} />
-                : <span key={a.id} className="pt-mini" style={pillStyle(s.activityByName.get(a.activity))} title={title}>{q || p?.initials?.[0] || '?'}</span>
-            })}
+          <button key={w} type="button" className={`pt-tl-cell pt-cellwk${entry ? ' painted' : ''}`}
+            style={{ gridColumn: i + 2, ...(entry ? pillStyle({ ...entry, outline: false }) : {}) }} onClick={(e) => onCell(e, w)}
+            title={[colour, note, names].filter(Boolean).join('\n') || undefined}
+            aria-label={`${job.name}, week of ${fmt(w)}${colour ? `, ${colour}` : ''}: ${text || 'nobody'}`}>
+            {zoom === 'week' && text && <span className="pt-cellwk-text">{text}</span>}
           </button>
         )
       })}
     </div>
   )
+}
+
+/** The settings entry (solid) for the colour a job's week is shown in. */
+function weekEntry(s, job, week) {
+  const e = s.activityByName.get(weekColourOf(job, week, s.assignments))
+  return e && { ...e, outline: false }
 }
 
 /** A job's status as a small dot in its colour; the name is in the tooltip. */
@@ -349,46 +348,50 @@ function StatusDot({ status }) {
 function CellPop({ pop, onClose }) {
   const s = useStore()
   const ref = useRef(null)
-  const everyAct = s.settings.activities
-  const acts = everyAct.filter((a) => !isStage(a)).map((a) => a.name) // what people do; stages are the job's
-  const stages = everyAct.filter(isStage).map((a) => a.name)
+  const acts = s.settings.activities.map((a) => a.name)
+  const job = pop.kind === 'job' ? s.jobById.get(pop.id) : null
   const [staffId, setStaffId] = useState(pop.kind === 'person' ? pop.id : '')
   const [jobId, setJobId] = useState(pop.kind === 'job' ? pop.id : '')
-  const [activity, setActivity] = useState(acts[0] || '')
+  const [note, setNote] = useState(weekNoteOf(job, pop.week))
   const items = s.assignments.filter((a) => a.week === pop.week && (pop.kind === 'job' ? a.jobId === pop.id : a.staffId === pop.id))
-  const title = pop.kind === 'job' ? s.jobById.get(pop.id)?.name : s.staffById.get(pop.id)?.name
+  const title = pop.kind === 'job' ? job?.name : s.staffById.get(pop.id)?.name
+  const colour = job ? weekColourOf(job, pop.week, s.assignments) : ''
   const away = staffId ? s.awayOf(s.staffById.get(staffId), pop.week) : null
   const w = 340
   const left = Math.min(Math.max(8, pop.rect.left + pop.rect.width / 2 - w / 2), window.innerWidth - w - 8)
   const below = pop.rect.bottom + 6
   const top = below + 280 > window.innerHeight ? Math.max(8, pop.rect.top - 286) : below
+  const saveNote = () => { if (job && s.canEdit && note.trim() !== weekNoteOf(job, pop.week)) s.setWeekNote(job, pop.week, note.trim()) }
 
   async function add(e) {
     e.preventDefault()
     if (!staffId || !jobId || away?.full) return
-    await s.addAssignment({ jobId, staffId, week: pop.week, activity })
+    await s.addAssignment({ jobId, staffId, week: pop.week, activity: '' })
     if (pop.kind === 'job') setStaffId('')
   }
   return (
     <>
-      <div className="pt-pop-catch" onMouseDown={onClose} />
+      <div className="pt-pop-catch" onMouseDown={() => { saveNote(); onClose() }} />
       <div ref={ref} className="pt-pop pt-cellpop" role="dialog" aria-label={`Week of ${fmt(pop.week)}`} style={{ position: 'fixed', left, top, width: w }}
-        onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
-        <div className="pt-row"><b className="pt-grow">Week of {fmt(pop.week)}</b><button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={onClose}><X size={16} /></button></div>
+        onKeyDown={(e) => { if (e.key === 'Escape') { saveNote(); onClose() } }}>
+        <div className="pt-row"><b className="pt-grow">Week of {fmt(pop.week)}</b><button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={() => { saveNote(); onClose() }}><X size={16} /></button></div>
         <div className="text-sm text-muted pt-ellipsis">{title}</div>
-        {pop.kind === 'job' && (() => {
-          const job = s.jobById.get(pop.id)
-          const stage = stageOf(job, pop.week, s.assignments, everyAct)
-          return s.canEdit ? (
-            <label className="pt-row pt-stagerow" title="What this week is for the whole job. It is shown on the job, not against each person.">
-              <span className="text-sm">Job this week</span>
-              <select className="pt-grow" value={stage} aria-label="Stage of the job this week" onChange={(e) => s.setWeekStage(job, pop.week, e.target.value)}>
-                <option value="">Nothing special</option>
-                {[...new Set([stage, ...stages])].filter(Boolean).map((x) => <option key={x}>{x}</option>)}
+        {job && (s.canEdit ? (
+          <>
+            <label className="pt-row pt-stagerow" title="What this week is for the job, in the planning workbook's colours.">
+              <span className="text-sm">This week</span>
+              <select className="pt-grow" value={colour} aria-label="Colour of the job's week" onChange={(e) => s.setWeekColour(job, pop.week, e.target.value)}>
+                <option value="">No colour</option>
+                {(!colour || acts.includes(colour) ? acts : [colour, ...acts]).map((x) => <option key={x}>{x}</option>)}
               </select>
             </label>
-          ) : stage && <div className="pt-row"><span className="text-sm">Job this week</span><ActivityChip activity={stage} /></div>
-        })()}
+            <label className="pt-row pt-stagerow" title="A few words for the week, like 'Superuser' or 'Wifi survey'.">
+              <span className="text-sm">Note</span>
+              <input className="input pt-grow" value={note} placeholder="e.g. Superuser, Wifi survey" aria-label="Note for the week" onChange={(e) => setNote(e.target.value)} onBlur={saveNote}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveNote() } }} />
+            </label>
+          </>
+        ) : (colour || note) && <div className="pt-row">{colour && <ActivityChip activity={colour} />}{note && <span className="text-sm">{note}</span>}</div>)}
         {pop.kind === 'person' && away && <p className="text-sm text-muted">{away.full ? 'On leave all week, so can\u2019t be added to a job.' : `On leave ${away.label}.`}</p>}
         {items.length === 0 && <p className="text-sm text-muted">No one booked this week.</p>}
         {items.map((a) => {
@@ -397,20 +400,12 @@ function CellPop({ pop, onClose }) {
           return (
             <div key={a.id} className="pt-row">
               <span className="pt-grow pt-ellipsis text-sm"><b>{a.tentative ? '?' : ''}{pop.kind === 'job' ? p?.initials || '?' : j?.customer || j?.name}</b>{pop.kind === 'job' && p ? ` ${p.name.split(' ')[0]}` : ''}{a.tentative ? ' (not confirmed)' : ''}</span>
-              {s.canEdit ? (
+              {s.canEdit && (
                 <>
-                  {a.tentative && <button type="button" className="link-btn" onClick={() => s.updateAssignment(a, { tentative: false })}>Confirm</button>}
-                  {isStage(s.activityByName.get(a.activity)) && (
-                    <button type="button" className="link-btn" title={`${a.activity} is the job's week, not what ${p?.name?.split(' ')[0] || 'they'} do. Move it to the job.`}
-                      onClick={async () => { await s.setWeekStage(j, pop.week, a.activity); await s.updateAssignment(a, { activity: '' }) }}>Move to job</button>
-                  )}
-                  <select className="pt-sel-sm" value={a.activity || ''} aria-label="What they are doing" onChange={(e) => s.updateAssignment(a, { activity: e.target.value })}>
-                    <option value="">No activity</option>
-                    {[...new Set([a.activity, ...acts])].filter(Boolean).map((x) => <option key={x} value={x}>{x}{isStage(s.activityByName.get(x)) ? ' (job stage)' : ''}</option>)}
-                  </select>
+                  <button type="button" className="link-btn" onClick={() => s.updateAssignment(a, { tentative: !a.tentative })}>{a.tentative ? 'Confirm' : 'Not sure'}</button>
                   <button type="button" className="icon-btn icon-btn-sm" aria-label="Remove" onClick={() => s.removeAssignment(a)}><X size={15} /></button>
                 </>
-              ) : <ActivityChip activity={a.activity} />}
+              )}
             </div>
           )
         })}
@@ -433,13 +428,7 @@ function CellPop({ pop, onClose }) {
                 {s.active.map((j) => <option key={j.id} value={j.id}>{j.name}</option>)}
               </select>
             )}
-            <div className="pt-row">
-              <select className="pt-grow" value={activity} onChange={(e) => setActivity(e.target.value)} aria-label="What they are doing">
-                <option value="">No activity</option>
-                {acts.map((x) => <option key={x}>{x}</option>)}
-              </select>
-              <Button size="sm" type="submit" disabled={!staffId || !jobId || !!away?.full}>Add</Button>
-            </div>
+            <Button size="sm" type="submit" disabled={!staffId || !jobId || !!away?.full}>Add</Button>
           </form>
         )}
       </div>

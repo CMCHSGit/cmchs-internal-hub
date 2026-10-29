@@ -35,12 +35,19 @@ export default function Home() {
     .sort((a, b) => String(a.freight.eta || '9').localeCompare(String(b.freight.eta || '9')))
   const golives = useMemo(() => {
     const seen = new Map()
+    const goLive = (a) => /^go-live/i.test(weekColourOf(s.jobById.get(a.jobId), a.week, s.assignments))
+    // weeks a job is coloured Go-live week, with or without anyone booked yet
+    for (const j of s.active) for (const [wk, c] of Object.entries(j.weekColours || {})) {
+      if (!/^go-live/i.test(c) || wk < thisWeek) continue
+      const cur = seen.get(j.id)
+      if (!cur || wk < cur.week) seen.set(j.id, { week: wk, people: new Set() })
+    }
     for (const a of s.assignments) {
-      if (a.activity !== 'Go-live' || a.week < thisWeek || !activeIds.has(a.jobId)) continue
+      if (!goLive(a) || a.week < thisWeek || !activeIds.has(a.jobId)) continue
       const cur = seen.get(a.jobId)
       if (!cur || a.week < cur.week) seen.set(a.jobId, { week: a.week, people: new Set() })
     }
-    for (const a of s.assignments) if (a.activity === 'Go-live' && seen.get(a.jobId)?.week === a.week) seen.get(a.jobId).people.add(a.staffId)
+    for (const a of s.assignments) if (goLive(a) && seen.get(a.jobId)?.week === a.week) seen.get(a.jobId).people.add(a.staffId)
     for (const j of s.active) if (j.status === 'Go-live' && !seen.has(j.id)) seen.set(j.id, { week: j.start || thisWeek, people: new Set() })
     return [...seen].map(([id, v]) => ({ job: s.jobById.get(id), ...v })).filter((x) => x.job).sort((a, b) => a.week.localeCompare(b.week)).slice(0, 5)
   }, [s.assignments, s.active, s.jobById, thisWeek, activeIds])

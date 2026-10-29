@@ -250,13 +250,19 @@ export function StoreProvider({ children }) {
       async updateAssignment(rec, patch) {
         await be.update('assignments', rec.id, { ...patch, by: me.name, atMs: Date.now() })
         const p = settings.staff.find((s) => s.id === (patch.staffId || rec.staffId))
-        hist(rec.jobId, `changed ${p?.initials || 'someone'} in the week of ${fmt(rec.week)} ${'activity' in patch ? (patch.activity ? ` to ${patch.activity}` : ' to no activity') : ''}`)
+        hist(rec.jobId, `changed ${p?.initials || 'someone'} in the week of ${fmt(rec.week)} ${'tentative' in patch ? (patch.tentative ? ' to not confirmed' : ' to confirmed') : 'activity' in patch ? (patch.activity ? ` to ${patch.activity}` : ' to no activity') : ''}`)
       },
-      /** The stage of a job's week (Prep week, EST Testing…), kept on the job; '' clears it. */
-      async setWeekStage(job, week, stage) {
-        const next = { ...(job.weekStages || {}) }
-        if (stage) next[week] = stage; else delete next[week]
-        await a.updateJob(job.id, { weekStages: next }, stage ? `set the week of ${fmt(week)} to ${stage}` : `cleared the stage of the week of ${fmt(week)}`)
+      /** The colour of a job's week (Prep week, EST Testing…, the workbook's legend), kept on the job; '' clears it. */
+      async setWeekColour(job, week, colour) {
+        const next = { ...(job.weekColours || {}) }
+        if (colour) next[week] = colour; else delete next[week]
+        await a.updateJob(job.id, { weekColours: next }, colour ? `set the week of ${fmt(week)} to ${colour}` : `cleared the colour of the week of ${fmt(week)}`)
+      },
+      /** The few words in a job's week ("Superuser", "Wifi survey"); '' clears it. */
+      async setWeekNote(job, week, text) {
+        const next = { ...(job.weekNotes || {}) }
+        if (text) next[week] = text; else delete next[week]
+        await a.updateJob(job.id, { weekNotes: next }, text ? `noted the week of ${fmt(week)}: ${text}` : `cleared the note of the week of ${fmt(week)}`)
       },
       async removeAssignment(rec) {
         await be.remove('assignments', rec.id)
