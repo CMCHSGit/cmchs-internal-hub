@@ -461,3 +461,5 @@ button.pt-ratio { cursor: pointer; width: 100%; }
   body.pt-print-panel .pt-shell { display: none; }
   body:not(.pt-print-panel) .pt-panel { display: none; }
 }
+.pt-plandiff { max-height: 340px; }
+.pt-plandiff section { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }

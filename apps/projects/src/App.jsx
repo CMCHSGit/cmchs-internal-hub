@@ -20,6 +20,7 @@ import { navigate } from '../../hub/src/router.js'
 import JobPanel from './JobPanel.jsx'
 import SearchPalette from './Search.jsx'
 import { QuickAdd, ArchivePrompt, ImportDialog } from './dialogs.jsx'
+import { PlanSyncDialog } from './plan-sync.jsx'
 import { exportCSV, exportXLSX } from './io.js'
 
 const NAV = [
@@ -82,6 +83,7 @@ function Shell() {
   const [adding, setAdding] = useState(null) // null | {} (prefill)
   const [prompt, setPrompt] = useState(null) // job to ask about archiving
   const [importing, setImporting] = useState(false)
+  const [planSync, setPlanSync] = useState(false)
   const [ioOpen, setIoOpen] = useState(false)
 
   useEffect(() => {
@@ -147,6 +149,7 @@ function Shell() {
               <Button variant="secondary" size="sm" onClick={() => setIoOpen((o) => !o)} aria-expanded={ioOpen}>Import / export <ChevronDown size={16} /></Button>
               <Popover open={ioOpen} onClose={() => setIoOpen(false)} className="pt-menu">
                 {s.canEdit && <button type="button" onClick={() => { setIoOpen(false); setImporting(true) }}>Import from Excel or CSV…</button>}
+                {s.canEdit && <button type="button" onClick={() => { setIoOpen(false); setPlanSync(true) }}>Update weeks from the planning workbook…</button>}
                 <button type="button" onClick={() => { setIoOpen(false); exportXLSX(s).then(() => toast('Excel file downloaded')).catch((e) => toast('Export failed: ' + e.message)) }}>Export to Excel</button>
                 <button type="button" onClick={() => { setIoOpen(false); exportCSV(s); toast('CSV downloaded') }}>Export to CSV</button>
                 <button type="button" onClick={() => { setIoOpen(false); setTimeout(() => window.print(), 50) }}>Export this page to PDF</button>
@@ -167,6 +170,7 @@ function Shell() {
       {adding && <QuickAdd prefill={adding} onClose={() => setAdding(null)} />}
       {prompt && <ArchivePrompt job={s.jobById.get(prompt.id) || prompt} onClose={() => setPrompt(null)} />}
       {importing && <ImportDialog onClose={() => setImporting(false)} />}
+      {planSync && <PlanSyncDialog onClose={() => setPlanSync(false)} />}
       <Toast message={toastMsg} />
     </Ui.Provider>
   )

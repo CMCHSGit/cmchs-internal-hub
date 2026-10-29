@@ -264,6 +264,32 @@ export function StoreProvider({ children }) {
         if (text) next[week] = text; else delete next[week]
         await a.updateJob(job.id, { weekNotes: next }, text ? `noted the week of ${fmt(week)}: ${text}` : `cleared the note of the week of ${fmt(week)}`)
       },
+      /**
+       * Makes the tracker's weeks read like the planning workbook's (plan-sheet.js diffPlan): the changes
+       * someone ticked, written in one batch, with one history line per job.
+       */
+      async applyPlan(changes) {
+        const byJob = new Map()
+        for (const c of changes) { if (!byJob.has(c.jobId)) byJob.set(c.jobId, []); byJob.get(c.jobId).push(c) }
+        const ops = [], now = Date.now()
+        for (const [jobId, list] of byJob) {
+          const job = (latest.current.jobs || []).find((j) => j.id === jobId)
+          if (!job) continue
+          const colours = { ...(job.weekColours || {}) }, notes = { ...(job.weekNotes || {}) }
+          for (const c of list) {
+            if (c.kind === 'colour') { if (c.to) colours[c.week] = c.to; else delete colours[c.week] }
+            else if (c.kind === 'note') notes[c.week] = c.to
+            else if (c.kind === 'clear-note') delete notes[c.week]
+            else if (c.kind === 'add') ops.push({ op: 'set', col: 'assignments', id: be.newId('assignments'), data: { jobId, staffId: c.staffId, week: mondayOf(c.week), activity: '', tentative: !!c.tentative, by: me.name, atMs: now } })
+            else if (c.kind === 'tentative') ops.push({ op: 'update', col: 'assignments', id: c.assignment.id, data: { tentative: !!c.to, by: me.name, atMs: now } })
+            else if (c.kind === 'remove') ops.push({ op: 'delete', col: 'assignments', id: c.assignment.id })
+          }
+          ops.push({ op: 'update', col: 'jobs', id: jobId, data: { weekColours: colours, weekNotes: notes, ...stamp() } })
+        }
+        await be.batch(ops)
+        for (const [jobId, list] of byJob) hist(jobId, `updated ${list.length} thing${list.length === 1 ? '' : 's'} in the weeks from the planning workbook`)
+        return { jobs: byJob.size, changes: changes.length }
+      },
       async removeAssignment(rec) {
         await be.remove('assignments', rec.id)
         const p = settings.staff.find((s) => s.id === rec.staffId)
