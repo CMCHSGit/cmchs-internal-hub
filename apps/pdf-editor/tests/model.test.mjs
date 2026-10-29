@@ -4,7 +4,7 @@ import {
   addObject, addPenPoint, blankPage, boxFrom, commit, deletePages, deltaToPage, displaySize, displayToPage, duplicatePages,
   geometry, insertPages, live, moveObject, movePages, newHistory, newText, norm, nudgePages, redo, removeObject,
   resizeBox, rotatePages, settle, sourcePage, undo, updateObject,
-  bestStyle, familyOf, imageBoxes, pageToDisplay, pickColours, resizePen, resizeText, textHotspots,
+  bestStyle, familyOf, imageBoxes, pageToDisplay, pickColours, resizePen, resizeText, shapeBoxes, textHotspots,
 } from '../src/model.js'
 
 const ids = (pages) => pages.map(p => p.id)
@@ -257,6 +257,27 @@ test('a picture that covers the page is not offered, and a turned page puts pict
   assert.equal(imageBoxes([OPS.transform, OPS.paintImageXObject], [[595, 0, 0, 842, 0, 0], ['bg']], OPS, geom).length, 0)
   const turned = imageBoxes([OPS.transform, OPS.paintImageXObject], [[100, 0, 0, 50, 0, 0], ['a']], OPS, { ...geom, rot: 90 })
   assert.deepEqual([turned[0].w, turned[0].h], [50, 100])
+})
+
+test('shapes the page paints are found, with their colours ignored and plain white paper left out', () => {
+  const O = { ...OPS, fill: 22, stroke: 20, fillStroke: 24, eoFill: 23, eoFillStroke: 25, closeFillStroke: 26, closeEOFillStroke: 27, closeStroke: 21, endPath: 28, constructPath: 91, setFillRGBColor: 50, setLineWidth: 51 }
+  const geom = { x0: 0, y0: 0, w: 595, h: 842, rot: 0 }
+  const fn = [
+    O.save, O.transform, O.setFillRGBColor, O.constructPath, O.restore,   // a banner, 510 x 26, with its bottom left at (42, 703)
+    O.setFillRGBColor, O.constructPath,                                   // white paper: left out
+    O.constructPath,                                                      // a clip, not a paint: left out
+    O.save, O.transform, O.setLineWidth, O.constructPath, O.restore,      // a hairline rule, 200 long
+  ]
+  const args = [
+    null, [1, 0, 0, 1, 42, 703], ['#4f7500'], [O.fill, [], [0, 0, 510, 26]], null,
+    ['#ffffff'], [O.fill, [], [0, 0, 100, 100]],
+    [O.endPath, [], [0, 0, 100, 100]],
+    null, [1, 0, 0, 1, 50, 500], [0.5], [O.stroke, [], [0, 0, 200, 0]], null,
+  ]
+  const shapes = shapeBoxes(fn, args, O, geom)
+  assert.equal(shapes.length, 2)
+  assert.deepEqual(shapes[0], { kind: 'shape', x: 42, y: 842 - 729, w: 510, h: 26 })
+  assert.equal(shapes[1].w, 200.5); assert.equal(shapes[1].h, 3, 'a hairline gets a few points to be hit by')
 })
 
 test('resizing text scales its size and keeps the opposite corner', () => {

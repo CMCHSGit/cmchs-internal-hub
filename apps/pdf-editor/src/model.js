@@ -184,6 +184,49 @@ export function imageBoxes(fnArray, argsArray, OPS, geom) {
   return out
 }
 
+/**
+ * Where the page paints shapes (a banner, a coloured rule, a table's header
+ * row, a border), as boxes in page space, from the same operator list. Each
+ * path painted comes with its bounding box, which is followed through the
+ * current transform; a plain white fill is left out (it is only the paper), and
+ * so is anything covering most of the page. Lines thinner than a few points
+ * are given a few points of height or width so they can be hit.
+ */
+export function shapeBoxes(fnArray, argsArray, OPS, geom) {
+  const g = geometry(geom)
+  const fills = new Set([OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke])
+  const strokes = new Set([OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke])
+  const stack = []
+  let ctm = [1, 0, 0, 1, 0, 0], fill = null, lineWidth = 1
+  const out = []
+  for (let i = 0; i < fnArray.length; i++) {
+    const fn = fnArray[i], a = argsArray[i]
+    if (fn === OPS.save) stack.push([ctm, fill, lineWidth])
+    else if (fn === OPS.restore) { if (stack.length) [ctm, fill, lineWidth] = stack.pop() }
+    else if (fn === OPS.transform) ctm = mul(a, ctm)
+    else if (fn === OPS.paintFormXObjectBegin) { stack.push([ctm, fill, lineWidth]); if (a?.[0]) ctm = mul(a[0], ctm) }
+    else if (fn === OPS.paintFormXObjectEnd) { if (stack.length) [ctm, fill, lineWidth] = stack.pop() }
+    else if (fn === OPS.setFillRGBColor) fill = String(a[0]).toLowerCase()
+    else if (fn === OPS.setLineWidth) lineWidth = a[0]
+    else if (fn === OPS.constructPath && a?.[2] && (fills.has(a[0]) || strokes.has(a[0]))) {
+      const [x0, y0, x1, y1] = a[2]
+      const [m0, m1, m2, m3, e, f] = ctm
+      const pts = [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].map(([x, y]) => g.fromUser(m0 * x + m2 * y + e, m1 * x + m3 * y + f))
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1])
+      let box = { kind: 'shape', x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+      if (strokes.has(a[0])) {
+        const pad = lineWidth * Math.hypot(m0, m1) / 2
+        box = { ...box, x: box.x - pad, y: box.y - pad, w: box.w + 2 * pad, h: box.h + 2 * pad }
+      }
+      const onlyWhite = fills.has(a[0]) && !strokes.has(a[0]) && fill === '#ffffff'
+      if (onlyWhite || (box.w < 0.8 && box.h < 0.8) || (box.w * box.h) / (g.width * g.height) > 0.5) continue
+      for (const [d, k, s] of [['w', 'x', 'w'], ['h', 'y', 'h']]) if (box[d] < 3) { box[k] -= (3 - box[d]) / 2; box[s] = 3 }
+      out.push(box)
+    }
+  }
+  return out
+}
+
 /** The editor's font for a PDF text run: Helvetica, Times or Courier by the run's family. */
 export const familyOf = (fam) => (/serif/.test(fam) && !/sans/.test(fam) ? 'Times' : /mono|courier/i.test(fam) ? 'Courier' : 'Helvetica')
 

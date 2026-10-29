@@ -165,7 +165,7 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
   }, [src, entry.n, near, tool, geom])
 
   const inside = (t, x, y) => x >= t.x && x <= t.x + t.w && y >= t.y && y <= t.y + t.h
-  // Text first (it is drawn over pictures); of several pictures the smallest.
+  // Text first (it is drawn over pictures and shapes); of several pictures and shapes the smallest.
   const hotAt = (x, y) => hot.find(t => inside(t, x, y))
     || pics.filter(t => inside(t, x, y)).sort((a, b) => a.w * a.h - b.w * b.h)[0] || null
 
@@ -194,7 +194,7 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
       obj: newImage(a.x, a.y, a.w, a.h, id),
     }
   }
-  const prep = (t) => (t.kind === 'image' ? prepArea(t) : prepText(t))
+  const prep = (t) => (t.kind ? prepArea(t) : prepText(t))
 
   /** Click on the page's own text: cover it and put the same words in a text box over the cover, to be retyped. */
   const startEdit = async (t) => {
@@ -307,7 +307,7 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
       if (p.lifting) return // being picked up: move() finishes the job
       pending.current = null
       if (e && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < DRAG) {
-        if (p.t.kind === 'image') prepArea(p.t).then(({ cover: coverBox, obj }) => api.addMany(entry.id, [coverBox, obj], { select: true })).catch(err => console.warn('[pdf-editor] could not pick that up', err))
+        if (p.t.kind) prepArea(p.t).then(({ cover: coverBox, obj }) => api.addMany(entry.id, [coverBox, obj], { select: true })).catch(err => console.warn('[pdf-editor] could not pick that up', err))
         else startEdit(p.t)
       }
       return
@@ -361,7 +361,7 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
 
   const sel = selId && find(selId)
   const sb = sel && (sel.type === 'line' || sel.type === 'pen') ? bounds(sel) : null
-  const cursor = tool === 'select' ? (hover ? (hover.kind === 'image' ? 'move' : 'text') : '') : tool === 'text' ? 'text' : 'crosshair'
+  const cursor = tool === 'select' ? (hover ? (hover.kind ? 'move' : 'text') : '') : tool === 'text' ? 'text' : 'crosshair'
 
   return (
     <div ref={box} id={'pe-pg-' + entry.id} className="pe-page" data-page={entry.id} style={{ width: W, height: H }}>

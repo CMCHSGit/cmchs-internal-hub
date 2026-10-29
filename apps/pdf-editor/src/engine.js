@@ -5,7 +5,7 @@
    never flashes blank. */
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import { imageBoxes, norm, pickColours } from './model.js'
+import { imageBoxes, norm, pickColours, shapeBoxes } from './model.js'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -112,7 +112,7 @@ export function loadImageBoxes(src, n, geom) {
   if (!pages.has(n)) {
     pages.set(n, src.doc.getPage(n + 1)
       .then(p => p.getOperatorList())
-      .then(l => imageBoxes(l.fnArray, l.argsArray, pdfjs.OPS, geom)))
+      .then(l => [...imageBoxes(l.fnArray, l.argsArray, pdfjs.OPS, geom), ...shapeBoxes(l.fnArray, l.argsArray, pdfjs.OPS, geom)]))
   }
   return pages.get(n)
 }
