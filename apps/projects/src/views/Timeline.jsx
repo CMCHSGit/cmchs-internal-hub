@@ -402,7 +402,7 @@ function CellPop({ pop, onClose }) {
               <span className="pt-grow pt-ellipsis text-sm"><b>{a.tentative ? '?' : ''}{pop.kind === 'job' ? p?.initials || '?' : j?.customer || j?.name}</b>{pop.kind === 'job' && p ? ` ${p.name.split(' ')[0]}` : ''}{a.tentative ? ' (not confirmed)' : ''}</span>
               {s.canEdit && (
                 <>
-                  <button type="button" className="link-btn" onClick={() => s.updateAssignment(a, { tentative: !a.tentative })}>{a.tentative ? 'Confirm' : 'Not sure'}</button>
+                  {a.tentative && <button type="button" className="link-btn" onClick={() => s.updateAssignment(a, { tentative: false })}>Confirm</button>}
                   <button type="button" className="icon-btn icon-btn-sm" aria-label="Remove" onClick={() => s.removeAssignment(a)}><X size={15} /></button>
                 </>
               )}

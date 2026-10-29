@@ -6,7 +6,7 @@ import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { Avatar, ActivityChip, StatusPill, Empty } from '../ui.jsx'
 import {
-  WAITING, addDays, fmt, mondayOf, weeksFrom, shortfalls, overdueReturns, entryWho, daysBetween, MONTHS_LONG, toDate,
+  WAITING, addDays, fmt, mondayOf, weeksFrom, shortfalls, overdueReturns, entryWho, daysBetween, MONTHS_LONG, toDate, weekColourOf,
 } from '../model.js'
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
