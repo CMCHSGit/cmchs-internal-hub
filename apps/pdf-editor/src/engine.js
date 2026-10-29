@@ -123,7 +123,7 @@ export function loadImageBoxes(src, n, geom) {
  * background colour of the page just around it, for the cover that hides the original.
  * `box` is page space (the page's own orientation, `rot` its /Rotate); `size` the page's size there.
  */
-export async function liftRegion(src, n, rot, box, size) {
+export async function liftRegion(src, n, rot, box, size, erase = []) {
   const margin = 4
   const ex = { x: Math.max(0, box.x - margin), y: Math.max(0, box.y - margin) }
   ex.w = Math.min(size.w, box.x + box.w + margin) - ex.x
@@ -161,6 +161,17 @@ export async function liftRegion(src, n, rot, box, size) {
     }
   }
   const bg = ring.length ? pickColours(Uint8ClampedArray.from(ring)).bg : '#ffffff'
+  // Text that is lifted as text of its own (`erase`, boxes in page space) is wiped from the picture, painted
+  // over with whatever colour is under it, so it isn't there twice.
+  for (const e of erase) {
+    const x0 = Math.max(0, Math.floor((e.x - box.x) * scale)), y0 = Math.max(0, Math.floor((e.y - box.y) * scale))
+    const x1 = Math.min(iw, Math.ceil((e.x + e.w - box.x) * scale)), y1 = Math.min(ih, Math.ceil((e.y + e.h - box.y) * scale))
+    if (x1 <= x0 || y1 <= y0) continue
+    const under = []
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const i = ((iy + y) * w + ix + x) * 4; under.push(onWhite[i], onWhite[i + 1], onWhite[i + 2], 255) }
+    const [r, gr, b] = pickColours(Uint8ClampedArray.from(under)).bg.slice(1).match(/../g).map(v => parseInt(v, 16))
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { const o = (y * iw + x) * 4; out.data[o] = r; out.data[o + 1] = gr; out.data[o + 2] = b; out.data[o + 3] = 255 }
+  }
   const crop = document.createElement('canvas')
   crop.width = iw; crop.height = ih
   crop.getContext('2d').putImageData(out, 0, 0)

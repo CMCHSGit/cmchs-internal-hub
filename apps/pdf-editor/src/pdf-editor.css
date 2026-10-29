@@ -17,7 +17,8 @@
 .pe-field .input { height: 30px; padding-top: 0; padding-bottom: 0; }
 .pe-num { width: 64px; }
 .pe-check { display: inline-flex; align-items: center; gap: 6px; font: var(--type-body-sm); color: var(--text-body); cursor: pointer; }
-.pe-hint { margin-left: auto; font: var(--type-caption); color: var(--text-muted); max-width: 60ch; }
+.pe-pagetools { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+.pe-pagetools-label { margin-right: 6px; font: var(--weight-semibold) 12px/1 var(--font-body); text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
 .pe-alert { margin: 8px var(--pe-pad) 0; flex: none; }
 
 /* Page strip and pages */
@@ -80,12 +81,11 @@
   .pe { --pe-pad: 8px; --pe-bottom: calc(58px + env(safe-area-inset-bottom)); }
   .pe-bar { flex-wrap: nowrap; overflow-x: auto; gap: 6px 10px; }
   .pe-group + .pe-group { padding-left: 10px; }
-  .pe-props.empty { display: none; }
   .pe-side-toggle { display: inline-flex; flex: none; }
   .pe-side { position: absolute; z-index: 6; left: 0; top: 0; bottom: 0; transform: translateX(-100%); transition: transform .18s ease; box-shadow: var(--shadow-overlay); }
   .pe-side.open { transform: none; }
   .pe-name { display: none; }
-  .pe-hint { display: none; }
+  .pe-pagetools-label { display: none; }
   .pe-pages { padding: 10px 8px 30px; }
 }
 @media (prefers-reduced-motion: reduce) { .pe-side { transition: none; } }

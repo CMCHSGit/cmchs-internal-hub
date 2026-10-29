@@ -42,17 +42,8 @@ const DEFAULTS = {
 const TOOLS = [
   ['select', 'Edit text and move objects', MousePointer2], ['text', 'Add text', Type], ['rect', 'Rectangle', Square], ['ellipse', 'Ellipse', Circle],
   ['line', 'Line', Minus], ['pen', 'Draw', Pencil], ['highlight', 'Highlight', Highlighter], ['whiteout', 'Cover with white', Eraser],
-  ['grab', 'Move or resize an area of the page', BoxSelect],
+  ['grab', 'Move or resize an area: drag a box around anything on the page', BoxSelect],
 ]
-const HINTS = {
-  select: 'Click text to edit it. Drag text or a picture to move it. Click an object to move, resize or change it.',
-  grab: 'Drag a box around anything on the page (a logo, a drawing, a block of text) to pick it up. Then move it or drag a corner to resize it.',
-  text: 'Click on the page and type.',
-  rect: 'Drag on the page to draw.', ellipse: 'Drag on the page to draw.', line: 'Drag on the page to draw.',
-  pen: 'Draw freehand on the page.', highlight: 'Drag over what to highlight.',
-  whiteout: 'Drag over anything to cover it with white, then add text on top. The covered text stays in the file underneath.',
-  image: 'Drag a corner to resize. Drag the image to move it.',
-}
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 
 function download(blob, name) {
@@ -140,9 +131,15 @@ export default function App() {
       return id
     },
     // Several objects as one undo step (a cover and the text typed over it); the last is selected.
+    // `select` is true for the last, or the id of the one to select.
     addMany: (pageId, objs, { select } = {}) => {
       setHist(h => commit(h, objs.reduce((ps, o) => addObject(ps, pageId, o), h.present)))
-      if (select) setSel({ pageId, id: objs[objs.length - 1].id })
+      if (select) setSel({ pageId, id: typeof select === 'string' ? select : objs[objs.length - 1].id })
+    },
+    // Several objects changed at once in a drag (a picked-up banner and the text on it move together).
+    liveMany: (pageId, objs) => {
+      const by = new Map(objs.map(o => [o.id, o]))
+      setHist(h => live(h, mapObjects(h.present, pageId, os => os.map(o => by.get(o.id) || o))))
     },
     update: (pageId, objId, patch) => setHist(h => commit(h, updateObject(h.present, pageId, objId, patch))),
     remove: (pageId, objId) => { setHist(h => commit(h, removeObject(h.present, pageId, objId))); setSel(s => (s?.id === objId ? null : s)) },
@@ -388,7 +385,7 @@ export default function App() {
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); api.remove(page.id, obj.id); return }
       if (mod && k === 'd') {
         e.preventDefault()
-        const copy = { ...moveObject(obj, 12, 12), id: uid('o') }
+        const copy = { ...moveObject(obj, 12, 12), id: uid('o'), group: undefined }
         api.add(page.id, copy, { select: true })
         return
       }
@@ -458,7 +455,7 @@ export default function App() {
       </div>
 
       {open && (
-        <div className={`pe-props${['text', 'rect', 'ellipse', 'highlight', 'line', 'pen'].includes(kind) || selObj ? '' : ' empty'}`}>
+        <div className="pe-props">
           {kind === 'text' && <>
             <label className="pe-field"><span>Size</span>
               <input className="input pe-num" type="number" min="4" max="200" value={val('size')} onChange={e => setProp('size', clamp(+e.target.value || 12, 4, 200))} /></label>
@@ -487,10 +484,21 @@ export default function App() {
               <input className="input pe-num" type="number" min="0.5" max="30" step="0.5" value={val('sw')} onChange={e => setProp('sw', clamp(+e.target.value || 1, 0.5, 30))} /></label>
           </>}
           {selObj && <>
-            <IconButton label="Duplicate (Ctrl+D)" onClick={() => api.add(sel.pageId, { ...moveObject(selObj, 12, 12), id: uid('o') }, { select: true })}><Copy size={16} /></IconButton>
+            <IconButton label="Duplicate (Ctrl+D)" onClick={() => api.add(sel.pageId, { ...moveObject(selObj, 12, 12), id: uid('o'), group: undefined }, { select: true })}><Copy size={16} /></IconButton>
             <IconButton label="Delete (Delete key)" onClick={() => api.remove(sel.pageId, selObj.id)}><Trash2 size={16} /></IconButton>
           </>}
-          <span className="pe-hint">{HINTS[kind] || HINTS.select}</span>
+          <div className="pe-pagetools" role="group" aria-label={nSel > 1 ? `${nSel} pages selected` : 'Page tools'}>
+            <span className="pe-pagetools-label">{nSel > 1 ? `${nSel} pages` : 'Page'}</span>
+            <IconButton label="Rotate left" size="sm" onClick={() => rotate(-90)}><RotateCcw size={16} /></IconButton>
+            <IconButton label="Rotate right" size="sm" onClick={() => rotate(90)}><RotateCw size={16} /></IconButton>
+            <IconButton label="Move earlier" size="sm" onClick={() => nudge(-1)}><ArrowUp size={16} /></IconButton>
+            <IconButton label="Move later" size="sm" onClick={() => nudge(1)}><ArrowDown size={16} /></IconButton>
+            <IconButton label="Duplicate page" size="sm" onClick={duplicate}><Copy size={16} /></IconButton>
+            <IconButton label="Delete page" size="sm" onClick={remove}><Trash2 size={16} /></IconButton>
+            <IconButton label="Add a blank page" size="sm" onClick={addBlank}><FilePlus2 size={16} /></IconButton>
+            <IconButton label="Add pages from another PDF" size="sm" onClick={() => addRef.current.click()}><Files size={16} /></IconButton>
+            <IconButton label="Save selected pages as a new PDF" size="sm" onClick={extract}><FileOutput size={16} /></IconButton>
+          </div>
         </div>
       )}
 
@@ -499,20 +507,6 @@ export default function App() {
       <div className="pe-body">
         {open && (
           <aside className={`pe-side${sideOpen ? ' open' : ''}`}>
-            <div className="pe-pagebar">
-              <div className="pe-pagebar-label">{nSel > 1 ? `${nSel} pages selected` : nSel === 1 ? 'Page selected' : 'Pages'}</div>
-              <div className="pe-pagebar-btns">
-                <IconButton label="Rotate left" size="sm" onClick={() => rotate(-90)}><RotateCcw size={16} /></IconButton>
-                <IconButton label="Rotate right" size="sm" onClick={() => rotate(90)}><RotateCw size={16} /></IconButton>
-                <IconButton label="Move earlier" size="sm" onClick={() => nudge(-1)}><ArrowUp size={16} /></IconButton>
-                <IconButton label="Move later" size="sm" onClick={() => nudge(1)}><ArrowDown size={16} /></IconButton>
-                <IconButton label="Duplicate page" size="sm" onClick={duplicate}><Copy size={16} /></IconButton>
-                <IconButton label="Delete page" size="sm" onClick={remove}><Trash2 size={16} /></IconButton>
-                <IconButton label="Add a blank page" size="sm" onClick={addBlank}><FilePlus2 size={16} /></IconButton>
-                <IconButton label="Add pages from another PDF" size="sm" onClick={() => addRef.current.click()}><Files size={16} /></IconButton>
-                <IconButton label="Save selected pages as a new PDF" size="sm" onClick={extract}><FileOutput size={16} /></IconButton>
-              </div>
-            </div>
             <Thumbs pages={pages} sources={sources} geomOf={geomOf} selected={selPages} currentId={currentId} onPick={pick}
               onMove={(ids, before) => change(ps => movePages(ps, ids, before))} />
           </aside>

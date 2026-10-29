@@ -16,7 +16,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { drawPage, fontFlags, liftRegion, loadImageBoxes, loadText, sampleRegion } from './engine.js'
 import {
   FAMILIES, HIGHLIGHT_OPACITY, LINE, addPenPoint, bestStyle, boxFrom, deltaToPage, displaySize, displayToPage, geometry,
-  moveObject, newBox, newImage, newLine, newPen, newText, norm, overlayTransform, pickColours, resizeBox, resizePen, resizeText, textHotspots,
+  moveObject, newBox, newImage, newLine, newPen, newText, norm, overlayTransform, pickColours, resizeBox, resizePen, resizeText, textHotspots, uid,
 } from './model.js'
 
 /** How wide `str` is at `size` in the editor's own font (Arial, Times New Roman or Courier New, as Helvetica, Times and Courier are saved). */
@@ -188,15 +188,35 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
   }
 
   /** A picture, or any area, taken up: the cover that hides it, and the same pixels as an image of ours. */
-  const prepArea = async (a) => {
-    const { bytes, url, bg } = await liftRegion(src, entry.n, geom.rot, a, { w: g.width, h: g.height })
+  const prepArea = async (a, erase = []) => {
+    const { bytes, url, bg } = await liftRegion(src, entry.n, geom.rot, a, { w: g.width, h: g.height }, erase)
     const id = api.registerImage(bytes, url)
     return {
       cover: newBox('rect', a.x - 0.5, a.y - 0.5, a.w + 1, a.h + 1, { fill: bg, stroke: null, sw: 1 }),
       obj: newImage(a.x, a.y, a.w, a.h, id),
     }
   }
-  const prep = (t) => (t.kind ? prepArea(t) : prepText(t))
+  /**
+   * A shape (a banner, a header row) taken up along with the text written on it: the shape becomes a
+   * picture without the text, and each piece of text becomes a text object of its own, so it can still
+   * be retyped. They are one group: dragging any of them moves them all.
+   */
+  const prepShape = async (t) => {
+    const on = hot.filter(h => {
+      const cx = h.x + h.w / 2, cy = h.y + h.h / 2
+      return cx >= t.x && cx <= t.x + t.w && cy >= t.y && cy <= t.y + t.h && h.w <= t.w
+    })
+    const [area, ...texts] = await Promise.all([
+      prepArea(t, on.map(h => ({ x: h.x - 0.6, y: h.y - 0.4, w: h.w + 1.2, h: h.h + 0.8 }))),
+      ...on.map(prepText),
+    ])
+    if (!on.length) return area
+    const group = uid('g')
+    return { cover: area.cover, obj: { ...area.obj, group }, extra: texts.map(x => ({ ...x.obj, group })) }
+  }
+  const prep = (t) => (t.kind === 'shape' ? prepShape(t) : t.kind ? prepArea(t) : prepText(t))
+  /** Puts what was picked up on the page, with the main piece selected. */
+  const place = ({ cover: coverBox, obj, extra = [] }) => api.addMany(entry.id, [coverBox, obj, ...extra], { select: obj.id })
 
   /** Click on the page's own text: cover it and put the same words in a text box over the cover, to be retyped. */
   const startEdit = async (t) => {
@@ -236,7 +256,9 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
       }
       api.select(entry.id, obj.id)
       e.currentTarget.setPointerCapture(e.pointerId)
-      drag.current = { ...start, kind: handle ? 'resize' : 'move', handle, obj, moved: false, w0: hit.offsetWidth, h0: hit.offsetHeight }
+      // Objects picked up together (a banner and its text) move together.
+      const members = !handle && obj.group ? entry.objects.filter(o => o.group === obj.group) : null
+      drag.current = { ...start, kind: handle ? 'resize' : 'move', handle, obj, members, moved: false, w0: hit.offsetWidth, h0: hit.offsetHeight }
       return
     }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -271,11 +293,11 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
         // Dragged from the page's own text or picture: take it up, then carry on dragging it.
         p.lifting = true
         setHover(null)
-        prep(p.t).then(({ cover: coverBox, obj }) => {
-          api.addMany(entry.id, [coverBox, obj], { select: true })
+        prep(p.t).then((made) => {
+          place(made)
           if (pending.current !== p) return
           pending.current = null
-          if (down_.current) drag.current = { sx: last.current.x, sy: last.current.y, kind: 'move', obj, moved: false }
+          if (down_.current) drag.current = { sx: last.current.x, sy: last.current.y, kind: 'move', obj: made.obj, members: made.extra ? [made.obj, ...made.extra] : null, moved: false }
         }).catch(err => { pending.current = null; console.warn('[pdf-editor] could not pick that up', err) })
         return
       }
@@ -289,8 +311,10 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
     if (!d.moved && Math.hypot(sdx, sdy) < 3) return
     d.moved = true
     const [dx, dy] = deltaToPage(sdx, sdy, entry.rotate).map(v => v / z)
-    if (d.kind === 'move') api.live(entry.id, d.obj.id, moveObject(d.obj, dx, dy))
-    else if (d.kind === 'grip') {
+    if (d.kind === 'move') {
+      if (d.members) api.liveMany(entry.id, d.members.map(m => moveObject(m, dx, dy)))
+      else api.live(entry.id, d.obj.id, moveObject(d.obj, dx, dy))
+    } else if (d.kind === 'grip') {
       if (editId === 'draft') setDraft(moveObject(d.obj, dx, dy))
       else api.live(entry.id, d.obj.id, moveObject(d.obj, dx, dy))
     } else if (d.kind === 'resize') {
@@ -319,7 +343,7 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
       if (p.lifting) return // being picked up: move() finishes the job
       pending.current = null
       if (e && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < DRAG) {
-        if (p.t.kind) prepArea(p.t).then(({ cover: coverBox, obj }) => api.addMany(entry.id, [coverBox, obj], { select: true })).catch(err => console.warn('[pdf-editor] could not pick that up', err))
+        if (p.t.kind) prep(p.t).then(place).catch(err => console.warn('[pdf-editor] could not pick that up', err))
         else startEdit(p.t)
       }
       return
@@ -335,10 +359,12 @@ export const PageView = memo(function PageView({ entry, geom, src, z, tool, selI
         const clipped = { x: Math.max(0, a.x), y: Math.max(0, a.y) }
         clipped.w = Math.min(g.width, a.x + a.w) - clipped.x
         clipped.h = Math.min(g.height, a.y + a.h) - clipped.y
-        if (clipped.w > 2 && clipped.h > 2) prepArea(clipped).then(({ cover: coverBox, obj }) => api.addMany(entry.id, [coverBox, obj], { select: true })).catch(err => console.warn('[pdf-editor] could not pick that up', err))
+        if (clipped.w > 2 && clipped.h > 2) prepArea(clipped).then(place).catch(err => console.warn('[pdf-editor] could not pick that up', err))
       }
       return
     }
+    // A click on text of ours (no drag) types into it, as a click on the page's own text does.
+    if (d.kind === 'move' && !d.moved && d.obj.type === 'text') { api.endLive(); setEditId(d.obj.id); return }
     if (d.kind !== 'create') { api.endLive(); return }
     const o = draft
     setDraft(null)
