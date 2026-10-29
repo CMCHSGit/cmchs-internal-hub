@@ -10,7 +10,7 @@
    move and resize them, undo and redo. (Editing the page's own text is a later stage.) */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowDown, ArrowUp, Bold, Circle, Copy, Download, Eraser, FileOutput, FilePlus2, FolderOpen, Highlighter, Image as ImageIcon,
+  ArrowDown, ArrowUp, Bold, BoxSelect, Circle, Copy, Download, Eraser, FileOutput, FilePlus2, FolderOpen, Highlighter, Image as ImageIcon,
   Italic, Files, Maximize, Minus, MousePointer2, PanelLeft, Pencil, Redo2, RotateCcw, RotateCw, Square, Trash2, Type, Undo2, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import { Alert, Button, IconButton, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
@@ -40,11 +40,13 @@ const DEFAULTS = {
   fill: null, fillPick: '#ffe08a', stroke: '#d62828', strokePick: '#d62828', sw: 2, highlight: '#ffeb3b',
 }
 const TOOLS = [
-  ['select', 'Select and move', MousePointer2], ['text', 'Add text', Type], ['rect', 'Rectangle', Square], ['ellipse', 'Ellipse', Circle],
+  ['select', 'Edit text and move objects', MousePointer2], ['text', 'Add text', Type], ['rect', 'Rectangle', Square], ['ellipse', 'Ellipse', Circle],
   ['line', 'Line', Minus], ['pen', 'Draw', Pencil], ['highlight', 'Highlight', Highlighter], ['whiteout', 'Cover with white', Eraser],
+  ['grab', 'Move or resize an area of the page', BoxSelect],
 ]
 const HINTS = {
-  select: 'Click an object to move or change it. Double-click text to edit it.',
+  select: 'Click text to edit it. Drag text or a picture to move it. Click an object to move, resize or change it.',
+  grab: 'Drag a box around anything on the page (a logo, a drawing, a block of text) to pick it up. Then move it or drag a corner to resize it.',
   text: 'Click on the page and type.',
   rect: 'Drag on the page to draw.', ellipse: 'Drag on the page to draw.', line: 'Drag on the page to draw.',
   pen: 'Draw freehand on the page.', highlight: 'Drag over what to highlight.',
@@ -129,6 +131,18 @@ export default function App() {
       setHist(h => commit(h, addObject(h.present, pageId, obj)))
       if (select) setSel({ pageId, id: obj.id })
       if (revert) setTool('select')
+    },
+    // A picture made in the editor (a lifted area): kept for saving and for showing, and its id for the image object.
+    registerImage: (bytes, url) => {
+      const id = uid('i')
+      images.current.set(id, { bytes, type: 'png' })
+      imageUrls.current.set(id, url)
+      return id
+    },
+    // Several objects as one undo step (a cover and the text typed over it); the last is selected.
+    addMany: (pageId, objs, { select } = {}) => {
+      setHist(h => commit(h, objs.reduce((ps, o) => addObject(ps, pageId, o), h.present)))
+      if (select) setSel({ pageId, id: objs[objs.length - 1].id })
     },
     update: (pageId, objId, patch) => setHist(h => commit(h, updateObject(h.present, pageId, objId, patch))),
     remove: (pageId, objId) => { setHist(h => commit(h, removeObject(h.present, pageId, objId))); setSel(s => (s?.id === objId ? null : s)) },
@@ -514,7 +528,7 @@ export default function App() {
           ) : (
             <div className="pe-empty">
               <h1 className="pe-title">PDF Editor</h1>
-              <p className="pe-lead">Open a PDF to rearrange its pages and add text, pictures, shapes and highlights. Everything happens on this device: the file is never uploaded.</p>
+              <p className="pe-lead">Open a PDF to edit its text, rearrange its pages and add text, pictures, shapes and highlights. Everything happens on this device: the file is never uploaded.</p>
               <div className="pe-empty-actions">
                 <Button iconLeft={<FolderOpen size={16} />} onClick={() => fileRef.current.click()}>Open a PDF</Button>
                 <Button variant="secondary" onClick={blankDocument}>Start with a blank page</Button>

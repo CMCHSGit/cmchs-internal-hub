@@ -5,7 +5,7 @@
    never flashes blank. */
 import * as pdfjs from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-import { norm } from './model.js'
+import { imageBoxes, norm, pickColours } from './model.js'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
 
@@ -68,6 +68,113 @@ export function drawPage(src, n, rotation, scale, target) {
     return true
   })()
   return { done, cancel() { cancelled = true; task?.cancel() } }
+}
+
+/**
+ * The pixels of a small box of a page, drawn large: `box` is in page space
+ * (points, the page's own orientation, so `rot` is its own /Rotate). Small
+ * text drawn at screen size never reaches its true colour (every pixel is
+ * partly the background), so colours are read from this instead of the canvas.
+ */
+export async function sampleRegion(src, n, rot, box, scale = 6) {
+  const page = await src.doc.getPage(n + 1)
+  const viewport = page.getViewport({ scale, rotation: rot })
+  const w = Math.max(1, Math.ceil(box.w * scale)), h = Math.max(1, Math.ceil(box.h * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = w; canvas.height = h
+  await page.render({ canvas, viewport, background: '#ffffff', transform: [1, 0, 0, 1, -box.x * scale, -box.y * scale] }).promise
+  return canvas.getContext('2d').getImageData(0, 0, w, h).data
+}
+
+/**
+ * Whether a font of a page is bold and/or italic, by its own name and flags
+ * ("Helvetica-Bold"). Only known once pdf.js has loaded the page's fonts, which
+ * drawing the page does; null until then or for a font it can't tell.
+ */
+export async function fontFlags(src, n, fontName) {
+  try {
+    const page = await src.doc.getPage(n + 1)
+    if (!page.commonObjs.has(fontName)) return null
+    const f = page.commonObjs.get(fontName)
+    const name = String(f.name || '')
+    return {
+      bold: !!f.bold || /bold|black|heavy|semibold|demi/i.test(name),
+      italic: !!f.italic || /italic|oblique/i.test(name),
+    }
+  } catch { return null }
+}
+
+const pictures = new WeakMap()
+/** The boxes (page space) of the pictures on page `n` of a source, found from how the page is drawn: read once, then kept. */
+export function loadImageBoxes(src, n, geom) {
+  if (!pictures.has(src)) pictures.set(src, new Map())
+  const pages = pictures.get(src)
+  if (!pages.has(n)) {
+    pages.set(n, src.doc.getPage(n + 1)
+      .then(p => p.getOperatorList())
+      .then(l => imageBoxes(l.fnArray, l.argsArray, pdfjs.OPS, geom)))
+  }
+  return pages.get(n)
+}
+
+/**
+ * Takes an area of a page out as a picture: draws it large with a see-through
+ * background (so only its own marks are in it) and returns it as a PNG, with the
+ * background colour of the page just around it, for the cover that hides the original.
+ * `box` is page space (the page's own orientation, `rot` its /Rotate); `size` the page's size there.
+ */
+export async function liftRegion(src, n, rot, box, size) {
+  const margin = 4
+  const ex = { x: Math.max(0, box.x - margin), y: Math.max(0, box.y - margin) }
+  ex.w = Math.min(size.w, box.x + box.w + margin) - ex.x
+  ex.h = Math.min(size.h, box.y + box.h + margin) - ex.y
+  let scale = Math.min(6, Math.max(2, 2400 / Math.max(box.w, box.h)))
+  if (ex.w * ex.h * scale * scale > MAX_PIXELS) scale = Math.sqrt(MAX_PIXELS / (ex.w * ex.h))
+  const page = await src.doc.getPage(n + 1)
+  const viewport = page.getViewport({ scale, rotation: rot })
+  const w = Math.max(1, Math.ceil(ex.w * scale)), h = Math.max(1, Math.ceil(ex.h * scale))
+  // Drawn twice, on white and on black: what differs between the two is how see-through each pixel is,
+  // which gives the picture a true transparent background whatever the page is made of.
+  const draw = async (background) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    await page.render({ canvas, viewport, background, transform: [1, 0, 0, 1, -ex.x * scale, -ex.y * scale] }).promise
+    return canvas.getContext('2d').getImageData(0, 0, w, h).data
+  }
+  const [onWhite, onBlack] = [await draw('#ffffff'), await draw('#000000')]
+  // Inside the box is the picture; the ring around it is the page, which tells what colour the page is there.
+  const ix = Math.round((box.x - ex.x) * scale), iy = Math.round((box.y - ex.y) * scale)
+  const iw = Math.max(1, Math.min(w - ix, Math.round(box.w * scale))), ih = Math.max(1, Math.min(h - iy, Math.round(box.h * scale)))
+  const ring = []
+  const out = new ImageData(iw, ih)
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4
+      if (x >= ix && x < ix + iw && y >= iy && y < iy + ih) {
+        const alpha = 1 - ((onWhite[i] - onBlack[i]) + (onWhite[i + 1] - onBlack[i + 1]) + (onWhite[i + 2] - onBlack[i + 2])) / 765
+        const o = ((y - iy) * iw + (x - ix)) * 4
+        if (alpha > 0.004) {
+          out.data[o] = onBlack[i] / alpha; out.data[o + 1] = onBlack[i + 1] / alpha; out.data[o + 2] = onBlack[i + 2] / alpha
+          out.data[o + 3] = Math.min(1, alpha) * 255
+        }
+      } else ring.push(onWhite[i], onWhite[i + 1], onWhite[i + 2], 255)
+    }
+  }
+  const bg = ring.length ? pickColours(Uint8ClampedArray.from(ring)).bg : '#ffffff'
+  const crop = document.createElement('canvas')
+  crop.width = iw; crop.height = ih
+  crop.getContext('2d').putImageData(out, 0, 0)
+  const blob = await new Promise(res => crop.toBlob(res, 'image/png'))
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), url: URL.createObjectURL(blob), bg }
+}
+
+const texts = new WeakMap()
+/** The text of page `n` (0-based) of a source, as pdf.js gives it: read once, then kept. */
+export function loadText(src, n) {
+  if (!texts.has(src)) texts.set(src, new Map())
+  const pages = texts.get(src)
+  if (!pages.has(n)) pages.set(n, src.doc.getPage(n + 1).then(p => p.getTextContent()))
+  return pages.get(n)
 }
 
 /** Frees a source's worker memory. */

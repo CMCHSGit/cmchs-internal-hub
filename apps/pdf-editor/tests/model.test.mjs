@@ -4,6 +4,7 @@ import {
   addObject, addPenPoint, blankPage, boxFrom, commit, deletePages, deltaToPage, displaySize, displayToPage, duplicatePages,
   geometry, insertPages, live, moveObject, movePages, newHistory, newText, norm, nudgePages, redo, removeObject,
   resizeBox, rotatePages, settle, sourcePage, undo, updateObject,
+  bestStyle, familyOf, imageBoxes, pageToDisplay, pickColours, resizePen, resizeText, textHotspots,
 } from '../src/model.js'
 
 const ids = (pages) => pages.map(p => p.id)
@@ -171,4 +172,106 @@ test('history: commit, undo, redo, and a drag is one step', () => {
   // a change that changes nothing is not a step
   const same = newHistory(['x'])
   assert.equal(commit(same, same.present), same)
+})
+
+test('fromUser undoes toUser for every rotation', () => {
+  for (const rot of [0, 90, 180, 270]) {
+    const g = geometry({ x0: 10, y0: 20, w: 200, h: 100, rot })
+    for (const [x, y] of [[0, 0], [13, 7], [60, 90]]) {
+      const [ux, uy] = g.toUser(x, y)
+      assert.deepEqual(g.fromUser(ux, uy).map(v => Math.round(v * 1e6) / 1e6), [x, y], 'rot ' + rot)
+    }
+  }
+})
+
+test('pageToDisplay is the inverse of displayToPage', () => {
+  const z = 1.5
+  for (const rotate of [0, 90, 180, 270]) {
+    const turned = rotate % 180
+    const W = (turned ? 100 : 200) * z, H = (turned ? 200 : 100) * z
+    const [X, Y] = pageToDisplay(30, 70, rotate, W, H, z)
+    assert.deepEqual(displayToPage(X, Y, rotate, W, H, z).map(v => Math.round(v * 1e6) / 1e6), [30, 70])
+  }
+})
+
+test('the page’s own text becomes boxes in page space', () => {
+  const geom = { x0: 0, y0: 0, w: 595, h: 842, rot: 0 }
+  const items = [
+    { str: 'MANUFACTURER', transform: [9, 0, 0, 9, 47, 666.9], width: 57.8, fontName: 'f1' },
+    { str: ' ', transform: [9, 0, 0, 9, 104, 666.9], width: 4, fontName: 'f1' },
+    { str: '', transform: [9, 0, 0, 9, 47, 600], width: 0, fontName: 'f1' },
+    { str: 'sideways', transform: [0, 9, -9, 0, 300, 300], width: 40, fontName: 'f1' },
+    { type: 'beginMarkedContent' },
+  ]
+  const hot = textHotspots(items, { f1: { fontFamily: 'serif' } }, geom)
+  assert.equal(hot.length, 1)
+  const t = hot[0]
+  assert.equal(t.str, 'MANUFACTURER')
+  assert.equal(t.fam, 'serif')
+  assert.ok(Math.abs(t.x - 47) < 1e-9 && Math.abs(t.baseline - (842 - 666.9)) < 1e-9)
+  assert.ok(t.y < t.baseline && t.y + t.h > t.baseline, 'the box holds the baseline')
+  assert.ok(Math.abs(t.w - 57.8) < 1e-9)
+  // the same text on a page turned a quarter is sideways in page space, so it isn't offered
+  assert.equal(textHotspots(items.slice(0, 1), {}, { ...geom, rot: 90 }).length, 0)
+})
+
+test('bold and italic are found from the width, and plain wins a tie', () => {
+  const widths = { 'Helvetica|false|false': 100, 'Helvetica|true|false': 108, 'Helvetica|false|true': 100, 'Helvetica|true|true': 108 }
+  const measure = (f, b, i) => widths[`${f}|${b}|${i}`]
+  assert.deepEqual(bestStyle('sans-serif', 100, measure), { family: 'Helvetica', bold: false, italic: false })
+  assert.deepEqual(bestStyle('sans-serif', 108, measure), { family: 'Helvetica', bold: true, italic: false })
+  assert.equal(bestStyle('monospace', 50, () => 50).family, 'Courier')
+  assert.equal(familyOf('serif'), 'Times')
+  assert.equal(familyOf('sans-serif'), 'Helvetica')
+})
+
+test('the background and text colour are read off the rendered pixels', () => {
+  const px = []
+  for (let i = 0; i < 100; i++) px.push(255, 224, 138, 255) // a yellow cell
+  px.push(0, 90, 0, 255, 10, 100, 10, 255)                  // dark green text
+  const c = pickColours(Uint8ClampedArray.from(px))
+  assert.equal(c.bg, '#ffe08a')
+  assert.equal(c.text, '#005a00')
+  // a blank patch has no text colour to find
+  assert.equal(pickColours(Uint8ClampedArray.from([255, 255, 255, 255, 255, 255, 255, 255])).text, '#000000')
+  assert.equal(pickColours(Uint8ClampedArray.from([20, 20, 20, 255])).text, '#ffffff')
+})
+
+const OPS = { save: 10, restore: 11, transform: 12, paintFormXObjectBegin: 74, paintFormXObjectEnd: 75, paintImageXObject: 85, paintInlineImageXObject: 86 }
+
+test('pictures are found where the page draws them, through saves and transforms', () => {
+  const geom = { x0: 0, y0: 0, w: 595, h: 842, rot: 0 }
+  const fn = [OPS.save, OPS.transform, OPS.paintImageXObject, OPS.restore, OPS.save, OPS.transform, OPS.transform, OPS.paintImageXObject, OPS.restore, OPS.paintImageXObject]
+  const args = [null, [100, 0, 0, 50, 40, 700], ['img1', 10, 10], null, null, [2, 0, 0, 2, 0, 0], [30, 0, 0, 20, 100, 300], ['img2', 10, 10], null, ['img3', 10, 10]]
+  const pics = imageBoxes(fn, args, OPS, geom)
+  // img1: 100 x 50 with its bottom left at (40, 700) in user space: top at 842 - 750 in page space
+  assert.deepEqual(pics[0], { kind: 'image', x: 40, y: 92, w: 100, h: 50 })
+  // img2: scaled by the second transform first (30 x 20 at (100, 300)), then by 2: 60 x 40 at (200, 600)
+  assert.deepEqual(pics[1], { kind: 'image', x: 200, y: 202, w: 60, h: 40 })
+  // img3 is drawn after the restore, so with the identity: a 1 x 1 picture, too small to be worth offering
+  assert.equal(pics.length, 2)
+})
+
+test('a picture that covers the page is not offered, and a turned page puts pictures where they show', () => {
+  const geom = { x0: 0, y0: 0, w: 595, h: 842, rot: 0 }
+  assert.equal(imageBoxes([OPS.transform, OPS.paintImageXObject], [[595, 0, 0, 842, 0, 0], ['bg']], OPS, geom).length, 0)
+  const turned = imageBoxes([OPS.transform, OPS.paintImageXObject], [[100, 0, 0, 50, 0, 0], ['a']], OPS, { ...geom, rot: 90 })
+  assert.deepEqual([turned[0].w, turned[0].h], [50, 100])
+})
+
+test('resizing text scales its size and keeps the opposite corner', () => {
+  const o = { type: 'text', x: 100, y: 100, size: 10 }
+  const se = resizeText(o, 'se', 50, 0, 100, 12) // wider by half: size x1.5
+  assert.equal(se.size, 15); assert.deepEqual([se.x, se.y], [100, 100])
+  const nw = resizeText(o, 'nw', -50, 0, 100, 12) // dragged out to the left: size x1.5, so the right edge stays at 200
+  assert.equal(nw.size, 15); assert.equal(nw.x, 100 + 100 - 150)
+  assert.equal(resizeText(o, 'se', -500, -500, 100, 12).size, 4, 'never smaller than 4')
+})
+
+test('resizing a pen stroke stretches its points with its box', () => {
+  const o = { type: 'pen', points: [[0, 0], [10, 10], [20, 0]] }
+  const r = resizePen(o, 'se', 20, 10)
+  assert.deepEqual(r.points[0], [0, 0])
+  assert.deepEqual(r.points[2], [40, 0])
+  assert.deepEqual(r.points[1], [20, 20])
 })

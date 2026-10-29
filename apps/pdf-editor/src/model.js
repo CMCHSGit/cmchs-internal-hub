@@ -38,9 +38,17 @@ export function geometry({ x0, y0, w, h, rot }) {
       default: return [x0 + dx, y0 + h - dy]
     }
   }
+  const fromUser = (ux, uy) => {
+    switch (rot) {
+      case 90: return [uy - y0, ux - x0]
+      case 180: return [x0 + w - ux, uy - y0]
+      case 270: return [y0 + h - uy, x0 + w - ux]
+      default: return [ux - x0, y0 + h - uy]
+    }
+  }
   // The direction of page space's x axis in user space, in degrees
   // anticlockwise: what drawing calls need to lay text and boxes along it.
-  return { width, height, toUser, angle: rot }
+  return { width, height, toUser, fromUser, angle: rot }
 }
 
 /** The geometry of a blank page: upright, origin at the corner. */
@@ -83,6 +91,16 @@ export function displayToPage(X, Y, rotate, W, H, z) {
   return [x / z, y / z]
 }
 
+/** A point in page space as a point on the displayed page, in px at zoom z (the inverse of displayToPage). */
+export function pageToDisplay(x, y, rotate, W, H, z) {
+  switch (norm(rotate)) {
+    case 90: return [W - y * z, x * z]
+    case 180: return [W - x * z, H - y * z]
+    case 270: return [y * z, H - x * z]
+    default: return [x * z, y * z]
+  }
+}
+
 /** The CSS transform that lays page space over the displayed page: rotate, then zoom. */
 export function overlayTransform(rotate, W, H, z) {
   switch (norm(rotate)) {
@@ -91,6 +109,126 @@ export function overlayTransform(rotate, W, H, z) {
     case 270: return `translate(0, ${H}px) rotate(270deg) scale(${z})`
     default: return `scale(${z})`
   }
+}
+
+/* ── The page's own text ── */
+
+/** How far a line of text reaches above its baseline and below it, as a share of its size: the box a cover has to fill. */
+const ASCENT = 0.78, DESCENT = 0.22
+
+/**
+ * The page's text as boxes in page space, from pdf.js's text content (items
+ * with a transform and a width, in user space). Only upright, left to right
+ * text is offered: that is what can be covered and retyped in place.
+ * Each: { str, x, y, w, h, baseline, size, fam } with y the top of the box.
+ */
+export function textHotspots(items, styles, geom) {
+  const g = geometry(geom)
+  const out = []
+  for (const it of items) {
+    if (typeof it.str !== 'string' || !it.str.trim() || !(it.width > 0)) continue
+    const [a, b, c, d, e, f] = it.transform
+    const size = Math.hypot(a, b)
+    if (!(size > 0)) continue
+    const p0 = g.fromUser(e, f)
+    const p1 = g.fromUser(e + (a / size) * it.width, f + (b / size) * it.width)
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1]
+    if (dx <= 0 || Math.abs(dy) > 0.02 * dx) continue
+    const up = g.fromUser(e + c, f + d)
+    if (up[1] - p0[1] >= 0 || Math.abs(up[0] - p0[0]) > 0.35 * size) continue
+    out.push({
+      str: it.str, size, baseline: p0[1], x: p0[0], w: dx,
+      y: p0[1] - ASCENT * size, h: (ASCENT + DESCENT) * size,
+      fam: styles?.[it.fontName]?.fontFamily || 'sans-serif', font: it.fontName,
+    })
+  }
+  return out
+}
+
+const mul = (m, n) => [
+  m[0] * n[0] + m[1] * n[2], m[0] * n[1] + m[1] * n[3],
+  m[2] * n[0] + m[3] * n[2], m[2] * n[1] + m[3] * n[3],
+  m[4] * n[0] + m[5] * n[2] + n[4], m[4] * n[1] + m[5] * n[3] + n[5],
+]
+
+/**
+ * Where the page's pictures are, as boxes in page space, from pdf.js's operator
+ * list (`fnArray`, `argsArray`; `OPS` is pdf.js's table of operator codes). It
+ * follows the current transform through save, restore, transform and form
+ * XObjects, because a picture is drawn into the unit square of whatever
+ * transform is current. Pictures that cover most of the page (a scanned
+ * background) are left out: they would swallow every click.
+ */
+export function imageBoxes(fnArray, argsArray, OPS, geom) {
+  const g = geometry(geom)
+  const pictures = new Set([OPS.paintImageXObject, OPS.paintInlineImageXObject, OPS.paintImageMaskXObject, OPS.paintImageXObjectRepeat, OPS.paintSolidColorImageMask].filter(v => v !== undefined))
+  const stack = []
+  let ctm = [1, 0, 0, 1, 0, 0]
+  const out = []
+  for (let i = 0; i < fnArray.length; i++) {
+    const fn = fnArray[i]
+    if (fn === OPS.save) stack.push(ctm)
+    else if (fn === OPS.restore) ctm = stack.pop() || ctm
+    else if (fn === OPS.transform) ctm = mul(argsArray[i], ctm)
+    else if (fn === OPS.paintFormXObjectBegin) { stack.push(ctm); if (argsArray[i]?.[0]) ctm = mul(argsArray[i][0], ctm) }
+    else if (fn === OPS.paintFormXObjectEnd) ctm = stack.pop() || ctm
+    else if (pictures.has(fn)) {
+      const [a, b, c, d, e, f] = ctm
+      const pts = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y]) => g.fromUser(a * x + c * y + e, b * x + d * y + f))
+      const xs = pts.map(p => p[0]), ys = pts.map(p => p[1])
+      const box = { kind: 'image', x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) }
+      if (box.w < 4 || box.h < 4 || (box.w * box.h) / (g.width * g.height) > 0.5) continue
+      out.push(box)
+    }
+  }
+  return out
+}
+
+/** The editor's font for a PDF text run: Helvetica, Times or Courier by the run's family. */
+export const familyOf = (fam) => (/serif/.test(fam) && !/sans/.test(fam) ? 'Times' : /mono|courier/i.test(fam) ? 'Courier' : 'Helvetica')
+
+/**
+ * Whether a run was bold and/or italic, found by which of the four styles of
+ * its family is as wide as the run really is (`measure(family, bold, italic)`
+ * is the width the editor's font gives the same text). Plain wins a near tie.
+ */
+export function bestStyle(fam, width, measure) {
+  const family = familyOf(fam)
+  let best = { family, bold: false, italic: false }, err = Math.abs(measure(family, false, false) - width)
+  for (const [bold, italic] of [[true, false], [false, true], [true, true]]) {
+    const e = Math.abs(measure(family, bold, italic) - width)
+    if (e < err - 0.02 * width) { best = { family, bold, italic }; err = e }
+  }
+  return best
+}
+
+const hex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('')
+
+/**
+ * The background and the text colour of a patch of rendered page (RGBA
+ * pixels): the background is the most common colour, the text the pixel
+ * furthest from it. Used so a cover matches what it covers and the retyped
+ * text matches the original's colour.
+ */
+export function pickColours(rgba) {
+  const bins = new Map()
+  for (let i = 0; i < rgba.length; i += 4) {
+    const k = ((rgba[i] >> 4) << 8) | ((rgba[i + 1] >> 4) << 4) | (rgba[i + 2] >> 4)
+    const b = bins.get(k)
+    if (b) { b.n++; b.r += rgba[i]; b.g += rgba[i + 1]; b.b += rgba[i + 2] } else bins.set(k, { n: 1, r: rgba[i], g: rgba[i + 1], b: rgba[i + 2] })
+  }
+  let bg = null
+  for (const b of bins.values()) if (!bg || b.n > bg.n) bg = b
+  if (!bg) return { bg: '#ffffff', text: '#000000' }
+  const br = bg.r / bg.n, bgc = bg.g / bg.n, bb = bg.b / bg.n
+  let far = 0, tr = 0, tg = 0, tb = 0
+  for (let i = 0; i < rgba.length; i += 4) {
+    const d = (rgba[i] - br) ** 2 + (rgba[i + 1] - bgc) ** 2 + (rgba[i + 2] - bb) ** 2
+    if (d > far) { far = d; tr = rgba[i]; tg = rgba[i + 1]; tb = rgba[i + 2] }
+  }
+  // nothing stands out: a patch of blank page, so the text is black or white, whichever shows
+  if (far < 40 * 40) return { bg: hex(br, bgc, bb), text: br + bgc + bb > 382 ? '#000000' : '#ffffff' }
+  return { bg: hex(br, bgc, bb), text: hex(tr, tg, tb) }
 }
 
 /* ── Pages ── */
@@ -221,6 +359,27 @@ export function resizeBox(o, corner, dx, dy, keep = false) {
   if (!east) x += w - nw
   if (!south) y += h - nh
   return { ...o, x, y, w: nw, h: nh }
+}
+
+/**
+ * A text object with one corner dragged: its font size grows or shrinks with
+ * the box (w0 × h0 is the text as it is laid out now), and the opposite corner stays put.
+ */
+export function resizeText(o, corner, dx, dy, w0, h0) {
+  const east = corner.includes('e'), south = corner.includes('s')
+  const k = Math.max((east ? w0 + dx : w0 - dx) / w0, (south ? h0 + dy : h0 - dy) / h0)
+  const size = Math.min(400, Math.max(4, o.size * k))
+  const f = size / o.size
+  return { ...o, size, x: east ? o.x : o.x + w0 - w0 * f, y: south ? o.y : o.y + h0 - h0 * f }
+}
+
+/** A freehand stroke stretched by dragging a corner of its box. */
+export function resizePen(o, corner, dx, dy) {
+  const xs = o.points.map(p => p[0]), ys = o.points.map(p => p[1])
+  const x = Math.min(...xs), y = Math.min(...ys)
+  const w = Math.max(...xs) - x || 1, h = Math.max(...ys) - y || 1
+  const b = resizeBox({ x, y, w, h }, corner, dx, dy)
+  return { ...o, points: o.points.map(([px, py]) => [b.x + (px - x) / w * b.w, b.y + (py - y) / h * b.h]) }
 }
 
 /** A box from two corners dragged out in any direction. */
