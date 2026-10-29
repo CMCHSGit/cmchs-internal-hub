@@ -12,7 +12,7 @@ import { Avatar, Field, Empty, Modal } from '../ui.jsx'
 import { downloadBackup } from '../io.js'
 import { readBackup, restorePlan } from '../backup.js'
 import { syncedWhen, ago } from '../JobPanel.jsx'
-import { initialsOf, pillStyle, rid, fmt } from '../model.js'
+import { initialsOf, isStage, pillStyle, rid, fmt } from '../model.js'
 
 /** A text box that saves when you leave it. */
 function Cell({ value, onSave, ...rest }) {
@@ -101,7 +101,7 @@ export default function Settings() {
         </section>
 
         <ColourList title="Statuses" hint="Waiting asks what the job is waiting on. Complete offers to archive." list={st.statuses} keyName="statuses" field="status" ro={ro} save={save} core={['Waiting', 'Complete']} used={used} />
-        <ColourList title="Activity types" hint="Used in the Timeline's week cells." list={st.activities} keyName="activities" ro={ro} save={save}
+        <ColourList title="Activity types" hint="What the Timeline's week cells show. Tick Job stage for ones that describe the job's week (Prep week, Go-live week, EST Testing…): those are set once on the job's week, not against each person. The rest are what a person is doing." list={st.activities} keyName="activities" ro={ro} save={save}
           used={(_, name) => s.assignments.some((a) => a.activity === name)} />
       </div>
 
@@ -320,6 +320,7 @@ function ColourList({ title, hint, list, keyName, field, ro, save, core = [], us
             <div key={x.name} className="pt-swrow">
               <input type="color" value={x.color} disabled={ro} aria-label={`Colour for ${x.name}`} onChange={(e) => upd(i, { color: e.target.value })} />
               <span className="pt-pill" style={pillStyle(x)}>{x.name}</span>
+              {keyName === 'activities' && <label className="pt-check text-sm" title="Describes the job's week, not what a person does"><input type="checkbox" checked={isStage(x)} disabled={ro} onChange={(e) => upd(i, { stage: e.target.checked })} />Job stage</label>}
               <label className="pt-check text-sm" title="Draw as an outline instead of a fill"><input type="checkbox" checked={!!x.outline} disabled={ro} onChange={(e) => upd(i, { outline: e.target.checked, dashed: e.target.checked && x.dashed })} />Outline</label>
               <span className="pt-grow" />
               {!ro && !core.includes(x.name) && <button type="button" className="icon-btn icon-btn-sm" disabled={inUse} title={inUse ? 'In use' : 'Remove'} aria-label={`Remove ${x.name}`} onClick={() => save({ [keyName]: list.filter((_, n) => n !== i) })}><Trash2 size={15} /></button>}

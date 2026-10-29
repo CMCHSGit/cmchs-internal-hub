@@ -171,3 +171,20 @@ test('leave: from the staff schedule and Settings, full weeks vs some days', asy
   const s2 = new Map([['b|2026-10-26', [null, 'leave', 'leave', 'leave', 'leave']]])
   assert.equal(awayInWeek(staff[1], '2026-10-26', s2, { has: (d) => d === '2026-10-26' }).full, true)
 })
+
+test('job stages: what the job is doing that week, apart from what people do', async () => {
+  const { isStage, stageOf } = await import('../src/model.js')
+  const acts = [{ name: 'Prep week' }, { name: 'EST Testing' }, { name: 'Apps support' }, { name: 'Workshop', stage: true }, { name: 'Upgrade', stage: false }]
+  const by = Object.fromEntries(acts.map((a) => [a.name, a]))
+  assert.equal(isStage(by['EST Testing']), true, 'the usual stage names count when nothing is set')
+  assert.equal(isStage(by['Apps support']), false)
+  assert.equal(isStage(by.Workshop), true, 'a setting beats the name')
+  assert.equal(isStage(by.Upgrade), false)
+  assert.equal(isStage(undefined), false)
+  const job = { id: 'j1', weekStages: { '2026-11-16': 'Go-live week' } }
+  const asg = [{ jobId: 'j1', week: '2026-11-23', activity: 'EST Testing' }, { jobId: 'j1', week: '2026-11-30', activity: 'Apps support' }, { jobId: 'j2', week: '2026-11-16', activity: 'Prep week' }]
+  assert.equal(stageOf(job, '2026-11-16', asg, acts), 'Go-live week', 'the job\'s own stage first')
+  assert.equal(stageOf(job, '2026-11-23', asg, acts), 'EST Testing', 'a week tagged on someone before stages were the job\'s still shows')
+  assert.equal(stageOf(job, '2026-11-30', asg, acts), '')
+  assert.equal(stageOf(job, '2026-12-07', asg, acts), '')
+})

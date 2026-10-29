@@ -16,7 +16,7 @@ import { Alert, Button } from '../../../schedule/src/components/ui'
 import { useStore } from '../store.jsx'
 import { useUi } from '../App.jsx'
 import { ActivityChip, Avatar, StatusPill, Empty, DensityToggle, useDense, usePref, useFitHeight } from '../ui.jsx'
-import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, isISO, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
+import { addDays, daysBetween, fmt, fmtRange, mondayOf, weeksFrom, clashes, isISO, isStage, stageOf, pillStyle, MONTHS_LONG, toDate, inMainViews } from '../model.js'
 
 const NAME_W = 290
 const NAME_W_DENSE = 230
@@ -111,8 +111,10 @@ export default function Timeline({ params }) {
       </div>
 
       <div className="pt-legend">
-        <span className="overline">Activity</span>
-        {s.settings.activities.map((a) => <ActivityChip key={a.name} activity={a.name} />)}
+        <span className="overline" title="What the job's week is: shown on the job, not on a person">Job stage</span>
+        {s.settings.activities.filter(isStage).map((a) => <ActivityChip key={a.name} activity={a.name} />)}
+        <span className="overline pt-legend-gap" title="What a person is doing that week">Activity</span>
+        {s.settings.activities.filter((a) => !isStage(a)).map((a) => <ActivityChip key={a.name} activity={a.name} />)}
       </div>
 
       {layout === 'person' && upcomingClashes.length > 0 && (
@@ -312,9 +314,12 @@ function JobRow({ job, cat, weeks, first, last, template, colW, zoom, dense, hig
       )}
       {weeks.map((w, i) => {
         const items = s.assignments.filter((a) => a.jobId === job.id && a.week === w)
+        const stage = stageOf(job, w, s.assignments, s.settings.activities)
+        const stageEntry = stage ? s.activityByName.get(stage) : null
         return (
-          <button key={w} type="button" className="pt-tl-cell" style={{ gridColumn: i + 2 }} onClick={(e) => onCell(e, w)}
-            aria-label={`${job.name}, week of ${fmt(w)}: ${items.map((a) => `${s.staffById.get(a.staffId)?.initials || '?'} ${a.activity}`).join(', ') || 'nobody'}`}>
+          <button key={w} type="button" className={`pt-tl-cell${stage ? ' staged' : ''}`} style={{ gridColumn: i + 2, ...(stageEntry ? { '--stage': stageEntry.color } : {}) }} onClick={(e) => onCell(e, w)}
+            aria-label={`${job.name}, week of ${fmt(w)}${stage ? `, ${stage}` : ''}: ${items.map((a) => `${s.staffById.get(a.staffId)?.initials || '?'}${a.activity ? ' ' + a.activity : ''}`).join(', ') || 'nobody'}`}>
+            {stage && <span className="pt-stage" title={`The job's week: ${stage}`}>{zoom === 'week' && !dense ? stage : ''}</span>}
             {items.map((a) => {
               const p = s.staffById.get(a.staffId)
               const q = a.tentative ? '?' : ''
@@ -344,14 +349,16 @@ function StatusDot({ status }) {
 function CellPop({ pop, onClose }) {
   const s = useStore()
   const ref = useRef(null)
-  const acts = s.settings.activities.map((a) => a.name)
+  const everyAct = s.settings.activities
+  const acts = everyAct.filter((a) => !isStage(a)).map((a) => a.name) // what people do; stages are the job's
+  const stages = everyAct.filter(isStage).map((a) => a.name)
   const [staffId, setStaffId] = useState(pop.kind === 'person' ? pop.id : '')
   const [jobId, setJobId] = useState(pop.kind === 'job' ? pop.id : '')
-  const [activity, setActivity] = useState(acts[0] || 'Prep')
+  const [activity, setActivity] = useState(acts[0] || '')
   const items = s.assignments.filter((a) => a.week === pop.week && (pop.kind === 'job' ? a.jobId === pop.id : a.staffId === pop.id))
   const title = pop.kind === 'job' ? s.jobById.get(pop.id)?.name : s.staffById.get(pop.id)?.name
   const away = staffId ? s.awayOf(s.staffById.get(staffId), pop.week) : null
-  const w = 300
+  const w = 340
   const left = Math.min(Math.max(8, pop.rect.left + pop.rect.width / 2 - w / 2), window.innerWidth - w - 8)
   const below = pop.rect.bottom + 6
   const top = below + 280 > window.innerHeight ? Math.max(8, pop.rect.top - 286) : below
@@ -369,6 +376,19 @@ function CellPop({ pop, onClose }) {
         onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}>
         <div className="pt-row"><b className="pt-grow">Week of {fmt(pop.week)}</b><button type="button" className="icon-btn icon-btn-sm" aria-label="Close" onClick={onClose}><X size={16} /></button></div>
         <div className="text-sm text-muted pt-ellipsis">{title}</div>
+        {pop.kind === 'job' && (() => {
+          const job = s.jobById.get(pop.id)
+          const stage = stageOf(job, pop.week, s.assignments, everyAct)
+          return s.canEdit ? (
+            <label className="pt-row pt-stagerow" title="What this week is for the whole job. It is shown on the job, not against each person.">
+              <span className="text-sm">Job this week</span>
+              <select className="pt-grow" value={stage} aria-label="Stage of the job this week" onChange={(e) => s.setWeekStage(job, pop.week, e.target.value)}>
+                <option value="">Nothing special</option>
+                {[...new Set([stage, ...stages])].filter(Boolean).map((x) => <option key={x}>{x}</option>)}
+              </select>
+            </label>
+          ) : stage && <div className="pt-row"><span className="text-sm">Job this week</span><ActivityChip activity={stage} /></div>
+        })()}
         {pop.kind === 'person' && away && <p className="text-sm text-muted">{away.full ? 'On leave all week, so can\u2019t be added to a job.' : `On leave ${away.label}.`}</p>}
         {items.length === 0 && <p className="text-sm text-muted">No one booked this week.</p>}
         {items.map((a) => {
@@ -380,8 +400,13 @@ function CellPop({ pop, onClose }) {
               {s.canEdit ? (
                 <>
                   {a.tentative && <button type="button" className="link-btn" onClick={() => s.updateAssignment(a, { tentative: false })}>Confirm</button>}
-                  <select className="pt-sel-sm" value={a.activity} aria-label="Activity" onChange={(e) => s.updateAssignment(a, { activity: e.target.value })}>
-                    {[...new Set([a.activity, ...acts])].map((x) => <option key={x}>{x}</option>)}
+                  {isStage(s.activityByName.get(a.activity)) && (
+                    <button type="button" className="link-btn" title={`${a.activity} is the job's week, not what ${p?.name?.split(' ')[0] || 'they'} do. Move it to the job.`}
+                      onClick={async () => { await s.setWeekStage(j, pop.week, a.activity); await s.updateAssignment(a, { activity: '' }) }}>Move to job</button>
+                  )}
+                  <select className="pt-sel-sm" value={a.activity || ''} aria-label="What they are doing" onChange={(e) => s.updateAssignment(a, { activity: e.target.value })}>
+                    <option value="">No activity</option>
+                    {[...new Set([a.activity, ...acts])].filter(Boolean).map((x) => <option key={x} value={x}>{x}{isStage(s.activityByName.get(x)) ? ' (job stage)' : ''}</option>)}
                   </select>
                   <button type="button" className="icon-btn icon-btn-sm" aria-label="Remove" onClick={() => s.removeAssignment(a)}><X size={15} /></button>
                 </>
@@ -409,7 +434,8 @@ function CellPop({ pop, onClose }) {
               </select>
             )}
             <div className="pt-row">
-              <select className="pt-grow" value={activity} onChange={(e) => setActivity(e.target.value)} aria-label="Activity">
+              <select className="pt-grow" value={activity} onChange={(e) => setActivity(e.target.value)} aria-label="What they are doing">
+                <option value="">No activity</option>
                 {acts.map((x) => <option key={x}>{x}</option>)}
               </select>
               <Button size="sm" type="submit" disabled={!staffId || !jobId || !!away?.full}>Add</Button>

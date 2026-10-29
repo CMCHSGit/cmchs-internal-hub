@@ -3,7 +3,7 @@
    scripts/build.mjs). The Excel export has the same two sheets the team kept
    by hand: the job register and the weekly timeline. */
 
-import { fmt, fmtY, isISO, mondayOf, weeksFrom, addDays, jobStaff, todayISO, PRIORITIES } from './model.js'
+import { fmt, fmtY, isISO, isStage, mondayOf, stageOf, weeksFrom, addDays, jobStaff, todayISO, PRIORITIES } from './model.js'
 import { makeBackup, backupFileName } from './backup.js'
 
 function download(blob, name) {
@@ -81,8 +81,10 @@ export async function exportXLSX(s) {
     for (const j of jobs) {
       const row = { job: j.name }
       for (const w of weeks) {
-        row[w] = s.assignments.filter((a) => a.jobId === j.id && a.week === w)
-          .map((a) => `${s.staffById.get(a.staffId)?.initials || '?'} ${a.activity}`).join(', ')
+        const stage = stageOf(j, w, s.assignments, s.settings.activities)
+        const who = s.assignments.filter((a) => a.jobId === j.id && a.week === w)
+          .map((a) => (`${s.staffById.get(a.staffId)?.initials || '?'} ${isStage(s.activityByName.get(a.activity)) ? '' : a.activity || ''}`).trim()).join(', ')
+        row[w] = [stage && `[${stage}]`, who].filter(Boolean).join(' ')
       }
       tl.addRow(row)
     }

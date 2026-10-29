@@ -150,6 +150,33 @@ export function inkOn(hex) {
   return (L + 0.05) / (0.0118 + 0.05) > (1.05) / (L + 0.05) ? '#1d1d1d' : '#ffffff'
 }
 
+// ── job stages vs what people do ──────────────────────────────────────────
+/*
+ * The activity list mixes two things: what a person is doing that week
+ * (Apps support, Training, Travel…) and what stage the job's week is in
+ * (Prep week, Go-live week, EST Testing, Upgrade, Change Freeze). A stage
+ * belongs to the job, not to anyone on it, so it is stored on the job
+ * (job.weekStages: { [monday]: activity name }) and shown on the job's week,
+ * while a person's activity is only what they do.
+ * An activity is a stage when its settings entry says `stage` (Settings →
+ * Activity types → Job stage); where that was never set, the usual stage
+ * names count, so the existing list works as it is.
+ */
+const STAGE_NAMES = /^(prep|go-live)( week)?$|^est testing$|^upgrade$|^change freeze$/i
+export const isStage = (entry) => !!entry && (typeof entry.stage === 'boolean' ? entry.stage : STAGE_NAMES.test(entry.name))
+
+/**
+ * The stage of a job's week: what the job says, else (for weeks tagged
+ * before stages were the job's) the stage that someone's activity carries.
+ */
+export function stageOf(job, week, assignments, activities) {
+  const own = job?.weekStages?.[week]
+  if (own) return own
+  const by = new Map((activities || []).map((a) => [a.name, a]))
+  const hit = (assignments || []).find((a) => a.jobId === job?.id && a.week === week && isStage(by.get(a.activity)))
+  return hit ? hit.activity : ''
+}
+
 /** Inline style for a status or activity pill from its settings entry. */
 export function pillStyle(entry) {
   if (!entry) return { background: 'var(--surface-subtle)', color: 'var(--text-body)' }

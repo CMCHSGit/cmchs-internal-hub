@@ -245,12 +245,18 @@ export function StoreProvider({ children }) {
         const id = be.newId('assignments')
         await be.set('assignments', id, { jobId: rec.jobId, staffId: rec.staffId, week: mondayOf(rec.week), activity: rec.activity, by: me.name, atMs: Date.now() })
         const p = settings.staff.find((s) => s.id === rec.staffId)
-        hist(rec.jobId, `added ${p?.initials || 'someone'} (${rec.activity}) to the week of ${fmt(mondayOf(rec.week))}`)
+        hist(rec.jobId, `added ${p?.initials || 'someone'}${rec.activity ? ` (${rec.activity})` : ''} to the week of ${fmt(mondayOf(rec.week))}`)
       },
       async updateAssignment(rec, patch) {
         await be.update('assignments', rec.id, { ...patch, by: me.name, atMs: Date.now() })
         const p = settings.staff.find((s) => s.id === (patch.staffId || rec.staffId))
-        hist(rec.jobId, `changed ${p?.initials || 'someone'} in the week of ${fmt(rec.week)} to ${patch.activity || rec.activity}`)
+        hist(rec.jobId, `changed ${p?.initials || 'someone'} in the week of ${fmt(rec.week)} ${'activity' in patch ? (patch.activity ? ` to ${patch.activity}` : ' to no activity') : ''}`)
+      },
+      /** The stage of a job's week (Prep week, EST Testing…), kept on the job; '' clears it. */
+      async setWeekStage(job, week, stage) {
+        const next = { ...(job.weekStages || {}) }
+        if (stage) next[week] = stage; else delete next[week]
+        await a.updateJob(job.id, { weekStages: next }, stage ? `set the week of ${fmt(week)} to ${stage}` : `cleared the stage of the week of ${fmt(week)}`)
       },
       async removeAssignment(rec) {
         await be.remove('assignments', rec.id)
