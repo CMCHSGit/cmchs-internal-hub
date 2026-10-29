@@ -27,6 +27,7 @@ const ServiceSection = lazy(() => import('../../service-home/src/section.jsx'))
 const ChecklistsSection = lazy(() => import('../../checklists/src/section.jsx'))
 const SimproSyncSection = lazy(() => import('../../simprosync/src/section.jsx'))
 const AnsurSection = lazy(() => import('../../ansurtopdf/src/section.jsx'))
+const PdfEditorSection = lazy(() => import('../../pdf-editor/src/section.jsx'))
 const EquipmentSection = lazy(() => import('../../equipment/src/section.jsx'))
 const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
@@ -91,7 +92,7 @@ function hubRouteOf() {
   return { page: 'home' }
 }
 
-const SERVICE_TOOLS = ['service', 'service-orders', 'maintenance', 'oncall', 'checklists', 'simprosync', 'ansurtopdf']
+const SERVICE_TOOLS = ['service', 'service-orders', 'maintenance', 'oncall', 'checklists', 'simprosync', 'ansurtopdf', 'pdf-editor']
 
 export default function App() {
   // undefined = still checking the saved session, null = signed out
@@ -169,6 +170,7 @@ export default function App() {
               {section === 'checklists' && <ChecklistsSection />}
               {section === 'simprosync' && <SimproSyncSection />}
               {section === 'ansurtopdf' && <AnsurSection />}
+              {section === 'pdf-editor' && <PdfEditorSection />}
               {section === 'equipment' && <EquipmentSection />}
               {section === 'schedule' && <ScheduleSection />}
             </Suspense>

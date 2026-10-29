@@ -10,7 +10,7 @@
 // (/schedule/), apps/asks (/asks/), apps/projects (/projects/), apps/settings
 // (/settings/, with apps/admin's screens), apps/service-orders (/service-orders/),
 // apps/maintenance (/maintenance/), apps/checklists (/checklists/), apps/simprosync (/simprosync/) and
-// apps/ansurtopdf (/ansurtopdf/).
+// apps/ansurtopdf (/ansurtopdf/) and apps/pdf-editor (/pdf-editor/).
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'

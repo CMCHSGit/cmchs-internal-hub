@@ -93,7 +93,7 @@ function ThemeButton() {
   )
 }
 
-/** The Service tab: hover or click for the service tools (Service orders, Ansur reports, Simpro sync, Maintenance Schedule). */
+/** The Service tab: hover or click for the service tools (Service orders, Ansur reports, PDF Editor, Simpro sync, Maintenance Schedule). */
 function ServiceMenu({ on }) {
   const [open, setOpen] = useState(false)
   const box = useRef(null)

@@ -12,7 +12,8 @@
     "apps/admin",
     "apps/projects",
     "apps/asks",
-    "apps/equipment"
+    "apps/equipment",
+    "apps/pdf-editor"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

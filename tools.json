@@ -55,6 +55,17 @@
     "visible": true
   },
   {
+    "id": "pdf-editor",
+    "name": "PDF Editor",
+    "short": "PDF Editor",
+    "description": "Rearrange pages and add text, pictures, shapes and highlights to a PDF, on this device",
+    "link": "/pdf-editor/",
+    "category": "Service",
+    "icon": "file-pen",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "simpro",
     "name": "Simpro Asset Sync",
     "short": "Simpro Asset Sync",

@@ -8,7 +8,7 @@ export default function ServicePage() {
       <div className="sv-head">
         <div>
           <h1 className="sv-title">Service</h1>
-          <p className="sv-sub">The service team’s tools: orders, test reports, asset sync, maintenance, on call and checklists.</p>
+          <p className="sv-sub">The service team’s tools: orders, test reports, PDF editing, asset sync, maintenance, on call and checklists.</p>
         </div>
       </div>
       <ul className="sv-lists">

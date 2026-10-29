@@ -21,6 +21,7 @@ export const SECTIONS = [
   { id: 'checklists', prefix: '/checklists/' },
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
+  { id: 'pdf-editor', prefix: '/pdf-editor/' },
   // The rebuilt demo tracker while it's built (INTEGRATION-PLAN.md step 4).
   { id: 'equipment', prefix: '/equipment/' },
   // These two route on real paths inside (/schedule/my, /settings/people),
