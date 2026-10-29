@@ -27,7 +27,7 @@ Firestore without his yes in the chat. Counts only in anything pasted back: neve
    whichever side the switch says, so one landing mid-copy would be missed).
 
 ### Before the quiet hour (any day before; none of it changes what people see)
-1. **You, Firebase console → staff schedule project → Firestore → Rules:** paste the whole of `rules/firestore.rules`
+1. **DONE 29 Oct (Jonathan: "rules published", file as of `f4a48f3`).** Firebase console → staff schedule project → Firestore → Rules: paste the whole of `rules/firestore.rules`
    (never a part) and Publish. It adds the tracker's collections, `settings/equipmentCutover`, `trackerRole` and
    `trackerTester`, `notifications.demoReminders`, `tileLocations` (29 Oct), and the Checklists changes that are
    already waiting (`chs-equipment/TODO.md`). Check: Equipment still loads and Manage → Data source says "old
@@ -117,7 +117,7 @@ a personal demo reminders switch) and the nightly backup following it (`backup-f
 Everything sits on the old database until the switch is moved. What's left, in order:
 
 ### 1. Jonathan's steps (need access Claude doesn't have)
-- [ ] Publish `rules/firestore.rules` in the Firebase console (staff schedule project). It adds
+- [x] (29 Oct, as of `f4a48f3`) Publish `rules/firestore.rules` in the Firebase console (staff schedule project). It adds
       `settings/equipmentCutover`, `trackerRole`/`trackerTester`, `notifications.demoReminders`.
 - [ ] Give the proxy's service account **Cloud Datastore User** in the staff schedule's Google Cloud
       project (it only has read today). The backup's account already has Viewer, which is enough.

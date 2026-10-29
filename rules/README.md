@@ -52,3 +52,4 @@ The tests read `../firestore.rules` relative to themselves, so the copy here is
 always the one tested.
 
 `firestore.rules` with the home page layout (`users/{uid}.homeLayout`, the Customise button on the home page) was published on 23 Oct 2026.
+`firestore.rules` as of commit `f4a48f3` (the tracker's collections, `settings/equipmentCutover`, `tileLocations`, Checklists) was published on 29 Oct 2026, reported by Jonathan in chat.
