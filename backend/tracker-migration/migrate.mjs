@@ -18,10 +18,13 @@
 //
 // What moves: data (equipment, history, loanMeta), loanDocs, upcomingLoans,
 // retired, kitGroups, customDemoTypes, simproConfig, auditLog, and test
-// reports (testReports + testReportFiles). What doesn't: config (the admin
-// password is not copied anywhere), accountManagers (the team goes into users,
-// step 5A), the proxy's sent-reminder markers (returnDueSoonReminders,
-// demoReminders, stuckLoanReminders: they stay with it until it moves), _v.
+// reports (testReports + testReportFiles), and the proxy's sent-reminder
+// records (demoReminders, stuckLoanReminders, returnDueSoonReminders, into
+// equipmentReminders/{kind}__{key}, where the proxy looks once the switch says
+// firestore: without them every loan already reminded would be reminded again).
+// What doesn't: config (the admin password is not copied anywhere),
+// accountManagers (the team goes into users, step 5A), tileLocations (Tile sync
+// writes Firestore itself, backend/tile-sync), _v.
 import { readFileSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
@@ -39,9 +42,10 @@ const write = has('--write'), checkOnly = has('--check')
 if (!from) { console.error('Say where from: --from live, or --from <Demo-Tracker-….json>'); process.exit(2) }
 
 const RTDB_URL = 'https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app'
-const MOVED = ['data', 'loanDocs', 'upcomingLoans', 'retired', 'kitGroups', 'customDemoTypes', 'simproConfig', 'auditLog', 'testReports', 'testReportFiles']
-// The proxy's sent-reminder markers stay with it until its reminders move (5B).
-const LEFT = ['config', 'accountManagers', 'returnDueSoonReminders', 'demoReminders', 'stuckLoanReminders']
+// The proxy's sent-reminder records (apps-script/proxy trackerFsPlace_).
+const MARKERS = ['demoReminders', 'stuckLoanReminders', 'returnDueSoonReminders']
+const MOVED = ['data', 'loanDocs', 'upcomingLoans', 'retired', 'kitGroups', 'customDemoTypes', 'simproConfig', 'auditLog', 'testReports', 'testReportFiles', ...MARKERS]
+const LEFT = ['config', 'accountManagers', 'tileLocations']
 const list = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []).filter((x) => x && typeof x === 'object')
 
 /* ── Firestore (the hub's project, or the emulator) ── */
@@ -148,6 +152,25 @@ async function migrateAudit(tree) {
   return { inSource: entries.length, alreadyThere: entries.length - todo.length, toWrite: todo.length }
 }
 
+/** The proxy's reminder records as equipmentReminders documents (id as the proxy's trackerMarkerId_). */
+function reminderDocs(tree) {
+  const want = new Map()
+  for (const m of MARKERS) {
+    for (const [k, v] of Object.entries(tree[m] || {})) {
+      if (v == null) continue
+      want.set(m + '__' + encodeURIComponent(k), pack(v && typeof v === 'object' && !Array.isArray(v) ? v : { value: v }))
+    }
+  }
+  return want
+}
+async function migrateReminders(tree) {
+  const want = reminderDocs(tree)
+  const have = new Map((await fs.collection('equipmentReminders').get()).docs.map((d) => [d.id, d.data()]))
+  const todo = [...want].filter(([id, v]) => !same(have.get(id), v))
+  if (write) await writeAll(todo.map(([id, data]) => ({ col: 'equipmentReminders', id, data })))
+  return { inSource: want.size, alreadyThere: want.size - todo.length, toWrite: todo.length }
+}
+
 async function migrateReports(tree, files) {
   let inSource = 0, alreadyThere = 0, toWrite = 0, missingFile = 0
   for (const [key, reports] of Object.entries(tree.testReports || {})) {
@@ -194,6 +217,8 @@ async function check(state, today) {
   rows.push(['loan forms not the same', 0, differing(new Map(Object.entries(state.loanDocs)), new Map(Object.entries(back.loanDocs)))])
   rows.push(['loan meta not the same', 0, differing(new Map(Object.entries(state.loanMeta)), new Map(Object.entries(back.loanMeta)))])
   rows.push(['bookings not the same', 0, differing(byId(state.upcoming), byId(back.upcoming))])
+  const haveReminders = new Set((await fs.collection('equipmentReminders').select().get()).docs.map((d) => d.id))
+  rows.push(['reminder records missing', 0, [...reminderDocs(tree).keys()].filter((id) => !haveReminders.has(id)).length])
   rows.push(['test reports', Object.values(tree.testReports || {}).reduce((n, r) => n + Object.keys(r || {}).length, 0), (await fs.collectionGroup('reports').get()).size])
   rows.push(['audit entries', Object.keys(tree.auditLog || {}).length, (await fs.collection('equipmentAudit').count().get()).data().count])
   console.log('\nCheck (source → Firestore):')
@@ -227,6 +252,7 @@ if (!checkOnly) {
   if (deletes) console.log(`  of which deletes: ${deletes} (in Firestore but no longer in the source)`)
   if (write) await writeAll(writes)
   console.log('Audit log:', JSON.stringify(await migrateAudit(tree)))
+  console.log('Reminder records:', JSON.stringify(await migrateReminders(tree)))
   console.log('Test reports:', JSON.stringify(await migrateReports(tree, files)))
   if (!write) console.log('\nDry run: nothing written. Add --write to write it.')
 }

@@ -4,6 +4,111 @@ Written 19 Oct 2026 for Peter to pick up (Jonathan agreed step 4 finishes
 first, then all of step 5). Read `INTEGRATION-PLAN.md` first; this expands its
 step 5. Tick items here as they land, with the commit.
 
+## Cutover runbook (written 29 Oct 2026, from re-reading the code; nothing here has been run on live data)
+
+Everything that says **you** needs Jonathan's console access (Firebase, Google Cloud, GitHub, Apps Script).
+Claude sessions must not run the migration against live data, move the switch, publish rules or change live
+Firestore without his yes in the chat. Counts only in anything pasted back: never names or addresses.
+
+### Decide first (three things the plan didn't settle)
+1. **Freezing the old database breaks the team screens.** `rules/database.rules.json` with `.write: false` also
+   stops Manage → Team in the tracker (`addMember`, `saveMember`, `removeMember`) and Settings' per-person demo
+   reminders switch (`tracker.update`): both still write `/accountManagers` there (5A isn't finished;
+   `setMemberRole` survives, the hub record is what counts). Recommended: freeze with that one path left open
+   until 5A lands, then freeze fully:
+   `{"rules":{".read":"auth != null && auth.token.staff === true",".write":false,"accountManagers":{".write":"auth != null && auth.token.staff === true"}}}`
+   (a child rule may allow what its parent denies). It is not put in `rules/database.rules.json` yet, so the repo
+   keeps matching what is published.
+2. **When to freeze.** The plan says straight after read-only is turned off. Recommended instead: **after the
+   next-morning checks pass (steps 11–13)**. "Back to the old database" only works while the old database still
+   takes writes; once frozen, going back means re-publishing the old rules first.
+3. **Which hour.** After the 08:00 reminders have run and away from the 03:00 backup: about 10:00–11:00 on a
+   weekday. Nobody should be making loans, and no Simpro job being created (the proxy writes job numbers back to
+   whichever side the switch says, so one landing mid-copy would be missed).
+
+### Before the quiet hour (any day before; none of it changes what people see)
+1. **You, Firebase console → staff schedule project → Firestore → Rules:** paste the whole of `rules/firestore.rules`
+   (never a part) and Publish. It adds the tracker's collections, `settings/equipmentCutover`, `trackerRole` and
+   `trackerTester`, `notifications.demoReminders`, `tileLocations` (29 Oct), and the Checklists changes that are
+   already waiting (`chs-equipment/TODO.md`). Check: Equipment still loads and Manage → Data source says "old
+   Realtime Database". Back: Rules → history → publish the earlier version.
+2. **You, Google Cloud → IAM, staff schedule project:** give the proxy's service account (the chs-equipment one, the
+   `client_email` of the key in Script Properties) **Cloud Datastore User**; it has only Viewer now. Without it the
+   proxy's Firestore writes are logged ("Firestore write failed") and dropped: job numbers aren't written back and
+   every reminder repeats on every run. Nothing exercises it until the switch moves, so check the role is listed.
+   The nightly backup's account needs only Viewer (it has it).
+3. **You, Settings → People and access:** set everyone's tracker role (and the testers). Until then the hard-coded
+   `SERVICE_TEAM` fallback decides.
+4. **You, two service-account keys** (Firebase console → Project settings → Service accounts → Generate new private
+   key): the staff schedule project's and chs-equipment's. Save them **outside the repo**; delete them afterwards.
+5. **You, dry run** (reads only): `cd backend/tracker-migration && npm install`, then with `HUB_SA` and `CHS_SA` set to
+   the two key paths, `node migrate.mjs --from live`. Expect: no "WARNING: n items have no asset number" (give them
+   one in the tracker first); nothing after "NOT KNOWN" (a path the migration has never seen: stop and tell Claude);
+   "Documents to write" about items + history + loans + kits + 1; counts you recognise from the old tracker's
+   Overview; "Reminder records" with a count.
+6. **You, GitHub → Actions → Tile location sync → Run workflow, target `both`:** fills Firestore's `tileLocations`
+   ahead of the day (needs step 1 for the browser to read it; the sync itself isn't held to the rules). The log ends
+   "Firestore: N/N tiles written, 0 removed, 0 failed". If it can't read the switch or Firestore, look at the
+   `FIREBASE_*` secrets first.
+
+### The cutover (you and Peter, in this order; stop at any failed check)
+7. **Manage → Data source → Read-only on.** Check: a second open tracker tab shows the banner within a couple of
+   seconds, and saving anything is refused. (Not for hours: nobody can save.)
+8. **Migration for real:** `node migrate.mjs --from live --write`. It writes, then reads Firestore back and compares
+   (every item, form, meta and booking, history's order, test reports, the audit log, the Equipment view's five
+   counts, and that every reminder record arrived). Check: it ends **"Everything matches."** and exits 0. Run it
+   again: "Documents to write: 0". Any "DIFF" line: don't switch; tell Claude the labels (not data).
+9. **Manage → Data source → Firestore on** (confirm). Every open tracker reloads onto it. Check by hand: Overview's
+   numbers equal step 8's; open three loans (one with a form and notes, one booking, one with a test report that
+   downloads); in test mode make a loan and return it; Settings → send yourself a test push (it opens the tracker);
+   the Equipment list's Tile column still shows places (step 6's, or the old copy). Then **Read-only off** and make
+   one real change that you undo. *Going back from here:* Manage → "Back to the old database" (what was made on
+   Firestore since isn't in it).
+10. **Tile sync by hand:** Actions → Tile location sync → Run, target `auto`. Its log line "Tracker data source:
+    firestore; writing to: firestore" shows it follows the switch.
+
+### Next morning (before freezing the old database)
+11. **Backup:** the 03:00 run's log says "(from Firestore)", and `checkTrackerJsonBackup()` (backup editor) lists the
+    same counts.
+12. **Proxy:** Apps Script → Executions after 08:00: `sendDemoReminders` and `sendReturnReminders` ran, with no
+    "Firestore write failed" and no "Cutover switch not read"; `equipmentReminders` in Firestore has records. A new
+    Simpro job number lands on its loan (Loans → open it).
+13. **Project tracker:** Settings → Demo pool's connection card reads the tracker (it follows the switch; never yet
+    checked against live data).
+14. Only now **freeze the old database** (decisions 1 and 2), published in the Firebase console → chs-equipment →
+    Realtime Database → Rules. Then 5C waits a week of clean running and Jonathan's yes.
+
+### Going back
+- Before step 14: Manage → "Back to the old database". What was made on Firestore since is not in the old one
+  (re-enter it from the audit log; copying it back is not built).
+- After step 14: first re-publish the earlier old-database rules (writes back to staff), then the button.
+- The Firestore rules and the IAM grant can stay either way.
+
+### Checked on 29 Oct (no live credentials)
+- `npm test -w apps/equipment` (92, including the proxy and the backup following the switch);
+  `rules/tests/equipment-rules.test.mjs` on the emulator (63); the Tile sync tests (`backend/tile-sync`, 10).
+- The migration on the Firestore emulator with the dev sample plus invented reminder records and an unknown path:
+  dry run, write, a second run that writes 0, `--check` "Everything matches", the unknown path named.
+- Not run: `--from live` (no keys), the proxy or the backup against live Firestore, `rules/tests/equipment-layer.test.mjs`
+  (needs its own esbuild checkout; untouched since it last passed).
+
+### Stale or contradicted (found 29 Oct)
+- **Tile locations** (What's left, item 3) said the new tracker doesn't read them. It did, from the old database;
+  fixed, and it now follows the switch.
+- **Reminder records.** `migrate.mjs` and 5B said the proxy's sent-reminder records (`demoReminders`,
+  `stuckLoanReminders`, `returnDueSoonReminders`) "stay with it". The proxy reads and writes them in Firestore's
+  `equipmentReminders` once the switch says so, so without a copy every loan already reminded would be reminded
+  again once. `migrate.mjs` now copies them and checks that they arrived.
+- **`tileLocations`** was reported by the migration as "NOT KNOWN"; it is now listed as left (Tile sync writes it).
+- **"Set the old Realtime Database read-only"** (step 2 below, and 5B) is contradicted by the team screens that
+  still write `/accountManagers` (decision 1).
+- Manage → Data source's own four-step list leaves out the rules, the IAM grant and Tile sync. The unticked 5B item
+  "Everything else moved to Firestore" is built in every part (proxy, backup, project feed, Tile sync); tick it
+  once the switch has moved.
+- 5D's table still shows the pushes opening `/demo/…`; they open `/equipment/…` now.
+- `CLAUDE.md` and `README.md` here still describe `/demo/` as the old tracker built in from `chs-equipment`
+  ("change the tracker there"); it only forwards to `/equipment/` now.
+
 ## What's left (handover, 19 Oct evening)
 
 Built and pushed so far: roles in place of the admin password (5A), the cutover switch and the
@@ -223,9 +328,10 @@ Work:
       or the emulator). A dry run unless `--write`; counts only; writes only
       what differs, so a second run writes nothing; then reads it all back and
       checks the lists, every item, form, meta and booking, history's order,
-      reports, the audit log and the Equipment view's five counts. Doesn't
+      reports, the audit log and the Equipment view's five counts. Copies the proxy's sent-reminder
+      records too (`equipmentReminders`, 29 Oct). Doesn't
       copy `config` (the admin password), `accountManagers` (5A) or
-      `returnDueSoonReminders`, and names any top-level path it doesn't know.
+      `tileLocations`, and names any top-level path it doesn't know.
       Tried on the emulator with the dev sample; **not yet run on the real
       data** (needs the two keys, and a look at the dry run's counts).
 - [ ] The cutover, planned with Jonathan for a quiet hour: a read-only banner on
