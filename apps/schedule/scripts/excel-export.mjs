@@ -21,6 +21,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { initializeApp, cert } from 'firebase-admin/app'
+import { reportRun } from './jobStatus.mjs'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { getCurrentWeekStart } from '../src/utils/week.js'
 import { readWorkbook } from './excelImportJob.mjs'
@@ -38,7 +39,11 @@ const dir = path.dirname(configFile)
 const logFile = path.join(dir, 'excel-import.log')
 const apply = flag('--apply')
 
+let lastLine = ''
+let keyFile = null // the Firebase key from the config, once read: where the run is reported from
+
 function log(line) {
+  lastLine = line
   const text = `${new Date().toLocaleString('sv-SE')} ${apply ? '' : '[dry run] '}Write-back: ${line}`
   console.log(text)
   try {
@@ -97,6 +102,7 @@ function applyInExcel(workbookFile, edits) {
 async function main() {
   const config = readJSON(configFile, null)
   if (!config) throw new Error(`No config at ${configFile} — see apps/schedule/EXCEL-IMPORT.md.`)
+  keyFile = config.serviceAccount
   for (const k of ['workbook', 'serviceAccount']) if (!config[k] || !fs.existsSync(config[k])) throw new Error(`"${k}" in the config is missing or the file isn't there.`)
   if (apply && config.writeBack !== true) return 0 // switched off: the import side still runs
 
@@ -120,7 +126,14 @@ async function main() {
   return result.status === 'error' ? 1 : 0
 }
 
-main().then(code => process.exit(code), e => {
+// Every run is reported to Settings → Background jobs, including the quiet ones (nothing to write), but not
+// when write-back is switched off or on a dry run.
+async function finish(code) {
+  if (apply && writeBackOn) await reportRun(keyFile, 'excel-writeback', code === 0, lastLine || 'Nothing to write')
+  process.exit(code)
+}
+
+main().then(finish, async e => {
   log(`FAILED — ${e.message}`)
-  process.exit(1)
+  await finish(1)
 })

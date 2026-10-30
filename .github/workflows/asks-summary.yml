@@ -54,6 +54,13 @@ jobs:
           RESEND_FROM:           ${{ secrets.RESEND_FROM }}
           SCHEDULE:              ${{ github.event.schedule }}
           DRY_RUN:               ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && 'true' || 'false' }}
+      # Tells Settings → Background jobs how this run went (shared/jobs.js).
+      - run: node scripts/report-job.mjs asks-summary ${{ job.status }}
+        if: always() && !(github.event_name == 'workflow_dispatch' && inputs.dry_run)
+        env:
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
       # GitHub pauses timed workflows after 60 days without repo activity —
       # re-enabling this one on every run keeps it alive.
       - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/asks-summary.yml/enable"

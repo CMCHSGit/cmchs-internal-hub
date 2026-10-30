@@ -21,6 +21,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { initializeApp, cert } from 'firebase-admin/app'
+import { reportRun } from './jobStatus.mjs'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { getCurrentWeekStart } from '../src/utils/week.js'
 import { readWorkbook, runImport } from './excelImportJob.mjs'
@@ -41,7 +42,11 @@ const logFile = path.join(dir, 'excel-import.log')
 const stateFile = path.join(dir, 'excel-import-state.json')
 const apply = flag('--apply')
 
+let lastLine = ''
+let keyFile = null // the Firebase key from the config, once read: where the run is reported from
+
 function log(line) {
+  lastLine = line
   const text = `${new Date().toLocaleString('sv-SE')} ${apply ? '' : '[dry run] '}${line}` // local time, "2026-10-15 09:54:16"
   console.log(text)
   try {
@@ -97,6 +102,7 @@ function firestoreStore(serviceAccountFile) {
 async function main() {
   const config = readJSON(configFile, null)
   if (!config) throw new Error(`No config at ${configFile} — see apps/schedule/EXCEL-IMPORT.md.`)
+  keyFile = config.serviceAccount
   for (const k of ['workbook', 'serviceAccount']) if (!config[k] || !fs.existsSync(config[k])) throw new Error(`"${k}" in the config is missing or the file isn't there.`)
 
   // Most runs find the workbook as it was: skip them, apart from an hourly look for changes on the app's side.
@@ -119,7 +125,14 @@ async function main() {
   return 0
 }
 
-main().then(code => process.exit(code), e => {
+// Every run is reported to Settings → Background jobs, including the quiet ones (no change in the workbook).
+// A dry run (no --apply) is not a real run.
+async function finish(code) {
+  if (apply) await reportRun(keyFile, 'excel-import', code === 0, lastLine || 'Up to date, nothing to bring in')
+  process.exit(code)
+}
+
+main().then(finish, async e => {
   log(`FAILED — ${e.message}`)
-  process.exit(1)
+  await finish(1)
 })

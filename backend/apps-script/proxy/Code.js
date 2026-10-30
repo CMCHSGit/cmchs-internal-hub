@@ -375,7 +375,9 @@ function installDemoReminderTrigger() {
   Logger.log('Daily demo reminder trigger installed (8am NZ time).');
 }
 
-function sendDemoReminders() {
+function sendDemoReminders() { trackJob_('demo-reminders', sendDemoRemindersRun_); }
+
+function sendDemoRemindersRun_() {
   const todayStr = today();
   // NOTE: equipment lives under /data/equipment, not /equipment — this was
   // originally querying a path that has never existed, so this function has
@@ -498,7 +500,9 @@ function installStuckLoanReminderTrigger() {
   Logger.log('Stuck-loan reminder trigger installed (every 4 hours).');
 }
 
-function sendStuckLoanReminders() {
+function sendStuckLoanReminders() { trackJob_('stuck-loans', sendStuckLoanRemindersRun_); }
+
+function sendStuckLoanRemindersRun_() {
   const todayStr = today();
   const upcomingRaw = fetchFirebaseJson('/upcomingLoans.json') || {};
   const upcoming = Object.keys(upcomingRaw).map(function(k) {
@@ -584,7 +588,9 @@ function installReturnReminderTrigger() {
   Logger.log('Daily return-reminder trigger installed (8am NZ time).');
 }
 
-function sendReturnReminders() {
+function sendReturnReminders() { trackJob_('return-reminders', sendReturnRemindersRun_); }
+
+function sendReturnRemindersRun_() {
   const todayStr = today();
   const raw = fetchFirebaseJson('/data/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
@@ -1446,7 +1452,9 @@ function installAskSweepTrigger() {
   Logger.log('Ask sweep trigger installed (every 5 minutes).');
 }
 
-function sweepAsks() {
+function sweepAsks() { trackJob_('ask-sweep', sweepAsksRun_); }
+
+function sweepAsksRun_() {
   const token = hubAccessToken_();
   if (!token) { Logger.log('sweepAsks: hub push is not set up'); return; }
   const props = PropertiesService.getScriptProperties();
@@ -2310,4 +2318,57 @@ function trackerFsWrite_(path, value) {
   if (p.kind === 'marker') { fsPatch_('equipmentReminders/' + trackerMarkerId_(p.mark, p.key), value || {}, false); return true; }
   if (p.kind !== 'old') throw new Error('The proxy doesn\'t write ' + p.kind + ' to the tracker\'s Firestore data');
   return false;
+}
+
+// ── Background jobs page ─────────────────────────────────────────────────────
+// Settings → Background jobs (internal.chsnz.co.nz/settings/jobs) shows how each
+// timed job last went. Each writes one document, jobRuns/{id}, when it finishes
+// (the list is shared/jobs.js in the hub repo). Counts and plain words only,
+// never names or emails. Never throws: a job that worked must not fail because
+// this could not be written.
+function jobStatusToken_() { return hubAccessToken_(); }
+
+function cleanJobMessage_(message) {
+  return String(message === undefined || message === null ? '' : message)
+    .replace(/[^\s@]+@[^\s@]+/g, '…')
+    .replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+function reportJob_(id, ok, message) {
+  try {
+    const token = jobStatusToken_();
+    if (!token) return;
+    const url = 'https://firestore.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents/jobRuns/' + encodeURIComponent(id);
+    const headers = { Authorization: 'Bearer ' + token };
+    const now = String(Date.now());
+    const text = cleanJobMessage_(message);
+    const fields = { id: { stringValue: id }, lastRunMs: { integerValue: now }, lastOk: { booleanValue: !!ok }, lastMessage: { stringValue: text } };
+    if (ok) {
+      fields.lastSuccessMs = { integerValue: now };
+      fields.failuresInARow = { integerValue: '0' };
+    } else {
+      let streak = 0;
+      const r = UrlFetchApp.fetch(url, { headers: headers, muteHttpExceptions: true });
+      if (r.getResponseCode() === 200) streak = Number((((JSON.parse(r.getContentText()).fields || {}).failuresInARow) || {}).integerValue || 0);
+      fields.lastFailureMs = { integerValue: now };
+      fields.lastFailureMessage = { stringValue: text };
+      fields.failuresInARow = { integerValue: String(streak + 1) };
+    }
+    const mask = Object.keys(fields).map(function(k) { return 'updateMask.fieldPaths=' + k; }).join('&');
+    UrlFetchApp.fetch(url + '?' + mask, { method: 'patch', contentType: 'application/json', headers: headers, payload: JSON.stringify({ fields: fields }), muteHttpExceptions: true });
+  } catch (err) {
+    Logger.log('Could not report the job run: ' + err);
+  }
+}
+
+// Runs a timed job and reports how it went to the jobs page: an exception is a failure
+// (and is rethrown, so Apps Script's own failure email still goes out).
+function trackJob_(id, fn) {
+  try {
+    fn();
+  } catch (err) {
+    reportJob_(id, false, (err && err.message) || err);
+    throw err;
+  }
+  reportJob_(id, true, 'Ran');
 }

@@ -54,6 +54,20 @@ jobs:
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
           TILE_SYNC_TARGET:      ${{ inputs.target || 'auto' }}
+      # Tells Settings → Background jobs how this run went (shared/jobs.js).
+      - uses: actions/setup-node@v4
+        if: always()
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+        if: always()
+      - run: node scripts/report-job.mjs tile-sync ${{ job.status }}
+        if: always()
+        env:
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
       # GitHub pauses timed workflows after 60 days without repo activity -
       # re-enabling this one on every run keeps it alive.
       - run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/tile-sync.yml/enable"

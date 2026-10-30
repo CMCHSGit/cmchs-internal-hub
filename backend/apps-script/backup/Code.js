@@ -279,10 +279,12 @@ function equipmentBackup_() {
       if (f.getDateCreated() < cutoff) f.setTrashed(true);
     }
 
+    reportJob_('backup-equipment', true, 'Backup written: ' + equipment.length + ' items, ' + history.length + ' history records');
     console.log('Backup complete' + (fsTree ? ' (from Firestore)' : '') + ': ' + fileName + ' (' + equipment.length + ' items, ' + history.length +
       ' history records, ' + currentLoanItems.length + ' on-loan items, ' + upcomingList.length + ' upcoming loans)');
 
   } catch (err) {
+    reportJob_('backup-equipment', false, err.toString());
     console.error('Backup failed:', err.toString());
     MailApp.sendEmail(
       NOTIFY_EMAIL,
@@ -378,9 +380,11 @@ function trackerJsonBackup_() {
       if (f.getName().indexOf(TRACKER_JSON_PREFIX) === 0 && f.getDateCreated() < cutoff) f.setTrashed(true);
     }
 
+    reportJob_('backup-tracker', true, 'Backup written: ' + Object.keys(tree).length + ' paths');
     console.log('Demo tracker JSON backup complete' + (onFs ? ' (from Firestore)' : '') + ': ' + name + ' (' + Object.keys(tree).length + ' paths, ' +
       reports + ' test report files, ' + newReports + ' new)');
   } catch (err) {
+    reportJob_('backup-tracker', false, err.toString());
     console.error('Demo tracker JSON backup failed:', err.toString());
     try {
       MailApp.sendEmail(NOTIFY_EMAIL, 'Demo Tracker JSON Backup Failed - ' + new Date().toDateString(),
@@ -661,9 +665,11 @@ function projectsBackup_() {
       if (f.getDateCreated() < cutoff) f.setTrashed(true);
     }
 
+    reportJob_('backup-projects', true, 'Backup written: ' + jobs.length + ' jobs, ' + weeks.length + ' staff weeks');
     console.log('Project tracker backup complete: ' + name + ' (' + jobs.length + ' jobs, ' + weeks.length + ' staff weeks, ' +
       Object.keys(c.projectComments).length + ' comments, ' + Object.keys(c.projectHistory).length + ' history entries)');
   } catch (err) {
+    reportJob_('backup-projects', false, err.toString());
     console.error('Project tracker backup failed:', err.toString());
     try {
       MailApp.sendEmail(NOTIFY_EMAIL, 'Project Tracker Backup Failed - ' + new Date().toDateString(),
@@ -822,9 +828,11 @@ function asksBackup_() {
     }
 
     const commentCount = Object.keys(r.comments).reduce(function(n, id) { return n + Object.keys(r.comments[id]).length; }, 0);
+    reportJob_('backup-asks', true, 'Backup written: ' + list.length + ' asks, ' + commentCount + ' comments');
     console.log('Asks backup complete: ' + name + ' (' + list.length + ' asks, ' + commentCount + ' comments, ' +
       r.photos.length + ' photos, ' + newPhotos + ' new)');
   } catch (err) {
+    reportJob_('backup-asks', false, err.toString());
     console.error('Asks backup failed:', err.toString());
     try {
       MailApp.sendEmail(NOTIFY_EMAIL, 'Asks Backup Failed - ' + new Date().toDateString(),
@@ -954,6 +962,7 @@ function activityBackup_() {
     const entries = readActivity_(token, fromMs, toMs);
     if (!entries.length) {
       props.setProperty(ACTIVITY_CURSOR_PROP, String(toMs));
+      reportJob_('backup-activity', true, 'No new lines');
       console.log('Activity log backup: no new lines.');
       return 0;
     }
@@ -974,9 +983,11 @@ function activityBackup_() {
 
     // Only now, with both written, is the cursor moved: a failure above is retried from the same place tomorrow.
     props.setProperty(ACTIVITY_CURSOR_PROP, String(toMs));
+    reportJob_('backup-activity', true, entries.length + ' new lines backed up');
     console.log('Activity log backup complete: ' + entries.length + ' new line' + (entries.length === 1 ? '' : 's') + ' in ' + Object.keys(months).length + ' month' + (Object.keys(months).length === 1 ? '' : 's') + '.');
     return entries.length;
   } catch (err) {
+    reportJob_('backup-activity', false, err.toString());
     console.error('Activity log backup failed:', err.toString());
     try {
       MailApp.sendEmail(NOTIFY_EMAIL, 'Hub Activity Log Backup Failed - ' + new Date().toDateString(),
@@ -1105,4 +1116,45 @@ function checkBackupDatabaseAuth() {
   const url = FIREBASE_BASE + '/upcomingLoans.json?shallow=true';
   const code = UrlFetchApp.fetch(url + '&access_token=' + encodeURIComponent(token), { muteHttpExceptions: true }).getResponseCode();
   Logger.log(code === 200 ? 'READY — the backup can read the database signed.' : 'NOT READY — signed read returned ' + code + '.');
+}
+
+// ── Background jobs page ─────────────────────────────────────────────────────
+// Settings → Background jobs (internal.chsnz.co.nz/settings/jobs) shows how each
+// timed job last went. Each writes one document, jobRuns/{id}, when it finishes
+// (the list is shared/jobs.js in the hub repo). Counts and plain words only,
+// never names or emails. Never throws: a job that worked must not fail because
+// this could not be written.
+function jobStatusToken_() { return serviceAccountToken_('https://www.googleapis.com/auth/datastore', 'firestoreAccessToken'); }
+
+function cleanJobMessage_(message) {
+  return String(message === undefined || message === null ? '' : message)
+    .replace(/[^\s@]+@[^\s@]+/g, '…')
+    .replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+function reportJob_(id, ok, message) {
+  try {
+    const token = jobStatusToken_();
+    if (!token) return;
+    const url = 'https://firestore.googleapis.com/v1/projects/' + scheduleProjectId_() + '/databases/(default)/documents/jobRuns/' + encodeURIComponent(id);
+    const headers = { Authorization: 'Bearer ' + token };
+    const now = String(Date.now());
+    const text = cleanJobMessage_(message);
+    const fields = { id: { stringValue: id }, lastRunMs: { integerValue: now }, lastOk: { booleanValue: !!ok }, lastMessage: { stringValue: text } };
+    if (ok) {
+      fields.lastSuccessMs = { integerValue: now };
+      fields.failuresInARow = { integerValue: '0' };
+    } else {
+      let streak = 0;
+      const r = UrlFetchApp.fetch(url, { headers: headers, muteHttpExceptions: true });
+      if (r.getResponseCode() === 200) streak = Number((((JSON.parse(r.getContentText()).fields || {}).failuresInARow) || {}).integerValue || 0);
+      fields.lastFailureMs = { integerValue: now };
+      fields.lastFailureMessage = { stringValue: text };
+      fields.failuresInARow = { integerValue: String(streak + 1) };
+    }
+    const mask = Object.keys(fields).map(function(k) { return 'updateMask.fieldPaths=' + k; }).join('&');
+    UrlFetchApp.fetch(url + '?' + mask, { method: 'patch', contentType: 'application/json', headers: headers, payload: JSON.stringify({ fields: fields }), muteHttpExceptions: true });
+  } catch (err) {
+    Logger.log('Could not report the job run: ' + err);
+  }
 }

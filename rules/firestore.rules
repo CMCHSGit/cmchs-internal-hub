@@ -507,6 +507,15 @@ service cloud.firestore {
       };
     }
 
+    // How the background jobs are doing (Settings → Background jobs; the list
+    // is shared/jobs.js). Each job writes its own document as a back-office
+    // account (the service account, which is not subject to these rules); no
+    // signed-in person writes here. Only admins read it.
+    match /jobRuns/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     // The demo tracker (internal.chsnz.co.nz/equipment/), from step 5 of
     // INTEGRATION-PLAN.md (STEP-5-PLAN.md 5B): its data moved here from the
     // chs-equipment Realtime Database, one document per item and per loan.
