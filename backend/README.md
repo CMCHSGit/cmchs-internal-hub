@@ -32,7 +32,7 @@ npx clasp deploy -i AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqD
 ```
 
 `-i` keeps the same `/exec` address (`shared/proxy.js`). The proxy is at
-deployment **@54**. Then check what is actually live:
+deployment **@55**. Then check what is actually live:
 
 ```bash
 PROXY="https://script.google.com/macros/s/AKfycbzKLt_IP3GPRiNQkYkCep-_Yee06rDwc3uJGnQQuzjVuCSJOImJnaqDgU-3W3q9Y4OHUw/exec"
@@ -46,6 +46,24 @@ editor and approved.
 
 The longer story (Script Properties, the IAM roles push needs, how SimproSync
 batches calls) is in `chs-equipment/PROJECT-CONTEXT.md` §2–§3.
+
+## Background jobs page
+
+Settings → Background jobs (admins only) lists every timed job and how its last
+run went. The list is `shared/jobs.js`; each job writes one document,
+`jobRuns/{id}`, when it finishes, and the page reads them. Counts and plain
+words only, never names.
+
+- **GitHub workflows:** the last step runs `scripts/report-job.mjs <id> <job status>`
+  (the deploy workflow has a final `report` job). A workflow skipped by its `if:`
+  reports nothing and shows as "No report yet" or "Overdue". A dry run reports nothing.
+- **Apps Script:** `reportJob_(id, ok, message)` in the backup and the proxy; the proxy's
+  timers go through `trackJob_`. New permissions: none (same service account).
+- **The PC (Excel copies):** `apps/schedule/scripts/jobStatus.mjs`, with the same Firebase key.
+- **Adding a job:** add it to `shared/jobs.js` (with how long it may stay quiet), and make it
+  report under the same id.
+- **Rules:** `jobRuns` is admin-read and has no client writes (`rules/firestore.rules`; must be
+  published). The writers are service accounts, which the rules don't apply to.
 
 ## Tile sync
 
