@@ -41,6 +41,7 @@ const apply = flag('--apply')
 
 let lastLine = ''
 let keyFile = null // the Firebase key from the config, once read: where the run is reported from
+let writeBackOn = false // from the config; only a run with write-back switched on is reported
 
 function log(line) {
   lastLine = line
@@ -103,6 +104,7 @@ async function main() {
   const config = readJSON(configFile, null)
   if (!config) throw new Error(`No config at ${configFile} — see apps/schedule/EXCEL-IMPORT.md.`)
   keyFile = config.serviceAccount
+  writeBackOn = config.writeBack === true
   for (const k of ['workbook', 'serviceAccount']) if (!config[k] || !fs.existsSync(config[k])) throw new Error(`"${k}" in the config is missing or the file isn't there.`)
   if (apply && config.writeBack !== true) return 0 // switched off: the import side still runs
 
