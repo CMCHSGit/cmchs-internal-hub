@@ -11,7 +11,7 @@
 // dev builds, offline): loadToday() resolves to null and the home page hides
 // the blocks that need it.
 import { describeDay, STATUS, PLAIN } from '../../schedule/src/utils/status.js'
-import { daysWithCalls, toISO, weekDates, WEEK_DAYS } from '../../schedule/src/utils/week.js'
+import { addDaysISO, daysWithCalls, toISO, weekDates, weekStartOf, WEEK_DAYS } from '../../schedule/src/utils/week.js'
 import { holidayOn } from '../../schedule/src/utils/holidays.js'
 import { shortNames } from '../../schedule/src/utils/names.js'
 import { TEAMS, teamLabel } from '../../schedule/src/utils/teams.js'
@@ -41,6 +41,11 @@ function getCurrentWeekStart(offset, now = new Date()) {
   return toISO(d)
 }
 
+// The Monday of the Monday–Sunday week `now` falls in: the week on call runs by.
+function onCallWeekStart(offset, now = new Date()) {
+  return addDaysISO(weekStartOf(now), offset * 7)
+}
+
 function initials(name) {
   return name.split(/[\s-]+/).filter(Boolean).map(x => x[0]).join('').slice(0, 2).toUpperCase()
 }
@@ -50,10 +55,13 @@ function initials(name) {
  * tested without Firestore: users = the `users` docs (with uid), schedules =
  * { [uid]: that week's schedule doc }, oncall = the week's `oncall` doc.
  */
-export function buildToday({ users, schedules, oncall, later = [], now = new Date() }) {
+export function buildToday({ users, schedules, oncall, oncallNow, later = [], now = new Date() }) {
   // The schedule is Monday–Friday. On a weekend getCurrentWeekStart() is
   // already next Monday, so show that day's plan and say so.
   const weekStart = getCurrentWeekStart(0, now)
+  // On call runs Monday to Sunday, so over a weekend the person on call is still
+  // this week's, not the plan's week (`oncallNow`; weekdays it's the same doc).
+  const onCallDoc = oncallNow === undefined ? oncall : oncallNow
   const idx = weekDates(weekStart).indexOf(toISO(now))
   const dayIdx = idx < 0 ? 0 : idx
   const holiday = holidayOn(weekDates(weekStart)[dayIdx])
@@ -73,7 +81,7 @@ export function buildToday({ users, schedules, oncall, later = [], now = new Dat
       where: day.empty ? 'No entry' : (day.note || STATUS[day.status].label),
       // The schedule's "plain" colour is a theme variable there; white here.
       swatch: day.empty ? '#f4f4f5' : (day.bg === PLAIN ? '#ffffff' : day.bg),
-      onCall: !!oncall?.uid && oncall.uid === u.uid,
+      onCall: !!onCallDoc?.uid && onCallDoc.uid === u.uid,
     }
   }).sort((a, b) => a.name.localeCompare(b.name))
 
@@ -84,7 +92,7 @@ export function buildToday({ users, schedules, oncall, later = [], now = new Dat
     weekend: idx < 0,
     dayName: WEEK_DAYS[dayIdx],
     holiday,
-    onCallName: onCallPerson ? onCallPerson.name : (oncall?.displayName || ''),
+    onCallName: onCallPerson ? onCallPerson.name : (onCallDoc?.displayName || ''),
     // The following weeks' on-call, soonest first: [{ weekStart, name }]
     upcoming: later.filter(w => w.doc?.uid || w.doc?.displayName).map(w => ({ weekStart: w.weekStart, name: names.get(w.doc.uid) || w.doc.displayName || '' })),
     glance: GLANCE.map(g => ({ ...g, people: people.filter(p => g.statuses.includes(p.status)) })),
@@ -105,22 +113,26 @@ export async function loadToday() {
     return null
   }
   const db = (await import('../../../shared/firestore.js')).firestore(app)
-  const weekStart = getCurrentWeekStart(0)
+  const weekStart = getCurrentWeekStart(0)    // the plan's week: next Monday over a weekend
+  const callWeek = onCallWeekStart(0)         // the on-call week: Monday to Sunday, so this one
 
-  const laterStarts = Array.from({ length: UPCOMING_WEEKS }, (_, i) => getCurrentWeekStart(i + 1))
-  const [usersSnap, schedSnap, oncallSnap, ...laterSnaps] = await Promise.all([
+  const laterStarts = Array.from({ length: UPCOMING_WEEKS }, (_, i) => onCallWeekStart(i + 1))
+  const [usersSnap, schedSnap, oncallSnap, callNowSnap, ...laterSnaps] = await Promise.all([
     fs.getDocs(fs.collection(db, 'users')),
     fs.getDocs(fs.query(fs.collection(db, 'schedules'), fs.where('weekStart', '==', weekStart))),
     fs.getDoc(fs.doc(db, 'oncall', weekStart)).catch(() => null),
+    callWeek === weekStart ? null : fs.getDoc(fs.doc(db, 'oncall', callWeek)).catch(() => null),
     // The coming weeks' on-call, from the same documents the Schedule's On-call roster sets
     ...laterStarts.map(w => fs.getDoc(fs.doc(db, 'oncall', w)).catch(() => null)),
   ])
   const schedules = {}
   for (const d of schedSnap.docs) { const x = d.data(); schedules[x.uid] = x }
+  const docOf = snap => (snap?.exists() ? snap.data() : null)
   return buildToday({
     users: usersSnap.docs.map(d => ({ uid: d.id, ...d.data() })),
     schedules,
-    oncall: oncallSnap?.exists() ? oncallSnap.data() : null,
+    oncall: docOf(oncallSnap),
+    oncallNow: callWeek === weekStart ? undefined : docOf(callNowSnap),
     later: laterStarts.map((w, i) => ({ weekStart: w, doc: laterSnaps[i]?.exists() ? laterSnaps[i].data() : null })),
   })
 }

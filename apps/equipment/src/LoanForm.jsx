@@ -89,7 +89,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
   return (
     <Dialog title={finishing ? 'Check the loan form, then finish' : 'Loan form'} description={finishing ? (finishing.email ? `Finish saves it, emails it to ${finishing.email}${info.longTerm ? '' : ' and makes the Simpro job (if job creation is on)'}.` : 'Finish saves it.') : f.loanTo}
       onClose={close} width={1000} className="eq-formdlg">
-      <div className="eq-lf" data-working={busy ? '' : undefined}>
+      <div className="eq-lf" data-working={busy || edited || finishing ? '' : undefined}>
         <div className="eq-lf-head">
           <span className="eq-lf-title">CMCHS Demo Equipment Loan Form</span>
           <img src="/brand/logo-full-colour.png" alt="Connected Healthcare Systems" className="eq-lf-logo" />

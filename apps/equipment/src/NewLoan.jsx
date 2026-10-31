@@ -90,7 +90,8 @@ export default function NewLoan({ s, params, go, onDone }) {
   }
 
   return (
-    <form className="eq-newloan" onSubmit={submit}>
+    // data-working holds off the app's update reload while a loan is being filled in (shared/updateGuard.js)
+    <form className="eq-newloan" onSubmit={submit} data-working={busy || picked.length || f.loanTo || f.location || f.notes || f.shipping ? '' : undefined}>
       {params.ref && <Alert tone="info" title="A loan for the project tracker">Filled in from the job. Pick the devices, then make the loan: the project tracker hears about it.</Alert>}
       {source && (
         <Alert tone="info" title={params.move ? `Moving ${picked.length} from ${source.loanTo} to a new loan` : `Copying ${source.loanTo}’s devices`}>

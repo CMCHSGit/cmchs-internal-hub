@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { getCurrentWeekStart, addDaysISO, dayMonth, weekDates, normalizeCalls, normalizeSchedule, WEEK_DAYS, DAY_SHORT } from '../utils/week'
+import { weekStartOf, addDaysISO, dayMonth, weekDates, normalizeCalls, normalizeSchedule, WEEK_DAYS, DAY_SHORT } from '../utils/week'
 import { holidayOn } from '../utils/holidays'
 import { withoutCalls } from '../utils/status'
 import { shortNames } from '../utils/names'
@@ -17,7 +17,7 @@ const WEEKS_SHOWN = 8
 export default function OnCall() {
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
-  const thisWeek = getCurrentWeekStart(0)
+  const thisWeek = weekStartOf(new Date()) // on call runs Monday to Sunday: a weekend is still this week
   const weeks = Array.from({ length: WEEKS_SHOWN }, (_, i) => addDaysISO(thisWeek, i * 7))
 
   const { users, loading: usersLoading } = useUsers()

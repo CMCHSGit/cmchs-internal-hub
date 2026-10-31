@@ -1,3 +1,5 @@
+import { shouldCheck, shouldReload, startGuard } from './updateGuard.js'
+
 // Registers the single service worker for this origin, at scope "/", and tells
 // people when a newer version of the site is ready.
 //
@@ -8,18 +10,20 @@
 // the update check.
 //
 // A new deploy: sw.js takes over at once (skipWaiting + clients.claim), which
-// fires controllerchange here. The page still shows the copy it loaded, so a
-// banner says "A new version of the hub is ready" with Update now / Later.
-// On phones there is no banner: the quiet reload below covers them.
-// Nothing is lost by updating: everything saves as it goes. If the page is in
-// the background when the new version lands (a phone with the app switched
-// away), it just reloads, so it's new when they come back. Work that must
-// not be cut off — a SimproSync run (body.busy) or anything marked
-// [data-working] — is never reloaded from under; the banner waits it out.
+// fires controllerchange here. The page still shows the copy it loaded, so the
+// app reloads onto the new one, by itself, as soon as it is safe (updateGuard.js):
+//   - when the person has left it alone for 10 minutes, and
+//   - each time they come back to it (an installed phone app is resumed from the
+//     background, not loaded afresh, so this is when it checks).
+// It never reloads from under work in progress: an open dialog, a form with
+// something typed in it, a PDF with unsaved edits, a loan being made, a SimproSync
+// run. It waits, and reloads once that is finished and they have paused for a moment.
+// On computers a banner ("A new version is ready" with Update now / Later) also
+// shows while it waits; phones get none.
+// Nothing is lost by updating: everything else saves as it goes.
 //
-// Phones rarely load the app afresh: an installed app is mostly resumed from
-// the background. So it also checks for a new version every time the page
-// comes back into view (at most once a minute) and every 30 minutes.
+// It also asks for a new version when the page comes back into view (at most every
+// 15 seconds), after 10 idle minutes, and every 30 minutes.
 export function registerServiceWorker() {
   // In `npm run dev` there is no built /sw.js — registering would only log a
   // failure. `npm run preview` serves a real build, so it still registers.
@@ -29,38 +33,44 @@ export function registerServiceWorker() {
   // A first-ever install also "takes over" an uncontrolled page. That's not
   // an update, and prompting (or reloading) on it would be pointless.
   const hadController = !!navigator.serviceWorker.controller
-  // Phones get no banner: the new version loads by itself the next time the
-  // app is in the background (reloadIfHidden below), which on a phone is soon.
   const phone = matchMedia('(pointer: coarse)').matches
+  const guard = startGuard()
   let ready = false
-  const working = () => document.body.classList.contains('busy') || !!document.querySelector('[data-working]')
-  const reloadIfHidden = () => {
-    if (ready && document.visibilityState === 'hidden' && !working()) window.location.reload()
+  let waiting = 0
+  // Reload if a new version is ready and nobody is in the middle of anything.
+  const reloadWhenSafe = () => {
+    if (shouldReload({ ready, busy: guard.busy(), sinceActiveMs: guard.sinceActive() })) window.location.reload()
   }
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || ready) return
     ready = true
-    if (document.visibilityState === 'hidden' && !working()) window.location.reload()
-    else if (!phone) showUpdateBanner(working)
+    if (!phone) showUpdateBanner(guard.running)
+    reloadWhenSafe()
+    // Held back by something in progress: look again until it is done.
+    if (!waiting) waiting = setInterval(reloadWhenSafe, 2000)
   })
-  document.addEventListener('visibilitychange', reloadIfHidden)
+  document.addEventListener('visibilitychange', reloadWhenSafe)
 
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js', { scope: '/' })
       .then((reg) => {
         // Browsers only re-check sw.js on navigation, and an installed app can go
-        // days without one. Ask on load, on coming back into view, and now and then.
+        // days without one. Ask on load, on coming back into view, after 10 idle
+        // minutes, and now and then.
         let last = 0
-        const check = () => {
-          if (ready || Date.now() - last < 60_000) return
+        const check = (resumed = false) => {
+          if (ready || !shouldCheck({ resumed, sinceActiveMs: guard.sinceActive(), sinceCheckMs: Date.now() - last })) return
           last = Date.now()
           reg.update().catch(() => {})
         }
-        check()
-        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check() })
-        window.addEventListener('focus', check)
-        setInterval(check, 30 * 60_000)
+        last = Date.now()
+        reg.update().catch(() => {})
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(true) })
+        window.addEventListener('focus', () => check(true))
+        window.addEventListener('pageshow', () => check(true)) // iOS: back from the page cache
+        setInterval(check, 30_000) // idle check; the 30-minute check is below
+        setInterval(() => { last = 0; check(true) }, 30 * 60_000)
       })
       .catch((err) => console.warn('[sw] registration failed', err))
   })

@@ -44,6 +44,20 @@ test('on a weekend it shows Monday', () => {
   assert.equal(t.onCallName, '')
 })
 
+test('on call runs Monday to Sunday: a weekend is still this week\'s person', () => {
+  const thisWeek = { uid: 'b', displayName: 'Bryan David' }
+  const nextWeek = { uid: 'a', displayName: 'Karen Smith' }
+  for (const now of [new Date(2026, 9, 16, 23, 59), new Date(2026, 9, 17), new Date(2026, 9, 18, 23, 59)]) { // Fri night, Sat, Sun night
+    const t = buildToday({ users, schedules, oncall: nextWeek, oncallNow: thisWeek, later: [{ weekStart: '2026-10-19', doc: nextWeek }], now })
+    assert.equal(t.onCallName, 'Bryan')
+    assert.equal(t.people.find(p => p.name === 'Bryan').onCall, true)
+    assert.equal(t.people.find(p => p.name === 'Karen').onCall, false)
+    assert.deepEqual(t.upcoming, [{ weekStart: '2026-10-19', name: 'Karen' }])
+  }
+  const monday = buildToday({ users, schedules, oncall: nextWeek, now: new Date(2026, 9, 19) })
+  assert.equal(monday.onCallName, 'Karen') // rolls over on Monday
+})
+
 test('a public holiday with no entry reads as the holiday, not "No entry"', () => {
   const t = buildToday({ users, schedules: {}, oncall: null, now: new Date(2026, 9, 26) }) // Labour Day
   assert.equal(t.holiday, 'Labour Day')
