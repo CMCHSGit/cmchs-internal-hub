@@ -170,9 +170,12 @@ export default function MySchedule() {
 
   const isComplete = schedule.every((d, i) => d.location || callsDays[i] || holidays[i])
   const savedAt = existing?.submittedAt
+  // Changes not saved yet: data-working holds off the app's update reload (shared/updateGuard.js) until they are.
+  const savedDays = normalizeSchedule(existing?.days).map(d => d.location)
+  const unsaved = !loading && (schedule.some((d, i) => d.location !== savedDays[i]) || comments !== (existing?.comments || ''))
 
   return (
-    <div className="page myweek">
+    <div className="page myweek" data-working={unsaved || saving ? '' : undefined}>
       <div className="page-head">
         <div className="page-head-text">
           <h1 className="page-title">My week</h1>
