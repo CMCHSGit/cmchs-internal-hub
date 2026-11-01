@@ -44,6 +44,8 @@ test('overview: active, overdue, due today, upcoming, transfers due, needs testi
   assert.deepEqual([ov.out, ov.dueTodayOut, ov.overdueOut], [5, 1, 1])
   assert.deepEqual(ov.ahead.map((g) => g.loanTo).sort(), ['Dunedin', 'Nelson', 'Tauranga'])
   assert.deepEqual(ov.stuck.map((u) => u.id), ['u2'])
+  // starting soon (a fortnight, no island set): Tauranga 20-Oct and Nelson 21-Oct, soonest first; not Dunedin (17 days) and not Hutt 2 (its start has come: it's a transfer due)
+  assert.deepEqual(ov.soon.map((g) => g.loanTo), ['Tauranga', 'Nelson'])
   assert.deepEqual(ov.needsTesting.map((g) => g.loanTo), ['Tauranga'])
   assert.deepEqual(ov.byAM, [{ am: 'Sam Lee', n: 2, overdue: 0 }, { am: 'Tama Brown', n: 1, overdue: 1 }, { am: 'Unassigned', n: 1, overdue: 0 }])
 

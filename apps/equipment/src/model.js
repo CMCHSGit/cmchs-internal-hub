@@ -394,6 +394,9 @@ export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta =
     const r = loanMeta[readinessKey(g)] || {}
     return !r.tested && !r.noTestRequired
   })
+  // Not started yet and starting within the week (North) or fortnight (South) the Loans tab calls "Starting soon": soonest first.
+  const soon = sections.upcoming.filter((g) => g.startDate && g.startDate >= today && startsSoon(g, today))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.loanTo.localeCompare(b.loanTo))
   const devices = (list) => list.reduce((n, g) => n + g.items.length, 0)
   const overdue = active.filter((g) => g.overdue)
   const dueToday = active.filter((g) => !g.overdue && g.endDate === today)
@@ -406,7 +409,7 @@ export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta =
   }
   return {
     total: equipment.filter((e) => testMode || !isTestBatch(e.BatchID)).length,
-    active, ahead, stuck, needsTesting, overdue,
+    active, ahead, soon, stuck, needsTesting, overdue,
     out: devices(active), dueTodayOut: devices(dueToday), overdueOut: devices(overdue),
     byAM: [...byAM.values()].sort((a, b) => a.am.localeCompare(b.am)),
   }

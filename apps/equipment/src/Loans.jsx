@@ -35,10 +35,10 @@ export default function Loans({ s, params, setParams, go }) {
   // Overdue only applies to started loans, as the old tab's checkbox did.
   const show = (list, started = true) => filterLoans([...list], { ...f, overdueOnly: started && f.overdueOnly }, s.today)
   const lists = [
-    ['needsReassign', 'Needs reassigning', 'Started, but still waiting on devices that are out on another loan.', show(sections.needsReassign)],
     // Soonest first, whatever the sort: these are the ones to chase. The rest of Upcoming keeps the chosen sort.
     ['startingSoon', 'Starting soon', 'Starts within 2 weeks (South Island) or 1 week (North Island); a loan with no island set counts as South.',
       f.overdueOnly ? [] : filterLoans([...soonList], { ...f, sort: 'start', overdueOnly: false }, s.today)],
+    ['needsReassign', 'Needs reassigning', 'Started, but still waiting on devices that are out on another loan.', show(sections.needsReassign)],
     ['upcoming', 'Upcoming', 'Scheduled to start later, and bookings waiting on devices.', f.overdueOnly ? [] : show(laterList, false)],
     ['current', 'Current', '', show(sections.current)],
     ['longTerm', 'Long term', 'No end date.', show(sections.longTerm)],

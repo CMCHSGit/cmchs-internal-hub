@@ -8,7 +8,7 @@
 import { useMemo } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Badge } from '../../../shared/ui/index.jsx'
-import { fmtDate, linkTarget, loanSections, overviewOf, roleOf, yoursOf } from './model.js'
+import { daysBetween, fmtDate, linkTarget, loanSections, overviewOf, roleOf, yoursOf } from './model.js'
 
 /** Loans, opened at one loan (Loans.jsx reads ?open=). */
 export const loanLink = (g) => '#/loans?open=' + encodeURIComponent(g.kind + ':' + g.key)
@@ -39,10 +39,35 @@ export default function Overview({ s }) {
 
   return (
     <div className="eq-overview">
+      <Soon ov={ov} today={s.today} />
       {showMine && <Yours me={me} mine={mine} today={s.today} stuckLink={stuckLink} />}
       <Everyone ov={ov} today={s.today} stuckLink={stuckLink} stuckAt={stuckAt} heading={showMine} />
       {!s.extrasReady && !me && <p className="eq-note">Your own loans show here once the team list has loaded.</p>}
     </div>
+  )
+}
+
+/** Starting within a week (North Island) or a fortnight (South, or no island set), everyone's, soonest first: what the engineers get ready. */
+function Soon({ ov, today }) {
+  if (!ov.soon.length) return null
+  const untested = new Set(ov.needsTesting)
+  return (
+    <section className="eq-ov-part eq-ov-soon" aria-labelledby="eq-ov-soon">
+      <div>
+        <h2 id="eq-ov-soon" className="eq-ov-hello">Starting soon</h2>
+        <p className="eq-note">Within 2 weeks (South Island) or 1 week (North Island) · all account managers</p>
+      </div>
+      <div className="card eq-rows">
+        {ov.soon.map((g) => {
+          const n = daysBetween(today, g.startDate), count = g.kind === 'booking' ? g.pending.length : g.items.length
+          return (
+            <Row key={g.kind + g.key} href={loanLink(g)} who={g.loanTo} date={new Date(g.startDate + 'T12:00:00')}
+              what={`${g.am || '—'} · ${devices(count)} · ${g.island ? g.island + ' Island' : 'island not set'}`}
+              side={<>{untested.has(g) && <Badge tone="neutral">Not tested</Badge>}<Badge tone="orange">{n <= 0 ? 'Today' : n === 1 ? 'Tomorrow' : `In ${n} days`}</Badge></>} />
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
