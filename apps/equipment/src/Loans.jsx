@@ -9,7 +9,7 @@ import { ChevronDown } from 'lucide-react'
 import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
 import { AdminDialog } from './Items.jsx'
-import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, relTime } from './model.js'
+import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -72,7 +72,7 @@ export default function Loans({ s, params, setParams, go }) {
         <section key={id} id={'loans-' + id} className={`eq-loans eq-loans-${id}`} aria-label={title}>
           <h2 className="eq-section-title">{title} <span className="eq-count">{list.length}</span></h2>
           {hint && <p className="eq-note">{hint}</p>}
-          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} audit={audit} all={all} go={go} onDone={showToast} start={params.open === k && params.act ? { act: params.act, to: params.to, nos: params.nos } : null} onStarted={() => setParams({ ...params, act: undefined, to: undefined, nos: undefined })} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
+          {list.map((g) => { const k = g.kind + ':' + g.key; return <LoanCard key={k} g={g} s={s} audit={audit} all={all} go={go} onDone={showToast} start={params.open === k && params.act ? { act: params.act, to: params.to, nos: params.nos, queue: params.queue } : null} onStarted={() => setParams({ ...params, act: undefined, to: undefined, nos: undefined, queue: undefined })} open={openKey === k} onToggle={() => setOpenKey(openKey === k ? null : k)} /> })}
         </section>
       ))}
       {lists.every(([, , , l]) => !l.length) && <p className="data-table-empty">{all.length ? 'No loans match that.' : 'No active loans.'}</p>}
@@ -101,6 +101,9 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
   // How many of its waiting devices are still out elsewhere (old: "Awaiting return before pickup (n of m)").
   const waiting = g.kind === 'booking' ? 0 : g.pending.filter((p) => { const h = heldUpBy(byId(p.id, p.CHSAssetNo), g, s.today); return h && h.why !== 'later' }).length
+  // A started loan still waiting on devices: which loans hold them, so each "Still on loan to…" line opens that loan with Transfer ready.
+  const holders = useMemo(() => (g.kind === 'loan' && g.pending.length && g.startDate && g.startDate <= s.today ? reassignGroups(g, all, s.equipment, s.today) : []),
+    [g, all, s.equipment, s.today])
   // When a device was moved off (old: the ghost row's "on <date>"): its newest Transfer entry.
   const movedOn = (no) => { const h = (s.history || []).find((x) => x.action === 'Transfer' && x.chsAssetNo === no); return h ? fmtDate(String(h.ts || '').slice(0, 10)) : '' }
   // Its changes, and whether any are new since it was last looked at here (old: buildLoanUpdateBadge; the same loanSeen_ keys).
@@ -164,8 +167,15 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
                 <li key={'p' + (p.id || p.CHSAssetNo)} className="eq-device pending">
                   <a className="eq-strong" href={e ? '#/equipment?item=' + encodeURIComponent(e.id) : undefined}>{p.CHSAssetNo}</a> {p.Model || e?.Model}
                   {/* A note only when something is holding it up; a free device just sits on the list. */}
-                  {(held?.why === 'out' || held?.why === 'booked') && <span className="eq-small">{held.why === 'out' ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
-                    : `Booked to ${now.OnLoanTo} from ${fmtDate(now.LoanStartDate)}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`}</span>}
+                  {(held?.why === 'out' || held?.why === 'booked') && (() => {
+                    const text = held.why === 'out' ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
+                      : `Booked to ${now.OnLoanTo} from ${fmtDate(now.LoanStartDate)}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
+                    const i = holders.findIndex((x) => x.nos.includes(p.CHSAssetNo))
+                    // Opens the loan holding it, Transfer ready with this loan chosen and everything it waits on from there ticked.
+                    return i >= 0
+                      ? <a className="eq-small eq-reassign" href={'#/loans?' + new URLSearchParams(reassignParams(g, holders, i)).toString()} title="Open the loan holding it and move it here">{text} · move it here →</a>
+                      : <span className="eq-small">{text}</span>
+                  })()}
                   <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${p.CHSAssetNo} off the booking`} title="Take off the booking" onClick={() => setRemoving({ p })}>×</button>
                 </li>
               )

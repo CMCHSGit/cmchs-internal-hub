@@ -9,7 +9,7 @@ import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
-import { canExtend, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { canExtend, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
@@ -26,11 +26,17 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
     onStarted?.()
   }, [start?.act]) // eslint-disable-line react-hooks/exhaustive-deps
   const rb = readinessButtons(g, { loanMeta: s.loanMeta, today: s.today })
+  // Several loans hold devices a loan is waiting for: once this one is moved, on to the next (preset.queue, from reassignParams).
+  function nextHolder(target) {
+    const [next, ...rest] = decodeQueue(preset?.queue)
+    if (!go || !next) return
+    go('loans', { open: next.key, act: 'transfer', to: preset.to || target.kind + ':' + target.key, nos: next.nos, ...(rest.length ? { queue: JSON.stringify(rest.map((x) => [x.key, x.nos])) } : {}) })
+  }
 
   // One change at a time; data-working holds off the app's update reload meanwhile.
   async function run(fn, done) {
     setBusy(true); setError('')
-    try { const r = await fn(); setAsking(null); onDone?.(typeof done === 'function' ? done(r) : done) } catch (e) { setError(e.message || String(e)) } finally { setBusy(false) }
+    try { const r = await fn(); setAsking(null); onDone?.(typeof done === 'function' ? done(r) : done); return true } catch (e) { setError(e.message || String(e)); return false } finally { setBusy(false) }
   }
   const undo = async (field, at) => {
     if (!(await confirm({ title: `Clear “${LABEL[field]}”?`, message: `${g.loanTo}: marked ${LABEL[field]}${at ? ' ' + fmtWhen(at) : ''}. Clear it?`, confirmLabel: 'Clear it' }))) return
@@ -120,7 +126,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       {asking === 'transfer' && (
         <TransferDialog g={g} all={all} preset={preset} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
           onNew={(nos) => { setAsking(null); go?.('new', { move: g.kind + ':' + g.key, nos: nos.join(',') }) }}
-          onSave={(nos, target) => run(() => s.transfer(g, nos, target), (r) => `${plural(r.moved, 'item', 'items')} moved to ${target.loanTo}.`)} />
+          onSave={(nos, target) => run(() => s.transfer(g, nos, target), (r) => `${plural(r.moved, 'item', 'items')} moved to ${target.loanTo}.`).then((ok) => { if (ok) nextHolder(target) })} />
       )}
       {asking === 'edit' && (
         <EditDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
@@ -371,12 +377,25 @@ function TransferDialog({ g, all, preset = null, busy, error, onClose, onSave, o
   const [picked, setPicked] = useState(() => new Set(preset?.nos ? preset.nos.split(',').filter(Boolean) : g.items.map((e) => e.CHSAssetNo)))
   const [to, setTo] = useState(preset?.to || '')
   const targets = all.filter((x) => !(x.kind === g.kind && x.key === g.key))
-  const target = targets.find((x) => x.kind + ':' + x.key === to)
+  const keyOf = (x) => x.kind + ':' + x.key
+  const target = targets.find((x) => keyOf(x) === to)
+  // Opened to move devices onto a loan that is waiting for them: that loan is chosen, it's what the box searches
+  // for to start with, and its account manager's loans come first. Otherwise this loan's account manager's do.
+  const dest = preset?.to ? targets.find((x) => keyOf(x) === preset.to) : null
+  const [q, setQ] = useState(dest?.loanTo || '')
+  const am = dest ? dest.am : g.am
+  const ordered = transferTargets(targets, { am })
+  const shown = ordered.filter(({ x }) => keyOf(x) === to || matchLoan(x, q)) // the chosen one stays, whatever is typed
+  const mineList = shown.filter((o) => o.mine), others = shown.filter((o) => !o.mine)
+  const more = decodeQueue(preset?.queue).length
   const nos = [...picked]
-  const label = (x) => `${x.kind === 'booking' ? 'Booking' : x.kind === 'scheduled' ? 'Scheduled' : 'Active'}: ${x.loanTo} (${x.kind === 'loan' ? (x.endDate ? 'due ' + fmtDate(x.endDate) : 'no end date') : 'starts ' + fmtDate(x.startDate)})${jobOf(x.doc) && !jobOf(x.doc).pending ? ' · ' + jobOf(x.doc).label : ''}`
+  const label = (x) => `${x.kind === 'booking' ? 'Booking' : x.kind === 'scheduled' ? 'Scheduled' : 'Active'}: ${x.loanTo} (${x.kind === 'loan' ? (x.endDate ? 'due ' + fmtDate(x.endDate) : 'no end date') : 'starts ' + fmtDate(x.startDate)})${jobOf(x.doc) && !jobOf(x.doc).pending ? ' · ' + jobOf(x.doc).label : ''}${x.am && x.am !== am ? ' · ' + x.am : ''}`
+  const option = ({ x }) => <option key={keyOf(x)} value={keyOf(x)}>{label(x)}</option>
   const toggle = (no) => setPicked((p) => { const n = new Set(p); if (n.has(no)) n.delete(no); else n.add(no); return n })
   return (
-    <Dialog title={`Transfer from ${g.loanTo}`} description="Each loan’s Simpro job gets a note of what moved where." onClose={onClose} width={560}>
+    <Dialog title={`Transfer from ${g.loanTo}`}
+      description={more ? `Then ${plural(more, 'more loan', 'more loans')} holding devices ${dest ? 'for ' + dest.loanTo : 'to move'}. Each loan’s Simpro job gets a note of what moved where.` : 'Each loan’s Simpro job gets a note of what moved where.'}
+      onClose={onClose} width={560}>
       <form className="eq-form" onSubmit={(e) => { e.preventDefault(); if (nos.length && target) onSave(nos, target) }}>
         <div className="eq-actions-row">
           <Button size="sm" variant="ghost" onClick={() => setPicked(new Set(g.items.map((e) => e.CHSAssetNo)))}>All</Button>
@@ -390,12 +409,17 @@ function TransferDialog({ g, all, preset = null, busy, error, onClose, onSave, o
             </label></li>
           ))}
         </ul>
+        <label className="field"><span className="field-label">Find a loan</span>
+          <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Customer, location, account manager or job number" autoComplete="off" />
+        </label>
         <label className="field"><span className="field-label">Move them to</span>
           <select value={to} onChange={(e) => setTo(e.target.value)}>
             <option value="">Choose a loan…</option>
-            {targets.map((x) => <option key={x.kind + x.key} value={x.kind + ':' + x.key}>{label(x)}</option>)}
+            {mineList.length > 0 && <optgroup label={`${am}’s loans`}>{mineList.map(option)}</optgroup>}
+            {others.length > 0 && <optgroup label={mineList.length ? 'Everyone else’s loans' : 'Loans'}>{others.map(option)}</optgroup>}
           </select>
         </label>
+        <p className="eq-note">{shown.length === targets.length ? `All ${plural(targets.length, 'loan', 'loans')}.` : `${shown.length} of ${plural(targets.length, 'loan', 'loans')} match: clear the search to see the rest.`}</p>
         {error && <Alert tone="critical" title="Not moved">{error}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

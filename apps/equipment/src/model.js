@@ -718,6 +718,65 @@ export function heldUpBy(e, g, today = nzDate()) {
   return { e, why: datesOverlap(e.LoanStartDate, e.LoanEndDate || '', g.startDate || '', g.endDate || '') ? 'booked' : 'later' }
 }
 
+/**
+ * The devices a loan or booking `g` is still waiting on, grouped by the loan holding them (old: openStuckLoanReassign,
+ * for every holder, not just the first): [{ key: 'loan:…', from, nos }], in the order the waiting devices are listed.
+ * A device booked to someone from after `g` ends doesn't hold it up, so it isn't here.
+ */
+export function reassignGroups(g, all, equipment = [], today = nzDate()) {
+  const groups = []
+  for (const p of g.pending || []) {
+    const e = equipment.find((x) => x && (x.id === p.id || x.CHSAssetNo === p.CHSAssetNo))
+    const held = heldUpBy(e, g, today)
+    if (!held || held.why === 'later') continue
+    const from = all.find((x) => x !== g && x.kind !== 'booking' && x.items.some((i) => i.id === e.id))
+    if (!from) continue
+    const key = from.kind + ':' + from.key
+    let grp = groups.find((x) => x.key === key)
+    if (!grp) groups.push((grp = { key, from, nos: [] }))
+    grp.nos.push(e.CHSAssetNo)
+  }
+  return groups
+}
+
+/** A holder's remaining stops as the address carries them (?queue=): '[["loan:b2","100112,100374"], …]'. */
+export const encodeQueue = (groups) => (groups.length ? JSON.stringify(groups.map((x) => [x.key, x.nos.join(',')])) : undefined)
+export function decodeQueue(text) {
+  try {
+    const q = JSON.parse(text || '[]')
+    return Array.isArray(q) ? q.filter((x) => Array.isArray(x) && typeof x[0] === 'string' && typeof x[1] === 'string' && x[1]).map(([key, nos]) => ({ key, nos })) : []
+  } catch { return [] }
+}
+
+/**
+ * Where "reassign" goes for `g`, starting with its holder number `i` (the one clicked): that loan, Transfer open with
+ * the devices `g` waits on from it ticked and `g` chosen; the other holders follow one by one (queue).
+ */
+export function reassignParams(g, groups, i = 0) {
+  const first = groups[i], rest = groups.filter((_, j) => j !== i)
+  return { open: first.key, act: 'transfer', to: g.kind + ':' + g.key, nos: first.nos.join(','), ...(rest.length ? { queue: encodeQueue(rest) } : {}) }
+}
+
+/**
+ * The loans a transfer can go to, the best first: those of `am` (the account manager of the loan being fixed), then
+ * everyone else's, each A to Z by customer (then soonest start). `mine` marks the first kind.
+ */
+export function transferTargets(targets, { am = '' } = {}) {
+  const who = String(am || '').trim().toLowerCase()
+  const mine = (x) => !!who && String(x.am || '').trim().toLowerCase() === who
+  return targets.map((x) => ({ x, mine: mine(x) })).sort((a, b) =>
+    (b.mine - a.mine) || String(a.x.loanTo || '').localeCompare(String(b.x.loanTo || ''), undefined, { numeric: true, sensitivity: 'base' })
+      || String(a.x.startDate || '').localeCompare(String(b.x.startDate || '')))
+}
+
+/** Every word of `q` is somewhere in the loan's customer, location, account manager or Simpro job number. */
+export function matchLoan(x, q) {
+  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const hay = [x.loanTo, x.location, x.am, jobNumber(x.doc?.simproJobId)].filter((v) => v != null && v !== '').join(' ').toLowerCase()
+  return words.every((w) => hay.includes(w))
+}
+
 /** Why a new loan can't be made yet, or '' (old: submitBatchLoan's checks, in its order). */
 export function newLoanProblem(f) {
   if (!String(f.loanTo || '').trim() || !String(f.location || '').trim()) return 'Fill in who it’s on loan to and where.'
@@ -1431,7 +1490,9 @@ export function linkTarget(search, sections, upcoming = [], equipment = []) {
     const from = blocked.length && all.find((g) => g.kind !== 'booking' && g.items.some((e) => e.id === blocked[0].id))
     const to = all.find((g) => g.batchId === u.id)
     if (!from || !to) return { view: 'loans', params: to ? { open: to.kind + ':' + to.key } : {}, note: `Nothing is holding up ${u.loanTo}’s booking any more.` }
-    return { view: 'loans', params: { open: from.kind + ':' + from.key, act: 'transfer', to: to.kind + ':' + to.key, nos: blocked.filter((e) => from.items.some((x) => x.id === e.id)).map((e) => e.CHSAssetNo).join(',') } }
+    // Other loans holding devices it waits on follow, one after another (queue).
+    const rest = reassignGroups(to, all, equipment).filter((x) => x.key !== from.kind + ':' + from.key)
+    return { view: 'loans', params: { open: from.kind + ':' + from.key, act: 'transfer', to: to.kind + ':' + to.key, nos: blocked.filter((e) => from.items.some((x) => x.id === e.id)).map((e) => e.CHSAssetNo).join(','), ...(rest.length ? { queue: encodeQueue(rest) } : {}) } }
   }
   const open = p.get('open')
   if (open) {
