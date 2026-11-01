@@ -9,7 +9,7 @@ import { ChevronDown } from 'lucide-react'
 import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
 import { AdminDialog } from './Items.jsx'
-import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime } from './model.js'
+import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, startsSoon } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -31,11 +31,15 @@ export default function Loans({ s, params, setParams, go }) {
   const f = { q: params.q || '', am: params.am || '', overdueOnly: params.overdue === '1', sort: params.sort || 'recent' }
   const all = [...sections.needsReassign, ...sections.upcoming, ...sections.current, ...sections.longTerm]
   const ams = [...new Set(all.map((g) => g.am).filter(Boolean))].sort()
+  const soonList = sections.upcoming.filter((g) => startsSoon(g, s.today)), laterList = sections.upcoming.filter((g) => !startsSoon(g, s.today))
   // Overdue only applies to started loans, as the old tab's checkbox did.
   const show = (list, started = true) => filterLoans([...list], { ...f, overdueOnly: started && f.overdueOnly }, s.today)
   const lists = [
     ['needsReassign', 'Needs reassigning', 'Started, but still waiting on devices that are out on another loan.', show(sections.needsReassign)],
-    ['upcoming', 'Upcoming', 'Scheduled to start, and bookings waiting on devices.', f.overdueOnly ? [] : show(sections.upcoming, false)],
+    // Soonest first, whatever the sort: these are the ones to chase. The rest of Upcoming keeps the chosen sort.
+    ['startingSoon', 'Starting soon', 'Starts within 2 weeks (South Island) or 1 week (North Island); a loan with no island set counts as South.',
+      f.overdueOnly ? [] : filterLoans([...soonList], { ...f, sort: 'start', overdueOnly: false }, s.today)],
+    ['upcoming', 'Upcoming', 'Scheduled to start later, and bookings waiting on devices.', f.overdueOnly ? [] : show(laterList, false)],
     ['current', 'Current', '', show(sections.current)],
     ['longTerm', 'Long term', 'No end date.', show(sections.longTerm)],
   ]
@@ -53,6 +57,7 @@ export default function Loans({ s, params, setParams, go }) {
       {!s.extrasReady && <p className="text-sm text-muted eq-loading-extras"><span className="spinner" style={{ width: 14, height: 14 }} aria-hidden="true" /> Loading the loan forms: job numbers, demo types and some account managers are still to come.</p>}
       <p className="text-sm text-muted eq-shown">
         {active.length} active {active.length === 1 ? 'loan' : 'loans'} · {devices} devices
+        {soonList.length > 0 && <> · <a className="eq-soon-link" href="#/loans?at=startingSoon">{soonList.length} starting soon</a></>}
         {upcomingCount > 0 && ` · ${upcomingCount} upcoming`}{sections.longTerm.length > 0 && ` · ${sections.longTerm.length} long-term`}
       </p>
       <div className="card eq-toolbar">
@@ -86,6 +91,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
   const count = g.items.length
   const upcomingKind = g.kind === 'scheduled' || g.kind === 'booking'
   const days = upcomingKind ? daysBetween(s.today, g.startDate) : 0
+  const soon = upcomingKind && startsSoon(g, s.today)
   const when = upcomingKind
     ? `Starts ${fmtDate(g.startDate)} (${days > 0 ? `in ${days} day${days === 1 ? '' : 's'}` : 'today'})${g.endDate ? ` · due back ${fmtDate(g.endDate)}` : ''}`
     : g.longTerm ? `Since ${fmtDate(g.startDate)} · no end date` : `${fmtDate(g.startDate)} to ${fmtDate(g.endDate)}`
@@ -119,7 +125,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
     setSeen(at); try { localStorage.setItem(seenKey, at) } catch { /* private mode */ }
   }
   return (
-    <article data-loan={g.kind + ':' + g.key} className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && g.startingSoon ? ' soon' : ''}`}>
+    <article data-loan={g.kind + ':' + g.key} className={`card eq-loan${g.overdue ? ' overdue' : ''}${upcomingKind && soon ? ' soon' : ''}`}>
       <button type="button" className="eq-loan-head" aria-expanded={open} onClick={onToggle}>
         <span className="eq-loan-main">
           <span className="eq-loan-who">{g.loanTo}</span>
@@ -143,7 +149,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
           {g.overdue && <Badge tone="critical">Overdue</Badge>}
           {ready.notTested && <Badge tone="orange">Not tested</Badge>}
           {g.kind === 'scheduled' && !ready.tested && !ready.noTestRequired && <Badge tone="neutral">Awaiting test</Badge>}
-          {upcomingKind && (g.startingSoon ? <Badge tone="orange">Starting soon</Badge> : <Badge tone="purple">{g.kind === 'booking' ? 'Booked' : 'Scheduled'}</Badge>)}
+          {upcomingKind && (soon ? <Badge tone="orange">{days <= 0 ? 'Starts today' : days === 1 ? 'Starts tomorrow' : `Starts in ${days} days`}</Badge> : <Badge tone="purple">{g.kind === 'booking' ? 'Booked' : 'Scheduled'}</Badge>)}
           {g.longTerm && <Badge tone="neutral">Long term</Badge>}
           {g.kind === 'loan' && g.pending.length > 0 && !g.longTerm && <Badge tone="orange">Needs reassigning</Badge>}
           {g.batchId?.startsWith('testbatch_') && <Badge tone="neutral">Test</Badge>}

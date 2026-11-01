@@ -38,13 +38,16 @@
 .eq-check input { accent-color: var(--accent-fg); }
 .eq-loans { display: flex; flex-direction: column; gap: 6px; }
 .eq-section-title { margin: 8px 0 0; font: var(--type-overline); letter-spacing: var(--tracking-overline); text-transform: uppercase; color: var(--text-muted); }
-.eq-loans-needsReassign .eq-section-title { color: #a85800; }
+.eq-loans-needsReassign .eq-section-title, .eq-loans-startingSoon .eq-section-title { color: #a85800; }
+/* The count sits beside the title (the .eq-count box further down is the Scan screen's). */
+.eq-section-title .eq-count { display: inline; padding: 0; margin-left: 6px; }
+.eq-soon-link { font-weight: 600; }
 .eq-loans-upcoming .eq-section-title { color: var(--accent-fg); }
 .eq-loan { padding: 0; border: 1px solid var(--border-subtle); border-left: 4px solid var(--border-hairline); overflow: hidden; }
 .eq-loans-upcoming .eq-loan { border-left-color: var(--chs-purple-60); }
 .eq-loan.soon { border-left-color: var(--chs-orange); }
 .eq-loan.overdue { border-left-color: var(--status-critical); }
-.eq-loans-needsReassign .eq-loan { border-left-color: var(--chs-orange); }
+.eq-loans-needsReassign .eq-loan, .eq-loans-startingSoon .eq-loan { border-left-color: var(--chs-orange); }
 .eq-loan-head { all: unset; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; width: 100%; padding: 8px 14px; cursor: pointer; }
 .eq-loan-head:focus-visible { box-shadow: inset 0 0 0 2px var(--border-focus); }
 .eq-loan-main { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

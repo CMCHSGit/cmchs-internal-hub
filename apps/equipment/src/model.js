@@ -177,6 +177,17 @@ export function isStartingSoon(today, startDate, island) {
   return businessDays <= (island === 'North' ? 3 : 5)
 }
 
+/**
+ * How far ahead an upcoming loan counts as "starting soon" on the Loans tab: a week in the North Island, a fortnight
+ * otherwise. A loan whose island isn't set is treated as South: better one too many than one missed.
+ */
+export const soonWindowDays = (island) => (island === 'North' ? 7 : 14)
+
+/** An upcoming loan or booking that starts within its island's window, or should already have started. */
+export function startsSoon(g, today = nzDate()) {
+  return !!g.startDate && daysBetween(today, g.startDate) <= soonWindowDays(g.island)
+}
+
 /** Whole days from a to b (YYYY-MM-DD). */
 export function daysBetween(a, b) {
   if (!a || !b) return 0

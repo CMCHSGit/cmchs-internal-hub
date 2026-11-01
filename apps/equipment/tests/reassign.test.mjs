@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { decodeQueue, linkTarget, loanSections, matchLoan, reassignGroups, reassignParams, transferTargets } from '../src/model.js'
+import { decodeQueue, linkTarget, loanSections, matchLoan, reassignGroups, reassignParams, startsSoon, transferTargets } from '../src/model.js'
 
 const today = '2026-10-16'
 const dev = (id, o = {}) => ({ id, CHSAssetNo: 'A' + id, Model: 'D30', Returned: 'No', OnLoanTo: 'Hutt', Location: 'ED', LoanStartDate: '2026-10-01', LoanEndDate: '2026-10-30', BatchID: 'b1', ...o })
@@ -70,4 +70,18 @@ test('the search matches every word in customer, location, account manager or jo
   assert.ok(matchLoan(x, 'henderson 2096'))
   assert.ok(!matchLoan(x, 'waitakere nelson'))
   assert.ok(!matchLoan({ loanTo: 'Hutt', doc: { simproJobId: 'pending' } }, 'pending')) // not a job number
+})
+
+test('starting soon: a fortnight in the South Island (and when no island is set), a week in the North', () => {
+  const t = '2026-11-02'
+  const g = (startDate, island) => ({ startDate, island })
+  assert.ok(startsSoon(g('2026-11-16', 'South'), t))      // exactly 14 days
+  assert.ok(!startsSoon(g('2026-11-17', 'South'), t))
+  assert.ok(startsSoon(g('2026-11-16', ''), t))           // island not set counts as South
+  assert.ok(!startsSoon(g('2026-11-17', ''), t))
+  assert.ok(startsSoon(g('2026-11-09', 'North'), t))      // exactly 7 days
+  assert.ok(!startsSoon(g('2026-11-10', 'North'), t))
+  assert.ok(startsSoon(g('2026-11-02', 'North'), t))      // today
+  assert.ok(startsSoon(g('2026-10-30', 'North'), t))      // should already have started: still wants chasing
+  assert.ok(!startsSoon(g('', 'South'), t))
 })
