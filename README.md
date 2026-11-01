@@ -213,6 +213,8 @@ npm run dev:emulators    # terminal 2: the hub at http://localhost:5173 against 
 
 The sign-in page then lists the test staff (`shared/test-accounts.js`): an admin, HR, two engineers, sales, applications, and someone with no team yet. Each opens the hub as that person, so you can check what they see and can change. The data (`scripts/emulator-seed.mjs`): this week's schedule, news, asks, the project tracker's sample jobs and the demo tracker's sample equipment (its data source set to Firestore). Stopping the emulators throws it all away; `npm run emulators:seed` resets it while they run. The emulators' own view of the data is at http://127.0.0.1:4000.
 
+A brief for testing it as each person (for Cowork or anyone): [TESTING.md](TESTING.md).
+
 Not in the test copy, because they only exist live: pushes, emails, the Apps Script proxy (Simpro, the demo tracker's database pass and team list), and Microsoft sign-in. The admin password lock opens by itself there. A real build never includes any of this (`.env.emulators` is read only by `dev:emulators`).
 
 ### Checking the live-only parts
