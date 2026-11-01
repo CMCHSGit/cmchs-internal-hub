@@ -131,7 +131,7 @@ export default function Settings() {
               </div>
             )
           })}
-          <datalist id="pt-fams">{[...new Set(st.pool.map((p) => p.family))].map((f) => <option key={f} value={f} />)}</datalist>
+          <datalist id="pt-fams">{[...new Set(st.pool.map((p) => p.family).filter(Boolean))].map((f) => <option key={f} value={f} />)}</datalist>
         </div>
       </section>
 
