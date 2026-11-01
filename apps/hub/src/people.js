@@ -115,6 +115,7 @@ export function buildDirectory({ users, photos = {}, today = null }) {
       hr: u.hr === true,
       photo: (key && photos[key]) || '',
       where: t?.where || '',
+      whereDay: today?.weekend ? today.dayName : '', // a weekend shows Monday's plan
       swatch: t?.swatch || '',
       onCall: !!t?.onCall,
     }

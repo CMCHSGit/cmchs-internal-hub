@@ -190,8 +190,10 @@ function useColumns() {
 function Glance({ today }) {
   const [open, setOpen] = useState(null)
   const cols = useColumns()
+  // Over a weekend the cards are Monday's plan (the schedule is Monday to Friday): say so.
+  const day = today?.weekend ? today.dayName : ''
   const cards = today
-    ? [...today.glance, { key: 'oncall', label: 'On call this week', icon: 'phone', accent: 'pink', people: today.people.filter(p => p.onCall), name: today.onCallName, upcoming: today.upcoming }]
+    ? [...today.glance.map(g => (day && g.key === 'out' ? { ...g, label: `Out ${day}` } : g)), { key: 'oncall', label: 'On call this week', icon: 'phone', accent: 'pink', people: today.people.filter(p => p.onCall), name: today.onCallName, upcoming: today.upcoming }]
     : [{ key: 'office' }, { key: 'site' }, { key: 'remote' }, { key: 'out' }, { key: 'oncall' }]
   const openIdx = today ? cards.findIndex(g => g.key === open) : -1
   const shown = openIdx >= 0 ? cards[openIdx] : null
@@ -200,7 +202,7 @@ function Glance({ today }) {
   const list = shown && (
     <div key="list" id="glance-list" className="card glance-list" role="region" aria-label={shown.label}>
       <div className="glance-list-head">
-        <span className="chs-overline">{shown.label}{shown.upcoming ? '' : ` · ${shown.people.length}`}</span>
+        <span className="chs-overline">{shown.label}{day && !shown.upcoming && shown.key !== 'out' ? ` ${day}` : ''}{shown.upcoming ? '' : ` · ${shown.people.length}`}</span>
         <button type="button" className="btn-ghost-sm" onClick={() => setOpen(null)}>Close</button>
       </div>
       <div className="glance-people">
@@ -222,6 +224,7 @@ function Glance({ today }) {
   )
   return (
     <section className="glance" aria-label={today?.weekend ? `At a glance, ${today.dayName}` : 'At a glance today'}>
+      {day && <p className="caption glance-note">It’s the weekend: these show who’s where on {day}. On call is still this week’s.</p>}
       {cards.flatMap((g, i) => {
         const isCall = g.key === 'oncall'
         const text = !today ? ' ' : isCall ? (g.name || 'No one') : (firstNames(g.people) || 'No one')

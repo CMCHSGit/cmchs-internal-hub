@@ -103,7 +103,7 @@ function Directory({ ctx }) {
           <span className="chs-overline">People</span>
           <h2>Staff directory</h2>
           <span className="caption">
-            {ctx.people.length} people{onCall ? ` · ${onCall.shortName} is on call` : ''}
+            {ctx.people.length} people{onCall ? ` · ${onCall.shortName} is on call` : ''}{ctx.people[0]?.whereDay ? ` · locations are for ${ctx.people[0].whereDay}` : ''}
           </span>
         </div>
         <div className="pp-head-actions">
