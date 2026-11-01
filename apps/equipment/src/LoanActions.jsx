@@ -9,7 +9,7 @@ import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
-import { canExtend, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { addedText, canExtend, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanLabel, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
@@ -121,7 +121,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       )}
       {asking === 'add' && (
         <AddDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
-          onSave={(nos) => run(() => s.addItems(g, nos), (r) => `${plural(r.added.length, 'item', 'items')} added to ${g.loanTo}${r.booked?.length ? `; ${r.booked.length} still out elsewhere, booked to follow` : ''}${r.moved?.length ? `; taken off ${[...new Set(r.moved.map((e) => e.OnLoanTo))].join(', ')}: their loan form and Simpro job still list ${r.moved.length === 1 ? 'it' : 'them'}` : ''}${r.reclaimed.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : ''}.`)} />
+          onSave={(nos) => run(() => s.addItems(g, nos), (r) => addedText(g, r))} />
       )}
       {asking === 'transfer' && (
         <TransferDialog g={g} all={all} preset={preset} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
@@ -389,7 +389,7 @@ function TransferDialog({ g, all, preset = null, busy, error, onClose, onSave, o
   const mineList = shown.filter((o) => o.mine), others = shown.filter((o) => !o.mine)
   const more = decodeQueue(preset?.queue).length
   const nos = [...picked]
-  const label = (x) => `${x.kind === 'booking' ? 'Booking' : x.kind === 'scheduled' ? 'Scheduled' : 'Active'}: ${x.loanTo} (${x.kind === 'loan' ? (x.endDate ? 'due ' + fmtDate(x.endDate) : 'no end date') : 'starts ' + fmtDate(x.startDate)})${jobOf(x.doc) && !jobOf(x.doc).pending ? ' · ' + jobOf(x.doc).label : ''}${x.am && x.am !== am ? ' · ' + x.am : ''}`
+  const label = (x) => loanLabel(x, am)
   const option = ({ x }) => <option key={keyOf(x)} value={keyOf(x)}>{label(x)}</option>
   const toggle = (no) => setPicked((p) => { const n = new Set(p); if (n.has(no)) n.delete(no); else n.add(no); return n })
   return (

@@ -25,6 +25,7 @@ import Overview from './Overview.jsx'
 import NewLoan from './NewLoan.jsx'
 import { Status } from './BrowseEquipment.jsx'
 import Scan from './Scan.jsx'
+import AddToLoan from './AddToLoan.jsx'
 const Labels = lazy(() => import('./Labels.jsx')) // brings the QR drawing with it, only when labels are printed
 import Calendar from './Calendar.jsx'
 import History from './History.jsx'
@@ -226,6 +227,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
         <div className="eq-selbar" role="region" aria-label="Ticked equipment">
           <span className="eq-strong eq-grow">{sel.size} ticked</span>
           <Button size="sm" disabled={busy} onClick={() => go('new', { add: ticked.map((e) => e.CHSAssetNo).join(',') })}>New loan with these</Button>
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode('addToLoan')}>Add to a loan</Button>
           <Button size="sm" variant="secondary" disabled={busy || !tickedOut.length} title={tickedOut.length ? '' : 'None of the ticked ones are out'} onClick={returnTicked}>Return{tickedOut.length ? ` ${tickedOut.length}` : ''}</Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={countTicked}>Count</Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('labels', { nos: ticked.map((e) => e.CHSAssetNo).join(',') })}>QR labels</Button>
@@ -278,6 +280,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
         : <AdminDialog s={s} title="Add equipment" onClose={() => setMode('view')} onConfirm={() => {}} />)}
       {item && mode === 'edit' && <ItemForm s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
       {item && mode === 'retire' && <RetireDialog s={s} item={item} onClose={() => setMode('view')} onDone={done} />}
+      {mode === 'addToLoan' && ticked.length > 0 && <AddToLoan s={s} items={ticked} onClose={() => setMode('view')} onDone={(msg) => { setSel(new Set()); setMode('view'); onDone?.(msg) }} />}
       {mode === 'kit' && ticked.length > 1 && <KitFromTicked s={s} ticked={ticked} onClose={() => setMode('view')} onDone={(msg) => { setSel(new Set()); setMode('view'); onDone?.(msg) }} />}
       {mode === 'deleteTicked' && ticked.length > 0 && (
         <AdminDialog s={s} title={`Delete ${plural(ticked.length, 'item')} for good?`} confirmLabel="Delete them" danger

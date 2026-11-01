@@ -783,6 +783,23 @@ export function transferTargets(targets, { am = '' } = {}) {
       || String(a.x.startDate || '').localeCompare(String(b.x.startDate || '')))
 }
 
+/** A loan in the pickers: kind, customer, when it's due or starts, Simpro job, and its account manager unless it's `am`'s. */
+export function loanLabel(x, am = '') {
+  const job = jobOf(x.doc)
+  const when = x.kind === 'loan' ? (x.endDate ? 'due ' + fmtDate(x.endDate) : 'no end date') : 'starts ' + fmtDate(x.startDate)
+  return `${x.kind === 'booking' ? 'Booking' : x.kind === 'scheduled' ? 'Scheduled' : 'Active'}: ${x.loanTo} (${when})${job && !job.pending ? ' · ' + job.label : ''}${x.am && x.am !== am ? ' · ' + x.am : ''}`
+}
+
+/** What to tell someone after devices were added to loan `g` (store.addItems' result `r`). */
+export function addedText(g, r) {
+  const n = r.added.length
+  return `${n} ${n === 1 ? 'item' : 'items'} added to ${g.loanTo}`
+    + (r.booked?.length ? `; ${r.booked.length} still out elsewhere, booked to follow` : '')
+    + (r.moved?.length ? `; taken off ${[...new Set(r.moved.map((e) => e.OnLoanTo))].join(', ')}: their loan form and Simpro job still list ${r.moved.length === 1 ? 'it' : 'them'}` : '')
+    + (r.reclaimed?.length ? `; taken from bookings for ${[...new Set(r.reclaimed)].join(', ')}: make sure they’re back in time` : '')
+    + '.'
+}
+
 /** Every word of `q` is somewhere in the loan's customer, location, account manager or Simpro job number. */
 export function matchLoan(x, q) {
   const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean)
