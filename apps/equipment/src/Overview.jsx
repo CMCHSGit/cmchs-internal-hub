@@ -185,7 +185,7 @@ function List({ title, empty, children }) {
 
 function Row({ href, who, what, side, date }) {
   return (
-    <a href={href} className="eq-row">
+    <a href={href} className={`eq-row${date ? ' eq-row-dated' : ''}${what && side ? ' eq-row-stack' : ''}`}>
       {date && <span className="eq-date-chip" aria-hidden="true"><span>{date.toLocaleDateString('en-NZ', { weekday: 'short' })}</span><span>{date.getDate()}</span></span>}
       <span className="eq-row-main"><span className="eq-strong">{who}</span>{what && <span className="eq-small">{what}</span>}</span>
       {side && <span className="eq-row-side">{side}</span>}

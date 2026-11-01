@@ -4,11 +4,12 @@
    Add items, Transfer (to another loan, or a new one), Copy (a new loan
    with the same devices), Edit and Delete. */
 import { useEffect, useState } from 'react'
-import { FileText } from 'lucide-react'
+import { ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
+import { useNarrow } from './useNarrow.js'
 import { addedText, canExtend, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanLabel, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
@@ -18,6 +19,8 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
   const [error, setError] = useState('')
   const [asking, setAsking] = useState(null) // 'tested' | 'dispatched' | 'extend' | 'return' | 'longTerm' | 'active' | 'edit' | 'delete' | 'form' | 'add' | 'transfer' | 'reports' | 'job'
   const [confirmDialog, confirm] = useConfirm()
+  const narrow = useNarrow()
+  const [more, setMore] = useState(false) // the less-used buttons, on a phone
   // Opened from a link (?return=, ?extend=, ?reassign=): straight to that action, once.
   const [preset, setPreset] = useState(null)
   useEffect(() => {
@@ -43,43 +46,65 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
     run(() => s.setReadiness(g, field, false), `${g.loanTo}: no longer marked ${LABEL[field]}.`)
   }
 
+  const readiness = (rb.noTestRequired || rb.skip || rb.tested || rb.dispatched) && (
+    <div className="eq-actions-row" role="group" aria-label="Testing and dispatch">
+      {rb.noTestRequired && <Button size="sm" variant="secondary" disabled={busy} onClick={() => undo('noTestRequired')}>— No test required</Button>}
+      {rb.skip && <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => s.setReadiness(g, 'noTestRequired', true), `${g.loanTo}: no test required.`)}>— Skip testing</Button>}
+      {rb.tested && (rb.tested.on
+        ? <Button size="sm" variant="secondary" className="eq-done" disabled={busy} onClick={() => undo('tested', rb.tested.at)}>✔ Tested{rb.tested.at && <span className="eq-when">{fmtWhen(rb.tested.at)}</span>}</Button>
+        : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('tested')}>○ Mark tested</Button>)}
+      {rb.dispatched && (rb.dispatched.on
+        ? <Button size="sm" variant="secondary" className="eq-done" disabled={busy} onClick={() => undo('dispatched', rb.dispatched.at)}>Dispatched{rb.dispatched.at && <span className="eq-when">{fmtWhen(rb.dispatched.at)}</span>}</Button>
+        : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('dispatched')}>Mark dispatched</Button>)}
+    </div>
+  )
+
+  // Every button, by name. A desktop shows them in one row; a phone shows the ones used on site as big buttons in two
+  // columns, and the rest under "More" (a loan's own page is where an account manager mostly returns, extends, adds and transfers).
+  const reassignNeeded = go && (g.pending || []).length > 0 && g.startDate && g.startDate <= s.today
+  const hasItems = g.kind !== 'booking' && g.items.length > 0
+  const btn = {
+    extend: canExtend(g) && <Button key="extend" size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>,
+    return: hasItems && <Button key="return" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>,
+    form: <Button key="form" size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>,
+    add: <Button key="add" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>,
+    transfer: hasItems && <Button key="transfer" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>,
+    edit: <Button key="edit" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>,
+    active: g.kind === 'loan' && g.longTerm && <Button key="active" size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>,
+    longTerm: g.kind !== 'booking' && !g.longTerm && g.items.length > 0 && <Button key="longTerm" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>,
+    // Marked once the loan has any (old: the Reports button turned green).
+    reports: (s.reportKeys || []).includes(readinessKey(g))
+      ? <Button key="reports" size="sm" variant="secondary" className="eq-has-reports" disabled={busy} onClick={() => setAsking('reports')}>✔ Test reports</Button>
+      : <Button key="reports" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>,
+    // Still waiting on devices once its start has come: Transfer on the loan holding them, ready (old: Reassign / transfer, openStuckLoanReassign).
+    reassign: reassignNeeded && (
+      <Button key="reassign" size="sm" variant="secondary" disabled={busy} onClick={() => {
+        const t = linkTarget('?reassign=' + encodeURIComponent(g.batchId), { needsReassign: all || [], current: [], longTerm: [], upcoming: [] }, s.upcoming, s.equipment)
+        if (t?.params?.act === 'transfer') go(t.view, t.params); else onDone?.(t?.note || `Nothing is holding up ${g.loanTo} any more.`)
+      }}>Reassign / transfer</Button>
+    ),
+    copy: hasItems && go && <Button key="copy" size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>,
+    job: g.kind !== 'booking' && <Button key="job" size="sm" variant="ghost" disabled={busy} onClick={() => setAsking('job')}>Job number</Button>,
+    delete: <Button key="delete" size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>,
+  }
+  const pick = (names) => names.map((n) => btn[n]).filter(Boolean)
+  const main = pick(['reassign', 'extend', 'return', 'transfer', 'add', 'active', 'form'])
+  const rest = pick(['edit', 'longTerm', 'reports', 'copy', 'job', 'delete'])
+
   return (
     <div className="eq-actions" data-working={busy ? '' : undefined}>
-      <div className="eq-actions-row">
-        {canExtend(g) && <Button size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>}
-        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>}
-        <Button size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>
-        {g.kind !== 'booking' && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>}
-        <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>
-        {g.kind === 'loan' && g.longTerm && <Button size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>}
-        {g.kind !== 'booking' && !g.longTerm && g.items.length > 0 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('longTerm')}>Make long-term</Button>}
-        {/* Marked once the loan has any (old: the Reports button turned green). */}
-        {(s.reportKeys || []).includes(readinessKey(g))
-          ? <Button size="sm" variant="secondary" className="eq-has-reports" disabled={busy} onClick={() => setAsking('reports')}>✔ Test reports</Button>
-          : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('reports')}>Test reports</Button>}
-        {/* Still waiting on devices once its start has come: Transfer on the loan holding them, ready (old: Reassign / transfer, openStuckLoanReassign). */}
-        {go && (g.pending || []).length > 0 && g.startDate && g.startDate <= s.today && (
-          <Button size="sm" variant="secondary" disabled={busy} onClick={() => {
-            const t = linkTarget('?reassign=' + encodeURIComponent(g.batchId), { needsReassign: all || [], current: [], longTerm: [], upcoming: [] }, s.upcoming, s.equipment)
-            if (t?.params?.act === 'transfer') go(t.view, t.params); else onDone?.(t?.note || `Nothing is holding up ${g.loanTo} any more.`)
-          }}>Reassign / transfer</Button>
-        )}
-        {g.kind !== 'booking' && g.items.length > 0 && go && <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('new', { copy: g.kind + ':' + g.key })}>Copy</Button>}
-        {g.kind !== 'booking' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setAsking('job')}>Job number</Button>}
-        <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>
-      </div>
-      {(rb.noTestRequired || rb.skip || rb.tested || rb.dispatched) && (
-        <div className="eq-actions-row" role="group" aria-label="Testing and dispatch">
-          {rb.noTestRequired && <Button size="sm" variant="secondary" disabled={busy} onClick={() => undo('noTestRequired')}>— No test required</Button>}
-          {rb.skip && <Button size="sm" variant="ghost" disabled={busy} onClick={() => run(() => s.setReadiness(g, 'noTestRequired', true), `${g.loanTo}: no test required.`)}>— Skip testing</Button>}
-          {rb.tested && (rb.tested.on
-            ? <Button size="sm" variant="secondary" className="eq-done" disabled={busy} onClick={() => undo('tested', rb.tested.at)}>✔ Tested{rb.tested.at && <span className="eq-when">{fmtWhen(rb.tested.at)}</span>}</Button>
-            : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('tested')}>○ Mark tested</Button>)}
-          {rb.dispatched && (rb.dispatched.on
-            ? <Button size="sm" variant="secondary" className="eq-done" disabled={busy} onClick={() => undo('dispatched', rb.dispatched.at)}>Dispatched{rb.dispatched.at && <span className="eq-when">{fmtWhen(rb.dispatched.at)}</span>}</Button>
-            : <Button size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('dispatched')}>Mark dispatched</Button>)}
-        </div>
+      {narrow ? (
+        <>
+          <div className="eq-actions-row eq-actions-main">{main}</div>
+          {readiness}
+          <button type="button" className="eq-more-btn" aria-expanded={more} onClick={() => setMore((m) => !m)}>{more ? 'Fewer actions' : 'More actions'} {more ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}</button>
+          {more && <div className="eq-actions-row eq-actions-main eq-actions-rest">{rest}</div>}
+        </>
+      ) : (
+        <>
+          <div className="eq-actions-row">{[...pick(['extend', 'return']), btn.form, ...pick(['add', 'transfer', 'edit', 'active', 'longTerm', 'reports', 'reassign', 'copy', 'job']), btn.delete]}</div>
+          {readiness}
+        </>
       )}
       {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
 

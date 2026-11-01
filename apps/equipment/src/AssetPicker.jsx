@@ -81,8 +81,8 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
           <input ref={box} className="input" value={q} onChange={(e) => { setQ(e.target.value); setMiss('') }} placeholder="Asset number (type or scan, then Enter), or search model or serial"
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (matches.length === 1 && !findAsset(s.equipment, q)) add(matches[0].CHSAssetNo); else if (q.trim()) add(q) } }} autoComplete="off" />
         </label>
-        {!camera && <button type="button" className="btn btn-secondary" onClick={() => setCamera(true)}><Camera size={16} aria-hidden="true" /> Camera</button>}
-        <button type="button" className="btn btn-secondary" onClick={() => setBrowsing(true)}>Browse equipment</button>
+        {!camera && <button type="button" className="btn btn-secondary btn-md" onClick={() => setCamera(true)}><Camera size={16} aria-hidden="true" /> Camera</button>}
+        <button type="button" className="btn btn-secondary btn-md" onClick={() => setBrowsing(true)}>Browse equipment</button>
       </div>
       {/* Scanning devices onto a loan with the phone's camera (old: the phone's Scan, Check out, then Book). */}
       {camera && <Scanner onCode={add} onClose={() => setCamera(false)} />}

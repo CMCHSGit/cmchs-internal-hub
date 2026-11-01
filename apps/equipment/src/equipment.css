@@ -269,3 +269,117 @@
 .eq-lbl-preview { position: relative; overflow: hidden; border: 1px solid var(--border-subtle); background: var(--chs-black-05); }
 .eq-lbl-preview iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; background: #fff; }
 @media (max-width: 759px) { .eq-lbl-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Phone layout ──────────────────────────────────────────────────────────────────────────────
+   For account managers on site with a small phone: less chrome above the list, one-thumb buttons
+   (44px and up), what's used on site first and the rest under "More", and rows that don't cut a
+   customer's name short. The desktop layout above is untouched; this is everything under 760px
+   (where the hub swaps its header tabs for the bottom bar). */
+.eq-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 42px; }
+.eq-pickers { display: contents; }
+.eq-filter-toggle { display: none; }
+.eq-selbar-head, .eq-selbar-btns { display: contents; }
+.eq-selbar-head .eq-clear { order: 9; }
+.eq-selbar-gap { display: none; }
+/* .eq-count is also Scan's box (above): the status chips' counts stay small. */
+.tag .eq-count { display: inline; padding: 0; }
+
+@media (max-width: 759px) {
+  .eq-page { padding: 8px 12px 20px; gap: 10px; }
+  .eq-head { gap: 0; }
+  .eq-title { font: var(--weight-semibold) 20px/1.2 var(--font-display); }
+  .eq-sub { display: none; }
+  .eq-page .btn-sm { min-height: 40px; }
+  .eq-page .tag { min-height: 38px; padding: 6px 14px; }
+
+  /* Tabs: icon over label, the five an account manager uses on site, and More for the rest. */
+  .eq-tabbar-wrap { margin: 0 -12px; background: var(--surface-card); border-top: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); }
+  .eq-tabbar { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .eq-tabbar-more { grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--border-subtle); }
+  .eq-tab { all: unset; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 56px; padding: 6px 2px 4px; border-bottom: 3px solid transparent; color: var(--text-muted); font: var(--weight-semibold) 11.5px/1.1 var(--font-body); text-align: center; cursor: pointer; }
+  .eq-tab:hover { color: var(--text-strong); text-decoration: none; }
+  .eq-tab:focus-visible { box-shadow: inset 0 0 0 2px var(--border-focus); }
+  .eq-tab.on { color: var(--accent-fg); border-bottom-color: var(--accent-fg); }
+  .eq-tab-new .eq-tab-icon { color: var(--accent-fg); }
+  .eq-tab-icon { position: relative; display: inline-flex; }
+  .eq-tab-icon .eq-badge { position: absolute; top: -7px; right: -13px; margin: 0; }
+
+  /* Overview and other lists of rows: the customer gets the whole line, its badges sit under it. */
+  .eq-row { padding: 12px; gap: 4px 10px; min-height: 56px; }
+  .eq-row-main .eq-strong { white-space: normal; }
+  .eq-row-stack { flex-wrap: wrap; }
+  .eq-row-stack .eq-row-go { order: 1; }
+  .eq-row-stack .eq-row-side { order: 2; flex: 1 1 100%; flex-wrap: wrap; gap: 6px; }
+  .eq-row-stack.eq-row-dated .eq-row-side { padding-left: 52px; }
+  .eq-ov-soon > div:first-child .eq-note { display: none; }
+  .eq-ov-part { gap: 10px; }
+  .eq-overview { gap: 18px; }
+  .eq-tile { padding: 14px 6px; min-height: 76px; justify-content: center; }
+
+  /* Loans: search on one line, then chips (My loans, Overdue, Filters); the account manager and sort pickers open from Filters. */
+  .eq-toolbar { padding: 10px; gap: 8px; }
+  .eq-toolbar .field-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .eq-toolbar .field { flex: 1 1 100%; min-width: 0; }
+  .eq-pickers { display: none; flex: 1 1 100%; flex-direction: column; gap: 8px; }
+  .eq-toolbar-open .eq-pickers { display: flex; }
+  .eq-filter-toggle { display: inline-flex; }
+  .eq-toolbar .input, .eq-toolbar select { min-height: 46px; }
+  .eq-chips { flex: 1 1 100%; min-height: 0; }
+  .eq-loans > .eq-note { display: none; }
+  .eq-section-title { margin-top: 4px; }
+  .eq-loan-head { position: relative; display: block; padding: 12px 42px 12px 12px; min-height: 56px; }
+  .eq-loan-who { font-size: 17px; }
+  .eq-loan-badges > :not(.eq-chev):first-child { margin-top: 6px; }
+  .eq-chev { position: absolute; right: 12px; top: 14px; }
+  .eq-loan-body { padding: 0 12px 10px; }
+
+  /* What can be done to a loan: big two-column buttons, the used-on-site ones first, the rest under More. */
+  .eq-actions { gap: 8px; margin-top: 10px; padding-bottom: 10px; }
+  .eq-actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .eq-actions-main > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .eq-actions .btn { width: 100%; min-height: 46px; padding: 8px 10px; font-size: 15px; white-space: normal; line-height: 1.2; }
+  .eq-actions .eq-when { display: block; margin: 2px 0 0; font-size: 12px; }
+  .eq-more-btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; border: 1px dashed var(--border-hairline); border-radius: var(--radius-md); background: none; color: var(--accent-fg); font: var(--weight-semibold) 14px/1.2 var(--font-body); cursor: pointer; }
+  .eq-device { padding: 8px 40px 8px 0; }
+  .eq-device .eq-device-x { width: 40px; height: 40px; top: 2px; right: -8px; }
+  .eq-device a.eq-strong { padding: 2px 0; }
+
+  /* Equipment: each device is a small card: asset number and status badge, model, who has it, then serial and shelf.
+     The status cell's badge and its "who, due when" line are placed separately (display: contents). */
+  .eq-filters { flex-wrap: nowrap; overflow-x: auto; margin: 0 -12px; padding: 2px 12px; scrollbar-width: none; }
+  .eq-shown { gap: 8px; }
+  .eq-page .eq-table tbody tr { display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr); column-gap: 8px; margin-bottom: 8px; padding: 6px 12px 8px 0; }
+  .eq-page .eq-table td { display: block; min-width: 0; padding: 0; border: 0; }
+  .eq-page .eq-table td + td { border-top: 0; }
+  .eq-page .eq-table td::before { display: none; }
+  .eq-page .eq-table td:empty { display: none; }
+  .eq-page .eq-table td.eq-browse-tick { grid-column: 1; grid-row: 1 / span 6; display: flex; justify-content: center; padding-top: 8px; width: auto; }
+  .eq-browse-tick input { width: 26px; height: 26px; }
+  .eq-page .eq-table td[data-label="Asset no."] { grid-column: 2; grid-row: 1; padding-top: 8px; font-size: 16px; }
+  .eq-page .eq-table td[data-label="Status"], .eq-page .eq-table td[data-label="Status"] > div { display: contents; }
+  .eq-page .eq-table td[data-label="Status"] .badge { grid-column: 3; grid-row: 1; justify-self: end; align-self: start; margin-top: 8px; }
+  .eq-page .eq-table td[data-label="Status"] .eq-small { grid-column: 2 / -1; grid-row: 3; margin: 0; }
+  .eq-page .eq-table td[data-label="Model"] { grid-column: 2 / -1; grid-row: 2; }
+  .eq-page .eq-table td[data-label="Serial no."] { grid-column: 2; grid-row: 4; padding-top: 2px; font-size: 12px; color: var(--text-muted); }
+  .eq-page .eq-table td[data-label="Shelf"] { grid-column: 3; grid-row: 4; padding-top: 2px; font-size: 12px; color: var(--text-muted); text-align: right; }
+  .eq-page .eq-table td[data-label="Location"] { grid-column: 2 / -1; grid-row: 5; }
+  .eq-page .eq-table td[data-label="Location"]::before { display: inline; content: 'Out at '; flex: none; color: var(--text-muted); font: inherit; }
+  .eq-page .eq-table td[data-label="Tile"] { grid-column: 2 / -1; grid-row: 6; }
+  /* Ticked equipment: a bar above the bottom tabs, its actions in one swipeable row, so the list stays in view. */
+  .eq-selbar { position: fixed; top: auto; left: 8px; right: 8px; bottom: calc(var(--nav-h, 60px) + 8px + env(safe-area-inset-bottom)); z-index: 35; flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 10px; background: var(--surface-card); border: 1px solid var(--accent-fg); box-shadow: var(--shadow-overlay); }
+  .eq-selbar-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .eq-selbar-btns { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .eq-selbar-btns .btn { flex: 0 0 auto; min-height: 44px; }
+  .eq-selbar-gap { display: block; height: 128px; }
+
+  /* Forms and dialogs: the buttons share the width and are easy to hit. */
+  .eq-page .dialog-actions .btn { flex: 1 1 40%; min-height: 46px; }
+  .eq-pick { padding: 12px 0; }
+  .eq-pick input, .eq-picked input[type="checkbox"] { width: 22px; height: 22px; }
+  .eq-picker-add .field { flex-basis: 100%; }
+  .eq-picker-add .btn { flex: 1 1 40%; width: auto; }
+  .eq-match { padding: 12px; }
+  .eq-picked .icon-btn { width: 40px; height: 40px; }
+  .eq-cal-label { width: 128px; flex-basis: 128px; }
+}
+@media (max-width: 359px) { .eq-tab { font-size: 10.5px; } }

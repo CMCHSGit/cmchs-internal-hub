@@ -13,7 +13,7 @@
      History    devices' history and the audit log
      Manage     retired items, kits, import/export, Simpro, test mode */
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
+import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, MoreHorizontal, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, actionCount, findByIdOrNo, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, tileSeen, upcomingFor } from './model.js'
@@ -26,6 +26,7 @@ import NewLoan from './NewLoan.jsx'
 import { Status } from './BrowseEquipment.jsx'
 import Scan from './Scan.jsx'
 import AddToLoan from './AddToLoan.jsx'
+import { useNarrow } from './useNarrow.js'
 const Labels = lazy(() => import('./Labels.jsx')) // brings the QR drawing with it, only when labels are printed
 import Calendar from './Calendar.jsx'
 import History from './History.jsx'
@@ -55,6 +56,7 @@ export default function App() {
 
 function Shell() {
   const s = useStore()
+  const narrow = useNarrow()
   const [route, setRoute] = useState(routeOf)
   useEffect(() => {
     const f = () => setRoute(routeOf())
@@ -101,14 +103,14 @@ function Shell() {
       {s.error && <Alert tone="warning" title="Couldn’t refresh">{s.error}</Alert>}
       {/* Always in view while it's on (old: the orange "Test Mode" button in the header), so no one makes test loans by mistake. */}
       {s.testMode && <Alert tone="warning" title="Test mode is on in this browser">New loans are test loans (only seen with test mode on), and Simpro jobs and emails are pretended. <a href={hashOf('manage', { part: 'test' })}>Turn it off</a></Alert>}
-      <nav className="eq-views" aria-label="Demo equipment">
+      {narrow ? <TabBar route={route} needs={needs} /> : <nav className="eq-views" aria-label="Demo equipment">
         {VIEWS.map(([id, label, Icon]) => (
           <a key={id} href={hashOf(id)} className={`eq-view${route.view === id ? ' on' : ''}`} aria-current={route.view === id ? 'page' : undefined}>
             <Icon size={18} aria-hidden="true" />{label}
             {id === 'overview' && needs > 0 && <span className="eq-badge" aria-label={`, ${needs} need${needs === 1 ? 's' : ''} you`}>{badgeText(needs)}</span>}
           </a>
         ))}
-      </nav>
+      </nav>}
       {route.view === 'manage' ? <Manage s={s} params={route.params} setParams={setParams} onDone={showToast} />
         : route.view === 'calendar' ? <Calendar s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'history' ? <History s={s} params={route.params} setParams={setParams} />
@@ -119,6 +121,36 @@ function Shell() {
         : route.view === 'equipment' ? <Equipment s={s} params={route.params} setParams={setParams} go={go} onDone={showToast} />
           : <Overview s={s} />}
       <Toast message={toast} />
+    </div>
+  )
+}
+
+// What an account manager on site reaches for, in the order they reach for it; the others sit under More.
+const TAB_ORDER = ['overview', 'loans', 'new', 'scan', 'equipment']
+
+/** The phone's tabs (the desktop row scrolls sideways and hides most of them): icon over label, five that fit, and More. */
+function TabBar({ route, needs }) {
+  const byId = Object.fromEntries(VIEWS.map((v) => [v[0], v]))
+  const rest = VIEWS.filter(([id]) => !TAB_ORDER.includes(id))
+  const inRest = rest.some(([id]) => id === route.view)
+  const [more, setMore] = useState(false)
+  const tab = ([id, label, Icon]) => (
+    <a key={id} href={hashOf(id)} className={`eq-tab${route.view === id ? ' on' : ''}${id === 'new' ? ' eq-tab-new' : ''}`} aria-current={route.view === id ? 'page' : undefined}>
+      <span className="eq-tab-icon"><Icon size={22} aria-hidden="true" />
+        {id === 'overview' && needs > 0 && <span className="eq-badge" aria-label={`, ${needs} need${needs === 1 ? 's' : ''} you`}>{badgeText(needs)}</span>}
+      </span>
+      <span>{label}</span>
+    </a>
+  )
+  return (
+    <div className="eq-tabbar-wrap">
+      <nav className="eq-tabbar" aria-label="Demo equipment">
+        {TAB_ORDER.map((id) => tab(byId[id]))}
+        <button type="button" className={`eq-tab${inRest ? ' on' : ''}`} aria-expanded={more || inRest} onClick={() => setMore((m) => !m)}>
+          <span className="eq-tab-icon"><MoreHorizontal size={22} aria-hidden="true" /></span><span>More</span>
+        </button>
+      </nav>
+      {(more || inRest) && <nav className="eq-tabbar eq-tabbar-more" aria-label="More of the demo equipment">{rest.map(tab)}</nav>}
     </div>
   )
 }
@@ -223,9 +255,13 @@ function Equipment({ s, params, setParams, go, onDone }) {
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => go('labels')}>QR labels</button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => show(null, 'add')}>+ Add assets</button>
       </div>
-      {sel.size > 0 && (
+      {sel.size > 0 && (<>
         <div className="eq-selbar" role="region" aria-label="Ticked equipment">
-          <span className="eq-strong eq-grow">{sel.size} ticked</span>
+          <div className="eq-selbar-head">
+            <span className="eq-strong eq-grow">{sel.size} ticked</span>
+            <Button size="sm" variant="ghost" className="eq-clear" disabled={busy} onClick={() => setSel(new Set())}>Clear</Button>
+          </div>
+          <div className="eq-selbar-btns">
           <Button size="sm" disabled={busy} onClick={() => go('new', { add: ticked.map((e) => e.CHSAssetNo).join(',') })}>New loan with these</Button>
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode('addToLoan')}>Add to a loan</Button>
           <Button size="sm" variant="secondary" disabled={busy || !tickedOut.length} title={tickedOut.length ? '' : 'None of the ticked ones are out'} onClick={returnTicked}>Return{tickedOut.length ? ` ${tickedOut.length}` : ''}</Button>
@@ -233,9 +269,10 @@ function Equipment({ s, params, setParams, go, onDone }) {
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => go('labels', { nos: ticked.map((e) => e.CHSAssetNo).join(',') })}>QR labels</Button>
           {ticked.length > 1 && <Button size="sm" variant="secondary" disabled={busy} onClick={() => setMode('kit')}>Make a kit</Button>}
           <Button size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setMode('deleteTicked')}>Delete</Button>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => setSel(new Set())}>Clear</Button>
+          </div>
         </div>
-      )}
+        <div className="eq-selbar-gap" aria-hidden="true" />
+      </>)}
 
       <div className="data-table-wrap">
         <table className="data-table eq-table">

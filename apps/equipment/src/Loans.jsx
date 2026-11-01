@@ -31,6 +31,9 @@ export default function Loans({ s, params, setParams, go }) {
   const f = { q: params.q || '', am: params.am || '', overdueOnly: params.overdue === '1', sort: params.sort || 'recent' }
   const all = [...sections.needsReassign, ...sections.upcoming, ...sections.current, ...sections.longTerm]
   const ams = [...new Set(all.map((g) => g.am).filter(Boolean))].sort()
+  const mine = s.me?.name && ams.includes(s.me.name) ? s.me.name : '' // an account manager's own loans, one tap
+  // On a phone the two pickers sit behind a Filters chip (search and the chips are what's used on site); open already if the link filtered.
+  const [pickers, setPickers] = useState(() => !!((params.am && params.am !== mine) || params.sort))
   const soonList = sections.upcoming.filter((g) => startsSoon(g, s.today)), laterList = sections.upcoming.filter((g) => !startsSoon(g, s.today))
   // Overdue only applies to started loans, as the old tab's checkbox did.
   const show = (list, started = true) => filterLoans([...list], { ...f, overdueOnly: started && f.overdueOnly }, s.today)
@@ -60,17 +63,23 @@ export default function Loans({ s, params, setParams, go }) {
         {soonList.length > 0 && <> · <a className="eq-soon-link" href="#/loans?at=startingSoon">{soonList.length} starting soon</a></>}
         {upcomingCount > 0 && ` · ${upcomingCount} upcoming`}{sections.longTerm.length > 0 && ` · ${sections.longTerm.length} long-term`}
       </p>
-      <div className="card eq-toolbar">
+      <div className={`card eq-toolbar${pickers ? ' eq-toolbar-open' : ''}`}>
         <label className="field eq-grow"><span className="field-label">Search</span>
           <input className="input" type="search" value={f.q} onChange={(e) => set('q', e.target.value)} placeholder="Customer or location" autoComplete="off" />
         </label>
+        <div className="eq-pickers">
         <label className="field"><span className="field-label">Account manager</span>
-          <select value={f.am} onChange={(e) => set('am', e.target.value)}><option value="">All account managers</option>{ams.map((a) => <option key={a}>{a}</option>)}</select>
+          <select value={f.am} onChange={(e) => set('am', e.target.value)}><option value="">All managers</option>{ams.map((a) => <option key={a}>{a}</option>)}</select>
         </label>
         <label className="field"><span className="field-label">Sort</span>
           <select value={f.sort} onChange={(e) => set('sort', e.target.value === 'recent' ? '' : e.target.value)}>{SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </label>
-        <label className="eq-check"><input type="checkbox" checked={f.overdueOnly} onChange={(e) => set('overdue', e.target.checked ? '1' : '')} /> Overdue only</label>
+        </div>
+        <div className="eq-chips">
+          {mine && <button type="button" className={`tag${f.am === mine ? ' tag-selected' : ''}`} aria-pressed={f.am === mine} onClick={() => set('am', f.am === mine ? '' : mine)}>My loans</button>}
+          <button type="button" className={`tag${f.overdueOnly ? ' tag-selected' : ''}`} aria-pressed={f.overdueOnly} onClick={() => set('overdue', f.overdueOnly ? '' : '1')}>Overdue only</button>
+          <button type="button" className={`tag eq-filter-toggle${pickers ? ' tag-selected' : ''}`} aria-expanded={pickers} onClick={() => setPickers((x) => !x)}>Filters</button>
+        </div>
       </div>
 
       {lists.map(([id, title, hint, list]) => list.length > 0 && (
