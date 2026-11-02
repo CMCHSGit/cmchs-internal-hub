@@ -179,3 +179,13 @@ test('computer templates: both load-ready, use step types the bench has, unique 
     assert.ok(types.includes('esa_mains') && types.includes('esa_ins'))
   }
 })
+
+test('ESA612 connects by itself when a measurement starts, and a failed test offers Re-test instead of stopping', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /async ensure\(key = 'esa'\)/, 'Devices.ensure connects known ports, else asks once for the FTDI device')
+  assert.match(html, /usbVendorId: 0x0403/, 'the port chooser only lists the USB serial (FTDI) devices')
+  assert.match(html, /await Devices\.ensure\('esa'\)/, 'Start auto sequence and This test only connect first')
+  assert.match(html, /failPrompt\(s, last\)/)
+  assert.match(html, /value: 'retest'/, 'a Re-test button')
+  assert.doesNotMatch(html, /The sequence stopped and the equipment outlet is off/, 'the old stop-and-tell dialog is gone')
+})

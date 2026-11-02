@@ -167,6 +167,11 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
 - **Notes for anyone changing the bench:** `apps/testbench/docs/` has `esa612-protocol-notes.md` (what the real ESA612 and ProSim accept and
   refuse: read it before touching the serial driver), `bench-notes.md` (code map, data formats, the traps that have already bitten) and
   `change-log.md` (the 2 Nov 2026 features in detail).
+- **The ESA612 connects by itself.** Pressing Start auto sequence (or This test only) connects any USB device the browser already knows;
+  each one says whether it is an ESA612 or a ProSim, so no port is picked by hand. The first time on a laptop the browser asks once
+  (it lists only the USB serial devices) and then remembers. A test with ESA612 steps also reconnects known devices when it begins.
+- **A failed test in the auto sequence** (stop-on-fail is on by default) asks what to do: **Re-test** that step at once, **Continue to next
+  test**, or **Stop sequence**. The failing readings are shown in the prompt.
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
 - Tests: `npm test --prefix apps/testbench` (Simpro calls, the outbox, and that the page still has its local fonts and hook).
 

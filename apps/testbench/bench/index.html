@@ -1033,8 +1033,41 @@ const Devices = {
     if (!('serial' in navigator)) return;
     let p;
     try { p = await navigator.serial.requestPort(filtered ? { filters: [{ usbVendorId: 0x0403, usbProductId: 0x6001 }] } : {}); }
-    catch (e) { if (e.name === 'NotFoundError') toast(filtered ? 'No device selected. Try “Choose from all ports” or see Setup and troubleshooting.' : 'No port selected.', 4500); else toast(e.message); return; }
+    catch (e) { if (e.name === 'NotFoundError') toast(filtered ? 'No device selected. Try “Choose from all ports” or see Setup and troubleshooting.' : 'No port selected.', 4500); else if (e.name === 'SecurityError') toast('Click the button again to choose the port.', 4500); else toast(e.message); return; }
     await this.connect(p, false);
+  },
+  /** Reconnect to any USB device this browser has been allowed to use before, once, when a test that needs one begins. */
+  async autoReconnect() {
+    if (this.esa || this.ps || this.reconnecting || !(await this.knownFree().catch(() => 0))) return;
+    this.reconnecting = true; toast('Connecting the test equipment…');
+    try { await this.reconnect(); } catch (e) { log('er', 'USB', e.message); } finally { this.reconnecting = false; }
+  },
+  /**
+   * Have the ESA612 (or ProSim 8) connected, without sending the operator to the Devices page.
+   * Devices the browser already knows connect by themselves and each says what it is (ESA612 or ProSim), so no port needs choosing.
+   * The first time on a laptop the browser must be asked once, showing only the USB serial (FTDI) devices; it remembers the answer.
+   * Returns the link, or null if nothing connected.
+   */
+  async ensure(key = 'esa') {
+    if (this[key]) return this[key];
+    if (!('serial' in navigator)) { toast('This browser can’t use USB devices. Use Chrome or Edge.', 4500); return null; }
+    if (this.ensuring) return this.ensuring;
+    this.ensuring = (async () => {
+      try {
+        while (this.reconnecting) await wait(200);
+        if (!this[key] && await this.knownFree().catch(() => 0)) { toast('Connecting the test equipment…'); await this.reconnect(); }
+        if (!this[key]) {
+          // The browser only shows its port chooser straight after a click; connecting known devices can take long enough to lose that.
+          if (navigator.userActivation && !navigator.userActivation.isActive) {
+            const go = await dialog({ title: `Choose the ${key === 'esa' ? 'ESA612' : 'ProSim 8'}`, body: '<p>Click Choose, then pick the <b>USB Serial Port</b> in the list. The browser remembers it, so next time this connects by itself.</p>', buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Choose', value: true }] });
+            if (!go) return null;
+          }
+          await this.choose(true);
+        }
+      } finally { this.ensuring = null; }
+      return this[key] || null;
+    })();
+    return this.ensuring;
   },
   async reconnect() {
     const inUse = [this.esa, this.ps].filter(Boolean).map(l => l.port);
@@ -1919,6 +1952,8 @@ const Runner = {
     $('#editAp').hidden = !usesAP(this.run.template); Power.render();
     log('in', 'RUN', `Started “${tpl.name}” — ${$('#runDut').textContent}`);
     this.go(0);
+    // Devices this laptop has used before connect while the first visual steps are being done.
+    if (this.run.template.steps.some(s => ['esa', 'ps'].includes(TYPES[s.type]?.group))) Devices.autoReconnect();
   },
   get steps() { return this.run.template.steps; },
   dutText() { return Object.entries(this.run.dut).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('  ·  '); },
@@ -2011,7 +2046,7 @@ const Runner = {
     this.run = run; App.show('run');
     log('in', 'RUN', `Restored the unfinished test “${run.template.name}” (${done} of ${run.template.steps.length} steps done)`);
     this.resume();
-    if (!Devices.esa && !Devices.ps && await Devices.knownFree().catch(() => 0)) { toast('Reconnecting the test equipment…'); Devices.reconnect().catch(() => {}); }
+    Devices.autoReconnect();
   },
 
   renderList() {
@@ -2040,10 +2075,11 @@ const Runner = {
   renderStage() {
     const s = this.step, T = TYPES[s.type], r = this.res(), i = this.run.idx, n = this.steps.length;
     const need = T.group === 'esa' && !Devices.esa ? 'ESA612' : T.group === 'ps' && !Devices.ps ? 'ProSim 8' : null;
+    this.needShown = need;
     $('#stage').innerHTML = `
       <div class="stage-head"><div><span class="overline">Step ${i + 1} of ${n} · ${esc(GROUPS.find(g => g[0] === T.group)[1])}</span><h2 style="margin-top:4px">${esc(s.title)}</h2></div>
         ${r.status !== 'pending' ? `<span class="badge ${STATUS_BADGE[r.status]}">${STATUS_LABEL[r.status]}</span>` : ''}</div>
-      ${need ? `<div class="banner warn">${icon('plug')}<div>Connect the ${need} on the <a href="#devices" data-goto="devices">Devices</a> page to run this step${T.group === 'ps' ? ', or set the simulator by hand and carry on' : ''}.</div></div>` : ''}
+      ${need ? `<div class="banner warn">${icon('plug')}<div>${T.group === 'esa' && 'serial' in navigator ? 'The ESA612 isn’t connected yet. It connects by itself when you press Start. The first time on a laptop, choose its USB Serial Port when the browser asks. You can also use the <a href="#devices" data-goto="devices">Devices</a> page.' : `Connect the ${need} on the <a href="#devices" data-goto="devices">Devices</a> page to run this step${T.group === 'ps' ? ', or set the simulator by hand and carry on' : ''}.`}</div></div>` : ''}
       ${s.instructions ? (s.instructions.length > 700
         ? `<div class="instr-wrap"><p class="instructions long" id="stInstr">${esc(s.instructions)}</p><button type="button" class="btn ghost sm" id="stInstrToggle" aria-controls="stInstr" aria-expanded="false">${icon('down')}Show the full procedure</button></div>`
         : `<p class="instructions">${esc(s.instructions)}</p>`) : ''}
@@ -2145,7 +2181,7 @@ const Runner = {
     if (nums.length && !this.busy) { const first = nums.find(x => x.value === '') || null; if (first) setTimeout(() => first.focus({ preventScroll: true }), 0); }
   },
   esaButtons(s, r) {
-    const blk = this.esaBlock(); const dis = Devices.esa ? '' : 'disabled';
+    const blk = this.esaBlock(); const dis = Devices.esa || 'serial' in navigator ? '' : 'disabled';  // the ESA612 connects when Start is pressed
     if (!blk) return `<button type="button" class="btn lg" id="esaStart" ${dis}>${icon(r.status === 'pending' ? 'play' : 'refresh')}${r.status === 'pending' ? 'Start measurements' : 'Measure again'}</button>`;
     const done = r.status !== 'pending';
     const from = done ? this.run.idx + 1 : this.run.idx;
@@ -2261,7 +2297,9 @@ const Runner = {
   },
   async safeOff(link) { if (!link) return; link.lastPol = 'OFF'; try { if (link.stream) await link.stopStream(); } catch {} for (const c of ['IDLE']) await link.send(c, 2000).catch(() => {}); },
   async runEsa(s, opts = {}) {
-    const link = Devices.esa; if (!link || this.busy) return 'cancel';
+    if (this.busy) return 'cancel';
+    const link = opts.auto ? Devices.esa : await Devices.ensure('esa'); if (!link) return 'cancel';
+    if (!opts.auto && this.step === s) { this.renderStage(); this.renderList(); }  // the connection banner goes
     if (Power.on) await Power.off(true);
     const T = TYPES[s.type], r = this.res(s), rows = buildEsaRows(s, this.run.template);
     const zero = s.type === 'esa_pe' && Prefs.get('zeroLead');
@@ -2333,7 +2371,9 @@ const Runner = {
     return b > a ? [a, b] : null;
   },
   async runAuto(from) {
-    const link = Devices.esa; if (!link || this.busy || this.autoRunning) return;
+    if (this.busy || this.autoRunning) return;
+    const link = await Devices.ensure('esa'); if (!link) return;
+    if (this.run && TYPES[this.step.type].group === 'esa') { this.renderStage(); this.renderList(); }  // the connection banner goes
     const blk = this.esaBlock(from); if (!blk) return;
     const list = []; for (let i = from; i <= blk[1]; i++) list.push(i);
     const halt = this.run.template.esaHalt !== false;
@@ -2342,7 +2382,7 @@ const Runner = {
       body: `<p>These tests run one after another:</p><ol style="margin:0 0 12px;padding-left:20px">${list.map(i => `<li>${esc(this.steps[i].title)}</li>`).join('')}</ol>
         ${list.some(i => ['esa_pat', 'esa_map'].includes(this.steps[i].type)) ? `<p>Applied parts: <b>${esc(getAP(this.run.template).filter(g => g.leads.length).map(g => `${g.name} (${apTypeName(g.apclass)}, ${g.leads.join(' ')})`).join('; '))}</b>. Use <i>Change applied parts</i> first if that’s not what’s connected.</p>` : ''}
         ${hasIns ? '<p>The insulation test applies <b>500 V DC</b> to the device.</p>' : ''}${hasMains ? '<p>The leakage tests switch <b>mains power to the device</b> and change polarity, neutral and earth between measurements.</p>' : ''}
-        <p>Keep hands clear. The sequence only pauses when a lead has to be moved${halt ? ', and stops if a test fails' : ''}.</p>`,
+        <p>Keep hands clear. The sequence only pauses when a lead has to be moved${halt ? ', and asks what to do if a test fails' : ''}.</p>`,
       buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Start sequence', value: true }] });
     if (!ok) return;
     if (Power.on) await Power.off(true);
@@ -2352,10 +2392,18 @@ const Runner = {
       for (const i of list) {
         if (this.autoStop || !Devices.esa) { stoppedAt = i; why = 'stopped'; break; }
         this.run.idx = i; this.renderList(); this.renderStage();
-        const out = await this.runEsa(this.steps[i], { auto: true });
+        let out = await this.runEsa(this.steps[i], { auto: true });
         this.renderList();
+        // A failed test doesn't end the sequence: say what failed and let the operator re-test it, carry on, or stop.
+        while (out === 'fail' && halt && !this.autoStop && Devices.esa) {
+          await this.safeOff(Devices.esa);
+          const choice = await this.failPrompt(this.steps[i], i === blk[1]);
+          if (choice === 'retest') { log('in', 'RUN', `Re-testing “${this.steps[i].title}”`); out = await this.runEsa(this.steps[i], { auto: true }); this.renderList(); continue; }
+          if (choice !== 'next') { stoppedAt = i; why = 'declined'; }
+          break;
+        }
+        if (stoppedAt != null) break;
         if (out === 'cancel' || out === 'error' || this.autoStop) { stoppedAt = i; why = out === 'error' ? 'error' : 'stopped'; break; }
-        if (out === 'fail' && halt && i !== blk[1]) { stoppedAt = i; why = 'fail'; break; }
       }
     } finally {
       await this.safeOff(Devices.esa);
@@ -2368,8 +2416,15 @@ const Runner = {
       if (blk[1] < this.steps.length - 1) this.go(blk[1] + 1); else { this.renderStage(); this.renderList(); }
     } else {
       this.run.idx = stoppedAt; this.renderStage(); this.renderList();
-      if (why === 'fail') dialog({ title: `${this.steps[stoppedAt].title} failed`, tone: 'var(--critical)', body: '<p>The sequence stopped and the equipment outlet is off. Check the device, then measure again or continue the sequence from the next test.</p>' });
     }
+  },
+  /** After a failed test in the auto sequence: what failed, and 'retest', 'next' (carry on) or 'stop'. */
+  failPrompt(s, last) {
+    const bad = (this.res(s).rows || []).filter(x => x && x.result === 'fail');
+    const what = bad.map(x => `<li><b>${esc(x.label)}</b>: ${esc(x.display)}${x.limit ? ` <span class="muted">(limit ${esc(x.limit)})</span>` : ''}</li>`).join('');
+    return dialog({ title: `${s.title} failed`, tone: 'var(--critical)',
+      body: `${what ? `<ul style="padding-left:20px;margin:0 0 10px">${what}</ul>` : ''}<p>The equipment outlet is off. Check the connection (lead clip, plug, the part being touched), then re-test. The earlier result is replaced when the re-test finishes.</p>`,
+      buttons: [{ label: 'Stop sequence', value: 'stop', cls: 'quiet', cancel: true }, { label: last ? 'Carry on' : 'Continue to next test', value: 'next', cls: 'secondary' }, { label: 'Re-test', value: 'retest' }] });
   },
   /** Send a row's setup. If the analyser refuses a command (!02) and the row has another known order, try that. */
   /** Find which of INSB / INSD / INSE runs an insulation test, by asking the analyser for its function number (FN).
@@ -3716,6 +3771,12 @@ const App = {
     });
     $('#logClear').addEventListener('click', () => { LOG.lines.length = 0; $('#log').textContent = ''; });
     // run
+    // A device that connects by itself clears the "not connected" banner on the step being shown (only then: a redraw would lose typed readings).
+    Devices.onChange(() => {
+      if (!Runner.run || Runner.busy || Runner.autoRunning || $('#runActive').hidden) return;
+      const g = TYPES[Runner.step.type].group, need = g === 'esa' && !Devices.esa ? 'ESA612' : g === 'ps' && !Devices.ps ? 'ProSim 8' : null;
+      if (need !== Runner.needShown) { Runner.renderStage(); Runner.renderList(); }
+    });
     $('#startRun').addEventListener('click', () => this.startRun());
     $('#abortRun').addEventListener('click', () => Runner.abort());
     $('#editAp').addEventListener('click', () => Runner.editAppliedParts());
