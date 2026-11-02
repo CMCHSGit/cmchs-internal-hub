@@ -1108,6 +1108,21 @@ function judge(value, lo, hi, over) {
   if (hasHi && value > +hi) return 'fail';
   return 'pass';
 }
+/**
+ * True once the recent readings (`{t, v, over}`, oldest first) have stopped moving: at least 3 of them
+ * spanning a full window, every one within 2 % of the others (or a small fixed step, so a reading near zero
+ * isn't held to an impossible tolerance). Insulation is given a longer window because it charges slowly.
+ */
+function isSteady(history, unit, now = Date.now()) {
+  const windowMs = unit === 'MΩ' ? 1500 : 1000;
+  const floor = { 'Ω': 0.01, 'MΩ': 0.05, 'µA': 1, 'V': 1 }[unit] ?? 0;
+  const recent = history.filter(h => now - h.t <= windowMs + 400);
+  if (recent.length < 3 || recent[recent.length - 1].t - recent[0].t < windowMs) return false;
+  if (recent.every(h => h.over)) return true;
+  if (recent.some(h => h.over)) return false;
+  const vs = recent.map(h => h.v), hi = Math.max(...vs), lo = Math.min(...vs);
+  return hi - lo <= Math.max(floor, 0.02 * Math.max(Math.abs(hi), Math.abs(lo)));
+}
 function limitText(lo, hi, unit) {
   const hasLo = lo !== '' && lo != null, hasHi = hi !== '' && hi != null;
   if (hasLo && hasHi) return `${lo} – ${hi} ${unit}`.trim();
@@ -2529,6 +2544,8 @@ const Runner = {
    */
   async acquire(link, row) {
     let last = null, lastErr = '', lastValidAt = 0, restarts = 0, mode = 'stream', errFlag = false;
+    const history = [];  // recent readings, for ending the settle wait early once they stop moving
+    const remember = (v, over) => { history.push({ t: Date.now(), v, over: !!over }); if (history.length > 40) history.shift(); };
     const show = (pr) => { const v = convert(pr.value, pr.unit, row.unit); $('#esaReadout') && ($('#esaReadout').innerHTML = `${pr.over ? '&gt;' : ''}${esc(fmtNum(v))}<small>${esc(row.unit)}</small>`); };
     const onLine = (line) => {
       const err = link.error(line);
@@ -2536,13 +2553,13 @@ const Runner = {
       // resistance, very high insulation, or very high leakage. Record it as an over-range reading.
       if (err && err.code === '21') {
         const top = ESA_RANGE[row.unit];
-        last = { ok: true, value: top, unit: row.unit, over: true, overRange: true, raw: line }; lastValidAt = Date.now();
+        last = { ok: true, value: top, unit: row.unit, over: true, overRange: true, raw: line }; lastValidAt = Date.now(); remember(top, true);
         if ($('#esaReadout')) $('#esaReadout').innerHTML = `&gt;${esc(fmtNum(top))}<small>${esc(row.unit)}</small>`;
         return;
       }
       if (err) { lastErr = `${line} (${err.text.replace(/^error \d+: /, '')})`; log('er', 'ESA', `During ${row.label}: ${err.text}`); errFlag = true; return; }
       const pr = parseReading(line); if (!pr.ok) { lastErr = `“${line}”`; return; }
-      last = pr; lastValidAt = Date.now(); show(pr);
+      last = pr; lastValidAt = Date.now(); show(pr); remember(convert(pr.value, pr.unit, row.unit), pr.over);
     };
     const startStream = async () => { errFlag = false; lastValidAt = Date.now(); await link.startStream('MREAD', onLine); };
     const readOnce = async () => { try { onLine(await link.send('READ', { timeout: 2500, retries: 0 })); } catch (e) { lastErr = e.reply ? `${e.reply} (${e.message.replace(/^READ: (error \d+: )?/, '')})` : 'no reply to READ'; } };
@@ -2560,6 +2577,8 @@ const Runner = {
     while (left > 0 && !this.recordNow && !this.abortFlag) {
       const t0 = Date.now(); await wait(200); await tick();
       left -= (Date.now() - t0) / 1000;
+      // The row's settle time is the longest it waits; a reading that has stopped moving is recorded straight away.
+      if (isSteady(history, row.unit)) { log('in', 'ESA', `${row.label}: reading steady after ${(total - left).toFixed(1)} s of ${total} s`); break; }
       if ($('#esaBar')) $('#esaBar').style.width = `${100 * Math.min(1, 1 - left / total)}%`; if ($('#esaT')) $('#esaT').textContent = `${Math.max(0, Math.ceil(left))} s`;
     }
     // Still nothing? Keep trying for up to 8 more seconds, finishing with single READs.

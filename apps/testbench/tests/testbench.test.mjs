@@ -216,3 +216,29 @@ test('ESA612 connects by itself when a measurement starts, and a failed test off
   assert.match(html, /value: 'retest'/, 'a Re-test button')
   assert.doesNotMatch(html, /The sequence stopped and the equipment outlet is off/, 'the old stop-and-tell dialog is gone')
 })
+
+test('a reading that has stopped moving ends the settle wait early; one still moving, or too short, does not', async () => {
+  const { default: vm } = await import('node:vm')
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const a = html.indexOf('function isSteady('), b = html.indexOf('function limitText(')
+  const { isSteady } = vm.runInNewContext(html.slice(a, b) + '; ({ isSteady })', { Math, Date })
+  const at = (vals, step = 250, over = false) => vals.map((v, i) => ({ t: 10000 + i * step, v, over }))
+  const now = (h) => h[h.length - 1].t
+  const flat = at([12.1, 12.1, 12.2, 12.1, 12.1])                      // 1 s, wobble inside 2 %
+  assert.equal(isSteady(flat, 'µA', now(flat)), true)
+  const rising = at([5, 8, 11, 14, 17])
+  assert.equal(isSteady(rising, 'µA', now(rising)), false, 'still climbing')
+  const short = at([12, 12, 12], 100)
+  assert.equal(isSteady(short, 'µA', now(short)), false, 'not enough time yet')
+  const nearZero = at([0.01, 0.02, 0.01, 0.02, 0.01], 250)
+  assert.equal(isSteady(nearZero, 'Ω', now(nearZero)), true, 'tiny movement near zero counts as steady')
+  const ins = at([200, 200, 200, 200, 200])                              // 1 s is not enough for insulation
+  assert.equal(isSteady(ins, 'MΩ', now(ins)), false)
+  const ins2 = at([200, 200, 200, 200, 200, 200, 200], 250)
+  assert.equal(isSteady(ins2, 'MΩ', now(ins2)), true)
+  const open = at([2, 2, 2, 2, 2], 250, true)
+  assert.equal(isSteady(open, 'Ω', now(open)), true, 'steady over-range (open circuit)')
+  const mixed = at([2, 2, 1.5, 2, 2]).map((h, i) => ({ ...h, over: i !== 2 }))
+  assert.equal(isSteady(mixed, 'Ω', now(mixed)), false)
+  assert.match(html, /isSteady\(history, row\.unit\)/, 'the wait ends early on a steady reading')
+})

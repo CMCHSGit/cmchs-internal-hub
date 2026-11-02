@@ -180,6 +180,9 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   (it lists only the USB serial devices) and then remembers. A test with ESA612 steps also reconnects known devices when it begins.
 - **A failed test in the auto sequence** (stop-on-fail is on by default) asks what to do: **Re-test** that step at once, **Continue to next
   test**, or **Stop sequence**. The failing readings are shown in the prompt.
+- **Readings finish early.** Each ESA612 measurement waits up to its settle time (2 s mains, 3 s earth resistance, 4 s leakage, 5 s
+  insulation) but records as soon as the reading has stopped moving: 3 or more readings over 1 s (1.5 s for insulation) within 2 %
+  of each other, or a small fixed step near zero. The standard sets no minimum time; the settle time is the longest it waits.
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
   The **checklist answers carry over too**: on plain checklist steps, the Pass and N/A answers of the last device are filled in when the next
   test starts (the tester changes what differs, and a toast says how many were kept). A **Fail**, typed readings (battery volts…), ESA612

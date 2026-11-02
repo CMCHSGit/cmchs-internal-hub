@@ -75,3 +75,6 @@ When the Test Bench opens and finds one, it asks "Carry on with the unfinished t
 - **Not now** leaves the test under Previous tests, marked "In progress", and the question isn't asked again for it. Open it there and click **Continue test** to carry on.
 
 Finishing or stopping a test clears the in-progress mark.
+
+## Readings finish early (03/11/2026)
+The ESA612 settle wait (2 s mains, 3 s earth resistance, 4 s leakage, 5 s insulation) is now a longest time. The bench records as soon as the recent readings have stopped moving (isSteady: 3 or more readings over a 1 s window, 1.5 s for insulation, all within 2 % or a small fixed step: 0.01 Ω, 1 µA, 1 V, 0.05 MΩ; steady over-range counts). A reading still changing waits the full time; Record now still ends it at once. The Log says how long each reading took.
