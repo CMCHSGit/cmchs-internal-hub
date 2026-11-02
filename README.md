@@ -151,6 +151,10 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   removes it. The tab sorts them by customer or by day, filters by customer, when, search and "not yet sent", and lets you tick tests
   (or a whole customer or day) and then **download them as one zip** or **attach them to one Simpro job**. Each file remembers which
   job it went to. The bench stays loaded (hidden) behind the tab, so a test in progress and the USB link are not lost.
+- **Ansur records (.mtr) for every test.** A test saved with only its results file gets an **Ansur record (.mtr) · make** button in Saved
+  reports, and with "Ansur records" ticked a zip or an attach to a job includes one for each ticked test that has none. The hub asks the
+  bench (behind the tab) to build it from the run inside the results file (`chs-bench:build-mtr` / `chs-bench:mtr` messages), then keeps
+  it with the test's other files. Results files from before 2 Nov 2026 (version 1) have no test data and can't be converted.
 - **Send to Simpro** goes through the Apps Script proxy (same as Ansur: admins or people with Simpro access). Files always go into an
   outbox on the laptop first (`outbox.js`) and leave it only once Simpro has them, so with no connection they wait and go by
   themselves when the laptop is online and signed in. Saving the same report twice for a job sends one.

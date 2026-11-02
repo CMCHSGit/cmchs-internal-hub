@@ -19,7 +19,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, makeMtr, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -36,6 +36,9 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, customer, period }), [groups, text, unsentOnly, customer, period])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
   const files = useMemo(() => pickFiles(visible, [...chosen], exts), [visible, chosen, exts])
+  // Ticked tests that have a results file but no Ansur record: the bench makes the record when they are downloaded or attached.
+  const needMtr = useMemo(() => (exts.includes('mtr') ? visible.filter((g) => chosen.has(g.base) && g.files.some((f) => f.ext === 'json') && !g.files.some((f) => f.ext === 'mtr')) : []), [visible, chosen, exts])
+  const count = files.length + needMtr.length
   const picked = visible.filter((g) => chosen.has(g.base)).length
   const total = reports.reduce((n, r) => n + (r.size || 0), 0)
   const waiting = outbox.filter((x) => x.status === 'waiting').length
@@ -44,21 +47,42 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const toggle = (bases, on) => setChosen((s) => { const n = new Set(s); for (const b of bases) on ? n.add(b) : n.delete(b); return n })
   const allOf = (list) => list.length > 0 && list.every((g) => chosen.has(g.base))
 
+  /** The ticked files plus an Ansur record made for each ticked test that has none. `skipped` counts the ones that couldn't be made (older results files). */
+  async function withMtr() {
+    const made = []; let skipped = 0
+    for (const g of needMtr) { try { made.push(await makeMtr(g)) } catch { skipped++ } }
+    return { list: [...files, ...made], skipped }
+  }
+  const skippedNote = (n) => (n ? ` ${n} test${n === 1 ? '' : 's'} had no Ansur record made (an older results file).` : '')
+
   async function download() {
-    if (!files.length) return
+    if (!count) return
     setBusy(true)
     try {
-      if (files.length === 1) saveBlob(files[0].name, new Blob([files[0].buffer], { type: files[0].mime }))
-      else saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(files.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
-      logActivity(null, `Downloaded ${files.length} test file${files.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
-      setNote({ text: files.length === 1 ? `Downloaded ${files[0].name}.` : `Downloaded ${files.length} files as one zip.`, tone: 'success' })
+      const { list, skipped } = await withMtr()
+      if (!list.length) throw new Error('Nothing to download.' + skippedNote(skipped))
+      if (list.length === 1) saveBlob(list[0].name, new Blob([list[0].buffer], { type: list[0].mime }))
+      else saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(list.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
+      logActivity(null, `Downloaded ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
+      setNote({ text: (list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: 'success' })
     } catch (e) { setNote({ text: 'Not downloaded: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
   async function attach() {
-    if (!job || !files.length) return
+    if (!job || !count) return
     setBusy(true)
-    try { setNote(await onAttach(files, job)) } catch (e) { setNote({ text: 'Not queued: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+    try { const { list, skipped } = await withMtr(); const n = await onAttach(list, job); setNote(skipped ? { ...n, text: n.text + skippedNote(skipped) } : n) } catch (e) { setNote({ text: 'Not queued: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+  }
+
+  /** One test's Ansur record, made on the spot if it has only a results file. */
+  async function downloadMtr(g) {
+    setBusy(true)
+    try {
+      const rec = g.files.find((f) => f.ext === 'mtr') || await makeMtr(g)
+      saveBlob(rec.name, new Blob([rec.buffer], { type: rec.mime || 'application/xml' }))
+      logActivity(null, 'Downloaded an Ansur record from the Test Bench', { app: 'testbench' })
+      setNote({ text: `Downloaded ${rec.name}.`, tone: 'success' })
+    } catch (e) { setNote({ text: 'No Ansur record: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
   async function remove(list, label) {
@@ -104,7 +128,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
         <>
           <div className="tb-selbar">
             <label className="tb-check"><input type="checkbox" checked={allOf(visible)} onChange={(e) => toggle(visible.map((g) => g.base), e.target.checked)} /> Tick all shown ({visible.length})</label>
-            <span className="tb-muted">{picked} ticked · {files.length} file{files.length === 1 ? '' : 's'}</span>
+            <span className="tb-muted">{picked} ticked · {count} file{count === 1 ? '' : 's'}</span>
             <span className="tb-kinds">Include:
               {KINDS.map(([k, n]) => (
                 <label key={k} className="tb-check"><input type="checkbox" checked={exts.includes(k)} onChange={(e) => setExts((l) => (e.target.checked ? [...l, k] : l.filter((x) => x !== k)))} /> {n}</label>
@@ -134,6 +158,9 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
                       {g.files.map((f) => (
                         <button key={f.id} type="button" className="tb-chip" title={`Download ${f.name}`} onClick={() => saveBlob(f.name, new Blob([f.buffer], { type: f.mime }))}>{f.kind} · {kb(f.size)}</button>
                       ))}
+                      {g.files.some((f) => f.ext === 'json') && !g.files.some((f) => f.ext === 'mtr') && (
+                        <button type="button" className="tb-chip" disabled={busy} title="Make the Ansur record (.mtr) from this test's results file and download it" onClick={() => downloadMtr(g)}>Ansur record (.mtr) · make</button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -143,14 +170,14 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
 
           <div className="tb-actionbar">
             <div className="tb-actionbar-row">
-              <strong>{files.length ? `${files.length} file${files.length === 1 ? '' : 's'} from ${picked} test${picked === 1 ? '' : 's'}` : 'Tick tests above'}</strong>
-              <Button variant="secondary" disabled={busy || !files.length} onClick={download}>{files.length > 1 ? 'Download as zip' : 'Download'}</Button>
+              <strong>{count ? `${count} file${count === 1 ? '' : 's'} from ${picked} test${picked === 1 ? '' : 's'}` : 'Tick tests above'}</strong>
+              <Button variant="secondary" disabled={busy || !count} onClick={download}>{count > 1 ? 'Download as zip' : 'Download'}</Button>
               <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove(files, `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
               <span>Attach to Simpro job:</span>
               <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} job={job} onJob={setJob} disabled={!!sim.access} />
-              <Button disabled={busy || !job || !files.length} onClick={attach}>{online_ok ? `Attach ${files.length || ''} to ${job ? job.label.split(' ')[0] : 'job'}` : `Queue ${files.length || ''} for ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
+              <Button disabled={busy || !job || !count} onClick={attach}>{online_ok ? `Attach ${count || ''} to ${job ? job.label.split(' ')[0] : 'job'}` : `Queue ${count || ''} for ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
             </div>
             {note.text && <p className={`tb-note tb-note-${note.tone}`} role="status">{note.text}</p>}
             {sim.access && <Alert tone="warning" title="Simpro isn’t switched on for you">{sim.access} Ask an admin to turn on Simpro access for you in Settings → People and access. Files you queue wait in the outbox.</Alert>}

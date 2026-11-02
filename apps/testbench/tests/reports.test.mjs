@@ -108,3 +108,14 @@ test('the bench sends who and when with each file, so reports can be sorted by c
   const upd = readFileSync(new URL('../../../scripts/update-bench.mjs', import.meta.url), 'utf8')
   assert.ok(upd.includes('customer: pick('), 'the update script adds the same hook')
 })
+
+test('Saved reports can give an Ansur record (.mtr) for any test that has a results file: the bench builds it on request', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(html.includes("m.type !== 'chs-bench:build-mtr'") && html.includes("type: 'chs-bench:mtr'"), 'the bench answers requests for an Ansur record')
+  assert.ok(/buildMtr\(f\.run\)/.test(html), 'built from the run inside the results file')
+  const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
+  assert.ok(section.includes("type: 'chs-bench:build-mtr'") && section.includes("m?.type === 'chs-bench:mtr'"), 'the hub asks, and listens for the answer')
+  assert.ok(/replace\(\/\\\.json\$\/i, '\.mtr'\)/.test(section), 'the record keeps the results file name, so it groups with the test')
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('Ansur record (.mtr) · make') && ui.includes('needMtr'), 'a button per test, and one made for each ticked test in a zip or attach')
+})

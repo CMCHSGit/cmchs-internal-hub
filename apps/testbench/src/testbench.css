@@ -38,6 +38,7 @@
 .tb-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .tb-chip { padding: 3px 10px; background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: 999px; cursor: pointer; color: var(--text-body); font: var(--type-caption); }
 .tb-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tb-chip:disabled { opacity: .6; cursor: default; }
 @media (hover: hover) { .tb-chip:hover { background: var(--chs-purple-20); } }
 
 .tb-actionbar { position: sticky; bottom: -24px; margin: 0 -20px -24px; padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--surface-card); border-top: 1px solid var(--border-subtle); box-shadow: 0 -4px 12px rgba(0, 0, 0, .06); }

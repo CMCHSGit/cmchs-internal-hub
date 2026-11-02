@@ -3689,6 +3689,19 @@ function offerToHub(name, blob) {
   } catch {}
   blob.arrayBuffer().then((buffer) => window.parent.postMessage({ type: 'chs-bench:file', name, mime: blob.type, buffer, meta }, location.origin)).catch(() => {});
 }
+/** Inside the hub: builds an Ansur record (.mtr) from a saved results file when the hub's Saved reports asks, so any test can be
+    downloaded as one even if only its results file was saved. Replies with the bytes, or why it can't. */
+window.addEventListener('message', (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  const m = e.data; if (!m || m.type !== 'chs-bench:build-mtr' || !(m.buffer instanceof ArrayBuffer)) return;
+  const reply = (o) => window.parent.postMessage({ type: 'chs-bench:mtr', id: m.id, ...o }, location.origin);
+  try {
+    const f = JSON.parse(new TextDecoder().decode(m.buffer));
+    if (!f || !f.run) throw new Error('This results file is an older kind with no test data in it, so it can’t be made into an Ansur record.');
+    const bytes = buildMtr(f.run);
+    reply({ mime: 'application/xml', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+  } catch (err) { log('er', 'RUN', 'Ansur record for Saved reports failed: ' + err.message); reply({ error: err.message }); }
+});
 const Results = {
   supported() { return typeof window.showDirectoryPicker === 'function'; },
   async allowed(h) {
