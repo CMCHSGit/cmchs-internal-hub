@@ -961,6 +961,8 @@ function hubTokensFor_(am) {
 // The Firebase SDK shows hub pushes itself (apps/hub/src/sw.js), so the icon
 // has to come with the message; without it Android shows a grey letter.
 const HUB_PUSH_ICON = 'https://internal.chsnz.co.nz/icons/icon-192.png';
+// The small icon in the banner and status bar: Android draws only its shape, so it is a white-on-clear mark (the coloured icon shows as a white box).
+const HUB_PUSH_BADGE = 'https://internal.chsnz.co.nz/icons/badge-96.png';
 
 function sendHubPush_(tokens, title, body, url) {
   const accessToken = hubAccessToken_();
@@ -973,7 +975,7 @@ function sendHubPush_(tokens, title, body, url) {
         contentType: 'application/json',
         headers: { Authorization: 'Bearer ' + accessToken },
         payload: JSON.stringify({ message: { token: token, notification: { title: title, body: body }, data: { url: url },
-          webpush: { notification: { icon: HUB_PUSH_ICON, badge: HUB_PUSH_ICON } } } }),
+          webpush: { notification: { icon: HUB_PUSH_ICON, badge: HUB_PUSH_BADGE } } } }),
         muteHttpExceptions: true
       });
       const ok = resp.getResponseCode() < 300;
