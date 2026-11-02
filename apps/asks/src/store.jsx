@@ -73,6 +73,8 @@ export function StoreProvider({ children }) {
     setSeen((s) => {
       const next = { ...s, [id]: Date.now() }
       try { localStorage.setItem(SEEN_KEY, JSON.stringify(next)) } catch { /* private mode: this visit only */ }
+      // The header's Asks count (apps/hub/src/useAsksBadge.js) drops now; later, so nothing re-renders while this renders.
+      setTimeout(() => window.dispatchEvent(new CustomEvent('asks:seen')), 0)
       return next
     })
   }, [])

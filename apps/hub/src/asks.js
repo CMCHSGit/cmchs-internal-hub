@@ -37,7 +37,35 @@ export function asksSummary(asks, me, names, seen = {}, now = Date.now()) {
   }
 }
 
+/** How many of this person's asks have something new on them since they last opened it — what the header's Asks badge shows. */
+export function unreadAsks(data, seen = {}, now = Date.now()) {
+  return data ? asksSummary(data.asks, data.me, data.names, seen, now).unread : 0
+}
+
+/** Everything the same person's watchers share: one pair of Firestore listeners, however many places ask. */
+const shares = new Map() // uid → { listeners, last, stop }
+
+/**
+ * Calls `cb` with the asks this person can see, now and on every change. The home panel and the header's
+ * Asks badge (useAsksBadge.js) both watch, and share one set of listeners. Resolves the unsubscribe function.
+ */
 export async function watchMyAsks(user, cb) {
+  let s = shares.get(user.uid)
+  if (!s) {
+    s = { listeners: new Set(), last: undefined, stop: null }
+    shares.set(user.uid, s)
+    const mine = s
+    mine.stop = startWatching(user, d => { mine.last = d; mine.listeners.forEach(f => f(d)) })
+  }
+  s.listeners.add(cb)
+  if (s.last !== undefined) cb(s.last)
+  return () => {
+    s.listeners.delete(cb)
+    if (!s.listeners.size && shares.get(user.uid) === s) { shares.delete(user.uid); s.stop.then(off => off()) }
+  }
+}
+
+async function startWatching(user, cb) {
   if (import.meta.env.DEV && !import.meta.env.VITE_FIREBASE_API_KEY) {
     const { SAMPLE_USERS, sampleAsks } = await import('../../asks/src/sample.js')
     const me = { uid: 'u-jess', team: 'Sales', role: 'user' }

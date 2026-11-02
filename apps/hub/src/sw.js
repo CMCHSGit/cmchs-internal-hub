@@ -153,7 +153,7 @@ try {
     self.registration.showNotification(title || (demo ? 'Demo tracker' : 'CMCHS Staff Schedule'), {
       body,
       icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png', // Android draws only the shape (alpha) of this in the banner and status bar: a white-on-clear mark, not the coloured icon, which shows as a white box
       data: { url },
     })
   })

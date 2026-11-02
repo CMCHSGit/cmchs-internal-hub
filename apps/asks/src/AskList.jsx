@@ -33,6 +33,7 @@ export function AskRow({ ask: a, showClaim = false }) {
           <span className="ak-item-top">
             {fresh && <span className="ak-dot" title="New activity" aria-label="New activity" />}
             <span className="ak-item-title">{a.title}</span>
+            {fresh && <span className="ak-new">{a.event.type === 'comment' ? 'New comment' : 'Updated'}</span>}
           </span>
           <span className="ak-item-meta">
             <span>{a.createdBy === me.uid ? 'You' : firstName(a.createdByName)} → {sentToText(a, s.userById, me.uid)}{(a.cc || []).length > 0 && `, cc ${ccText(a, s.userById, me.uid)}`}</span>

@@ -24,7 +24,8 @@ function useBadge(id) {
 /** The red count on a section's tab (old: the demo tracker's tab badge). */
 function TabBadge({ id }) {
   const n = useBadge(id)
-  return n > 0 ? <span className="tab-badge" aria-label={`, ${n} need${n === 1 ? 's' : ''} you`}>{badgeText(n)}</span> : null
+  const label = id === 'asks' ? `, ${n} with news you haven’t read` : `, ${n} need${n === 1 ? 's' : ''} you`
+  return n > 0 ? <span className="tab-badge" aria-label={label} title={id === 'asks' ? 'Asks with news you haven’t read' : undefined}>{badgeText(n)}</span> : null
 }
 
 /** The search box: opens the one search (Palette.jsx), the same as Ctrl+K. */

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { asksSummary, askUrl } from '../src/asks.js'
+import { asksSummary, askUrl, unreadAsks } from '../src/asks.js'
 import { SAMPLE_USERS, sampleAsks } from '../../asks/src/sample.js'
 
 const NOW = Date.parse('2026-10-16T09:00:00+13:00')
@@ -30,4 +30,13 @@ test('home panel: latest activity by other people, newest first, with unread mar
 
 test('links open the ask in Asks', () => {
   assert.equal(askUrl('abc123'), '/asks/#/mine?ask=abc123')
+})
+
+test('the header badge counts asks with news not yet opened, and drops as they are opened', () => {
+  const data = { asks: visible, me: jess, names }
+  assert.equal(unreadAsks(data, {}, NOW), 2, 'the ask Mike mentioned me on, and the one he sent me')
+  assert.equal(unreadAsks(data, { s3: NOW }, NOW), 1, 'opening one clears it')
+  assert.equal(unreadAsks(data, { s3: NOW, s2: NOW }, NOW), 0)
+  assert.equal(unreadAsks(data, {}, NOW), asksSummary(visible, jess, names, {}, NOW).unread, 'the same number the home panel calls new')
+  assert.equal(unreadAsks(null), 0, 'Asks unreadable: no badge')
 })

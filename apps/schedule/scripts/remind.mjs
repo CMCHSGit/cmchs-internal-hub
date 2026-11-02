@@ -118,7 +118,7 @@ async function sendPushToUser(db, user, weekStart) {
     },
     data: { url: `${process.env.APP_URL}/my` },
     // The Firebase SDK shows it itself (apps/hub/src/sw.js), so the icon comes with it.
-    webpush: { notification: { icon: 'https://internal.chsnz.co.nz/icons/icon-192.png', badge: 'https://internal.chsnz.co.nz/icons/icon-192.png' } },
+    webpush: { notification: { icon: 'https://internal.chsnz.co.nz/icons/icon-192.png', badge: 'https://internal.chsnz.co.nz/icons/badge-96.png' } },
   })
 
   const deadTokens = response.responses

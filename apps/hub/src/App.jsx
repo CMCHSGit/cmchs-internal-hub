@@ -15,6 +15,7 @@ import Palette from './Palette.jsx'
 import People from './People.jsx'
 import PushPrompt from './PushPrompt.jsx'
 import SignIn from './SignIn.jsx'
+import useAsksBadge from './useAsksBadge.js'
 
 // Each moved tool loads the first time someone opens it, not with the home page.
 const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
@@ -130,6 +131,8 @@ export default function App() {
       .finally(() => { if (live) setProfileFor(user.uid) })
     return () => { live = false }
   }, [user])
+  // The header's Asks tab counts asks with news you haven't opened, on every page (useAsksBadge.js).
+  useAsksBadge(user, !!user && (!configured || profileFor === user.uid))
   // A new hub page starts at the top, as a new page load would.
   useEffect(() => { window.scrollTo(0, 0) }, [page, route?.uid, route?.tab, route?.id])
 

@@ -86,6 +86,7 @@ header.tool-header h1 { font-family: var(--font-display); font-weight: var(--wei
 .ak-who.nobody, .ak-nobody { color: #a85800; }
 :root[data-theme="dark"] .ak-who.nobody, :root[data-theme="dark"] .ak-nobody { color: #f8b472; }
 .ak-item-claim { align-self: center; margin-right: 12px; white-space: nowrap; }
+.ak-new { flex: 0 0 auto; font: var(--type-caption); font-weight: 600; color: var(--chs-orange); }
 .ak-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--chs-orange); flex: 0 0 auto; }
 .ak-due { display: inline-flex; align-items: center; gap: 4px; font: var(--weight-semibold) 13px/1.2 var(--font-body); color: var(--text-body); white-space: nowrap; }
 .ak-due.late { color: var(--status-critical); }
