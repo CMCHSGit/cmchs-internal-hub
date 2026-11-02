@@ -162,7 +162,7 @@ test('test another device: same template, details kept, serial number blank', ()
   assert.ok(/run\.dut\[i\.dataset\.k\]/.test(body), 'the other details come from the test just done')
 })
 
-test('computer templates: both load-ready, use step types the bench has, unique step ids, Class II has no earth tests', () => {
+test('computer templates: both load-ready, use step types the bench has, unique step ids, Class II has no earth or touch current tests', () => {
   const dir = new URL('../templates/', import.meta.url)
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   for (const [file, earthed] of [['Computer - IT equipment - Class I - Test Bench template.json', true], ['Computer - IT equipment - Class II - Test Bench template.json', false]]) {
@@ -175,6 +175,7 @@ test('computer templates: both load-ready, use step types the bench has, unique 
     const types = steps.map((s) => s.type)
     assert.equal(types.includes('esa_pe'), earthed)
     assert.equal(types.includes('esa_earthl'), earthed)
-    assert.ok(types.includes('esa_mains') && types.includes('esa_ins') && types.includes('esa_encl'))
+    assert.equal(types.includes('esa_encl'), earthed, 'touch current is a Class I test (AS/NZS 3551 B10.1)')
+    assert.ok(types.includes('esa_mains') && types.includes('esa_ins'))
   }
 })

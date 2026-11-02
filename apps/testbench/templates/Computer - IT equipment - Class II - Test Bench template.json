@@ -3,7 +3,7 @@
  "version": 1,
  "template": {
   "name": "Computer / IT equipment – Class II – AS/NZS 3551 EST",
-  "desc": "Class II (double insulated, no earth) computer, laptop power supply, monitor or other IT equipment. No earth continuity, mains-to-earth insulation or earth leakage test: there is no protective earth. Limits follow the other CHS templates (AS/NZS 3551 EST): protective earth 0.2 ohm or less; insulation 1 Mohm or more; touch leakage 100 uA normal and 500 uA single fault; earth leakage 500 uA normal and 1000 uA single fault. Check them against the standard before first use.",
+  "desc": "Class II (double insulated, no earth) computer, laptop power supply, monitor or other IT equipment. AS/NZS 3551:2012+A2 Appendix B: insulation over 1 Mohm at 500 V (B9.3). No earth continuity, mains-to-earth insulation or earth leakage test (no protective earth), and no touch current test: B10.1 considers touch current from Class I equipment only.",
   "category": "Computers",
   "steps": [
    {
@@ -35,33 +35,13 @@
     "id": "ins-mains-ne",
     "type": "esa_ins",
     "title": "Insulation: mains to accessible parts",
-    "instructions": "Mains pins (live and neutral linked by the ESA612) to the accessible parts. Clip the red test lead to a metal port shell or screw, or to foil wrapped around the case (link several parts together with a shorting clip). Switch the equipment on if it has a switch, and disconnect all peripherals and network cables.",
+    "instructions": "Mains pins (live and neutral linked by the ESA612) to the accessible parts, at 500 V. Clip the red test lead to a metal port shell or screw, or to foil wrapped around the case (link several parts together with a shorting clip). Switch the equipment on if it has a switch, and disconnect all peripherals and network cables.\nMust be over 1 Mohm. If it is under 10 Mohm, it must be at least 80% of the acceptance test value (B9.3). For a detachable power supply (plug pack), test from mains to its low-voltage output terminals.",
     "images": [],
     "hold": false,
     "params": {
      "target": "MAINS_NE",
      "volts": "HIGH",
      "lo": 1
-    }
-   },
-   {
-    "id": "touch",
-    "type": "esa_encl",
-    "title": "Touch leakage",
-    "instructions": "Equipment on, peripherals disconnected. Red test lead on an accessible metal part, or on foil wrapped around the case. No earth fault condition: Class II equipment has no earth.",
-    "images": [],
-    "hold": false,
-    "params": {
-     "conds": [
-      {
-       "c": "NC",
-       "hi": 100
-      },
-      {
-       "c": "ON",
-       "hi": 500
-      }
-     ]
     }
    },
    {
