@@ -2,6 +2,7 @@ import { doc, getDoc, setDoc, addDoc, collection, serverTimestamp } from 'fireba
 import { db } from '../firebase'
 import { scheduleId, normalizeSchedule, normalizeCalls, weekdaysInRange } from './week'
 import { holidayOn } from './holidays'
+import { withCalls } from './status'
 
 /**
  * Saves one person's week. `editorUid` is whoever is signed in — when that's
@@ -86,20 +87,40 @@ export async function writeOnCall(weekStart, person, editorUid, existing) {
 }
 
 /**
- * Sets (or, with person = null, clears) who covers customer calls on one
- * weekday of a week. Cover lives on the week's on-call doc rather than on
- * each person's own schedule, so it's rostered in one place.
+ * Customer calls are typed into a person's own entry ("Customer Calls", coloured yellow by the text), not
+ * rostered. Weeks saved while the On-call page took calls (cover on the week's roster doc, or a day's own
+ * flag) are moved into that text here, so nothing changes on screen and the old route can go.
+ * Returns what to show — { schedules: [{ uid, saved }], oncall } — or null when the week has nothing to
+ * move. The roster's cover is cleared last, so a failed write loses nothing.
  */
-export async function writeCallsCover(weekStart, dayIdx, person, editorUid, existing) {
-  const calls = normalizeCalls(existing?.calls)
-  calls[dayIdx] = person?.uid || ''
-  return patchOnCall(weekStart, existing, { calls }, editorUid)
+export async function foldRosterCalls({ weekStart, oncall, schedules, users, editorUid }) {
+  const cover = normalizeCalls(oncall?.calls)
+  const writes = []
+  for (const u of users) {
+    const existing = schedules[u.uid]
+    const days = normalizeSchedule(existing?.days)
+    if (!days.some((d, i) => d.onCall || cover[i] === u.uid)) continue
+    writes.push({ person: u, existing, days: days.map((d, i) => (d.onCall || cover[i] === u.uid ? withCalls(d) : d)) })
+  }
+  const stale = cover.some(Boolean)
+  if (!writes.length && !stale) return null
+  const out = { schedules: [], oncall: null }
+  for (const w of writes) {
+    // Not the person's own change, so it must not turn into a "check this" note for them.
+    const saved = await writeSchedule({
+      person: w.person, weekStart, days: w.days, comments: w.existing?.comments || '', editorUid, existing: w.existing,
+      extra: { needsConfirm: !!w.existing?.needsConfirm },
+    })
+    out.schedules.push({ uid: w.person.uid, saved })
+  }
+  if (stale) out.oncall = await patchOnCall(weekStart, oncall, { calls: normalizeCalls(null) }, editorUid)
+  return out
 }
 
 /**
- * One week's roster doc holds both the on-call engineer and the five days of
- * customer-calls cover, so every write merges into what's already there and
- * hands the whole doc back for the caller to cache.
+ * One week's roster doc holds the on-call engineer (and, on older weeks, the
+ * customer-calls cover that foldRosterCalls clears), so every write merges
+ * into what's already there and hands the whole doc back for the caller to cache.
  */
 async function patchOnCall(weekStart, existing, change, editorUid) {
   const data = {

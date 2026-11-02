@@ -65,10 +65,12 @@ export function useOnCall(weekStarts) {
   const key = weekStarts.join(',')
   const [byWeek, setByWeek] = useState({})
   const [blocked, setBlocked] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let cancelled = false
     const weeks = key ? key.split(',') : []
+    setLoading(true)
     Promise.all(weeks.map(w => getDoc(doc(db, 'oncall', w))))
       .then(snaps => {
         if (cancelled) return
@@ -80,6 +82,7 @@ export function useOnCall(weekStarts) {
         if (e.code === 'permission-denied') setBlocked(true)
         else console.error('Failed to load on-call roster:', e)
       })
+      .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [key])
 
@@ -92,7 +95,7 @@ export function useOnCall(weekStarts) {
     })
   }, [])
 
-  return { byWeek, blocked, set }
+  return { byWeek, blocked, loading, set }
 }
 
 /** Shared suggestions for the location picker (Admin → Locations plus anything typed before). */

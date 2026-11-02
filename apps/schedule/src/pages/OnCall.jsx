@@ -1,14 +1,13 @@
 import { useMemo } from 'react'
 import { ShieldAlert } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { weekStartOf, addDaysISO, dayMonth, weekDates, normalizeCalls, normalizeSchedule, WEEK_DAYS, DAY_SHORT } from '../utils/week'
-import { holidayOn } from '../utils/holidays'
-import { withoutCalls } from '../utils/status'
+import { weekStartOf, addDaysISO, dayMonth } from '../utils/week'
 import { shortNames } from '../utils/names'
-import { callsCover, callsCoverUids, hasCalls, weekConflicts } from '../utils/weekInsights'
-import { writeOnCall, writeCallsCover, writeSchedule } from '../utils/scheduleStore'
+import { weekConflicts } from '../utils/weekInsights'
+import { writeOnCall } from '../utils/scheduleStore'
 import { logActivity } from '../utils/activityLog'
 import { useUsers, useSchedules, useOnCall } from '../hooks/useScheduleData'
+import useFoldRosterCalls from '../hooks/useFoldRosterCalls'
 import Toast, { useToast } from '../components/Toast'
 import { Alert, Badge, Loading } from '../components/ui'
 
@@ -18,12 +17,18 @@ export default function OnCall() {
   const { user, profile } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const thisWeek = weekStartOf(new Date()) // on call runs Monday to Sunday: a weekend is still this week
-  const weeks = Array.from({ length: WEEKS_SHOWN }, (_, i) => addDaysISO(thisWeek, i * 7))
+  const weeks = useMemo(() => Array.from({ length: WEEKS_SHOWN }, (_, i) => addDaysISO(thisWeek, i * 7)), [thisWeek])
 
   const { users, loading: usersLoading } = useUsers()
   const { byWeek, loading: schedLoading, patch } = useSchedules(weeks)
-  const { byWeek: oncall, blocked, set } = useOnCall(weeks)
+  const { byWeek: oncall, blocked, loading: oncallLoading, set } = useOnCall(weeks)
   const [toast, showToast] = useToast()
+
+  // Customer calls are typed into the schedule now; any still kept here the old way move across (admins only).
+  useFoldRosterCalls({
+    enabled: isAdmin, user, weeks, users, loading: usersLoading || schedLoading || oncallLoading,
+    schedulesByWeek: byWeek, oncallByWeek: oncall, patch, setOnCall: set,
+  })
 
   const names = useMemo(() => shortNames(users), [users])
   const engineers = useMemo(
@@ -35,17 +40,11 @@ export default function OnCall() {
     const schedules = byWeek[w] || {}
     const current = oncall[w]
     const issue = weekConflicts({ weekStart: w, users, schedules, oncall: current, names }).find(c => c.type === 'oncall')
-    const cover = callsCoverUids({ users, schedules, oncall: current })
     return {
       week: w,
       range: `${dayMonth(w)} – ${dayMonth(addDaysISO(w, 4))}`,
       current,
       name: current?.uid ? names.get(current.uid) || current.displayName : '',
-      holidays: weekDates(w).map(holidayOn),
-      // The one person covering each day — picked here, or whoever typed
-      // "Customer Calls" into their own entry that day.
-      cover: cover.map(uids => uids[0] || ''),
-      calls: callsCover({ weekStart: w, users, schedules, oncall: current, names }),
       status: issue ? issue.short : 'Covered',
       tone: issue ? 'critical' : 'green',
     }
@@ -66,66 +65,12 @@ export default function OnCall() {
     }
   }
 
-  /**
-   * Customer calls cover for one weekday — rostered here, not by each person.
-   * Anyone else whose own entry still claims that day has the claim taken off
-   * it, so one person covers a day and clearing here actually clears it
-   * instead of falling back to whoever typed "Customer Calls" into their week.
-   */
-  async function assignCalls(week, dayIdx, uid) {
-    const person = uid ? users.find(u => u.uid === uid) : null
-    const day = `${WEEK_DAYS[dayIdx]} ${dayMonth(weekDates(week)[dayIdx])}`
-    try {
-      const saved = await writeCallsCover(week, dayIdx, person, user.uid, oncall[week])
-      set(week, saved)
-      await dropOwnCalls(week, dayIdx, uid)
-      showToast(person ? `${names.get(uid)} has customer calls on ${day}.` : `Customer calls cleared for ${day}.`)
-      logActivity(user, person
-        ? `Set customer calls cover to ${names.get(uid)} on ${day}.`
-        : `Cleared customer calls cover for ${day}.`)
-    } catch (e) {
-      console.error(e)
-      showToast(e.code === 'permission-denied' ? 'Not allowed yet — the updated database rules need publishing.' : 'Could not save — try again.')
-    }
-  }
-
-  /** Takes the customer-calls claim off everyone else's own entry for that day. */
-  async function dropOwnCalls(week, dayIdx, keepUid) {
-    const schedules = byWeek[week] || {}
-    for (const u of users) {
-      const existing = schedules[u.uid]
-      if (u.uid === keepUid || !hasCalls(existing?.days?.[dayIdx])) continue
-      const days = normalizeSchedule(existing.days).map((d, i) => (i === dayIdx ? withoutCalls(d) : d))
-      const comments = existing.comments || ''
-      patch(week, u.uid, await writeSchedule({ person: u, weekStart: week, days, comments, editorUid: user.uid, existing }))
-    }
-  }
-
   const who = r => isAdmin ? (
     <select value={r.current?.uid || ''} onChange={e => assign(r.week, e.target.value)} aria-label={`On call, week starting ${dayMonth(r.week)}`}>
       <option value="">Unassigned</option>
       {engineers.map(u => <option key={u.uid} value={u.uid}>{names.get(u.uid)}</option>)}
     </select>
   ) : (r.name ? `${r.name} - OnCall` : 'Unassigned')
-
-  const callsCell = (r, i) => {
-    if (r.holidays[i]) return <span className="oc-call-holiday">{r.holidays[i]}</span>
-    if (!isAdmin) return r.calls[i]
-    // Cover can come from someone's own entry, and they may not be an
-    // engineer — keep them in the list so the picker shows who it really is.
-    const coverer = r.cover[i] && !engineers.some(u => u.uid === r.cover[i]) ? users.find(u => u.uid === r.cover[i]) : null
-    return (
-      <select
-        value={r.cover[i]}
-        onChange={e => assignCalls(r.week, i, e.target.value)}
-        aria-label={`Customer calls, ${WEEK_DAYS[i]} ${dayMonth(weekDates(r.week)[i])}`}
-      >
-        <option value="">Unassigned</option>
-        {engineers.map(u => <option key={u.uid} value={u.uid}>{names.get(u.uid)}</option>)}
-        {coverer && <option value={coverer.uid}>{names.get(coverer.uid)}</option>}
-      </select>
-    )
-  }
 
   const loading = usersLoading || schedLoading
 
@@ -135,8 +80,8 @@ export default function OnCall() {
         <h1 className="page-title">On-call roster</h1>
         <span className="page-sub">
           {isAdmin
-            ? 'One engineer on call per week, and who covers customer calls each day — both set here.'
-            : 'One engineer on call per week, plus who covers customer calls each day.'}
+            ? 'One engineer on call per week, set here. Customer calls are typed into the schedule — “Customer Calls” turns the cell yellow.'
+            : 'One engineer on call per week. Customer calls are in the schedule, in yellow.'}
         </span>
       </div>
 
@@ -152,7 +97,6 @@ export default function OnCall() {
             <div className="oc-cols oc-headrow">
               <div>Week starting</div>
               <div>On call</div>
-              {WEEK_DAYS.map(d => <div key={d} className="calls-head">{d} calls</div>)}
               <div>Status</div>
             </div>
             {rows.map(r => (
@@ -162,7 +106,6 @@ export default function OnCall() {
                   <span className="oc-week-range">{r.range}</span>
                 </div>
                 <div className={`oc-who${r.current?.uid ? ' assigned' : ''}`}>{who(r)}</div>
-                {WEEK_DAYS.map((_, i) => <div key={i} className="oc-call">{callsCell(r, i)}</div>)}
                 <div className="oc-status"><Badge tone={r.tone}>{r.status}</Badge></div>
               </div>
             ))}
@@ -179,18 +122,6 @@ export default function OnCall() {
                   <Badge tone={r.tone}>{r.status}</Badge>
                 </div>
                 <div className={`oc-card-body${r.current?.uid ? ' assigned' : ''}`}>{who(r)}</div>
-                <div className="oc-card-calls">
-                  {isAdmin ? (
-                    <div className="oc-call-grid">
-                      {WEEK_DAYS.map((_, i) => (
-                        <label key={i} className="oc-call-pick">
-                          <span className="oc-call-day">{DAY_SHORT[i]} calls</span>
-                          {callsCell(r, i)}
-                        </label>
-                      ))}
-                    </div>
-                  ) : `Calls: ${r.calls.map((c, i) => `${DAY_SHORT[i]} ${c}`).join(' · ')}`}
-                </div>
               </div>
             ))}
           </div>

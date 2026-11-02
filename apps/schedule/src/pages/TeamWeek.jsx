@@ -12,6 +12,7 @@ import { writeSchedule, addNewLocations } from '../utils/scheduleStore'
 import { logActivity } from '../utils/activityLog'
 import { useUsers, useSchedules, useOnCall, useLocations } from '../hooks/useScheduleData'
 import useWeekGrid from '../hooks/useWeekGrid'
+import useFoldRosterCalls from '../hooks/useFoldRosterCalls'
 import WeekNav from '../components/WeekNav'
 import DayPills from '../components/DayPills'
 import PeopleFilter, { filterPeople } from '../components/PeopleFilter'
@@ -58,7 +59,13 @@ export default function TeamWeek() {
 
   const { users, loading: usersLoading } = useUsers()
   const { byWeek, loading: schedLoading, patch } = useSchedules([prevWeek, weekStart])
-  const { byWeek: oncallByWeek } = useOnCall([weekStart])
+  const { byWeek: oncallByWeek, loading: oncallLoading, set: setOnCall } = useOnCall([weekStart])
+  const thisWeekOnly = useMemo(() => [weekStart], [weekStart])
+  // Customer calls are typed into the entries; any still kept on the roster the old way move across (admins only).
+  useFoldRosterCalls({
+    enabled: isAdmin, user, weeks: thisWeekOnly, users, loading: usersLoading || schedLoading || oncallLoading,
+    schedulesByWeek: byWeek, oncallByWeek, patch, setOnCall,
+  })
   const [locations, setLocations] = useLocations()
 
   const names = useMemo(() => shortNames(users), [users])
@@ -69,8 +76,8 @@ export default function TeamWeek() {
   const holidays = dates.map(holidayOn)
   const today = todayIndex(weekStart)
 
-  // Each person's week with the roster's customer-calls cover folded in —
-  // calls are rostered on the On-call page, not entered by each person.
+  // Each person's week; cover still held on the roster (weeks from before calls were typed in) is folded in
+  // until an admin opens the week and it moves into the entries.
   const weekOf = useMemo(
     () => new Map(sorted.map(u => [u.uid, daysWithCalls(schedules[u.uid]?.days, oncall, u.uid)])),
     [sorted, schedules, oncall]
@@ -85,6 +92,11 @@ export default function TeamWeek() {
 
   const canEdit = u => isAdmin || u.uid === user.uid
   const cell = (u, i) => describeDay(weekOf.get(u.uid)?.[i], holidays[i])
+  /** A cell being typed in takes its colour as the words appear: "Customer Calls" goes yellow before Enter. */
+  const typingTint = (text, holiday) => {
+    const d = describeDay({ location: text }, holiday)
+    return d.filled ? { background: d.bg, color: INK } : undefined
+  }
   const commentOf = u => schedules[u.uid]?.comments || ''
   const nameLabel = u => (oncall?.uid === u.uid ? `${names.get(u.uid)} - OnCall` : names.get(u.uid))
   /** Up to two initials for the person's avatar, from their full name. */
@@ -454,7 +466,7 @@ export default function TeamWeek() {
                           <div
                             key={i}
                             className={`wk-cell${grid.isSelected(r, i) ? ' wk-cell-selected' : ''}${grid.isAnchor(r, i) ? ' wk-cell-anchor' : ''}${grid.isFillPreview(r, i) ? ' wk-cell-fillpreview' : ''}${canEdit(u) ? '' : ' wk-cell-readonly'} ${grid.clipEdges(r, i)}`}
-                            style={isEditingHere ? undefined : { background: c.bg, ...(c.filled && { color: INK }) }}
+                            style={isEditingHere ? typingTint(grid.editing.text, holidays[i]) : { background: c.bg, ...(c.filled && { color: INK }) }}
                             title={isEditingHere ? undefined : c.text || undefined}
                             {...grid.cellHandlers(r, i)}
                           >
@@ -569,7 +581,6 @@ export default function TeamWeek() {
           schedule={schedules[editPerson.uid]}
           lastWeek={normalizeSchedule(byWeek[prevWeek]?.[editPerson.uid]?.days)}
           locations={locations}
-          calls={weekOf.get(editPerson.uid)?.map(d => d.onCall) || []}
           onSave={(days, typed) => saveEdit(editPerson, days, typed)}
           onClose={() => setEditing(null)}
         />

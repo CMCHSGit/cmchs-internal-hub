@@ -121,6 +121,18 @@ export function withoutCalls(day) {
   return { ...day, location, onCall: false }
 }
 
+/**
+ * The same day with "Customer Calls" written into its text instead of carried as a flag or as roster
+ * cover — "Cass Office" becomes "Cass Office / Customer Calls", an empty day just "Customer Calls".
+ * Text that already says it is left as it is. The text is what the colour, the views and the Excel
+ * copy all read, so this is how older cover joins the one place calls are entered.
+ */
+export function withCalls(day) {
+  const location = (day?.location || '').trim()
+  const text = /customer call/i.test(location) ? location : location ? `${location} / Customer Calls` : 'Customer Calls'
+  return { ...day, location: text, onCall: false }
+}
+
 /** What goes into the Excel cell for a day — same text Team week shows. */
 export function excelCellText(day, holidayName = '') {
   return describeDay(day, holidayName).text

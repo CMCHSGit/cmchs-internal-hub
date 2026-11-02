@@ -14,10 +14,10 @@ import { holidayOn } from '../utils/holidays'
  * in Team week. The day tapped is highlighted and scrolled to, but all five
  * days are editable at once, so filling in a week is one panel and one save
  * rather than five. The week's comment has its own button in the Comments
- * column, and customer calls are rostered on the On-call page — neither is
- * set from here.
+ * column. Customer calls are typed like any other entry ("Customer Calls"
+ * turns the day yellow).
  */
-export default function EditDrawer({ person, name, isSelf, weekStart, dayIdx, schedule, lastWeek, locations, calls = [], onSave, onClose }) {
+export default function EditDrawer({ person, name, isSelf, weekStart, dayIdx, schedule, lastWeek, locations, onSave, onClose }) {
   const dates = weekDates(weekStart)
   const holidays = dates.map(holidayOn)
 
@@ -60,8 +60,7 @@ export default function EditDrawer({ person, name, isSelf, weekStart, dayIdx, sc
 
       <div className="drawer-days">
         {WEEK_DAYS.map((day, i) => {
-          const onCall = !!calls[i] || days[i].onCall
-          const { bg, fg } = describeDay({ location: days[i].location, onCall })
+          const { bg, fg, status } = describeDay({ location: days[i].location, onCall: days[i].onCall })
           return (
             <div key={day} ref={i === dayIdx ? tapped : undefined} className={`drawer-day${i === dayIdx ? ' tapped' : ''}`}>
               <div className="drawer-day-head">
@@ -79,8 +78,8 @@ export default function EditDrawer({ person, name, isSelf, weekStart, dayIdx, sc
                 tintFg={fg}
                 placeholder={holidays[i] ? `${holidays[i]} — or type where` : 'Type or pick a location…'}
               />
-              {onCall && (
-                <span className="day-card-note"><Phone size={14} aria-hidden="true" />Customer calls — rostered on the On-call page</span>
+              {status === 'calls' && (
+                <span className="day-card-note"><Phone size={14} aria-hidden="true" />Customer calls</span>
               )}
             </div>
           )

@@ -45,7 +45,7 @@ export default function MySchedule() {
   const { byWeek: oncall } = useOnCall([weekStart])
   const roster = oncall[weekStart]
   const onCallThisWeek = roster?.uid === user?.uid
-  // Customer calls are rostered on the On-call page — shown here, never set here.
+  // Customer calls are typed in like any other entry; weeks still holding them on the roster show them too.
   const callsDays = daysWithCalls(schedule, roster, user?.uid).map(d => d.onCall)
 
   useEffect(() => {
@@ -250,8 +250,7 @@ export default function MySchedule() {
         <div className="day-cards">
           {WEEK_DAYS.map((day, i) => {
             const value = schedule[i]?.location ?? ''
-            const onCall = callsDays[i]
-            const { bg, fg } = describeDay({ location: value, onCall })
+            const { bg, fg, status } = describeDay({ location: value, onCall: callsDays[i] })
             return (
               <div className="card day-card" key={day}>
                 <div className="day-card-head">
@@ -268,8 +267,8 @@ export default function MySchedule() {
                   tintFg={fg}
                   placeholder={holidays[i] ? `${holidays[i]} — or type where you’ll be` : undefined}
                 />
-                {onCall && (
-                  <span className="day-card-note"><Phone size={14} aria-hidden="true" />Customer calls — rostered on the On-call page</span>
+                {status === 'calls' && (
+                  <span className="day-card-note"><Phone size={14} aria-hidden="true" />Customer calls</span>
                 )}
               </div>
             )
