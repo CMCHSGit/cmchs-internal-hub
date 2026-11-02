@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
+import { createReadStream, existsSync, statSync } from 'node:fs'
+import { extname, join, normalize } from 'node:path'
 
 /**
  * Two older looks are kept to their own part of the one app until they are
@@ -63,6 +65,24 @@ function scopeHubCss() {
 }
 scopeHubCss.postcss = true
 
+/** `npm run dev` only: the Test Bench's page at /bench-app/ (scripts/build.mjs copies it there in the real site). */
+function serveBench() {
+  const root = fileURLToPath(new URL('../testbench/bench', import.meta.url))
+  const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.woff2': 'font/woff2' }
+  return {
+    name: 'serve-test-bench',
+    configureServer(server) {
+      server.middlewares.use('/bench-app', (req, res, next) => {
+        const rel = normalize(decodeURIComponent((req.url || '/').split('?')[0])).replace(/^([\/])+/, '') || 'index.html'
+        const file = join(root, rel.endsWith('/') ? rel + 'index.html' : rel)
+        if (rel.includes('..') || !existsSync(file) || !statSync(file).isFile()) return next()
+        res.setHeader('Content-Type', types[extname(file)] || 'application/octet-stream')
+        createReadStream(file).pipe(res)
+      })
+    },
+  }
+}
+
 // The hub is served at "/". Two entries:
 //  - index.html: the hub itself, and the shell the moved tools open inside
 //  - src/gate.js: the sign-in check that plain pages (the /service tools)
@@ -71,7 +91,7 @@ export default defineConfig({
   base: '/',
   // One .env at the repo root for every app
   envDir: fileURLToPath(new URL('../..', import.meta.url)),
-  plugins: [react()],
+  plugins: [react(), serveBench()],
   css: { postcss: { plugins: [scopeHubCss()] } },
   build: {
     // dist/.vite/manifest.json: scripts/build.mjs reads it to precache only

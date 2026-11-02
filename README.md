@@ -135,6 +135,26 @@ logActivity(null, 'Added a PM for Hutt (First PM)') // ...then say what happened
 - Log once per action, not per keystroke or tick (a checklist logs "Imported 40 devices", not every tick: each device keeps who ticked it and when).
 - It never blocks the action: a failure (offline, rules not published) only means that line is lost. Call it after the write succeeds.
 
+## CHS Test Bench (`/testbench/`)
+
+The electrical-safety and performance test app (AS/NZS 3551, ESA612 and ProSim over USB), moved in 2 Nov 2026 from the
+SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Serial and the folder picker need it).
+
+- **The bench is its own page**, `apps/testbench/bench/index.html` (copied to `/bench-app/` by `scripts/build.mjs`), shown in a
+  frame by `apps/testbench/src/section.jsx` under the hub's header. It stays exactly as built: tests in progress and finished
+  tests are kept in each laptop's browser (IndexedDB `chs-test-bench`), templates still come from the SharePoint folder
+  (chosen once per laptop and address), results can still go to the SharePoint Results folder. Nothing is shared between laptops
+  while testing, so any number can be used at once.
+- **Offline:** open it once online; the page and its fonts (kept beside it) are then cached by the service worker.
+- **Send to Simpro:** each file the bench saves (PDF, results file, Ansur record) is handed up to the hub, which attaches it to a
+  Simpro job through the Apps Script proxy (same as Ansur: admins or people with Simpro access). Files always go into an outbox on
+  the laptop first (`outbox.js`) and leave it only once Simpro has them, so with no connection they wait and go by themselves
+  when the laptop is online and signed in. Saving the same report twice for a job sends one.
+- **Updating the bench:** when the file changes, run `node scripts/update-bench.mjs "<the new file>"` (swaps the Google fonts for
+  the local ones and re-adds the one hook, `offerToHub`), then `npm test --prefix apps/testbench`, commit and push. Laptops
+  get the new version the next time they open it online; an open tab keeps the old one until reloaded.
+- Tests: `npm test --prefix apps/testbench` (Simpro calls, the outbox, and that the page still has its local fonts and hook).
+
 ## The home page
 
 Built from `design/CMCHS Internal Hub v2.dc.html` (notes in `design/UPGRADE-v2.md`). What feeds each part:

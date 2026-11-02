@@ -27,6 +27,9 @@ const DIST = join(ROOT, 'dist')
 const APPS = [
   { dir: 'apps/hub',        path: '',           build: 'npm run build -w apps/hub',      output: 'dist' },
   { dir: 'apps/demo',       path: 'demo',       build: 'node apps/demo/build.mjs',       output: 'dist' },
+  // The Test Bench's own page, shown in a frame by the /testbench/ section (apps/testbench/src/section.jsx). Not under
+  // /testbench/, which the worker answers with the app.
+  { dir: 'apps/testbench',  path: 'bench-app',  output: 'bench' },
 ]
 
 // A real build without the Firebase config would ship a hub nobody can sign

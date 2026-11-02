@@ -55,6 +55,17 @@
     "visible": true
   },
   {
+    "id": "testbench",
+    "name": "CHS Test Bench",
+    "short": "Test Bench",
+    "description": "Electrical safety and performance tests on the ESA612 and ProSim, offline, then send the reports to Simpro",
+    "link": "/testbench/",
+    "category": "Service",
+    "icon": "stethoscope",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "pdf-editor",
     "name": "PDF Editor",
     "short": "PDF Editor",

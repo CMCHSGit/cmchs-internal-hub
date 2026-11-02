@@ -18,6 +18,7 @@ export const APP_LABELS = {
   'pdf-editor': 'PDF editor',
   simprosync: 'SimproSync',
   ansurtopdf: 'Ansur',
+  testbench: 'Test Bench',
 }
 export const appLabel = (app) => APP_LABELS[app] || app || 'Hub'
 
