@@ -308,6 +308,8 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
 .stage .instructions.long.open{max-height:none}
 
 .power-btn.on{background:var(--chs-orange);border-color:var(--chs-orange);color:#fff}
+.power-btn:not(.on){background:var(--chs-green);border-color:var(--chs-green);color:#1a2a00;font-weight:600}
+.power-btn:not(.on):hover:not(:disabled){background:#92d10a;border-color:#92d10a}
 .prev-table td{vertical-align:middle}
 .copy-list{display:flex;flex-direction:column;gap:2px;max-height:50vh;overflow:auto;border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:6px}
 .copy-row{padding:6px 8px;border-radius:var(--radius-sm);align-items:flex-start}
