@@ -1277,10 +1277,11 @@ const stepForModel = (s, model) => !model || !Array.isArray(s.models) || !s.mode
 const modelBadge = (t, s) => { const all = tplModels(t); return all.length > 1 && Array.isArray(s.models) && s.models.length && s.models.length < all.length ? `${s.models.join(', ')} only` : ''; };
 /* Template groups: the headings on the Run a test page (Anaesthesia, Monitoring…). A template's own group (Templates page)
    wins; without one it is worked out from the name and description. */
-const CATEGORIES = ['Anaesthesia', 'Monitoring', 'Defibrillation', 'Power supplies'];
+const CATEGORIES = ['Anaesthesia', 'Monitoring', 'Defibrillation', 'Power supplies', 'Computers'];
 function categoryOf(t) {
   const own = String(t.category || '').trim(); if (own) return own;
   const x = `${t.name || ''} ${t.desc || ''}`;
+  if (/computer|laptop|workstation|\bpc\b|\bit equipment/i.test(t.name || '')) return 'Computers';
   if (/anaesth|anesth|ventilat|\ba[5-9]\b/i.test(x)) return 'Anaesthesia';
   if (/defib|\baed\b|\bd[36]0\b/i.test(x)) return 'Defibrillation';
   if (/power supply|isolated output|\bpsu\b/i.test(x)) return 'Power supplies';

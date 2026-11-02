@@ -1,0 +1,159 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Computer / IT equipment – Class I – AS/NZS 3551 EST",
+  "desc": "Class I (earthed) computer, laptop power supply, monitor or other IT equipment. Limits follow the other CHS templates (AS/NZS 3551 EST): protective earth 0.2 ohm or less; insulation 1 Mohm or more; touch leakage 100 uA normal and 500 uA single fault; earth leakage 500 uA normal and 1000 uA single fault. Check them against the standard before first use.",
+  "category": "Computers",
+  "steps": [
+   {
+    "id": "visual",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Unplug the equipment before inspecting. Do not open the case.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "Mains lead: plug, cable and connector undamaged; plug pins straight and secure; strain relief intact.",
+      "Case undamaged: no cracks, missing screws, heat marks or signs of liquid.",
+      "Ports, sockets and switches undamaged; no loose connectors.",
+      "Labels legible: model, ratings and the Class I (earthed) marking."
+     ]
+    }
+   },
+   {
+    "id": "mains",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply. Nothing needs to be connected to the equipment outlet for this step.",
+    "images": [],
+    "hold": false,
+    "params": {}
+   },
+   {
+    "id": "lead-pe",
+    "type": "esa_pe",
+    "title": "Mains lead earth continuity",
+    "instructions": "Test the mains lead on its own, disconnected from the equipment.\n1. Plug the lead into the ESA612 equipment outlet.\n2. Clip the red test lead to the earth contact inside the connector (C13/C5).\nSkip this step for equipment with a fixed (non-detachable) lead; the next step covers it.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "bond-pe",
+    "type": "esa_pe",
+    "title": "Earth bond to accessible metal",
+    "instructions": "Connect the equipment to the ESA612 equipment outlet with its own lead, switched off.\nClip the red test lead to an unpainted metal part of the case, a screw or a metal port shell. Test more than one point if there are separate metal parts.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "ins-mains-pe",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Mains pins (live and neutral linked by the ESA612) to the earth pin. Switch the equipment on if it has a switch, and disconnect all peripherals and network cables.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "ins-mains-ne",
+    "type": "esa_ins",
+    "title": "Insulation: mains to accessible non-earthed parts",
+    "instructions": "Only for equipment with accessible parts that are not connected to earth (isolated ports, plastic-case screws, isolated metal). Clip the red test lead to the part, or link several parts together with a shorting clip or foil.\nMark this step skipped if every accessible part is earthed.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "touch",
+    "type": "esa_encl",
+    "title": "Touch leakage",
+    "instructions": "Keep the equipment on with the peripherals disconnected. Red test lead on an accessible metal part of the case, or on foil wrapped around a plastic case.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leak",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Equipment on, peripherals disconnected.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 500
+      },
+      {
+       "c": "ON",
+       "hi": 1000
+      }
+     ]
+    }
+   },
+   {
+    "id": "functional",
+    "type": "check",
+    "title": "Power on and function",
+    "instructions": "Do this after the electrical safety tests.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "Powers on and reaches the operating system without error messages.",
+      "Fans run and vents are clear of dust and blockage.",
+      "Screen, keyboard and pointing device work; connected peripherals work.",
+      "Equipment clean and fit for the clinical area; test label applied."
+     ]
+    }
+   }
+  ],
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing engineer"
+  ],
+  "appliedParts": [],
+  "models": [],
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true
+ }
+}

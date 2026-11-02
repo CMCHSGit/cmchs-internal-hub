@@ -143,7 +143,8 @@ test('template groups: set on the template, else worked out from its name; usual
   assert.equal(categoryOf(t('Medical power supply (isolated output), Class I')), 'Power supplies')
   assert.equal(categoryOf(t('Patient Monitor and OR Modules')), 'Monitoring')
   assert.equal(categoryOf(t('Mindray TM80 – AS/NZS 3551 PVT', 'Performance verification only.')), 'Monitoring')
-  assert.equal(categoryOf(t('Suction unit')), 'Other')
+  assert.equal(categoryOf(t('Computer / IT equipment – Class II', 'Laptop power supply, monitor')), 'Computers')
+assert.equal(categoryOf(t('Suction unit')), 'Other')
   assert.equal(categoryOf(t('Mindray A9 Anaesthetic Machine', '', 'Theatre')), 'Theatre', 'its own group wins')
   const order = groupTemplates([t('Suction unit'), t('Patient Monitor'), t('X', '', 'Theatre'), t('A9 Anaesthetic'), t('Another monitor')]).map(([c, l]) => [c, l.length])
   assert.deepEqual(JSON.parse(JSON.stringify(order)), [['Anaesthesia', 1], ['Monitoring', 2], ['Theatre', 1], ['Other', 1]])
@@ -159,4 +160,21 @@ test('test another device: same template, details kept, serial number blank', ()
   assert.ok(/this\.pick\(t\.id\)/.test(body), 'the template stays picked')
   assert.ok(/isSerial\(i\) \? ''/.test(body), 'the serial number is cleared')
   assert.ok(/run\.dut\[i\.dataset\.k\]/.test(body), 'the other details come from the test just done')
+})
+
+test('computer templates: both load-ready, use step types the bench has, unique step ids, Class II has no earth tests', () => {
+  const dir = new URL('../templates/', import.meta.url)
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  for (const [file, earthed] of [['Computer - IT equipment - Class I - Test Bench template.json', true], ['Computer - IT equipment - Class II - Test Bench template.json', false]]) {
+    const f = JSON.parse(readFileSync(new URL(file, dir), 'utf8'))
+    assert.equal(f.format, 'chs-test-bench-template')
+    const steps = f.template.steps
+    assert.equal(new Set(steps.map((s) => s.id)).size, steps.length, 'step ids are unique')
+    for (const s of steps) assert.ok(html.includes(`${s.type}:`) || s.type === 'check' || s.type === 'info', `bench knows ${s.type}`)
+    assert.equal(f.template.category, 'Computers')
+    const types = steps.map((s) => s.type)
+    assert.equal(types.includes('esa_pe'), earthed)
+    assert.equal(types.includes('esa_earthl'), earthed)
+    assert.ok(types.includes('esa_mains') && types.includes('esa_ins') && types.includes('esa_encl'))
+  }
 })

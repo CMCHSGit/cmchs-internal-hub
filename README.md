@@ -160,6 +160,13 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   "<file>" --force` puts a different bench file in, swapping its Google fonts for the local ones and adding the `offerToHub` hook.)
 - **Template groups:** the Run a test page groups templates under headings (Anaesthesia, Monitoring, Defibrillation, Power supplies,
   Other). A template's group is set on the Templates page (the box under its description); without one it is worked out from its name.
+- **Computers** is a group too (Class I and Class II computers / IT equipment). The two templates are made by
+  `apps/testbench/tools/make-computer-templates.mjs` into `apps/testbench/templates/`; copy those files into the SharePoint `Templates`
+  folder to use them (the folder, not this repo, is where the bench reads templates from). Their limits and what is still to confirm are in
+  the generator's comments and the template descriptions.
+- **Notes for anyone changing the bench:** `apps/testbench/docs/` has `esa612-protocol-notes.md` (what the real ESA612 and ProSim accept and
+  refuse: read it before touching the serial driver), `bench-notes.md` (code map, data formats, the traps that have already bitten) and
+  `change-log.md` (the 2 Nov 2026 features in detail).
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
 - Tests: `npm test --prefix apps/testbench` (Simpro calls, the outbox, and that the page still has its local fonts and hook).
 
