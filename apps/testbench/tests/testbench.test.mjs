@@ -160,6 +160,33 @@ test('test another device: same template, details kept, serial number blank', ()
   assert.ok(/this\.pick\(t\.id\)/.test(body), 'the template stays picked')
   assert.ok(/isSerial\(i\) \? ''/.test(body), 'the serial number is cleared')
   assert.ok(/run\.dut\[i\.dataset\.k\]/.test(body), 'the other details come from the test just done')
+  assert.ok(/checklistAnswers\(run\)/.test(body), 'the checklist answers are kept for the next test')
+})
+
+test('test another device keeps checklist Pass and N/A answers only: not Fail, readings, measurements or skipped steps', async () => {
+  const { default: vm } = await import('node:vm')
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const a = html.indexOf('function stepChecks('), b = html.indexOf('/* Model variants')
+  const { checklistAnswers, applyChecklistAnswers } = vm.runInNewContext(html.slice(a, b) + '; ({ checklistAnswers, applyChecklistAnswers })', { TYPES: { check: { group: 'check' } }, JSON })
+  const step = (id, type, params) => ({ id, type, title: id, params })
+  const template = { steps: [step('c1', 'check', { items: ['Case', 'Lead', 'Label'], readings: [{ label: 'Battery', unit: 'V', lo: 11, hi: 14 }] }), step('e1', 'esa_pe', { hi: 0.2 }), step('c2', 'check', { items: ['Powers on'] })] }
+  const row = (label, result) => ({ label, result, display: '', limit: '' })
+  const last = { template, results: {
+    c1: { status: 'fail', rows: [row('Case', 'pass'), row('Lead', 'fail'), row('Label', 'na'), { label: 'Battery', value: '12.5', unit: 'V', result: 'pass' }] },
+    e1: { status: 'pass', rows: [row('PE', 'pass')] },
+    c2: { status: 'skipped', rows: [] } } }
+  const plain = (x) => JSON.parse(JSON.stringify(x))   // the page's code runs in its own realm
+  const kept = checklistAnswers(last)
+  assert.deepEqual(plain(Object.keys(kept)), ['c1'], 'only checklist steps, and only those with something to keep')
+  assert.deepEqual(plain(Object.keys(kept.c1)), ['0', '2'], 'Pass and N/A carry; Fail and the typed reading do not')
+  assert.equal(kept.c1[2].display, 'N/A')
+  // and they go into the next device's test, item by item, where the wording still matches
+  const next = { template: { steps: [step('c1', 'check', { items: ['Case', 'Lead (reworded)', 'Label'], readings: [] }), step('c2', 'check', { items: ['Powers on'] })] }, results: { c1: { status: 'pending', rows: [] }, c2: { status: 'pending', rows: [] } } }
+  const set = []
+  assert.equal(applyChecklistAnswers(next, kept, (s) => set.push(s.id)), 2)
+  assert.deepEqual(plain(next.results.c1.rows.map((r) => r && r.result ? r.result : null)), ['pass', null, 'na'])
+  assert.deepEqual(set, ['c1'])
+  assert.ok(html.includes('App.carry = null;'), 'one test only, then forgotten')
 })
 
 test('computer templates: both load-ready, use step types the bench has, unique step ids, Class II has no earth or touch current tests', () => {

@@ -173,6 +173,9 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
 - **A failed test in the auto sequence** (stop-on-fail is on by default) asks what to do: **Re-test** that step at once, **Continue to next
   test**, or **Stop sequence**. The failing readings are shown in the prompt.
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
+  The **checklist answers carry over too**: on plain checklist steps, the Pass and N/A answers of the last device are filled in when the next
+  test starts (the tester changes what differs, and a toast says how many were kept). A **Fail**, typed readings (battery volts…), ESA612
+  measurements, ProSim steps and skipped steps do not carry; neither does anything if another template is picked.
 - Tests: `npm test --prefix apps/testbench` (Simpro calls, the outbox, and that the page still has its local fonts and hook).
 
 ## The home page

@@ -1304,6 +1304,33 @@ function stepChecks(s) {
   return [];
 }
 
+/**
+ * What a finished test answered on its checklist steps, to carry to the next device on the same template: { stepId: { itemNo: row } }.
+ * Only the pass / fail items of plain checklist steps, and only Pass and N/A. A Fail is left for the next device to answer on its
+ * own, and typed readings, measurements and skipped steps are never carried.
+ */
+function checklistAnswers(run) {
+  const out = {};
+  for (const s of run.template.steps) {
+    if (s.type !== 'check') continue;
+    const rows = ((run.results[s.id] || {}).rows || []), mine = {};
+    stepChecks(s).forEach((c, k) => { const r = rows[k]; if (c.kind === 'pf' && r && r.label === c.label && (r.result === 'pass' || r.result === 'na')) mine[k] = { label: r.label, result: r.result, display: r.result === 'na' ? 'N/A' : '', limit: '' }; });
+    if (Object.keys(mine).length) out[s.id] = mine;
+  }
+  return out;
+}
+/** Put carried checklist answers into a new run (matching step, item number and wording). Returns how many were kept. */
+function applyChecklistAnswers(run, rows, setStatus) {
+  let n = 0;
+  for (const s of run.template.steps) {
+    const mine = rows && rows[s.id]; if (!mine || s.type !== 'check') continue;
+    const cs = stepChecks(s), res = run.results[s.id];
+    for (const [k, r] of Object.entries(mine)) if (cs[k] && cs[k].kind === 'pf' && cs[k].label === r.label) { res.rows[k] = { ...r }; n++; }
+    setStatus(s);
+  }
+  return n;
+}
+
 /* Model variants: a template can cover several models (e.g. D30 and D60); a step can be limited to some of them. */
 const tplModels = (t) => (t && Array.isArray(t.models) ? t.models.filter(Boolean) : []);
 const stepForModel = (s, model) => !model || !Array.isArray(s.models) || !s.models.length || s.models.includes(model);
@@ -1945,6 +1972,10 @@ const Runner = {
       if (out.length) log('in', 'RUN', `Model ${model}: left out ${out.map(s => `“${s.title}”`).join(', ')}`);
     }
     for (const s of this.run.template.steps) this.run.results[s.id] = { status: 'pending', rows: [] };
+    // "Test another device": the last device's checklist answers come across, for the tester to change where this one differs.
+    let kept = 0;
+    if (App.carry && App.carry.templateId === tpl.id) { kept = applyChecklistAnswers(this.run, App.carry.rows, (s) => this.checksStatus(s)); log('in', 'RUN', `Kept ${kept} checklist answer(s) from the last device`); }
+    App.carry = null;
     $('#runSetup').hidden = true; $('#runSetup').classList.remove('next-device'); $('#runSummary').hidden = true; $('#runActive').hidden = false;
     $('#runTitle').textContent = tpl.name;
     $('#runOverline').innerHTML = Devices.anySim ? 'Testing <span class="badge warn" style="margin-left:6px;letter-spacing:0;text-transform:none">Simulation</span>' : 'Testing';
@@ -1954,6 +1985,7 @@ const Runner = {
     this.go(0);
     // Devices this laptop has used before connect while the first visual steps are being done.
     if (this.run.template.steps.some(s => ['esa', 'ps'].includes(TYPES[s.type]?.group))) Devices.autoReconnect();
+    if (kept) toast(`Kept ${kept} checklist answer${kept === 1 ? '' : 's'} from the last device. Change any that differ.`, 5000);
   },
   get steps() { return this.run.template.steps; },
   dutText() { return Object.entries(this.run.dut).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('  ·  '); },
@@ -3831,6 +3863,7 @@ const App = {
     if (this.picked && !Store.get(this.picked)) { this.picked = null; $('#dutCard').hidden = true; }
   },
   pick(id) {
+    if (this.carry && this.carry.templateId !== id) this.carry = null;   // checklist answers only go to the same template
     this.picked = id; const t = Store.get(id);
     $$('#tplPick .tpl-tile').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
     $('#pickedName').textContent = t.name;
@@ -3841,12 +3874,14 @@ const App = {
     $('#dutFields input')?.focus();
     $('#dutCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   },
-  /** After a test: the next device on the same template. The details stay (customer, engineer, model…); the serial number is blank. */
+  /** After a test: the next device on the same template. The details stay (customer, engineer, model…); the serial number is blank.
+      The checklist answers (Pass and N/A on checklist steps) are kept too, to be put back when the next test starts. */
   nextDevice() {
     const run = Runner.run, t = run && Store.get(run.templateId);
     $('#runSummary').hidden = true; $('#runSetup').hidden = false;
     if (!t) { $$('#dutFields input').forEach((i, k) => { if (k === 0) i.value = ''; }); $('#dutFields input')?.focus(); return; }   // its template has gone: back to the list as before
     this.pick(t.id);
+    this.carry = { templateId: t.id, rows: checklistAnswers(run) };
     const inputs = $$('#dutFields input'), isSerial = (i) => /serial/i.test(i.dataset.k);
     inputs.forEach(i => { i.value = isSerial(i) ? '' : (run.dut && run.dut[i.dataset.k] != null ? run.dut[i.dataset.k] : i.value); });
     $('#nextName').textContent = t.name; $('#runSetup').classList.add('next-device');

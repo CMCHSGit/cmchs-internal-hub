@@ -10,7 +10,8 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 
 // Since 2 Nov 2026 the hub's copy is the master (it has changes the SharePoint file doesn't: template groups, "Test another
-// device" keeping the template). Putting an older file over it would lose them, so it needs --force.
+// device" keeping the template, details and checklist answers, the ESA612 connecting by itself on Start, and Re-test after a
+// failed test in the auto sequence). Putting an older file over it would lose them, so it needs --force.
 const force = process.argv.includes('--force')
 const src = process.argv.slice(2).find((a) => !a.startsWith('--'))
 if (!force && /HUB-MASTER/.test((() => { try { return readFileSync('apps/testbench/bench/index.html', 'utf8') } catch { return '' } })())) {
