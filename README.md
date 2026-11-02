@@ -150,9 +150,13 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   Simpro job through the Apps Script proxy (same as Ansur: admins or people with Simpro access). Files always go into an outbox on
   the laptop first (`outbox.js`) and leave it only once Simpro has them, so with no connection they wait and go by themselves
   when the laptop is online and signed in. Saving the same report twice for a job sends one.
-- **Updating the bench:** when the file changes, run `node scripts/update-bench.mjs "<the new file>"` (swaps the Google fonts for
-  the local ones and re-adds the one hook, `offerToHub`), then `npm test --prefix apps/testbench`, commit and push. Laptops
-  get the new version the next time they open it online; an open tab keeps the old one until reloaded.
+- **The hub's copy is the master** (since 2 Nov 2026; the file says HUB-MASTER): change `apps/testbench/bench/index.html` here, run
+  `npm test --prefix apps/testbench`, commit and push, and retire the SharePoint file so nobody edits a stale copy. Laptops get
+  the new version the next time they open it online; an open tab keeps the old one until reloaded. (`scripts/update-bench.mjs
+  "<file>" --force` puts a different bench file in, swapping its Google fonts for the local ones and adding the `offerToHub` hook.)
+- **Template groups:** the Run a test page groups templates under headings (Anaesthesia, Monitoring, Defibrillation, Power supplies,
+  Other). A template's group is set on the Templates page (the box under its description); without one it is worked out from its name.
+- **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
 - Tests: `npm test --prefix apps/testbench` (Simpro calls, the outbox, and that the page still has its local fonts and hook).
 
 ## The home page

@@ -9,7 +9,14 @@
 // then `npm test --prefix apps/testbench` (it checks both changes are there) and commit: the deploy puts it live.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 
-const src = process.argv[2]
+// Since 2 Nov 2026 the hub's copy is the master (it has changes the SharePoint file doesn't: template groups, "Test another
+// device" keeping the template). Putting an older file over it would lose them, so it needs --force.
+const force = process.argv.includes('--force')
+const src = process.argv.slice(2).find((a) => !a.startsWith('--'))
+if (!force && /HUB-MASTER/.test((() => { try { return readFileSync('apps/testbench/bench/index.html', 'utf8') } catch { return '' } })())) {
+  console.error('apps/testbench/bench/index.html is the master now (it says HUB-MASTER). Edit it there. To replace it with another file anyway: add --force.')
+  process.exit(1)
+}
 if (!src) { console.error('Usage: node scripts/update-bench.mjs "<path to CHS Test Bench.html>"'); process.exit(1) }
 const out = 'apps/testbench/bench'
 mkdirSync(out + '/fonts', { recursive: true })

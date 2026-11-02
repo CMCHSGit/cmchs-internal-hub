@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CHS Test Bench</title>
+<!-- HUB-MASTER: from 2 Nov 2026 this copy (cmchs-internal-hub apps/testbench/bench) is the Test Bench; edit it here, not in SharePoint. -->
 <link rel="icon" type="image/png" href="data:image/png;base64,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">
 <link rel="stylesheet" href="fonts.css">
 <style>/* ---------- Connected Healthcare Systems tokens (from the CHS design system) ---------- */
@@ -183,6 +184,14 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 /* ---------- runner ---------- */
 .run-setup{max-width:880px}
 .tpl-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:18px}
+.tpl-group{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 -2px;font:700 12px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.tpl-group:first-child{margin-top:0}
+.tpl-group::after{content:"";flex:1;height:1px;background:var(--border-subtle)}
+.tpl-list .tpl-group-li{padding:10px 10px 2px;font:700 11px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.next-bar{display:none;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.next-bar b{font:600 20px/1.2 var(--font-display);color:var(--text-strong)}
+#runSetup.next-device .next-bar{display:flex}
+#runSetup.next-device .page-head,#runSetup.next-device #tplPick,#runSetup.next-device #prevCard,#runSetup.next-device #sharedBanner{display:none}
 .tpl-tile{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:#fff;padding:14px;text-align:left;cursor:pointer;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:6px;transition:box-shadow .22s var(--ease),transform .22s var(--ease)}
 .tpl-tile:hover{box-shadow:var(--shadow-card-hover);transform:translateY(-2px)}
 .tpl-tile[aria-pressed="true"]{border-color:var(--chs-purple);box-shadow:0 0 0 2px var(--chs-purple)}
@@ -343,6 +352,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <p>Pick the test for the device in front of you, fill in its details, then work through each step. Readings from the ESA612 and settings for the ProSim 8 are handled for you.</p>
         </div>
       </div>
+      <div class="next-bar" id="nextBar"><span class="overline">Next device</span><b id="nextName"></b><span class="hint">Same template. The details are kept; enter the serial number.</span><button class="btn quiet sm" id="nextOther" type="button">Choose a different template</button></div>
       <div class="tpl-pick" id="tplPick"></div>
       <div class="card pad run-setup" id="dutCard" hidden>
         <div class="section-title"><h2>Device under test</h2><span class="badge info" id="pickedName"></span></div>
@@ -397,6 +407,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <p id="sumDut"></p>
         </div>
         <div class="row">
+          <button class="btn" id="sumNew" type="button" title="Start the next device with this same template and these details, without the serial number"><svg class="i"><use href="#i-plus"/></svg>Test another device</button>
           <button class="btn secondary" id="sumResume" type="button" hidden><svg class="i"><use href="#i-play"/></svg>Continue test</button>
           <button class="btn quiet" id="sumSkipRest" type="button" hidden>Skip steps not done</button>
           <button class="btn quiet" id="sumEdit" type="button">Edit details</button>
@@ -405,7 +416,6 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <button class="btn quiet" id="sumPrint" type="button"><svg class="i"><use href="#i-printer"/></svg>Print</button>
           <button class="btn secondary" id="sumExport" type="button"><svg class="i"><use href="#i-download"/></svg>Save results file</button>
           <button class="btn secondary" id="sumMtr" type="button" title="An Ansur record (.mtr) that opens in Ansur. Saved to the Results folder."><svg class="i"><use href="#i-download"/></svg>Ansur file (.mtr)</button>
-          <button class="btn secondary" id="sumNew" type="button"><svg class="i"><use href="#i-plus"/></svg>Test another device</button>
         </div>
       </div>
       <div class="card pad">
@@ -444,6 +454,8 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <div style="flex:1;min-width:0">
             <input class="tpl-title" id="tplName" aria-label="Template name">
             <input class="input" id="tplDesc" placeholder="Short description, e.g. Mindray TM80, Class I, CF applied parts" aria-label="Template description" style="margin-top:8px;min-height:34px">
+            <input class="input" id="tplCategory" list="tplCats" aria-label="Template group" style="margin-top:8px;min-height:34px">
+            <datalist id="tplCats"></datalist>
           </div>
           <div class="row" style="flex-wrap:nowrap">
             <button class="icon-btn" id="tplSaveShared" type="button" aria-label="Save to the shared templates folder" title="Save to the shared templates folder"><svg class="i"><use href="#i-upload"/></svg></button>
@@ -1263,9 +1275,27 @@ function stepChecks(s) {
 const tplModels = (t) => (t && Array.isArray(t.models) ? t.models.filter(Boolean) : []);
 const stepForModel = (s, model) => !model || !Array.isArray(s.models) || !s.models.length || s.models.includes(model);
 const modelBadge = (t, s) => { const all = tplModels(t); return all.length > 1 && Array.isArray(s.models) && s.models.length && s.models.length < all.length ? `${s.models.join(', ')} only` : ''; };
+/* Template groups: the headings on the Run a test page (Anaesthesia, Monitoring…). A template's own group (Templates page)
+   wins; without one it is worked out from the name and description. */
+const CATEGORIES = ['Anaesthesia', 'Monitoring', 'Defibrillation', 'Power supplies'];
+function categoryOf(t) {
+  const own = String(t.category || '').trim(); if (own) return own;
+  const x = `${t.name || ''} ${t.desc || ''}`;
+  if (/anaesth|anesth|ventilat|\ba[5-9]\b/i.test(x)) return 'Anaesthesia';
+  if (/defib|\baed\b|\bd[36]0\b/i.test(x)) return 'Defibrillation';
+  if (/power supply|isolated output|\bpsu\b/i.test(x)) return 'Power supplies';
+  if (/monitor|module|ecg|spo2|nibp|capno|\btm\d|patient/i.test(x)) return 'Monitoring';
+  return 'Other';
+}
+/** [[category, templates]] in the order shown: the usual groups first, then others by name, "Other" last. */
+function groupTemplates(list) {
+  const m = new Map(); for (const t of list) { const c = categoryOf(t); if (!m.has(c)) m.set(c, []); m.get(c).push(t); }
+  const rank = (c) => { const i = CATEGORIES.indexOf(c); return i >= 0 ? i : c === 'Other' ? 1e6 : 1000; };
+  return [...m].sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
+}
 /** Build a clean Test Bench template from imported JSON (file, shared folder or copy). */
 function templateFromRaw(raw, fallbackName) {
-  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
+  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
     steps: raw.steps.filter(s => s && TYPES[s.type]).map(s => newStep(s.type, { title: String(s.title || TYPES[s.type].label), instructions: String(s.instructions || ''), hold: Math.max(0, +s.hold || 0), images: Array.isArray(s.images) ? s.images.filter(i => i && /^data:image\//.test(i.src)) : [], params: s.params || {}, models: Array.isArray(s.models) && s.models.length ? s.models.map(String) : undefined })) };
 }
 function newStep(type, over = {}) {
@@ -1537,6 +1567,7 @@ const Builder = {
     $('#tplImportFile').addEventListener('change', (e) => this.importTemplate(e));
     $('#tplName').addEventListener('input', (e) => { this.tpl.name = e.target.value; Store.save(this.tpl); this.renderTplList(); });
     $('#tplDesc').addEventListener('input', (e) => { this.tpl.desc = e.target.value; Store.save(this.tpl); });
+    $('#tplCategory').addEventListener('input', (e) => { this.tpl.category = e.target.value.trim(); Store.save(this.tpl); this.renderTplList(); $('#tplCategory').placeholder = `Group on the Run a test page (now: ${categoryOf(this.tpl)}), e.g. Anaesthesia, Monitoring`; });
     this.bindCanvas();
     this.bindInspector();
     document.addEventListener('paste', (e) => {
@@ -1549,11 +1580,16 @@ const Builder = {
   renderAll() { this.renderTplList(); this.renderHeader(); this.renderCanvas(); this.renderInspector(); },
 
   renderTplList() {
-    $('#tplList').innerHTML = Store.templates.map(t => `<li><button type="button" data-id="${t.id}" aria-current="${t.id === this.tpl?.id}">
-      <span class="t-name">${esc(t.name || 'Untitled template')}</span><span class="t-meta">${t.steps.length} step${t.steps.length === 1 ? '' : 's'}${t.shared ? ` · <span class="shared-tag${t.sharedDirty ? ' dirty' : ''}">${t.sharedDirty ? 'Shared, changed here' : 'Shared'}</span>` : ''}</span></button></li>`).join('');
+    $('#tplList').innerHTML = groupTemplates(Store.templates).map(([cat, list]) => `<li class="tpl-group-li" role="presentation">${esc(cat)}</li>` + list.map(t => `<li><button type="button" data-id="${t.id}" aria-current="${t.id === this.tpl?.id}">
+      <span class="t-name">${esc(t.name || 'Untitled template')}</span><span class="t-meta">${t.steps.length} step${t.steps.length === 1 ? '' : 's'}${t.shared ? ` · <span class="shared-tag${t.sharedDirty ? ' dirty' : ''}">${t.sharedDirty ? 'Shared, changed here' : 'Shared'}</span>` : ''}</span></button></li>`).join('')).join('');
     $$('#tplList button').forEach(b => b.addEventListener('click', () => { this.tplId = b.dataset.id; this.selId = null; this.renderAll(); }));
   },
-  renderHeader() { $('#tplName').value = this.tpl?.name || ''; $('#tplDesc').value = this.tpl?.desc || ''; Shared.renderTpl(); },
+  renderHeader() {
+    $('#tplName').value = this.tpl?.name || ''; $('#tplDesc').value = this.tpl?.desc || '';
+    $('#tplCategory').value = this.tpl?.category || ''; $('#tplCategory').placeholder = this.tpl ? `Group on the Run a test page (now: ${categoryOf(this.tpl)}), e.g. Anaesthesia, Monitoring` : 'Group';
+    $('#tplCats').innerHTML = [...new Set([...CATEGORIES, ...Store.templates.map(categoryOf), 'Other'])].map(c => `<option value="${esc(c)}">`).join('');
+    Shared.renderTpl();
+  },
   renderPalette() {
     $('#palette').innerHTML = GROUPS.map(([g, label, cls]) => `<div class="palette-group ${cls}"><div class="overline">${esc(label)}</div>
       ${Object.entries(TYPES).filter(([, T]) => T.group === g).map(([k, T]) => `<button type="button" class="block" draggable="true" data-type="${k}" title="${esc(T.desc)}">
@@ -1795,7 +1831,7 @@ const Builder = {
 
   /* ----- template actions ----- */
   async newTemplate() {
-    const t = { id: uid(), name: 'New template', desc: '', updated: Date.now(), dut: ['Serial number', 'Manufacturer', 'Model', 'Customer'], steps: [] };
+    const t = { id: uid(), name: 'New template', desc: '', category: '', updated: Date.now(), dut: ['Serial number', 'Manufacturer', 'Model', 'Customer'], steps: [] };
     await Store.add(t); this.tplId = t.id; this.selId = null; this.renderAll(); $('#tplName').focus(); $('#tplName').select();
   },
   async duplicate() {
@@ -1875,7 +1911,7 @@ const Runner = {
       if (out.length) log('in', 'RUN', `Model ${model}: left out ${out.map(s => `“${s.title}”`).join(', ')}`);
     }
     for (const s of this.run.template.steps) this.run.results[s.id] = { status: 'pending', rows: [] };
-    $('#runSetup').hidden = true; $('#runSummary').hidden = true; $('#runActive').hidden = false;
+    $('#runSetup').hidden = true; $('#runSetup').classList.remove('next-device'); $('#runSummary').hidden = true; $('#runActive').hidden = false;
     $('#runTitle').textContent = tpl.name;
     $('#runOverline').innerHTML = Devices.anySim ? 'Testing <span class="badge warn" style="margin-left:6px;letter-spacing:0;text-transform:none">Simulation</span>' : 'Testing';
     $('#runDut').textContent = this.dutText() + (this.run.model ? `  ·  Steps for ${this.run.model}` : '');
@@ -3677,7 +3713,8 @@ const App = {
     $('#editAp').addEventListener('click', () => Runner.editAppliedParts());
     $('#editDut').addEventListener('click', () => Runner.editDetails());
     $('#sumEdit').addEventListener('click', () => Runner.editDetails());
-    $('#sumNew').addEventListener('click', () => { $('#runSummary').hidden = true; $('#runSetup').hidden = false; $$('#dutFields input').forEach((i, k) => { if (k === 0) i.value = ''; }); $('#dutFields input')?.focus(); });
+    $('#sumNew').addEventListener('click', () => this.nextDevice());
+    $('#nextOther').addEventListener('click', () => { $('#runSetup').classList.remove('next-device'); this.refreshRunPicker(); window.scrollTo({ top: 0 }); });
     $('#sumExport').addEventListener('click', () => Runner.exportResults());
     $('#sumResume').addEventListener('click', () => Runner.resume());
     $('#runReload').addEventListener('click', () => Runner.reloadTemplate());
@@ -3714,12 +3751,12 @@ const App = {
   renderPrefs() { $$('#view-devices [data-pref]').forEach(c => { c.checked = !!Prefs.get(c.dataset.pref); }); },
   /* ----- run setup ----- */
   refreshRunPicker() {
-    const tiles = Store.templates.map(t => {
+    const tiles = groupTemplates(Store.templates).map(([cat, list]) => `<div class="tpl-group" role="presentation">${esc(cat)}</div>` + list.map(t => {
       const g = new Set(t.steps.map(s => TYPES[s.type]?.group));
       return `<button type="button" class="tpl-tile" data-id="${t.id}" aria-pressed="${this.picked === t.id}">
         <span class="t-name">${esc(t.name)}</span>${t.desc ? `<span class="muted" style="font-size:14px">${esc(t.desc)}</span>` : ''}
         <span class="chips"><span class="badge">${t.steps.length} steps</span>${g.has('esa') ? '<span class="badge warn">ESA612</span>' : ''}${g.has('ps') ? '<span class="badge pass">ProSim 8</span>' : ''}</span></button>`;
-    }).join('');
+    }).join('')).join('');
     $('#tplPick').innerHTML = tiles || '<div class="empty">No templates yet. Build one on the Templates page.</div>';
     $$('#tplPick .tpl-tile').forEach(b => b.addEventListener('click', () => this.pick(b.dataset.id)));
     if (this.picked && !Store.get(this.picked)) { this.picked = null; $('#dutCard').hidden = true; }
@@ -3734,6 +3771,18 @@ const App = {
     enterToNext($$('#dutFields input'), () => this.startRun());
     $('#dutFields input')?.focus();
     $('#dutCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+  /** After a test: the next device on the same template. The details stay (customer, engineer, model…); the serial number is blank. */
+  nextDevice() {
+    const run = Runner.run, t = run && Store.get(run.templateId);
+    $('#runSummary').hidden = true; $('#runSetup').hidden = false;
+    if (!t) { $$('#dutFields input').forEach((i, k) => { if (k === 0) i.value = ''; }); $('#dutFields input')?.focus(); return; }   // its template has gone: back to the list as before
+    this.pick(t.id);
+    const inputs = $$('#dutFields input'), isSerial = (i) => /serial/i.test(i.dataset.k);
+    inputs.forEach(i => { i.value = isSerial(i) ? '' : (run.dut && run.dut[i.dataset.k] != null ? run.dut[i.dataset.k] : i.value); });
+    $('#nextName').textContent = t.name; $('#runSetup').classList.add('next-device');
+    (inputs.find(isSerial) || inputs.find(i => !i.value) || inputs[0])?.focus();
+    window.scrollTo({ top: 0 });
   },
   updateStartHint() {
     const t = this.picked && Store.get(this.picked); if (!t) return;
