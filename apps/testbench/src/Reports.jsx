@@ -25,7 +25,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const [customer, setCustomer] = useState('')
   const [period, setPeriod] = useState('all')
   const [unsentOnly, setUnsentOnly] = useState(false)
-  const [exts, setExts] = useState(['pdf', 'json', 'mtr'])
+  const [exts, setExts] = useState(['pdf', 'mtr']) // not the results file by default: Simpro won't take it, and the Ansur record says the same
   const [chosen, setChosen] = useState(() => new Set())
   const [job, setJob] = useState(null)
   const [busy, setBusy] = useState(false)

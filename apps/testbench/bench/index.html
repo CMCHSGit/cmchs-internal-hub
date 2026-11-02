@@ -416,8 +416,8 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <button class="btn quiet" id="sumReload" type="button" title="Load the latest version of this template, keeping the results already recorded"><svg class="i"><use href="#i-refresh"/></svg>Reload template</button>
           <button class="btn" id="sumPdf" type="button"><svg class="i"><use href="#i-download"/></svg>Save PDF</button>
           <button class="btn quiet" id="sumPrint" type="button"><svg class="i"><use href="#i-printer"/></svg>Print</button>
-          <button class="btn secondary" id="sumExport" type="button"><svg class="i"><use href="#i-download"/></svg>Save results file</button>
-          <button class="btn secondary" id="sumMtr" type="button" title="An Ansur record (.mtr) that opens in Ansur. Saved to the Results folder."><svg class="i"><use href="#i-download"/></svg>Ansur file (.mtr)</button>
+          <button class="btn" id="sumMtr" type="button" title="An Ansur record (.mtr) that opens in Ansur and can be attached to a Simpro job. Saved to the Results folder."><svg class="i"><use href="#i-download"/></svg>Ansur file (.mtr)</button>
+          <button class="btn quiet" id="sumExport" type="button" title="The whole test as a file that can be reopened here later with every detail. Simpro won't take it, so use the Ansur file for jobs."><svg class="i"><use href="#i-download"/></svg>Results file (.json)</button>
         </div>
       </div>
       <div class="card pad">
@@ -3688,7 +3688,19 @@ function offerToHub(name, blob) {
     if (run) meta = { customer: pick(/^(customer|client|hospital|site|owner)/i), serial: pick(/^serial/i), model: pick(/^model$/i), template: (run.template && run.template.name) || '', testedAt: run.started || '' };
   } catch {}
   blob.arrayBuffer().then((buffer) => window.parent.postMessage({ type: 'chs-bench:file', name, mime: blob.type, buffer, meta }, location.origin)).catch(() => {});
+  // Simpro won't take a results file (.json), so every test saved as a PDF or results file also gets its Ansur record (.mtr) in
+  // Saved reports, under the same name, ready to attach or zip. Not written anywhere else: Save Ansur file does that.
+  try {
+    const run = Runner.run;
+    const mtrName = name.replace(/\.(pdf|json)$/i, '.mtr');
+    if (mtrName !== name && run && !run.imported && !offerToHub.sentMtr.has(mtrName + run.started)) {   // once per test: a second copy would forget what was sent
+      offerToHub.sentMtr.add(mtrName + run.started);
+      const bytes = buildMtr(run);
+      window.parent.postMessage({ type: 'chs-bench:file', name: mtrName, mime: 'application/xml', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), meta }, location.origin);
+    }
+  } catch (e) { log('in', 'RUN', 'No Ansur record for Saved reports: ' + e.message); }
 }
+offerToHub.sentMtr = new Set();
 /** Inside the hub: builds an Ansur record (.mtr) from a saved results file when the hub's Saved reports asks, so any test can be
     downloaded as one even if only its results file was saved. Replies with the bytes, or why it can't. */
 window.addEventListener('message', (e) => {

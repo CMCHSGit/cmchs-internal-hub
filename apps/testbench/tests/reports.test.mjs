@@ -119,3 +119,14 @@ test('Saved reports can give an Ansur record (.mtr) for any test that has a resu
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('Ansur record (.mtr) · make') && ui.includes('needMtr'), 'a button per test, and one made for each ticked test in a zip or attach')
 })
+
+test('the Ansur record (.mtr) is the default: every saved PDF or results file also puts its .mtr in Saved reports, and the results file is not included by default', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const hook = html.slice(html.indexOf('function offerToHub('), html.indexOf("window.addEventListener('message'"))
+  assert.ok(/replace\(\/\\\.\(pdf\|json\)\$\/i, '\.mtr'\)/.test(hook) && /buildMtr\(run\)/.test(hook), 'the hook builds the .mtr under the same name')
+  assert.ok(/sentMtr\.has\(/.test(hook), 'once per test, so what was sent is not forgotten')
+  assert.ok(html.indexOf('id="sumMtr"') < html.indexOf('id="sumExport"'), 'the Ansur file button comes before the results file one')
+  assert.ok(/<button class="btn" id="sumMtr"/.test(html) && /<button class="btn quiet" id="sumExport"/.test(html), 'Ansur file is the main button, the results file the quiet one')
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes("useState(['pdf', 'mtr'])"), 'the results file is not ticked by default')
+})
