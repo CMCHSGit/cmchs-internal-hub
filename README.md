@@ -146,10 +146,14 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   (chosen once per laptop and address), results can still go to the SharePoint Results folder. Nothing is shared between laptops
   while testing, so any number can be used at once.
 - **Offline:** open it once online; the page and its fonts (kept beside it) are then cached by the service worker.
-- **Send to Simpro:** each file the bench saves (PDF, results file, Ansur record) is handed up to the hub, which attaches it to a
-  Simpro job through the Apps Script proxy (same as Ansur: admins or people with Simpro access). Files always go into an outbox on
-  the laptop first (`outbox.js`) and leave it only once Simpro has them, so with no connection they wait and go by themselves
-  when the laptop is online and signed in. Saving the same report twice for a job sends one.
+- **Saved reports** (a tab beside the bench): every file the bench saves (PDF, results file, Ansur record) is handed up to the hub and
+  kept on that laptop (IndexedDB `chs-bench-reports`, `reports.js`) with the test's customer, serial, model and time, until someone
+  removes it. The tab sorts them by customer or by day, filters by customer, when, search and "not yet sent", and lets you tick tests
+  (or a whole customer or day) and then **download them as one zip** or **attach them to one Simpro job**. Each file remembers which
+  job it went to. The bench stays loaded (hidden) behind the tab, so a test in progress and the USB link are not lost.
+- **Send to Simpro** goes through the Apps Script proxy (same as Ansur: admins or people with Simpro access). Files always go into an
+  outbox on the laptop first (`outbox.js`) and leave it only once Simpro has them, so with no connection they wait and go by
+  themselves when the laptop is online and signed in. Saving the same report twice for a job sends one.
 - **The hub's copy is the master** (since 2 Nov 2026; the file says HUB-MASTER): change `apps/testbench/bench/index.html` here, run
   `npm test --prefix apps/testbench`, commit and push, and retire the SharePoint file so nobody edits a stale copy. Laptops get
   the new version the next time they open it online; an open tab keeps the old one until reloaded. (`scripts/update-bench.mjs

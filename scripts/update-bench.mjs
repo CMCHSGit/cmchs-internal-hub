@@ -58,7 +58,14 @@ if (!html.includes('function offerToHub(')) {
   rep(`const Results = {\n  supported()`, `/** Inside the hub (this page is its Test Bench frame), hands each saved file up to it, to be sent to Simpro. Alone, does nothing. */
 function offerToHub(name, blob) {
   if (window.parent === window) return;
-  blob.arrayBuffer().then((buffer) => window.parent.postMessage({ type: 'chs-bench:file', name, mime: blob.type, buffer }, location.origin)).catch(() => {});
+  // Who and when, from the test on screen, so the hub can sort saved reports by customer and by day.
+  let meta = {};
+  try {
+    const run = Runner.run, dut = (run && run.dut) || {};
+    const pick = (re) => { const k = Object.keys(dut).find(k => re.test(k.trim())); return k ? String(dut[k] || '').trim() : ''; };
+    if (run) meta = { customer: pick(/^(customer|client|hospital|site|owner)/i), serial: pick(/^serial/i), model: pick(/^model$/i), template: (run.template && run.template.name) || '', testedAt: run.started || '' };
+  } catch {}
+  blob.arrayBuffer().then((buffer) => window.parent.postMessage({ type: 'chs-bench:file', name, mime: blob.type, buffer, meta }, location.origin)).catch(() => {});
 }
 const Results = {\n  supported()`)
   rep("if (!dir) { download(name, blob); log('in', 'RUN', `Downloaded ${name}`); toast(`Downloaded ${name}`); return; }",
