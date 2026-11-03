@@ -51,3 +51,9 @@ test('the device is powered after the electrical tests so it charges, unless a s
   assert.match(html, /async start\(auto\)/, 'switched on without a question when the bench does it')
   assert.match(html, /if \(Power\.on\) Power\.off\(true\);\s*\/\/ the next device/, 'off again before the next device goes on the outlet')
 })
+
+test('an ESA612 still in remote mode (REMOTE refused with error 02) is reset with LOCAL and connects, instead of failing with a toast', () => {
+  assert.match(html, /REMOTE refused \(error 02\)[\s\S]{0,260}await link\.send\('LOCAL'\)[\s\S]{0,120}await link\.send\('REMOTE', \{ retries: 3 \}\)/)
+  assert.match(html, /opts\.stillRemote/, 'the simulator can mimic it')
+  assert.match(html, /if \(c === 'REMOTE'\) \{ if \(esaRemote\) return reply\('!02'\)/)
+})

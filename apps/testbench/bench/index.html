@@ -906,7 +906,8 @@ class Link {
 function simPort(kind, opts = {}) {
   // opts.messy: behave like a device left in a bad state: still streaming readings from a previous
   // session, a stale "*" waiting, and the first IDENT ignored.
-  let enqueue, line = '', timer = null, mode = 'LOCAL', dropIdent = !!opts.messy, flow = 'hardware';
+  // opts.stillRemote: an ESA612 still in remote mode from a session that wasn't closed: REMOTE is refused (error 02) until LOCAL.
+  let enqueue, line = '', timer = null, mode = 'LOCAL', dropIdent = !!opts.messy, flow = 'hardware', esaRemote = !!opts.stillRemote;
   const st = { fn: 'MAINS', mains: 'L1-L2', pol: 'OFF', neut: 'C', earth: 'C', ap: '' };
   let first = true;
   const makeReadable = () => new ReadableStream({ start(c) {
@@ -951,7 +952,10 @@ function simPort(kind, opts = {}) {
       if (c === 'FN') { if (opts.noFn) return reply('!01'); return reply(String({ MAINS: 1, ERES: 3, MINS: 4, APINS: 5, EARTHL: 6, ENCL: 7, PAT: 8, MAP: 12, EQCURR: 2, INSB: 23, INSD: 21, INSE: 22 }[st.fn] ?? 0)); }
       if (c === 'IDLE') { st.mapPol = null; st.pol = 'OFF'; st.neut = 'C'; st.earth = 'C'; if (opts.apFirst) st.fn = 'NONE'; return reply('*'); }
       if (c.startsWith('INS=')) return reply(['MINS', 'APINS', 'INSB', 'INSD', 'INSE'].includes(st.fn) ? '*' : '!02');
-      if (['REMOTE', 'LOCAL', 'ZERO'].includes(c) || /^(STD|MODE|RPTIME)=/.test(c)) return reply('*');
+      // Mimics the real one (4/11/2026): REMOTE is refused (error 02) while it is still in remote mode from a session that wasn't closed with LOCAL.
+      if (c === 'REMOTE') { if (esaRemote) return reply('!02'); esaRemote = true; return reply('*'); }
+      if (c === 'LOCAL') { esaRemote = false; return reply('*'); }
+      if (c === 'ZERO' || /^(STD|MODE|RPTIME)=/.test(c)) return reply('*');
       return reply('!01');
     }
     if (c === 'IDENT') return reply('PROSIM8,2.08.03 (SIMULATED)');
@@ -1028,7 +1032,15 @@ const Devices = {
     this[key] = link; this.emit();
     try {
       if (key === 'esa') {
-        await link.send('REMOTE', { retries: 3 });
+        // REMOTE is only legal from local mode: an ESA612 still in remote mode from the last session (the page was reloaded, the cable
+        // pulled, Ansur used) answers error 02. Give control back with LOCAL and take it again, rather than failing to connect.
+        try { await link.send('REMOTE', { retries: 3 }); }
+        catch (e) {
+          if (e.code !== '02') throw e;
+          log('in', 'ESA', 'REMOTE refused (error 02): the ESA612 is probably still in remote mode from before; resetting it with LOCAL and trying again');
+          await link.send('LOCAL').catch(() => {}); await wait(400);
+          await link.send('REMOTE', { retries: 3 });
+        }
         try { link.sn = await link.send('SN', { timeout: 1500, retries: 0 }); } catch { link.sn = ''; log('in', 'ESA', 'No reply to SN (this model doesn’t report it)'); }
         await link.send('IDLE').catch(() => {});
       } else {

@@ -103,6 +103,7 @@ Reference: Fluke Biomedical *ESA612/615 Communications Interface* rev 1.2 (03/12
 | Command | Reply | Notes |
 |---|---|---|
 | `REMOTE` | `*` (about 390 ms) | Ignored once when sent 1 ms after the IDENT reply. The 150 ms gap prevents that. |
+| `REMOTE` again | `!02` (illegal command) | Refused while the ESA612 is still in remote mode from a session that was not closed with LOCAL (page reloaded, cable pulled, Ansur). The bench sends LOCAL, waits 0.4 s and sends REMOTE again (seen 4/11/2026 as a toast on connecting). |
 | `IDENT` | `ESA612B, v3.01` | Format differs from the manual's example. |
 | `SN` | (the analyser's serial number) | Answered on 23/10. No reply on 15/10, probably the same timing issue. |
 | `STD=ASNZ` | `*` | |
