@@ -4,7 +4,17 @@ Written 19 Oct 2026 for Peter to pick up (Jonathan agreed step 4 finishes
 first, then all of step 5). Read `INTEGRATION-PLAN.md` first; this expands its
 step 5. Tick items here as they land, with the commit.
 
-## Cutover runbook (written 29 Oct 2026, from re-reading the code; nothing here has been run on live data)
+## Cutover runbook (written 29 Oct 2026; run on live data 4 Nov 2026)
+
+> **Done 4 Nov 2026, about 11:20 NZ time (steps 1 to 10).** The hub project was moved to the Blaze plan first (it was
+> already hitting the free 50,000 reads a day). The copy was run as the manual GitHub Action **Tracker migration**
+> (`.github/workflows/tracker-migrate.yml`: dry-run, write with confirm `WRITE`, check), which reads the old database
+> with the stored key, so no key left GitHub: 3,003 documents, 572 audit lines, 128 reminder records and 9 test
+> reports, "Everything matches", a second run writing 0. Read-only was on for about 40 minutes. A bug found by the
+> dry run (12 loans' records kept only at `/loanMeta`) was fixed first. Four old paths stay behind on purpose:
+> `overdueReminders`, `loanColors`, `debug`, `notifications`. **Still to do:** the next-morning checks (steps 11 to
+> 13), then the freeze (step 14, by someone who is an Owner of `chs-equipment`, which internal@ is), then 5A (the
+> team list) before `chs-equipment` can be retired.
 
 Everything that says **you** needs Jonathan's console access (Firebase, Google Cloud, GitHub, Apps Script).
 Claude sessions must not run the migration against live data, move the switch, publish rules or change live
