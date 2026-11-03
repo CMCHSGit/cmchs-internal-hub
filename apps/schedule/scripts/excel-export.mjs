@@ -12,6 +12,7 @@
  * Config (the same file as the import, %USERPROFILE%\.cmchs\excel-import.json), extra keys:
  *   "writeBack": true       off unless this is true
  *   "maxCells": 60          refuse a run that would change more cells than this
+ *   "writeBackRecheckMinutes": 30   a quiet run is skipped (nothing changed in the workbook or the app); look in full this often anyway
  *
  * Logs (counts only — never names) go to excel-import.log beside the config. Exit code: 0 fine, 2 refused, 1 failed.
  */
@@ -26,6 +27,7 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 import { getCurrentWeekStart } from '../src/utils/week.js'
 import { readWorkbook } from './excelImportJob.mjs'
 import { runExport } from './excelExportJob.mjs'
+import { workbookUnchanged, stateAfter, SKEW_MS, RECHECK_MINUTES } from './excelExportSkip.mjs'
 
 const LOG_LIMIT = 512 * 1024
 const WEEKS_PER_QUERY = 30
@@ -37,6 +39,7 @@ const option = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 
 const configFile = path.resolve(option('--config') || path.join(os.homedir(), '.cmchs', 'excel-import.json'))
 const dir = path.dirname(configFile)
 const logFile = path.join(dir, 'excel-import.log')
+const stateFile = path.join(dir, 'excel-export-state.json') // what the last pass saw, so a quiet run can skip (excelExportSkip.mjs)
 const apply = flag('--apply')
 
 let lastLine = ''
@@ -71,6 +74,11 @@ function firestoreStore(serviceAccountFile) {
         snap.docs.forEach(d => out.set(d.id, d.data()))
       }
       return out
+    },
+    // Has any schedule changed in the app since then? One query that reads at most one document, in place of a whole pass.
+    async changedSince(ms) {
+      const snap = await db.collection('schedules').where('updatedAt', '>', new Date(ms)).limit(1).get()
+      return !snap.empty
     },
     // What the Excel says now, remembered the same way the import remembers it, so the import sees nothing new.
     async commitBases(list) {
@@ -110,11 +118,30 @@ async function main() {
 
   const weeksBack = Number(option('--weeks-back') ?? config.weeksBack ?? 2)
   const maxCells = Number(option('--max-cells') ?? config.maxCells ?? 60)
+  const store = firestoreStore(config.serviceAccount)
+
+  // Most runs find nothing new on either side. Skip those (the workbook as the last pass left it, nothing retrying, and no
+  // schedule changed in the app since) with one tiny query, not the hundred documents a pass reads; look again in full
+  // every "writeBackRecheckMinutes" (30) anyway. --force or a dry run always does the whole pass.
+  const stat = fs.statSync(config.workbook)
+  const state = readJSON(stateFile, {})
+  const recheckMinutes = Number(config.writeBackRecheckMinutes ?? RECHECK_MINUTES)
+  if (apply && workbookUnchanged({ state, stat, now: Date.now(), recheckMinutes, force: flag('--force') })
+      && !(await store.changedSince((state.appSeenAt || 0) - SKEW_MS))) {
+    lastLine = 'Nothing to write (nothing has changed since the last check)'
+    return 0
+  }
+
+  const passStart = Date.now()
   const workbook = await readWorkbook(config.workbook)
   const result = await runExport({
-    workbook, store: firestoreStore(config.serviceAccount), fromWeek: getCurrentWeekStart(-weeksBack), apply, maxCells,
+    workbook, store, fromWeek: getCurrentWeekStart(-weeksBack), apply, maxCells,
     applyEdits: async edits => applyInExcel(config.workbook, edits),
   })
+  // Remember the workbook as the pass left it (its own writes included) and when it began.
+  if (apply && result.status !== 'too-many') {
+    try { fs.writeFileSync(stateFile, JSON.stringify(stateAfter({ stat: fs.statSync(config.workbook), passStart, status: result.status }))) } catch { /* a missed note only means a full pass next time */ }
+  }
 
   if (result.status === 'nothing') return 0 // the usual run: say nothing, so the log stays readable
   if (result.status === 'too-many') {

@@ -91,6 +91,14 @@ scheduled task runs that).
   each cell just before writing it and leaves it if it has changed or holds a formula.
 - **Limits:** a run that would change more than `maxCells` (60) cells is refused and writes nothing.
 - **Config keys:** `"writeBack": true` and optionally `"maxCells": 60` in the same `excel-import.json`.
+- **Quiet runs are skipped (4 Nov 2026).** A full pass reads every person and every recent week (about a hundred Firestore
+  documents), which at every 5 minutes was most of a day's reads on a quiet hub. A run now skips when the workbook is the
+  file the last pass left (`excel-export-state.json` beside the config), the last pass didn't ask to be retried (the workbook
+  locked, or Excel failed), it was under `"writeBackRecheckMinutes"` (30) ago, and no schedule has changed in the app since
+  (one query that reads at most one document). Rules: `scripts/excelExportSkip.mjs`, tests `tests/excelExportSkip.test.mjs`.
+  Cost: a change made in the app reaches the Excel on the next 5-minute run as before, but a cell the app and Excel
+  disagree on and can't be written (a "partial" run) is retried when something changes or every 30 minutes, not every 5.
+  `--force` or a dry run always does the whole pass.
 - **Try it first:** `node apps/schedule/scripts/excel-export.mjs` is a dry run (add `--show` to list each cell: week, row,
   column, old text, new text, never names). `--apply` writes for real (needs `writeBack`).
 - **Log:** the same log; lines start "Write-back:". It only logs a run that does something or is refused. Real writes
