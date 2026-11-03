@@ -196,6 +196,12 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .sheet-top .hint{margin-right:auto}
 .sheet-find{display:grid;grid-template-columns:2fr 1fr;gap:12px}
 @media (max-width:640px){.sheet-find{grid-template-columns:1fr}}
+.sheet-gaps{margin:16px 0 0;padding:12px 14px;border:1px solid #e0b34a;border-radius:var(--radius-md);background:#fff8e6;display:flex;flex-direction:column;gap:10px}
+.sheet-gaps[hidden]{display:none}
+.sheet-gaps h3{margin:0;font:600 16px/1.2 var(--font-display);color:var(--text-strong)}
+.sheet-gaps .hint{margin:0}
+.gap-skip{display:flex;align-items:center;gap:8px;font-size:14px}
+.input.gap{border-color:#e0b34a;box-shadow:0 0 0 2px #fff0c4}
 .sheet-hits{display:flex;flex-direction:column;gap:6px}
 .sheet-hit{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;padding:8px 12px;border:1px solid var(--border-hairline);border-radius:var(--radius-md);background:#fff;text-align:left;cursor:pointer;font-size:14px}
 .sheet-hit:hover,.sheet-hit:focus-visible{border-color:var(--chs-green-dark)}
@@ -371,6 +377,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         <div class="section-title"><h2>Device under test</h2><span class="badge info" id="pickedName"></span></div>
         <div class="sheet-bar" id="sheetBar" hidden></div>
         <div class="grid2" id="dutFields"></div>
+        <div class="sheet-gaps" id="sheetGaps" hidden></div>
         <div class="row" style="margin-top:16px">
           <button class="btn lg" id="startRun" type="button"><svg class="i"><use href="#i-play"/></svg>Start test</button>
           <span class="hint" id="startHint"></span>
@@ -1999,18 +2006,32 @@ const XlsxLite = (() => {
     let eocd = -1;
     for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
     if (eocd < 0) throw new Error('Not a valid .xlsx file.');
-    const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true); const entries = {};
+    const count = dv.getUint16(eocd + 10, true); let p = dv.getUint32(eocd + 16, true); const cdStart = p, entries = {};
+    if (count === 0xffff || cdStart === 0xffffffff) throw new Error('This workbook is too big for the Test Bench to read (zip64).');
     for (let n = 0; n < count; n++) {
       if (dv.getUint32(p, true) !== 0x02014b50) break;
       const nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true), cmtLen = dv.getUint16(p + 32, true);
-      entries[td.decode(u8.subarray(p + 46, p + 46 + nameLen))] = { method: dv.getUint16(p + 10, true), csize: dv.getUint32(p + 20, true), lho: dv.getUint32(p + 42, true) };
+      entries[td.decode(u8.subarray(p + 46, p + 46 + nameLen))] = { method: dv.getUint16(p + 10, true), csize: dv.getUint32(p + 20, true), lho: dv.getUint32(p + 42, true), cen: p, cenLen: 46 + nameLen + extraLen + cmtLen };
       p += 46 + nameLen + extraLen + cmtLen;
     }
-    return { async text(name) {
+    return { u8, dv, entries, cdStart, async text(name) {
       const e = entries[name]; if (!e) return null;
       const start = e.lho + 30 + dv.getUint16(e.lho + 26, true) + dv.getUint16(e.lho + 28, true), data = u8.subarray(start, start + e.csize);
       return td.decode(e.method === 0 ? data : await inflateRaw(data));
     } };
+  }
+  const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  const crc32 = (b) => { let c = 0xffffffff; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const deflateRaw = async (bytes) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+  const colName = (ci) => { let s = ''; for (let n = ci + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + (n - 1) % 26) + s; return s; };
+  const xmlEsc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  async function listSheets(z) {
+    const wbXml = await z.text('xl/workbook.xml'); if (!wbXml) throw new Error('This does not look like an Excel workbook.');
+    const rels = {}, relsXml = (await z.text('xl/_rels/workbook.xml.rels')) || '', sheets = []; let m;
+    const relRe = /<Relationship\b([^>]*)\/?>/g; while ((m = relRe.exec(relsXml))) { const a = attrs(m[1]); rels[a.Id] = a.Target; }
+    const shRe = /<sheet\b([^>]*)\/?>/g;
+    while ((m = shRe.exec(wbXml))) { const a = attrs(m[1]); let t = rels[a['r:id']] || ''; t = t.startsWith('/') ? t.slice(1) : 'xl/' + t.replace(/^\.\//, ''); sheets.push({ name: a.name, path: t, state: a.state || 'visible' }); }
+    return { sheets };
   }
   const decodeXml = (s) => s.replace(/&(#x[0-9a-fA-F]+|#\d+|amp|lt|gt|quot|apos);/g, (m, g) => g[0] === '#' ? String.fromCodePoint(g[1] === 'x' ? parseInt(g.slice(2), 16) : parseInt(g.slice(1), 10)) : { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }[g]);
   const attrs = (s) => { const o = {}; let m; const re = /([\w:]+)\s*=\s*"([^"]*)"/g; while ((m = re.exec(s))) o[m[1]] = decodeXml(m[2]); return o; };
@@ -2037,13 +2058,19 @@ const XlsxLite = (() => {
     const stXml = (await z.text('xl/styles.xml')) || '', fmts = {}; const nfRe = /<numFmt\b([^>]*)\/?>/g;
     while ((m = nfRe.exec(stXml))) { const a = attrs(m[1]); fmts[+a.numFmtId] = a.formatCode; }
     const xfSec = (stXml.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/) || [, ''])[1], xfDate = []; const xfRe = /<xf\b([^>]*?)(\/>|>)/g;
-    while ((m = xfRe.exec(xfSec))) { const id = +(attrs(m[1]).numFmtId || 0); xfDate.push(isDateFormat(id, fmts[id])); }
+    // Red text (the asset list marks its mandatory columns' headers this way): which cell styles have a red font.
+    const fontsSec = (stXml.match(/<fonts\b[^>]*>([\s\S]*?)<\/fonts>/) || [, ''])[1], fontRed = []; const fRe = /<font\b[^>]*?(?:\/>|>([\s\S]*?)<\/font>)/g;
+    while ((m = fRe.exec(fontsSec))) fontRed.push(/<color\b[^>]*rgb="(?:FF)?FF0000"/i.test(m[1] || ''));
+    const xfRed = [];
+    while ((m = xfRe.exec(xfSec))) { const a = attrs(m[1]), id = +(a.numFmtId || 0); xfDate.push(isDateFormat(id, fmts[id])); xfRed.push(!!fontRed[+(a.fontId || 0)]); }
     const out = [];
     for (const sh of sheets) {
       const xml = await z.text(sh.path); if (!xml) continue;
-      const rows = []; const rowRe = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g; let rm, nextRow = 1;
+      const rows = [], red = []; const rowRe = /<row\b([^>]*?)(?:\/>|>([\s\S]*?)<\/row>)/g; let rm, nextRow = 1;
       while ((rm = rowRe.exec(xml))) {
         const ra = attrs(rm[1]), r = ra.r ? +ra.r : nextRow; nextRow = r + 1; const row = []; let nextCol = 0;
+        const redRow = r <= 15 ? (red[r - 1] = []) : null; let hasValue = false;
+        if (!rm[2] && !redRow) continue;   // a row with no cells (a sheet can run on empty for a million rows)
         if (rm[2]) {
           const cRe = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g; let cm;
           while ((cm = cRe.exec(rm[2]))) {
@@ -2056,17 +2083,95 @@ const XlsxLite = (() => {
             else if (t === 'e') val = { err: v || '#ERR' };
             else if (t === 'd') { const d = (v || '').slice(0, 10).split('-'); val = d.length === 3 ? { date: { y: +d[0], m: +d[1], d: +d[2] } } : v; }
             else if (v !== null && v !== '') { const num = Number(v); val = xfDate[+(a.s || 0)] ? { date: serialToDate(num, date1904) } : num; }
-            row[ci] = val;
+            row[ci] = val; if (redRow) redRow[ci] = xfRed[+(a.s || 0)]; if (val != null) hasValue = true;
           }
         }
-        rows[r - 1] = row;
+        if (hasValue || redRow) rows[r - 1] = row;   // styled-but-empty rows (some sheets run on for a million) aren't kept
       }
-      for (let i = 0; i < rows.length; i++) if (!rows[i]) rows[i] = [];
-      out.push({ name: sh.name, rows });
+      out.push({ name: sh.name, rows, red });   // rows is sparse: rows with nothing in them are holes
     }
     return out;
   }
-  return { read };
+
+  /** Finds row n in a sheet's XML: its opening tag, cells and where it sits, or null. */
+  function findRow(xml, n) {
+    const m = new RegExp(`<row\\b[^>]*\\br="${n}"[^>]*>`).exec(xml); if (!m) return null;
+    const self = m[0].endsWith('/>'), from = m.index, open = m[0].replace(/\/>$/, '>').replace(/\sspans="[^"]*"/, '');
+    if (self) return { from, to: from + m[0].length, open, inner: '' };
+    const close = xml.indexOf('</row>', from + m[0].length);
+    return { from, to: close + 6, open, inner: xml.slice(from + m[0].length, close) };
+  }
+  const cellsOf = (inner) => { const out = []; const re = /<c\b([^>]*?)(?:\/>|>[\s\S]*?<\/c>)/g; let m; while ((m = re.exec(inner))) { const r = attrs(m[1]).r; out.push({ col: r ? colIndex(r) : out.length, xml: m[0], s: attrs(m[1]).s }); } return out; };
+  /** The style of the same column a few rows above, so a cell written into a blank row looks like its neighbours (dates stay dates). */
+  function styleAbove(xml, n, col) {
+    for (let k = n - 1; k >= Math.max(2, n - 8); k--) { const r = findRow(xml, k); if (!r) continue; const c = cellsOf(r.inner).find(x => x.col === col); if (c && c.s) return c.s; }
+    return null;
+  }
+  /** Sets cells ({ row, col, value: string | number }) in a sheet's XML, keeping each cell's existing style and everything else as it was. */
+  function setCells(xml, cells) {
+    const byRow = new Map(); for (const c of cells) { if (!byRow.has(c.row)) byRow.set(c.row, []); byRow.get(c.row).push(c); }
+    let maxRow = 0, maxCol = 0;
+    for (const [n, list] of [...byRow].sort((a, b) => a[0] - b[0])) {
+      const found = findRow(xml, n), have = found ? cellsOf(found.inner) : [];
+      for (const c of list) {
+        const old = have.find(x => x.col === c.col), s = old ? old.s : styleAbove(xml, n, c.col), ref = colName(c.col) + n;
+        const cell = typeof c.value === 'number' ? `<c r="${ref}"${s ? ` s="${s}"` : ''}><v>${c.value}</v></c>` : `<c r="${ref}"${s ? ` s="${s}"` : ''} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(c.value)}</t></is></c>`;
+        if (old) old.xml = cell; else have.push({ col: c.col, xml: cell });
+        maxRow = Math.max(maxRow, n); maxCol = Math.max(maxCol, c.col);
+      }
+      have.sort((a, b) => a.col - b.col);
+      const row = (found ? found.open : `<row r="${n}">`) + have.map(x => x.xml).join('') + '</row>';
+      if (found) xml = xml.slice(0, found.from) + row + xml.slice(found.to);
+      else {
+        let at = xml.indexOf('</sheetData>'); const re = /<row\b[^>]*\br="(\d+)"/g; let m;
+        while ((m = re.exec(xml))) if (+m[1] > n) { at = m.index; break; }
+        xml = xml.slice(0, at) + row + xml.slice(at);
+      }
+    }
+    return xml.replace(/<dimension ref="([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?"\s*\/>/, (all, c1, r1, c2, r2) => {
+      const endCol = Math.max(c2 ? colIndex(c2 + '1') : colIndex(c1 + '1'), maxCol), endRow = Math.max(+(r2 || r1), maxRow);
+      return `<dimension ref="${c1}${r1}:${colName(endCol)}${endRow}"/>`;
+    });
+  }
+  /** Makes an Excel table (a sheet's named range of rows) reach row `last`, so a row added under it belongs to it. */
+  const growTable = (xml, last) => xml.replace(/(<table\b[^>]*\bref=")([A-Z]+\d+):([A-Z]+)(\d+)(")/, (all, a, from, c2, r2, b) => `${a}${from}:${c2}${Math.max(+r2, last)}${b}`)
+    .replace(/(<autoFilter\b[^>]*\bref=")([A-Z]+\d+):([A-Z]+)(\d+)(")/, (all, a, from, c2, r2, b) => `${a}${from}:${c2}${Math.max(+r2, last)}${b}`);
+
+  /**
+   * Gives back the workbook with `changes` ([{ sheet, cells: [{ row, col, value }] }]) made. Only the sheets (and tables) touched are
+   * rewritten; every other part of the file is copied across byte for byte, so formatting, formulas and the rest stay as they were.
+   */
+  async function write(buf, changes) {
+    const z = await unzip(buf), { sheets } = await listSheets(z), edited = {};
+    for (const ch of changes) {
+      const sh = sheets.find(s => s.name === ch.sheet); if (!sh) throw new Error(`The asset list has no sheet called ${ch.sheet}.`);
+      edited[sh.path] = setCells(edited[sh.path] ?? await z.text(sh.path), ch.cells);
+      const last = Math.max(...ch.cells.map(c => c.row)), rels = await z.text(sh.path.replace(/worksheets\/([^/]+)$/, 'worksheets/_rels/$1.rels'));
+      if (rels) for (const rm of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+        const a = attrs(rm[1]); if (!/\/table$/.test(a.Type || '')) continue;
+        const tp = a.Target.startsWith('/') ? a.Target.slice(1) : 'xl/' + a.Target.replace(/^\.\.\//, '');
+        const t = edited[tp] ?? await z.text(tp); if (t) edited[tp] = growTable(t, last);
+      }
+    }
+    const names = Object.keys(z.entries).sort((a, b) => z.entries[a].lho - z.entries[b].lho), parts = [], central = []; let offset = 0;
+    const u32 = (dv, o, v) => dv.setUint32(o, v >>> 0, true), u16 = (dv, o, v) => dv.setUint16(o, v, true);
+    for (let i = 0; i < names.length; i++) {
+      const name = names[i], e = z.entries[name], next = i + 1 < names.length ? z.entries[names[i + 1]].lho : z.cdStart;
+      const cen = z.u8.slice(e.cen, e.cen + e.cenLen), cdv = new DataView(cen.buffer);
+      if (edited[name] === undefined) { parts.push(z.u8.subarray(e.lho, next)); u32(cdv, 42, offset); offset += next - e.lho; central.push(cen); continue; }
+      const data = new TextEncoder().encode(edited[name]), comp = await deflateRaw(data), nm = cen.subarray(46, 46 + cdv.getUint16(28, true));
+      const lh = new Uint8Array(30 + nm.length), ldv = new DataView(lh.buffer);
+      u32(ldv, 0, 0x04034b50); u16(ldv, 4, 20); u16(ldv, 6, 0); u16(ldv, 8, 8); u32(ldv, 10, new DataView(z.u8.buffer, z.u8.byteOffset + e.lho).getUint32(10, true));
+      u32(ldv, 14, crc32(data)); u32(ldv, 18, comp.length); u32(ldv, 22, data.length); u16(ldv, 26, nm.length); u16(ldv, 28, 0); lh.set(nm, 30);
+      u16(cdv, 8, 0); u16(cdv, 10, 8); u32(cdv, 16, crc32(data)); u32(cdv, 20, comp.length); u32(cdv, 24, data.length); u32(cdv, 42, offset);
+      parts.push(lh, comp); offset += lh.length + comp.length; central.push(cen);
+    }
+    const cdSize = central.reduce((n, c) => n + c.length, 0), end = new Uint8Array(22), edv = new DataView(end.buffer);
+    u32(edv, 0, 0x06054b50); u16(edv, 8, names.length); u16(edv, 10, names.length); u32(edv, 12, cdSize); u32(edv, 16, offset);
+    const out = new Uint8Array(offset + cdSize + 22); let at = 0; for (const p of [...parts, ...central, end]) { out.set(p, at); at += p.length; }
+    return out.buffer;
+  }
+  return { read, write, colName, text: async (buf, name) => (await unzip(buf)).text(name) };
 })();
 
 /**
@@ -2078,7 +2183,7 @@ const Sheet = {
   supported() { return typeof window.showOpenFilePicker === 'function'; },
   async init() {
     if (!this.supported()) { this.state = 'unsupported'; this.render(); return; }
-    try { this.handle = (await DB.getKV('sheetHandle')) || null; this.customer = (await DB.getKV('sheetCustomer')) || ''; } catch { this.handle = null; }
+    try { this.handle = (await DB.getKV('sheetHandle')) || null; this.customer = (await DB.getKV('sheetCustomer')) || ''; this.lastSheet = (await DB.getKV('sheetLastSheet')) || ''; this.lastJob = (await DB.getKV('sheetLastJob')) || ''; } catch { this.handle = null; }
     if (!this.handle) { this.state = 'none'; this.render(); return; }
     this.file = this.handle.name;
     let perm = 'prompt'; try { perm = await this.handle.queryPermission({ mode: 'read' }); } catch {}
@@ -2103,7 +2208,7 @@ const Sheet = {
   async load(quiet) {
     try {
       const f = await this.handle.getFile(); this.modified = f.lastModified;
-      this.rows = this.parse(await XlsxLite.read(await f.arrayBuffer())); this.state = 'ready'; this.error = '';
+      this.rows = this.parse(await XlsxLite.read(await f.arrayBuffer())); this.state = 'ready'; this.error = ''; this.cur = null; this.renderGaps();
       log('in', 'SHEET', `Read ${this.file}: ${this.rows.length} devices`);
       if (!quiet) toast(`${this.rows.length} devices read from ${this.file}`);
     } catch (e) {
@@ -2119,38 +2224,58 @@ const Sheet = {
    */
   parse(sheets) {
     const str = (v) => v == null ? '' : typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : v.date ? `${String(v.date.d).padStart(2, '0')}/${String(v.date.m).padStart(2, '0')}/${v.date.y}` : '';
-    const out = [];
+    const out = [], info = {};
     for (const sh of sheets) {
       if (/retired/i.test(sh.name)) continue;
-      const h = sh.rows.slice(0, 15).findIndex(r => r.some(c => typeof c === 'string' && /^serial\s*number$/i.test(c.trim())));
+      const h = sh.rows.slice(0, 15).findIndex(r => r && r.some(c => typeof c === 'string' && /^serial\s*number$/i.test(c.trim())));
       if (h < 0) continue;
-      const cols = sh.rows[h].map(c => str(c));
-      for (const r of sh.rows.slice(h + 1)) {
-        const o = {}; cols.forEach((c, i) => { if (c && o[c] === undefined) o[c] = str(r[i]); });
-        if (!['Serial Number', 'CHS Asset Number', 'Customer Asset Number', 'Device/Monitor Name'].some(k => o[k])) continue;
-        o._sheet = sh.name; o._find = (sh.name + ' ' + Object.values(o).join(' ')).toLowerCase();
-        out.push(o);
+      const cols = sh.rows[h].map(c => str(c)), redRow = (sh.red && sh.red[h]) || [], colIdx = {};
+      cols.forEach((c, i) => { if (c && colIdx[c] === undefined) colIdx[c] = i; });
+      // What the sheet itself holds per column: the red (mandatory) headers, how often each value appears, and whether a column is numbers.
+      const si = info[sh.name] = { header: h + 1, cols: colIdx, red: cols.filter((c, i) => c && redRow[i] && colIdx[c] === i), last: 0, numeric: {}, common: {} };
+      // The last row of the list (any row with something in it, such as a spare with no serial number; but not a stray value far below it,
+      // which is more than 50 empty rows on): a new device goes under it. `used` is every row with something in it.
+      si.last = h + 1; si.used = new Set();
+      sh.rows.forEach((r, i) => { if (i > h && r.some(c => c != null && String(c).trim() !== '')) { si.used.add(i + 1); if (i + 1 - si.last <= 50) si.last = i + 1; } });
+      for (const [c, i] of Object.entries(colIdx)) {
+        const vals = sh.rows.slice(h + 1, h + 60).map(r => r[i]).filter(v => v != null && v !== '');
+        si.numeric[c] = vals.length > 0 && vals.every(v => typeof v === 'number');
       }
+      const tally = {};
+      sh.rows.slice(h + 1).forEach((r, k) => {
+        const o = {}; cols.forEach((c, i) => { if (c && o[c] === undefined) o[c] = str(r[i]); });
+        if (!['Serial Number', 'CHS Asset Number', 'Customer Asset Number', 'Device/Monitor Name'].some(c => o[c])) return;
+        for (const c of si.red) if (o[c]) { (tally[c] = tally[c] || {})[o[c]] = (tally[c][o[c]] || 0) + 1; }
+        o._sheet = sh.name; o._row = h + 2 + k; o._find = (sh.name + ' ' + Object.values(o).join(' ')).toLowerCase();
+        out.push(o);
+      });
+      for (const [c, t] of Object.entries(tally)) si.common[c] = Object.entries(t).sort((a, b) => b[1] - a[1]).slice(0, 30).map(x => x[0]);
     }
     if (!out.length) throw new Error('No sheet with a “Serial Number” column was found.');
+    this.info = info;
     return out;
   },
   /** What a start-screen detail (by its name) is in this device's row. Customer comes from the spreadsheet's name. */
   valueFor(field, row) {
+    const col = this.colForField(field);
+    return col === '@customer' ? this.customer : col ? (row[col] || '') : '';
+  },
+  /** The spreadsheet column a start-screen detail is kept in ('@customer' for the customer, who is the spreadsheet's name), or ''. */
+  colForField(field) {
     const k = field.trim().toLowerCase();
     if (/^testing engineer/.test(k)) return '';
-    if (/^customer asset/.test(k)) return row['Customer Asset Number'] || '';
-    if (/^chs asset/.test(k)) return row['CHS Asset Number'] || '';
-    if (/^(customer|client|hospital|site|owner)\b/.test(k)) return this.customer;
-    if (/^serial/.test(k)) return row['Serial Number'] || '';
-    if (/^manufacturer/.test(k)) return row['Manufacturer'] || '';
-    if (/^model/.test(k)) return row['Device Model'] || '';
-    if (/^(ward|location)/.test(k)) return row['Ward/Location'] || '';
-    if (/^room/.test(k)) return row['Room'] || '';
-    if (/^bed/.test(k)) return row['Bed'] || '';
-    if (/^(device|monitor) name/.test(k)) return row['Device/Monitor Name'] || '';
-    const hit = Object.keys(row).find(c => c.toLowerCase() === k);
-    return hit ? row[hit] : '';
+    if (/^customer asset/.test(k)) return 'Customer Asset Number';
+    if (/^chs asset/.test(k)) return 'CHS Asset Number';
+    if (/^(customer|client|hospital|site|owner)\b/.test(k)) return '@customer';
+    if (/^serial/.test(k)) return 'Serial Number';
+    if (/^manufacturer/.test(k)) return 'Manufacturer';
+    if (/^model/.test(k)) return 'Device Model';
+    if (/^(ward|location)/.test(k)) return 'Ward/Location';
+    if (/^room/.test(k)) return 'Room';
+    if (/^bed/.test(k)) return 'Bed';
+    if (/^(device|monitor) name/.test(k)) return 'Device/Monitor Name';
+    for (const si of Object.values(this.info || {})) { const hit = Object.keys(si.cols).find(c => c.toLowerCase() === k); if (hit) return hit; }
+    return '';
   },
   search(q) {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean); if (!words.length) return [];
@@ -2164,16 +2289,25 @@ const Sheet = {
     log('in', 'SHEET', `Filled ${n} details from the spreadsheet`);
     toast(n ? `Filled ${n} details from the spreadsheet` : 'Nothing in the spreadsheet matched these fields');
     if ($('#sheetHits')) $('#sheetHits').innerHTML = ''; if ($('#sheetFind')) $('#sheetFind').value = '';
-    ($$('#dutFields input').find(i => !i.value) || $('#startRun'))?.focus();
+    this.cur = row; this.curKey = this.keyOf(row); this.renderGaps();
+    ($$('#dutFields input').find(i => !i.value) || $('#sheetGaps input:not([type=checkbox])') || $('#startRun'))?.focus();
   },
+  cur: null,   // the device whose details are on the start screen: a row of the spreadsheet, or { isNew, sheet } for one to be added to it
   /** A serial number or asset number typed in the start screen: if it is in the spreadsheet once, fill the rest. */
   onTyped(input) {
     if (this.state !== 'ready') return;
     const q = input.value.trim().toLowerCase(), note = $('#sheetNote'); if (note) note.textContent = '';
+    // The serial number typed for an asset the list has no serial for yet belongs to that asset: don't go looking for it as a different device.
+    if (/^serial/i.test(input.dataset.k.trim()) && this.cur && !this.cur.isNew && !this.cur['Serial Number']) { this.renderGaps(); return; }
+    this.cur = null; this.renderGaps();
     if (!q) return;
     const same = this.rows.filter(r => [r['Serial Number'], r['CHS Asset Number'], r['Customer Asset Number']].some(x => x && x.toLowerCase() === q));
     if (same.length === 1) this.fill(same[0]);
-    else if (note) note.textContent = same.length ? `${same.length} devices in ${this.file} have that number: use Find to pick one.` : `Not in ${this.file}. Type the details in.`;
+    else if (same.length && note) note.textContent = `${same.length} devices in ${this.file} have that number: use Find to pick one.`;
+    else if (note) {
+      note.innerHTML = `Not in ${esc(this.file)}. <button type="button" class="btn quiet sm" id="sheetAdd">Add it as a new device</button>`;
+      $('#sheetAdd').addEventListener('click', () => { this.cur = { isNew: true, sheet: this.lastSheet && this.info[this.lastSheet] ? this.lastSheet : Object.keys(this.info)[0] }; note.textContent = ''; this.renderGaps(); $('#sheetGaps input:not([type=checkbox])')?.focus(); });
+    }
   },
   render() {
     const bar = $('#sheetBar'); if (!bar) return;
@@ -2191,6 +2325,112 @@ const Sheet = {
     bar.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => this[b.dataset.sheet]()));
     $('#sheetFind')?.addEventListener('input', (e) => this.showHits(e.target.value));
     $('#sheetCust')?.addEventListener('change', (e) => { this.customer = e.target.value.trim(); DB.putKV('sheetCustomer', this.customer); });
+  },
+  sheetOf(cur) { return cur.isNew ? cur.sheet : cur._sheet; },
+  keyOf(r) { return [r['Serial Number'], r['CHS Asset Number'], r['Customer Asset Number'], r['Device/Monitor Name']].join('|'); },
+  /** The red (mandatory) columns this device is still missing: the blank ones for a device in the spreadsheet, every one for a new device. */
+  gaps() {
+    const cur = this.cur, si = cur && this.info && this.info[this.sheetOf(cur)]; if (!si) return [];
+    const inputs = $$('#dutFields input');
+    return si.red.filter(c => cur.isNew || !cur[c]).map(c => ({ col: c, input: inputs.find(i => this.colForField(i.dataset.k) === c) || null }));
+  },
+  /** Under the details: inputs for the missing red columns the template doesn't already ask for (those it does ask for are marked). */
+  renderGaps() {
+    const box = $('#sheetGaps'); if (!box) return;
+    $$('#dutFields input').forEach(i => i.classList.remove('gap'));
+    const gaps = this.gaps(), cur = this.cur;
+    if (!cur || !gaps.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    const sheet = this.sheetOf(cur), si = this.info[sheet], above = gaps.filter(g => g.input), extra = gaps.filter(g => !g.input);
+    above.forEach(g => g.input.classList.add('gap'));
+    const first = (c) => (si.common[c] || [])[0] || '';
+    const start = (c) => c === 'Simpro Job' ? (this.lastJob || '') : (cur.isNew && c === 'Site ID') ? first(c) : '';
+    box.innerHTML = `<h3>${cur.isNew ? 'New device for the asset list' : 'Missing from the asset list'}</h3>
+      ${cur.isNew ? `<div class="field" style="max-width:260px"><label for="newSheet">Add it to the sheet</label><select class="select" id="newSheet">${Object.keys(this.info).map(s => `<option${s === sheet ? ' selected' : ''}>${esc(s)}</option>`).join('')}</select></div>` : ''}
+      <p class="hint">These columns are red (mandatory) in the asset list and are empty for this device.${above.length ? ` Also fill in above: <b>${above.map(g => esc(g.input.dataset.k)).join(', ')}</b>.` : ''} They are saved into the asset list when you press Start test.</p>
+      <div class="grid2">${extra.map((g, i) => { const date = /date/i.test(g.col); return `<div class="field"><label for="gap${i}">${esc(g.col)}</label><input class="input" id="gap${i}" data-col="${esc(g.col)}" type="${date ? 'date' : 'text'}" autocomplete="off" ${date ? '' : `list="gapl${i}"`} value="${esc(start(g.col))}">${date ? '' : `<datalist id="gapl${i}">${(si.common[g.col] || []).map(v => `<option value="${esc(v)}">`).join('')}</datalist>`}</div>`; }).join('')}</div>
+      <label class="gap-skip"><input type="checkbox" id="gapSkip"> ${cur.isNew ? 'Don’t add it to the asset list' : 'Skip these for now (the asset list is left as it is)'}</label>`;
+    $('#newSheet')?.addEventListener('change', (e) => { cur.sheet = e.target.value; this.renderGaps(); });
+  },
+  /** Called by Start test: the missing red details must be filled in (or skipped); then they are saved into the asset list. Returns false to stop the start. */
+  async beforeStart() {
+    const cur = this.cur; if (this.state !== 'ready' || !cur) return true;
+    const gaps = this.gaps(); if (!gaps.length) return true;
+    const val = (g) => (g.input ? g.input.value : (($('#sheetGaps').querySelector(`[data-col="${g.col.replace(/"/g, '\\"')}"]`) || {}).value || '')).trim();
+    const skip = $('#gapSkip')?.checked, empty = gaps.filter(g => !val(g));
+    if (skip) return true;
+    if (empty.length) {
+      toast(`Still needed for the asset list: ${empty.map(g => g.col).join(', ')}. Fill them in, or tick the box to skip.`, 6000);
+      (empty[0].input || $('#sheetGaps input:not([type=checkbox])'))?.focus(); return false;
+    }
+    return this.save(gaps.map(g => ({ col: g.col, value: val(g) })));
+  },
+  async backup(buf) {
+    const d = new Date(), stamp = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+    const name = this.file.replace(/\.xlsx?$/i, '') + ` backup ${stamp}.xlsx`;
+    let dir = null; try { dir = await Results.folder(); } catch {}
+    if (!dir) { download(name, new Blob([buf])); return; }   // no Results folder set up on this PC: the browser downloads the copy instead
+    const sub = await dir.getDirectoryHandle('Asset list backups', { create: true });
+    try { await sub.getFileHandle(name); return; } catch {}   // the first copy of the day is the one worth keeping
+    const w = await (await sub.getFileHandle(name, { create: true })).createWritable(); await w.write(buf); await w.close();
+  },
+  /**
+   * Puts the entered details into the asset list: the device's row, or the first free row of the chosen sheet for a new device. The file is read
+   * afresh first (someone may have changed it), a dated copy is kept, the result is read back and checked before it replaces the file.
+   * Returns true to go on with the test (saved), or false (stay on the start screen). When it can't save it says why and lets the test start anyway.
+   */
+  async save(cells) {
+    const cur = this.cur, isNew = !!cur.isNew, sheet = this.sheetOf(cur);
+    const fail = async (msg) => {
+      log('er', 'SHEET', 'Not saved: ' + msg);
+      return !!(await dialog({ title: 'Couldn’t save to the asset list', body: `<p>${esc(msg)}</p><p class="muted">Nothing in the asset list was changed. You can start the test anyway and add these details to the list yourself.</p>`,
+        buttons: [{ label: 'Go back', value: false, cls: 'quiet', cancel: true }, { label: 'Start without saving', value: true }] }));
+    };
+    let perm = 'denied'; try { perm = await this.handle.requestPermission({ mode: 'readwrite' }); } catch {}
+    if (perm !== 'granted') return fail('The browser didn’t allow changes to the asset list.');
+    let buf, fresh;
+    try { buf = await (await this.handle.getFile()).arrayBuffer(); fresh = this.parse(await XlsxLite.read(buf)); }
+    catch (e) { return fail('Couldn’t read the asset list again before saving: ' + e.message); }
+    const si = this.info[sheet]; if (!si) return fail(`The asset list no longer has a sheet called ${sheet}.`);
+    let row;
+    if (isNew) {
+      const serial = (cells.find(c => c.col === 'Serial Number') || {}).value;
+      if (serial && fresh.some(r => (r['Serial Number'] || '').toLowerCase() === serial.toLowerCase())) return fail('A device with that serial number is already in the asset list. Press Read again and find it.');
+      row = si.last + 1;
+      if (si.used.has(row)) return fail(`Row ${row} of ${sheet} isn’t empty, so the new device wasn’t added. Press Read again and try again.`);
+    } else {
+      if (!fresh.some(r => r._sheet === sheet && r._row === cur._row && this.keyOf(r) === this.curKey)) return fail('The asset list has changed since this device was found, so its row may have moved. Press Read again and find the device again.');
+      row = cur._row;
+    }
+    let out;
+    try {
+      out = cells.map(c => {
+        let v = c.value;
+        if (/date/i.test(c.col)) { const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v); if (!m) throw new Error(`${c.col} needs a date`); v = Math.round(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) + 25569; }
+        else if (si.numeric[c.col] && /^-?\d+(\.\d+)?$/.test(v)) v = Number(v);
+        return { row, col: si.cols[c.col], value: v };
+      });
+    } catch (e) { return fail(e.message); }
+    try { await this.backup(buf); } catch (e) { return fail('Couldn’t make a backup copy first: ' + e.message); }
+    let next;
+    try { next = await XlsxLite.write(buf, [{ sheet, cells: out }]); await this.verify(next, sheet, out, fresh.length + (isNew ? 1 : 0)); }
+    catch (e) { return fail('The change couldn’t be made safely (' + e.message + ').'); }
+    try { const w = await this.handle.createWritable(); await w.write(next); await w.close(); }
+    catch (e) { return fail(/modif|not allowed|lock|busy|in use|denied/i.test(e.message) ? `The asset list can’t be changed right now. Is it open in Excel? Close it there and try again. (${e.message})` : 'Couldn’t save to the asset list: ' + e.message); }
+    this.lastSheet = sheet; DB.putKV('sheetLastSheet', sheet);
+    const job = cells.find(c => c.col === 'Simpro Job'); if (job) { this.lastJob = job.value; DB.putKV('sheetLastJob', job.value); }
+    log('in', 'SHEET', `Saved ${cells.length} details to the asset list (${isNew ? 'a new device' : 'an existing device'}, sheet ${sheet})`);
+    toast(`Saved ${cells.length} details to the asset list`);
+    this.cur = null; this.renderGaps();
+    await this.load(true);
+    return true;
+  },
+  /** Reads the new file back: the cells are what was entered, and the same number of devices are there. Throws if not. */
+  async verify(buf, sheet, cells, expectDevices) {
+    const sheets = await XlsxLite.read(buf), sh = sheets.find(s => s.name === sheet); if (!sh) throw new Error('sheet missing after the change');
+    const norm = (x) => x == null ? '' : typeof x === 'object' ? (x.date ? Math.round(Date.UTC(x.date.y, x.date.m - 1, x.date.d) / 86400000) + 25569 : '') : typeof x === 'string' ? x.trim() : x;
+    for (const c of cells) if (String(norm(sh.rows[c.row - 1] && sh.rows[c.row - 1][c.col])) !== String(norm(c.value))) throw new Error(`${XlsxLite.colName(c.col)}${c.row} did not read back correctly`);
+    if (this.parse(sheets).length !== expectDevices) throw new Error('the number of devices changed');
   },
   showHits(q) {
     const box = $('#sheetHits'); if (!box) return;
@@ -4170,6 +4410,8 @@ const App = {
     const inputs = $$('#dutFields input'); const first = inputs[0];
     if (first && !first.value.trim()) { first.focus(); toast(`Enter the ${first.dataset.k.toLowerCase()} first.`); return; }
     if (!t.steps.length) { toast('This template has no steps yet.'); return; }
+    if (!(await Sheet.beforeStart())) return;   // red columns of the customer's asset list that are still blank: filled in, then saved into it
+    Sheet.cur = null; Sheet.renderGaps();
     const dut = {}; inputs.forEach(i => dut[i.dataset.k] = i.value.trim());
     const models = tplModels(t);
     if (models.length > 1) {

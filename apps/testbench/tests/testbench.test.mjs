@@ -244,7 +244,7 @@ test('a reading that has stopped moving ends the settle wait early; one still mo
 })
 
 // A small .xlsx written by hand (zip + the few XML parts a workbook needs), headed like the customers' equipment spreadsheets.
-async function makeXlsx(sheets) {   // [{ name, rows }]
+async function makeXlsx(sheets, extra = {}) {   // [{ name, rows, xml? }]; `extra` is more parts of the zip (path → text)
   const { deflateRawSync, crc32 } = await import('node:zlib')
   const strings = [], idx = (s) => { let i = strings.indexOf(s); if (i < 0) { i = strings.length; strings.push(s) } return i }
   const col = (n) => String.fromCharCode(65 + n)
@@ -254,7 +254,8 @@ async function makeXlsx(sheets) {   // [{ name, rows }]
     'xl/workbook.xml': `<workbook xmlns:r="x"><sheets>${sheets.map((s, i) => `<sheet name="${s.name}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>`,
     'xl/_rels/workbook.xml.rels': `<Relationships>${sheets.map((s, i) => `<Relationship Id="rId${i + 1}" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}</Relationships>`,
   }
-  sheets.forEach((s, i) => { files[`xl/worksheets/sheet${i + 1}.xml`] = `<worksheet><sheetData>${sheetXml(s.rows)}</sheetData></worksheet>` })
+  sheets.forEach((s, i) => { files[`xl/worksheets/sheet${i + 1}.xml`] = s.xml ?? `<worksheet><sheetData>${sheetXml(s.rows)}</sheetData></worksheet>` })
+  Object.assign(files, extra)
   files['xl/sharedStrings.xml'] = `<sst>${strings.map((s) => `<si><t>${s.replace(/&/g, '&amp;')}</t></si>`).join('')}</sst>`
   const parts = [], central = []; let offset = 0
   for (const [name, text] of Object.entries(files)) {
@@ -297,14 +298,82 @@ test('a customer spreadsheet: the equipment sheet is found, rows read, and a dev
   assert.equal(Sheet.search('records').length, 1)
   assert.equal(Sheet.search('nsh it laptop').length, 1, 'the sheet name finds its devices too')
   assert.equal(Sheet.search('retired').length, 0, 'retired assets are not read')
-  Sheet.onTyped({ value: ' sn-1001 ' })
+  Sheet.onTyped({ value: ' sn-1001 ', dataset: { k: 'Serial number' } })
   const got = Object.fromEntries(inputs.map((i) => [i.dataset.k, i.value]))
   assert.deepEqual(got, { 'Serial number': 'SN-1001', Manufacturer: 'Mindray', Model: 'BeneVision N17', Customer: 'Waitemata', 'CHS asset #': 'CHS-500', 'Customer asset #': 'WDH-77', 'Testing engineer': 'Jonathan Nasrun' }, 'every detail the sheet has, the engineer left alone')
   assert.match(toasts.at(-1), /Filled 6 details/)
   // an asset with no serial number yet: found by its asset number, and the serial field is left empty to be filled from the device
-  inputs[0].value = 'chs-900'; Sheet.onTyped({ value: 'chs-900' })
+  inputs[0].value = 'chs-900'; Sheet.onTyped({ value: 'chs-900', dataset: { k: 'Serial number' } })
   assert.equal(inputs[0].value, '', 'the asset number typed to find it is not left as the serial number')
   assert.equal(inputs[4].value, 'CHS-900')
   assert.match(html, /Sheet\.init\(\)/, 'read at start-up when the browser still has access')
   assert.match(html, /Sheet\.onTyped\(i\)/, 'typing or scanning a serial number fills the rest')
+})
+
+test('the asset list: red columns are the mandatory ones; missing details are saved into the right row (or a new one) and nothing else in the file changes', async () => {
+  const { default: vm } = await import('node:vm')
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const a = html.indexOf('const XlsxLite = '), b = html.indexOf('const Runner = {')
+  const tx = (ref, t, s = 0) => `<c r="${ref}"${s ? ` s="${s}"` : ''} t="inlineStr"><is><t>${t}</t></is></c>`
+  const nsh = `<worksheet><dimension ref="A1:E3"/><sheetData>
+    <row r="1" spans="1:5">${tx('A1', 'Serial Number', 1)}${tx('B1', 'Device Model', 1)}${tx('C1', 'Date Installed', 1)}${tx('D1', 'CHS Asset Number', 1)}${tx('E1', 'Notes')}</row>
+    <row r="2" spans="1:5">${tx('A2', 'SN1')}${tx('B2', 'N17')}<c r="C2" s="2"><v>45000</v></c>${tx('D2', 'CHS-1')}${tx('E2', 'x')}</row>
+    <row r="3" spans="1:5">${tx('A3', 'SN2')}${tx('B3', 'N12')}<c r="C3" s="2"/></row>
+    <row r="4">${tx('E4', 'spare, no serial yet')}</row>
+    <row r="500">${tx('E500', 'a stray value far below')}</row>
+    </sheetData></worksheet>`
+  const wth = `<worksheet><sheetData><row r="1">${tx('A1', 'Serial Number', 1)}</row><row r="2">${tx('A2', 'W1')}</row></sheetData></worksheet>`
+  const extra = {
+    'xl/styles.xml': '<styleSheet><fonts count="2"><font><sz val="11"/></font><font><color rgb="FFFF0000"/></font></fonts><cellXfs count="3"><xf numFmtId="0" fontId="0"/><xf numFmtId="0" fontId="1"/><xf numFmtId="14" fontId="0"/></cellXfs></styleSheet>',
+    'xl/worksheets/_rels/sheet1.xml.rels': '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>',
+    'xl/tables/table1.xml': '<table id="1" name="T" ref="A1:E3"><autoFilter ref="A1:E3"/></table>',
+    'docProps/untouched.txt': 'left exactly as it was' }
+  const buf = await makeXlsx([{ name: 'NSH', xml: nsh }, { name: 'WTH', xml: wth }], extra)
+  const inputs = ['Serial number', 'Model', 'CHS asset #'].map((k) => ({ dataset: { k }, value: '', focus() {}, classList: { add() {}, remove() {} } }))
+  const extras = {}, box = { hidden: true, innerHTML: '', querySelector: (q) => extras[/data-col="(.*)"/.exec(q)[1]] }
+  let written = null, backups = 0
+  const handle = { requestPermission: async () => 'granted', getFile: async () => ({ lastModified: 1, arrayBuffer: async () => written ?? buf }), createWritable: async () => ({ write: async (d) => { written = d }, close: async () => {} }) }
+  const ctx = { Blob, Response, DecompressionStream, CompressionStream, TextDecoder, TextEncoder, Uint8Array, Uint32Array, DataView, Math, Date, Set, Map, Object, Number, String, Array, Error, RegExp, JSON, Promise,
+    $$: (s) => (s === '#dutFields input' ? inputs : []), $: (s) => (s === '#sheetGaps' ? box : s === '#gapSkip' ? { checked: false } : null), toast() {}, log() {}, esc: String,
+    DB: { putKV: async () => {} }, Shared: {}, Results: { folder: async () => null }, download: () => { backups++ }, dialog: async () => false }
+  const { XlsxLite, Sheet } = vm.runInNewContext(html.slice(a, b) + '; ({ XlsxLite, Sheet })', ctx)
+  const plain = (x) => JSON.parse(JSON.stringify(x))
+
+  const sheets = await XlsxLite.read(buf)
+  assert.deepEqual(plain(sheets[0].red[0]), [true, true, true, true, false], 'the header cells with a red font')
+  const rows = Sheet.parse(sheets)
+  assert.deepEqual(plain(Sheet.info.NSH.red), ['Serial Number', 'Device Model', 'Date Installed', 'CHS Asset Number'])
+  assert.equal(Sheet.info.NSH.last, 4, 'the last row of the list counts a spare with no serial; a stray value far below does not')
+  Object.assign(Sheet, { rows, state: 'ready', file: 'List.xlsx', customer: 'C', handle })
+
+  // an existing device with blanks: its date (not asked by the template) and its asset number (asked above)
+  const sn2 = rows.find((r) => r['Serial Number'] === 'SN2')
+  Sheet.fill(sn2)
+  assert.deepEqual(plain(Sheet.gaps().map((g) => [g.col, !!g.input])), [['Date Installed', false], ['CHS Asset Number', true]])
+  assert.equal(await Sheet.beforeStart(), false, 'Start waits until the red details are in')
+  inputs[2].value = 'CHS-2'; extras['Date Installed'] = { value: '2026-11-03' }
+  assert.equal(await Sheet.beforeStart(), true)
+  assert.equal(backups, 1, 'a backup copy of the file is made first')
+  const after = await XlsxLite.read(written)
+  assert.equal(after[0].rows[2][3], 'CHS-2')
+  assert.deepEqual(plain(after[0].rows[2][2]), { date: { y: 2026, m: 11, d: 3 } }, 'a date is written as a date, in the cell\'s own date style')
+  assert.deepEqual(plain(after[0].rows[1]), plain(sheets[0].rows[1]), 'the other rows are as they were')
+  assert.deepEqual(plain(after[1].rows), plain(sheets[1].rows), 'the other sheets are as they were')
+  assert.equal(await XlsxLite.text(written, 'docProps/untouched.txt'), 'left exactly as it was')
+
+  // a device that isn't in the list: added under the last one, and the table and sheet size grow with it
+  inputs[0].value = 'SN3'; inputs[1].value = 'N20'; inputs[2].value = 'CHS-3'
+  Sheet.cur = { isNew: true, sheet: 'NSH' }; Sheet.renderGaps()
+  assert.deepEqual(plain(Sheet.gaps().map((g) => g.col)), ['Serial Number', 'Device Model', 'Date Installed', 'CHS Asset Number'])
+  extras['Date Installed'] = { value: '2026-11-04' }
+  assert.equal(await Sheet.beforeStart(), true)
+  const added = await XlsxLite.read(written)
+  assert.deepEqual(plain(added[0].rows[4].slice(0, 4).map((c) => (c && c.date ? 'date' : c))), ['SN3', 'N20', 'date', 'CHS-3'], 'under the spare row, not over it')
+  assert.equal(added[0].rows[3][4], 'spare, no serial yet', 'the spare row is untouched')
+  assert.match(await XlsxLite.text(written, 'xl/tables/table1.xml'), /ref="A1:E5"[\s\S]*<autoFilter ref="A1:E5"/)
+  assert.match(await XlsxLite.text(written, 'xl/worksheets/sheet1.xml'), /<dimension ref="A1:E5"\/>/)
+
+  // a read-back that doesn't match is caught before anything is written
+  await assert.rejects(Sheet.verify(written, 'NSH', [{ row: 5, col: 0, value: 'other' }], 3), /did not read back/)
+  assert.match(html, /Sheet\.beforeStart\(\)/, 'Start test goes through it')
 })

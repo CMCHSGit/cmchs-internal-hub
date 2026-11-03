@@ -187,8 +187,13 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   synced SharePoint folder (an .xlsx with one row per device and headers such as Serial Number, Device Model, CHS Asset Number,
   Ward/Location; every sheet with a "Serial Number" header is read, one per site or IT list, and Retired Assets is skipped). **Find a device** (serial or asset number, ward, room,
   bed, name), or typing a serial or asset number, fills the template's details from that row. The customer is the file name, changeable on
-  the bar. The spreadsheet is only read, never changed; the browser remembers the file and **Read again** picks up edits. The mapping is
-  `Sheet.valueFor` in `apps/testbench/bench/index.html`.
+  the bar; the browser remembers the file and **Read again** picks up edits. The mapping is `Sheet.colForField` in `apps/testbench/bench/index.html`.
+  **The red (mandatory) columns** (a header in red text, per sheet) that are blank for the device show under the details; Start test waits until
+  they are filled in (or "Skip these for now" is ticked), then saves them into the asset list: the device's row, or for a serial number that
+  isn't in the list ("Add it as a new device", on a sheet you pick) the first row under the last one. Before saving the file is read again, a
+  copy is kept (once a day) in the Results folder's **Asset list backups** folder (downloaded if no Results folder is set up), and the result is
+  read back and checked before it replaces the file. If it can't save (open in Excel, no permission) it says so and the test can start anyway.
+  Only the cells filled in are changed; every other part of the workbook is copied across as it was, and Excel tables grow to take a new row.
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
   The **checklist answers carry over too**: on plain checklist steps, the Pass and N/A answers of the last device are filled in when the next
   test starts (the tester changes what differs, and a toast says how many were kept). A **Fail**, typed readings (battery volts…), ESA612
