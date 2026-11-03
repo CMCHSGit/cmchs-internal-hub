@@ -183,6 +183,12 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
 - **Readings finish early.** Each ESA612 measurement waits up to its settle time (2 s mains, 3 s earth resistance, 4 s leakage, 5 s
   insulation) but records as soon as the reading has stopped moving: 3 or more readings over 1 s (1.5 s for insulation) within 2 %
   of each other, or a small fixed step near zero. The standard sets no minimum time; the settle time is the longest it waits.
+- **Details from a customer spreadsheet.** On the start screen, **Choose spreadsheet…** opens a customer's equipment spreadsheet from the
+  synced SharePoint folder (an .xlsx with one row per device and headers such as Serial Number, Device Model, CHS Asset Number,
+  Ward/Location; the sheet and header row are found by the "Serial Number" column). **Find a device** (serial or asset number, ward, room,
+  bed, name), or typing a serial or asset number, fills the template's details from that row. The customer is the file name, changeable on
+  the bar. The spreadsheet is only read, never changed; the browser remembers the file and **Read again** picks up edits. The mapping is
+  `Sheet.valueFor` in `apps/testbench/bench/index.html`.
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
   The **checklist answers carry over too**: on plain checklist steps, the Pass and N/A answers of the last device are filled in when the next
   test starts (the tester changes what differs, and a toast says how many were kept). A **Fail**, typed readings (battery volts…), ESA612

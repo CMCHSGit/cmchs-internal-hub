@@ -242,3 +242,58 @@ test('a reading that has stopped moving ends the settle wait early; one still mo
   assert.equal(isSteady(mixed, 'Ω', now(mixed)), false)
   assert.match(html, /isSteady\(history, row\.unit\)/, 'the wait ends early on a steady reading')
 })
+
+// A small .xlsx written by hand (zip + the few XML parts a workbook needs), headed like the customers' equipment spreadsheets.
+async function makeXlsx(rows) {
+  const { deflateRawSync, crc32 } = await import('node:zlib')
+  const strings = [], idx = (s) => { let i = strings.indexOf(s); if (i < 0) { i = strings.length; strings.push(s) } return i }
+  const col = (n) => String.fromCharCode(65 + n)
+  const sheet = rows.map((r, i) => `<row r="${i + 1}">${r.map((v, j) => v == null ? '' : typeof v === 'number' ? `<c r="${col(j)}${i + 1}"><v>${v}</v></c>` : `<c r="${col(j)}${i + 1}" t="s"><v>${idx(v)}</v></c>`).join('')}</row>`).join('')
+  const files = {
+    '[Content_Types].xml': '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+    'xl/workbook.xml': '<workbook xmlns:r="x"><sheets><sheet name="Notes" sheetId="1" r:id="rId1"/><sheet name="Equipment" sheetId="2" r:id="rId2"/></sheets></workbook>',
+    'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>',
+    'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Read me</t></is></c></row></sheetData></worksheet>',
+    'xl/worksheets/sheet2.xml': `<worksheet><sheetData>${sheet}</sheetData></worksheet>`,
+  }
+  files['xl/sharedStrings.xml'] = `<sst>${strings.map((s) => `<si><t>${s.replace(/&/g, '&amp;')}</t></si>`).join('')}</sst>`
+  const parts = [], central = []; let offset = 0
+  for (const [name, text] of Object.entries(files)) {
+    const data = Buffer.from(text), comp = deflateRawSync(data), nm = Buffer.from(name), crc = crc32(data)
+    const lh = Buffer.alloc(30); lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(8, 8); lh.writeUInt32LE(crc, 14); lh.writeUInt32LE(comp.length, 18); lh.writeUInt32LE(data.length, 22); lh.writeUInt16LE(nm.length, 26)
+    const ch = Buffer.alloc(46); ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(8, 10); ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(comp.length, 20); ch.writeUInt32LE(data.length, 24); ch.writeUInt16LE(nm.length, 28); ch.writeUInt32LE(offset, 42)
+    parts.push(lh, nm, comp); central.push(ch, nm); offset += 30 + nm.length + comp.length
+  }
+  const cd = Buffer.concat(central), end = Buffer.alloc(22); end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(Object.keys(files).length, 8); end.writeUInt16LE(Object.keys(files).length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(offset, 16)
+  const out = Buffer.concat([...parts, cd, end]); return out.buffer.slice(out.byteOffset, out.byteOffset + out.length)
+}
+
+test('a customer spreadsheet: the equipment sheet is found, rows read, and a device fills the start screen\'s details', async () => {
+  const { default: vm } = await import('node:vm')
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const a = html.indexOf('const XlsxLite = '), b = html.indexOf('const Runner = {')
+  const inputs = ['Serial number', 'Manufacturer', 'Model', 'Customer', 'CHS asset #', 'Customer asset #', 'Testing engineer'].map((k) => ({ dataset: { k }, value: k === 'Testing engineer' ? 'Jonathan Nasrun' : '' }))
+  const toasts = []
+  const ctx = { Blob, Response, DecompressionStream, TextDecoder, Uint8Array, DataView, Math, Date, Set, Object, Number, String, Array, Error, RegExp, JSON, Promise,
+    $$: (s) => (s === '#dutFields input' ? inputs : []), $: () => null, toast: (m) => toasts.push(m), log: () => {}, esc: String, DB: {}, Shared: {} }
+  const { XlsxLite, Sheet } = vm.runInNewContext(html.slice(a, b) + '; ({ XlsxLite, Sheet })', ctx)
+  const head = ['Site ID', 'Device Type', 'Manufacturer', 'Device Model', 'Description', 'Serial Number', 'CHS Asset Number', 'Ward/Location', 'Room', 'Bed', 'Customer Asset Number']
+  const buf = await makeXlsx([['Equipment list'], head,
+    ['WDH', 'Patient monitor', 'Mindray', 'BeneVision N17', 'Monitor', 'SN-1001', 'CHS-500', 'ICU', '2', '4', 'WDH-77'],
+    ['WDH', 'Patient monitor', 'Mindray', 'BeneVision N12', 'Monitor', 4002, 'CHS-501', 'ED', '1', '', ''],
+    [null, null, null, null, null, null, null, null, null, null, null]])
+  const sheets = await XlsxLite.read(buf)
+  assert.deepEqual(JSON.parse(JSON.stringify(sheets.map((s) => s.name))), ['Notes', 'Equipment'])
+  const rows = Sheet.parse(sheets)
+  assert.equal(rows.length, 2, 'the title row above the headers and the empty row below are not devices')
+  assert.equal(rows[1]['Serial Number'], '4002', 'a numeric serial number comes back as text')
+  Object.assign(Sheet, { rows, state: 'ready', file: 'Waitemata.xlsx', customer: 'Waitemata' })
+  assert.equal(Sheet.search('icu sn-1001').length, 1)
+  assert.equal(Sheet.search('mindray').length, 2)
+  Sheet.onTyped({ value: ' sn-1001 ' })
+  const got = Object.fromEntries(inputs.map((i) => [i.dataset.k, i.value]))
+  assert.deepEqual(got, { 'Serial number': 'SN-1001', Manufacturer: 'Mindray', Model: 'BeneVision N17', Customer: 'Waitemata', 'CHS asset #': 'CHS-500', 'Customer asset #': 'WDH-77', 'Testing engineer': 'Jonathan Nasrun' }, 'every detail the sheet has, the engineer left alone')
+  assert.match(toasts.at(-1), /Filled 6 details/)
+  assert.match(html, /Sheet\.init\(\)/, 'read at start-up when the browser still has access')
+  assert.match(html, /Sheet\.onTyped\(i\)/, 'typing or scanning a serial number fills the rest')
+})

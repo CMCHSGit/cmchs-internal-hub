@@ -78,3 +78,6 @@ Finishing or stopping a test clears the in-progress mark.
 
 ## Readings finish early (03/11/2026)
 The ESA612 settle wait (2 s mains, 3 s earth resistance, 4 s leakage, 5 s insulation) is now a longest time. The bench records as soon as the recent readings have stopped moving (isSteady: 3 or more readings over a 1 s window, 1.5 s for insulation, all within 2 % or a small fixed step: 0.01 Ω, 1 µA, 1 V, 0.05 MΩ; steady over-range counts). A reading still changing waits the full time; Record now still ends it at once. The Log says how long each reading took.
+
+## Details from a customer spreadsheet (03/11/2026)
+The start screen can read a customer's equipment spreadsheet (.xlsx, one row per device, headers like Serial Number / Device Model / CHS Asset Number / Ward/Location / Room / Bed / Customer Asset Number) from the synced SharePoint folder, using the same file-handle approach as the shared folder (the handle is kept in IndexedDB key sheetHandle, read-only permission). Find a device, or type/scan its serial or asset number, and the template's details are filled from the row (Sheet.valueFor); the spreadsheet wins over what was there, except Testing engineer. The customer is the file name (editable, key sheetCustomer). Reading is a copy of SimproSync's dependency-free reader (XlsxLite). Writing results back into the spreadsheet is not done.
