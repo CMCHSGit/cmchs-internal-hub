@@ -2088,7 +2088,7 @@ const Sheet = {
     let h;
     try { h = (await window.showOpenFilePicker({ id: 'chs-customer-sheet', startIn: Shared.root || 'documents', types: [{ description: 'Excel spreadsheet', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx', '.xlsm'] } }] }))[0]; }
     catch (e) { if (e.name !== 'AbortError') toast('Couldn’t open that file: ' + e.message, 4000); return; }
-    this.handle = h; this.file = h.name; this.customer = h.name.replace(/\.[^.]+$/, '').trim();
+    this.handle = h; this.file = h.name; this.customer = h.name.replace(/\.[^.]+$/, '').replace(/\s*asset list.*$/i, '').trim() || h.name.replace(/\.[^.]+$/, '');
     await DB.putKV('sheetHandle', h); await DB.putKV('sheetCustomer', this.customer);
     await this.load();
   },
@@ -2113,22 +2113,27 @@ const Sheet = {
     }
     this.render();
   },
-  /** Finds the sheet and the header row (the one with "Serial Number"), then makes one object per device row, keyed by header. */
+  /**
+   * Every sheet with a header row holding "Serial Number" (a workbook can have one sheet per site, and IT equipment on its own sheets)
+   * becomes one object per device row, keyed by header, with the sheet's name in `_sheet`. Retired assets are left out.
+   */
   parse(sheets) {
     const str = (v) => v == null ? '' : typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(v) : v.date ? `${String(v.date.d).padStart(2, '0')}/${String(v.date.m).padStart(2, '0')}/${v.date.y}` : '';
+    const out = [];
     for (const sh of sheets) {
+      if (/retired/i.test(sh.name)) continue;
       const h = sh.rows.slice(0, 15).findIndex(r => r.some(c => typeof c === 'string' && /^serial\s*number$/i.test(c.trim())));
       if (h < 0) continue;
-      const cols = sh.rows[h].map(c => str(c)), out = [];
+      const cols = sh.rows[h].map(c => str(c));
       for (const r of sh.rows.slice(h + 1)) {
         const o = {}; cols.forEach((c, i) => { if (c && o[c] === undefined) o[c] = str(r[i]); });
         if (!['Serial Number', 'CHS Asset Number', 'Customer Asset Number', 'Device/Monitor Name'].some(k => o[k])) continue;
-        o._find = Object.values(o).join(' ').toLowerCase();
+        o._sheet = sh.name; o._find = (sh.name + ' ' + Object.values(o).join(' ')).toLowerCase();
         out.push(o);
       }
-      return out;
     }
-    throw new Error('No sheet with a “Serial Number” column was found.');
+    if (!out.length) throw new Error('No sheet with a “Serial Number” column was found.');
+    return out;
   },
   /** What a start-screen detail (by its name) is in this device's row. Customer comes from the spreadsheet's name. */
   valueFor(field, row) {
@@ -2154,7 +2159,8 @@ const Sheet = {
   /** Puts a device's details in the start screen's fields (the spreadsheet is the master, so it overwrites what's there). */
   fill(row) {
     let n = 0;
-    $$('#dutFields input').forEach(i => { const v = this.valueFor(i.dataset.k, row); if (v) { i.value = v; n++; } });
+    // A serial number the spreadsheet doesn't have yet is cleared (not left as the asset number that was typed to find the row), to be entered from the device.
+    $$('#dutFields input').forEach(i => { const v = this.valueFor(i.dataset.k, row); if (v) { i.value = v; n++; } else if (/^serial/i.test(i.dataset.k.trim())) i.value = ''; });
     log('in', 'SHEET', `Filled ${n} details from the spreadsheet`);
     toast(n ? `Filled ${n} details from the spreadsheet` : 'Nothing in the spreadsheet matched these fields');
     if ($('#sheetHits')) $('#sheetHits').innerHTML = ''; if ($('#sheetFind')) $('#sheetFind').value = '';
@@ -2189,7 +2195,7 @@ const Sheet = {
   showHits(q) {
     const box = $('#sheetHits'); if (!box) return;
     this.hits = this.search(q);
-    box.innerHTML = !q.trim() ? '' : this.hits.length ? this.hits.map((r, i) => `<button type="button" class="sheet-hit" data-i="${i}"><b>${esc(r['Serial Number'] || '(no serial)')}</b> <span>${esc([r['Device Model'], r['Device/Monitor Name']].filter(Boolean).join(' · '))}</span> <span class="muted">${esc([r['Ward/Location'], r['Room'], r['Bed'] && 'Bed ' + r['Bed'], r['CHS Asset Number']].filter(Boolean).join(' · '))}</span></button>`).join('') : '<span class="hint">No device matches.</span>';
+    box.innerHTML = !q.trim() ? '' : this.hits.length ? this.hits.map((r, i) => `<button type="button" class="sheet-hit" data-i="${i}"><b>${esc(r['Serial Number'] || '(no serial)')}</b> <span>${esc([r['Device Model'], r['Device/Monitor Name']].filter(Boolean).join(' · '))}</span> <span class="muted">${esc([r._sheet, r['Ward/Location'], r['Room'], r['Bed'] && 'Bed ' + r['Bed'], r['CHS Asset Number']].filter(Boolean).join(' · '))}</span></button>`).join('') : '<span class="hint">No device matches.</span>';
     box.querySelectorAll('.sheet-hit').forEach(b => b.addEventListener('click', () => this.fill(this.hits[+b.dataset.i])));
   },
 };
