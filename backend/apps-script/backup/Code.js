@@ -1109,6 +1109,19 @@ function firebaseGet_(path) {
   return UrlFetchApp.fetch(url, { muteHttpExceptions: true });
 }
 
+// Run from the editor when moving the project to another Google account: says
+// which account runs the project and which timers that account owns (a timer
+// belongs to whoever installed it, so each account sees only its own). Sends
+// nothing, changes nothing.
+function migrationCheck() {
+  Logger.log('Runs as: ' + Session.getEffectiveUser().getEmail());
+  var ts = ScriptApp.getProjectTriggers();
+  Logger.log(ts.length + ' timer(s) owned by the account running this:');
+  ts.forEach(function(t) {
+    Logger.log(' - ' + t.getHandlerFunction() + ' (' + t.getEventType() + ')');
+  });
+}
+
 function checkBackupDatabaseAuth() {
   CacheService.getScriptCache().remove('rtdbAccessToken');
   const token = backupDbToken_();

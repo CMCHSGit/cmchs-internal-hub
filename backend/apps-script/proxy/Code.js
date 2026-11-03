@@ -1625,6 +1625,23 @@ function notifyNews_(payload) {
   return respond({ success: true, people: to.length, pushed: pushed, failed: failed });
 }
 
+// Run from the editor when moving the project to another Google account: says
+// which account runs the project and which timers that account owns (a timer
+// belongs to whoever installed it, so each account sees only its own). Sends
+// nothing, changes nothing.
+function migrationCheck() {
+  try {
+    Logger.log('Runs as: ' + Session.getEffectiveUser().getEmail());
+  } catch (e) {
+    Logger.log('Could not read the account: ' + e.message);
+  }
+  var ts = ScriptApp.getProjectTriggers();
+  Logger.log(ts.length + ' timer(s) owned by the account running this:');
+  ts.forEach(function(t) {
+    Logger.log(' - ' + t.getHandlerFunction() + ' (' + t.getEventType() + ')');
+  });
+}
+
 // Run from the editor after the IAM roles are granted. Sends nothing to
 // anyone: it reads the hub's phone list and asks FCM to validate (not send) a
 // message, then says whether demo reminders will go to hub phones.
