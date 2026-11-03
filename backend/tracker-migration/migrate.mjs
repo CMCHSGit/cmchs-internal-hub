@@ -44,7 +44,7 @@ if (!from) { console.error('Say where from: --from live, or --from <Demo-Tracker
 const RTDB_URL = 'https://chs-equipment-default-rtdb.asia-southeast1.firebasedatabase.app'
 // The proxy's sent-reminder records (apps-script/proxy trackerFsPlace_).
 const MARKERS = ['demoReminders', 'stuckLoanReminders', 'returnDueSoonReminders']
-const MOVED = ['data', 'loanDocs', 'upcomingLoans', 'retired', 'kitGroups', 'customDemoTypes', 'simproConfig', 'auditLog', 'testReports', 'testReportFiles', ...MARKERS]
+const MOVED = ['data', 'loanMeta', 'loanDocs', 'upcomingLoans', 'retired', 'kitGroups', 'customDemoTypes', 'simproConfig', 'auditLog', 'testReports', 'testReportFiles', ...MARKERS]
 const LEFT = ['config', 'accountManagers', 'tileLocations']
 const list = (v) => (Array.isArray(v) ? v : v && typeof v === 'object' ? Object.values(v) : []).filter((x) => x && typeof x === 'object')
 
@@ -106,7 +106,9 @@ function stateOf(tree) {
     equipment: ids(d.equipment, 'id', 'itemsWithoutId', 'duplicateItemIds'),
     history: ids(d.history, 'h', 'historyWithoutId', 'duplicateHistoryIds'),
     retired: ids(tree.retired, 'r', 'retiredWithoutId', 'retiredWithoutId'),
-    loanMeta: d.loanMeta || {}, loanDocs: tree.loanDocs || {}, upcoming: Object.entries(tree.upcomingLoans || {}).filter(([, u]) => u && typeof u === 'object').map(([k, u]) => (u.id ? u : { ...u, id: k })),
+    // Kept twice in the old database: /data/loanMeta and /loanMeta, which the tracker writes first. Its own
+    // loader (apps/equipment/src/store.jsx) lays /loanMeta over /data's copy, one loan at a time; so does this.
+    loanMeta: { ...(d.loanMeta || {}), ...(tree.loanMeta || {}) }, loanDocs: tree.loanDocs || {}, upcoming: Object.entries(tree.upcomingLoans || {}).filter(([, u]) => u && typeof u === 'object').map(([k, u]) => (u.id ? u : { ...u, id: k })),
     kits: tree.kitGroups || {}, demoTypes: Array.isArray(tree.customDemoTypes) ? tree.customDemoTypes : list(tree.customDemoTypes),
     simproConfig: tree.simproConfig || {},
   }
