@@ -265,3 +265,6 @@ if (!checkOnly) {
   if (!write) console.log('\nDry run: nothing written. Add --write to write it.')
 }
 if (write || checkOnly) process.exitCode = (await check(state, today)) ? 1 : 0
+// The old database's connection keeps the process alive after the work is done (a dry run sat for 25 minutes in
+// the Action); everything has been awaited by here, so leave, keeping the exit code the check set.
+process.exit(process.exitCode ?? 0)
