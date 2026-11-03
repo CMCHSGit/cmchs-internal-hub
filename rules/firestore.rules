@@ -523,6 +523,44 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // The Test Bench's finished tests (internal.chsnz.co.nz/testbench/), kept so
+    // every engineer sees them under Previous tests, not just the laptop that
+    // ran them (apps/testbench/src/bench-tests.js). benchTests is the one line
+    // the list reads; benchTestData is the whole test (one JSON string, a few
+    // dozen KB), read only when someone opens it. The Bench's teams read; the
+    // engineer who shared a test, or an admin, changes or removes it; nobody
+    // can put a test under another person's email.
+    function canBench() {
+      return isSignedIn() && (
+        isAdmin() ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('team', '') in ['Admin', 'Management', 'Engineers', 'Application']
+      );
+    }
+    function myBenchEmail() { return request.auth.token.get('email', '').lower(); }
+    function ownsBenchTest(t) { return t.by == myBenchEmail() || isAdmin(); }
+    match /benchTests/{id} {
+      allow read: if canBench();
+      allow create: if canBench() && request.resource.data.by == myBenchEmail() && isBenchSummary();
+      allow update: if canBench() && ownsBenchTest(resource.data) && request.resource.data.by == resource.data.by && isBenchSummary();
+      allow delete: if canBench() && ownsBenchTest(resource.data);
+    }
+    function isBenchSummary() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id', 'by', 'byName', 'template', 'serial', 'model', 'customer', 'overall', 'finished', 'started', 'steps', 'size', 'savedAt'])
+        && d.id is string && d.by is string && d.byName is string && d.template is string
+        && d.overall in ['pass', 'fail', 'incomplete'] && d.finished is string && d.steps is number && d.size is number;
+    }
+    match /benchTestData/{id} {
+      allow read: if canBench();
+      allow create: if canBench() && request.resource.data.by == myBenchEmail() && isBenchData();
+      allow update: if canBench() && ownsBenchTest(resource.data) && request.resource.data.by == resource.data.by && isBenchData();
+      allow delete: if canBench() && ownsBenchTest(resource.data);
+    }
+    function isBenchData() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['by', 'json']) && d.by is string && d.json is string && d.json.size() < 950000;
+    }
+
     // The demo tracker (internal.chsnz.co.nz/equipment/), from step 5 of
     // INTEGRATION-PLAN.md (STEP-5-PLAN.md 5B): its data moved here from the
     // chs-equipment Realtime Database, one document per item and per loan.

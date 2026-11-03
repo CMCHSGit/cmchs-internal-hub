@@ -20,6 +20,7 @@ import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, mak
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
 import { groupReports, idbReports, markSent, saveReport } from './reports.js'
 import Reports from './Reports.jsx'
+import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import './testbench.css'
 
 const BENCH_URL = '/bench-app/index.html'
@@ -45,7 +46,7 @@ const useOnline = () => {
 }
 
 function TestBench() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const online = useOnline()
   const frame = useRef(null)
   const host = useRef(null)
@@ -89,11 +90,48 @@ function TestBench() {
   }, [outboxStore])
   useEffect(() => { refreshReports(); refreshOutbox() }, [refreshReports, refreshOutbox])
 
+  // The finished tests every engineer has shared (Firestore, bench-tests.js): watched while signed in and handed to the bench, which
+  // lists them under Previous tests. A test the bench finishes is sent up from here too, and opened or removed on its request.
+  const who = useRef({ email: '', name: '', admin: false })
+  who.current = { email: (user?.email || '').toLowerCase(), name: profile?.displayName || user?.displayName || user?.email || '', admin: profile?.role === 'admin' }
+  const shared = useRef({ list: [], ok: false })
+  const toBench = useCallback((msg) => frame.current?.contentWindow?.postMessage(msg, location.origin), [])
+  const sendShared = useCallback(() => toBench({ type: 'chs-bench:shared-list', me: who.current.email, admin: who.current.admin, ok: shared.current.ok, list: shared.current.list }), [toBench])
+  useEffect(() => {
+    if (!user) { shared.current = { list: [], ok: false }; sendShared(); return undefined }
+    return watchTests(
+      (list) => { shared.current = { list, ok: true }; sendShared() },
+      () => { shared.current = { list: [], ok: false }; sendShared() },
+    )
+  }, [user, sendShared])
+  useEffect(() => { sendShared() }, [profile, sendShared])
+
   // What the bench saves arrives here and is kept.
   useEffect(() => {
     const onMessage = async (e) => {
       if (e.origin !== location.origin || e.source !== frame.current?.contentWindow) return
       const m = e.data
+      if (m?.type === 'chs-bench:hello') { sendShared(); return }
+      if (m?.type === 'chs-bench:run' && typeof m.json === 'string') {   // a test finished or changed on this laptop: share it
+        if (!user || (m.sharedBy && m.sharedBy !== who.current.email)) return
+        try {
+          const s = await saveTest(JSON.parse(m.json), who.current)
+          if (s) logActivity(null, `Shared a finished test (${s.template || 'test'}, ${s.overall})`, { app: 'testbench' })
+        } catch { /* signed out, not an engineer, or not the one who shared it: it stays on this laptop */ }
+        return
+      }
+      if (m?.type === 'chs-bench:get-run') {   // someone opened a test from the shared list
+        let reply
+        try { const json = await loadTest(m.id); reply = json ? { json } : { error: 'That test is no longer shared.' } } catch (err) { reply = { error: err?.code === 'unavailable' ? 'No connection to fetch it. Try again when this laptop is online.' : (err?.message || 'Couldn’t fetch it.') } }
+        toBench({ type: 'chs-bench:run-data', reqId: m.reqId, id: m.id, ...reply })
+        return
+      }
+      if (m?.type === 'chs-bench:delete-run') {   // "Remove for everyone"
+        let reply
+        try { await removeTest(m.id); logActivity(null, 'Removed a shared test', { app: 'testbench' }); reply = { ok: true } } catch (err) { reply = { error: err?.code === 'permission-denied' ? 'Only the engineer who shared it, or an admin, can remove it.' : (err?.message || 'Couldn’t remove it.') } }
+        toBench({ type: 'chs-bench:deleted', reqId: m.reqId, id: m.id, ...reply })
+        return
+      }
       if (m?.type === 'chs-bench:mtr') {   // the bench's answer to a request for an Ansur record
         const p = asks.current.get(m.id); asks.current.delete(m.id)
         if (p) m.error || !(m.buffer instanceof ArrayBuffer) ? p.reject(new Error(m.error || 'The bench sent nothing back.')) : p.resolve({ buffer: m.buffer, mime: m.mime })
@@ -110,7 +148,7 @@ function TestBench() {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [reportStore, refreshReports])
+  }, [reportStore, refreshReports, user, sendShared, toBench])
 
   /** Asks the bench (still loaded behind this tab) to build an Ansur record (.mtr) from a results file. */
   const toMtr = useCallback((buffer) => new Promise((resolve, reject) => {

@@ -521,6 +521,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <div class="field" style="margin-top:16px"><span class="lbl">Test settings</span>
             <label class="check"><input type="checkbox" data-pref="zeroLead"> Zero the earth-resistance test lead before measuring</label>
             <label class="check" style="margin-top:6px"><input type="checkbox" data-pref="confirmPower"> Ask before applying voltage when running a single test</label>
+            <label class="check" style="margin-top:6px"><input type="checkbox" data-pref="chargeAfter"> Power the device from the ESA612 outlet when its electrical tests are done, so it charges (not if a safety test failed)</label>
             <span class="hint">Off by default to save clicks: earth resistance measures straight away (results are marked “lead not zeroed”), and Start runs insulation and leakage tests without asking. The auto sequence always asks once before it starts. Also on each test step.</span></div>
           <div id="esaLive" hidden style="margin-top:18px">
             <span class="overline">Mains supply</span>
@@ -669,7 +670,7 @@ function enterToNext(inputs, onLast) {
 }
 /** Bench settings, kept in this browser. */
 const Prefs = {
-  d: { zeroLead: false, confirmPower: false },
+  d: { zeroLead: false, confirmPower: false, chargeAfter: true },
   load() { try { Object.assign(this.d, JSON.parse(localStorage.getItem('chsBench.prefs') || '{}')); } catch {} },
   get(k) { return this.d[k]; },
   set(k, v) { this.d[k] = v; try { localStorage.setItem('chsBench.prefs', JSON.stringify(this.d)); } catch {} log('in', 'APP', `Setting changed: ${k} = ${typeof v === 'object' ? JSON.stringify(v) : v}`); },
@@ -2926,9 +2927,30 @@ const Runner = {
     if (stoppedAt == null) {
       toast('Electrical safety sequence complete. The outlet is off.');
       if (blk[1] < this.steps.length - 1) this.go(blk[1] + 1); else { this.renderStage(); this.renderList(); }
+      this.chargeAfterTests();   // the tests are done: power the device so it charges (and is on for the steps that follow)
     } else {
       this.run.idx = stoppedAt; this.renderStage(); this.renderList();
     }
+  },
+  /**
+   * After the electrical tests (and when the test is finished): switches mains on to the device from the ESA612 outlet so it charges, and
+   * says what current it draws. Not when that is turned off in the settings, the ESA612 isn't connected, or an electrical safety test
+   * failed: a device that failed one isn't to be energised on its own. Returns true if the device is now powered.
+   */
+  async chargeAfterTests() {
+    const run = this.run, link = Devices.esa;
+    if (!run || !link || Power.on || !Prefs.get('chargeAfter') || this.busy || this.autoRunning) return false;
+    const esa = run.template.steps.filter(s => TYPES[s.type].group === 'esa'); if (!esa.length) return false;
+    if (esa.some(s => (run.results[s.id] || {}).status === 'fail')) { log('in', 'RUN', 'The device was not powered for charging: an electrical safety test failed'); return false; }
+    await Power.start(true);
+    if (!Power.on) return false;
+    await wait(2500);   // a moment for the first current reading
+    if (!Power.on) return false;
+    const a = Power.amps;
+    log('in', 'RUN', `Device powered from the ESA612 outlet to charge${a != null ? `, drawing ${fmtNum(a)} A` : ''}`);
+    if (a != null && a < 0.01) toast(`The device is powered but drawing almost no current (${fmtNum(a)} A). Check it is plugged in and charging.`, 7000);
+    else toast(a != null ? `Device powered from the outlet to charge: drawing ${fmtNum(a)} A. Switch it off before unplugging.` : 'Device powered from the outlet to charge. Switch it off before unplugging.', 5000);
+    return true;
   },
   /** After a failed test in the auto sequence: what failed, and 'retest', 'next' (carry on) or 'stop'. */
   failPrompt(s, last) {
@@ -3086,8 +3108,10 @@ const Runner = {
     if (Devices.ps && run.template.steps.some(s => TYPES[s.type].group === 'ps')) for (const c of ['ECGRUN=FALSE', 'RESPRUN=FALSE', 'NIBPRUN=FALSE']) await Devices.ps.send(c).catch(() => {});
     DB.put('runs', clone({ ...run, template: { ...run.template, steps: run.template.steps.map(s => ({ ...s, images: [] })) } })).catch(() => {});
     log('in', 'RUN', `Finished: ${run.overall.toUpperCase()}`);
+    SharedTests.share(run);
     $('#runActive').hidden = true; $('#runSummary').hidden = false;
     this.renderSummary(); window.scrollTo({ top: 0 }); Records.renderList();
+    if (!stopped && !Power.on) this.chargeAfterTests();   // not awaited: the summary is already showing
   },
   /** Show a saved, reopened or imported test on the summary page. */
   open(run) {
@@ -3105,7 +3129,7 @@ const Runner = {
     for (const s of left) run.results[s.id].status = 'skipped';
     run.overall = overallOf(run); run.stopped = false;
     DB.put('runs', clone({ ...run, template: { ...run.template, steps: run.template.steps.map(s => ({ ...s, images: [] })) } })).catch(() => {});
-    log('in', 'RUN', `${left.length} step(s) not done, left out as skipped: ${run.overall.toUpperCase()}`);
+    log('in', 'RUN', `${left.length} step(s) not done, left out as skipped: ${run.overall.toUpperCase()}`); SharedTests.share(run);
     this.renderSummary(); Records.renderList(); toast(`${left.length} step${left.length === 1 ? '' : 's'} left out as skipped`);
   },
   /** Reload test: swap in the latest version of this test's template, keeping every result already recorded.
@@ -3184,7 +3208,7 @@ const Runner = {
       const i = newSteps.findIndex(st => st.id === curId), p = newSteps.findIndex(st => out[st.id].status === 'pending');
       this.go(i >= 0 && out[newSteps[i].id].status === 'pending' ? i : p >= 0 ? p : Math.max(0, i));
     } else {
-      if (run.finished) { run.overall = overallOf(run); DB.put('runs', clone({ ...run, template: { ...run.template, steps: run.template.steps.map(st => ({ ...st, images: [] })) } })).catch(() => {}); Records.renderList(); }
+      if (run.finished) { run.overall = overallOf(run); DB.put('runs', clone({ ...run, template: { ...run.template, steps: run.template.steps.map(st => ({ ...st, images: [] })) } })).catch(() => {}); Records.renderList(); SharedTests.share(run); }
       this.renderSummary();
     }
     toast(added ? `Template reloaded: ${added} new step${added === 1 ? '' : 's'} to do` : 'Template reloaded, results kept', 3500);
@@ -3524,11 +3548,12 @@ const Power = {
     });
   },
   async toggle() { if (this.on) await this.off(); else await this.start(); },
-  async start() {
+  /** `auto`: switched on by the bench after the electrical tests (to charge the device), so no question is asked. */
+  async start(auto) {
     const link = Devices.esa;
-    if (!link) { toast('Connect the ESA612 first.'); return; }
-    if (Runner.busy || Runner.autoRunning || Diag.running) { toast('Wait for the measurement to finish first.'); return; }
-    if (Prefs.get('confirmPower')) {
+    if (!link) { if (!auto) toast('Connect the ESA612 first.'); return; }
+    if (Runner.busy || Runner.autoRunning || Diag.running) { if (!auto) toast('Wait for the measurement to finish first.'); return; }
+    if (!auto && Prefs.get('confirmPower')) {
       const ok = await dialog({ title: 'Power the device?', tone: 'var(--chs-orange)', body: '<p>The ESA612 will switch on mains power to its equipment outlet.</p>', buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Power on', value: true }] });
       if (!ok) return;
     }
@@ -3568,17 +3593,37 @@ const Records = {
   async renderList() {
     const box = $('#prevList'); if (!box) return;
     const q = ($('#prevSearch')?.value || '').trim().toLowerCase();
-    const runs = (await this.list()).filter(r => !q || [r.template?.name, ...Object.values(r.dut || {})].join(' ').toLowerCase().includes(q));
+    const local = await this.list(), have = new Set(local.map(r => r.id));
+    // Tests other engineers (or another laptop) have shared, that aren't on this PC yet, are listed after the same fashion; opening one fetches it.
+    const sharedOnly = SharedTests.list.filter(s => !have.has(s.id)).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
+    const when = (r) => String(r.finished || r.saved || r.started);
+    const runs = [...local, ...sharedOnly].sort((a, b) => when(b).localeCompare(when(a)))
+      .filter(r => !q || [r.template?.name, ...Object.values(r.dut || {}), r.shared ? r.shared.byName : ''].join(' ').toLowerCase().includes(q));
+    const canRemoveShared = (id) => { const s = SharedTests.list.find(x => x.id === id); return !!s && (s.by === SharedTests.me || SharedTests.admin); };
     const badge = (o, r) => r && r.inProgress ? '<span class="badge warn">In progress</span>' : `<span class="badge ${o === 'pass' ? 'pass' : o === 'fail' ? 'fail' : 'warn'}">${o === 'pass' ? 'Pass' : o === 'fail' ? 'Fail' : 'Incomplete'}</span>`;
     box.innerHTML = runs.length ? `<table class="meas-table prev-table"><thead><tr><th>Date</th><th>Device</th><th>Template</th><th>Result</th><th></th></tr></thead><tbody>${runs.slice(0, 30).map(r => {
       const d = new Date(r.finished || r.started); const dev = r.dut ? (r.dut['Serial number'] || r.dut['Serial Number'] || Object.values(r.dut)[0] || '') : '';
-      return `<tr><td>${esc(isNaN(d) ? '—' : d.toLocaleDateString('en-NZ'))}</td><td>${esc(dev)}${r.dut?.Model ? ` <span class="muted">${esc(r.dut.Model)}</span>` : ''}</td><td>${esc(r.template?.name || '')}${r.imported ? ` <span class="badge info">${esc(r.imported.source)}</span>` : ''}</td><td>${badge(overallOf(r), r)}</td>
-        <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button><button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button></td></tr>`; }).join('')}</tbody></table>${runs.length > 30 ? `<p class="hint">Showing the 30 most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
+      return `<tr><td>${esc(isNaN(d) ? '—' : d.toLocaleDateString('en-NZ'))}</td><td>${esc(dev)}${r.dut?.Model ? ` <span class="muted">${esc(r.dut.Model)}</span>` : ''}${r.shared ? `<br><span class="muted" style="font-size:12.5px">Shared by ${esc(r.shared.byName || r.shared.by)}</span>` : ''}</td><td>${esc(r.template?.name || '')}${r.imported ? ` <span class="badge info">${esc(r.imported.source)}</span>` : ''}</td><td>${badge(r.shared ? r.shared.overall : overallOf(r), r)}</td>
+        <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button>${!r.shared || canRemoveShared(r.id) ? `<button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>${runs.length > 30 ? `<p class="hint">Showing the 30 most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
       : `<div class="empty">${q ? 'No tests match.' : 'Finished tests appear here. You can also open a results file or an Ansur record.'}</div>`;
-    $$('[data-open]', box).forEach(b => b.addEventListener('click', async () => { const r = (await this.list()).find(x => x.id === b.dataset.open); if (r) Runner.open(r); }));
+    $$('[data-open]', box).forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.open, r = (await this.list()).find(x => x.id === id);
+      if (r) { Runner.open(r); return; }
+      b.disabled = true; const label = b.textContent; b.textContent = 'Opening…';
+      try { Runner.open(await SharedTests.fetch(id)); this.renderList(); }
+      catch (err) { dialog({ title: 'Couldn’t open that test', body: `<p>${esc(err.message)}</p>` }); }
+      b.disabled = false; b.textContent = label;
+    }));
     $$('[data-delrun]', box).forEach(b => b.addEventListener('click', async () => {
-      const ok = await dialog({ title: 'Remove this test from the list?', body: '<p>It’s only removed from this browser. Downloaded results files and printed reports aren’t affected.</p>', buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Remove', value: true, cls: 'danger' }] });
-      if (ok) { await DB.del('runs', b.dataset.delrun).catch(() => {}); this.renderList(); }
+      const id = b.dataset.delrun, isLocal = (await this.list()).some(x => x.id === id), everywhere = canRemoveShared(id);
+      const v = await dialog({ title: 'Remove this test from the list?',
+        body: everywhere ? `<p>It’s shared with the other engineers.</p><p><b>${isLocal ? 'Just this PC' : 'Remove for everyone'}</b> ${isLocal ? 'takes it off this laptop only; it stays in the shared list.' : 'takes it out of the shared list for everyone.'}${isLocal ? ' <b>Remove for everyone</b> takes it out of the shared list too.' : ''}</p><p class="muted">Downloaded results files and printed reports aren’t affected.</p>`
+          : '<p>It’s only removed from this browser. Downloaded results files and printed reports aren’t affected.</p>',
+        buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, ...(isLocal ? [{ label: everywhere ? 'Just this PC' : 'Remove', value: 'local', cls: everywhere ? 'secondary' : 'danger' }] : []), ...(everywhere ? [{ label: 'Remove for everyone', value: 'all', cls: 'danger' }] : [])] });
+      if (!v) return;
+      if (v === 'all') { try { await SharedTests.remove(id); } catch (err) { dialog({ title: 'Couldn’t remove it', body: `<p>${esc(err.message)}</p>` }); return; } }
+      if (isLocal) await DB.del('runs', id).catch(() => {});
+      this.renderList();
     }));
   },
   async openFile(e) {
@@ -4196,6 +4241,44 @@ window.addEventListener('message', (e) => {
     reply({ mime: 'application/xml', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
   } catch (err) { log('er', 'RUN', 'Ansur record for Saved reports failed: ' + err.message); reply({ error: err.message }); }
 });
+/* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
+const SharedTests = {
+  list: [], me: '', admin: false, ok: false, asks: new Map(), timers: {},
+  inHub() { return window.parent !== window; },
+  hello() { if (this.inHub()) window.parent.postMessage({ type: 'chs-bench:hello' }, location.origin); },
+  /** Sends a finished test up to be shared, a moment later so a burst of changes goes once. Not tests that are still being done or came from a file or an Ansur record. */
+  share(run) {
+    if (!this.inHub() || !run || !run.finished || run.inProgress || run.imported) return;
+    clearTimeout(this.timers[run.id]);
+    this.timers[run.id] = setTimeout(() => {
+      try { window.parent.postMessage({ type: 'chs-bench:run', json: JSON.stringify(Runner.storedRun(run)), sharedBy: run.sharedBy || '' }, location.origin); }
+      catch (e) { log('er', 'RUN', 'Couldn’t share the test: ' + e.message); }
+    }, 1500);
+  },
+  /** Asks the hub for something and waits for its answer. */
+  ask(type, id) {
+    return new Promise((resolve, reject) => {
+      if (!this.inHub()) { reject(new Error('This only works inside the hub.')); return; }
+      const reqId = uid(), t = setTimeout(() => { this.asks.delete(reqId); reject(new Error('The hub didn’t answer. Try again.')); }, 20000);
+      this.asks.set(reqId, { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); reject(e); } });
+      window.parent.postMessage({ type, id, reqId }, location.origin);
+    });
+  },
+  /** A test someone shared: fetched, kept on this PC like any other (marked with who shared it, so it isn't shared again as ours), and returned. */
+  async fetch(id) {
+    const r = await this.ask('chs-bench:get-run', id), run = JSON.parse(r.json), s = this.list.find(x => x.id === id);
+    if (s) run.sharedBy = s.by;
+    await DB.put('runs', clone(run)).catch(() => {});
+    return run;
+  },
+  async remove(id) { await this.ask('chs-bench:delete-run', id); },
+};
+window.addEventListener('message', (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  const m = e.data; if (!m) return;
+  if (m.type === 'chs-bench:shared-list') { Object.assign(SharedTests, { list: Array.isArray(m.list) ? m.list : [], me: m.me || '', admin: !!m.admin, ok: !!m.ok }); if (typeof Records !== 'undefined') Records.renderList(); return; }
+  if (m.type === 'chs-bench:run-data' || m.type === 'chs-bench:deleted') { const p = SharedTests.asks.get(m.reqId); SharedTests.asks.delete(m.reqId); if (p) (m.error ? p.reject(new Error(m.error)) : p.resolve(m)); }
+});
 const Results = {
   supported() { return typeof window.showDirectoryPicker === 'function'; },
   async allowed(h) {
@@ -4341,7 +4424,7 @@ const App = {
     $('#sumPrint').addEventListener('click', () => Runner.printReport());
     $('#sumPdf').addEventListener('click', () => ReportPdf.download());
 
-    this.refreshRunPicker(); this.renderDevices(); this.fromHash(); Records.renderList(); Power.render();
+    this.refreshRunPicker(); this.renderDevices(); this.fromHash(); Records.renderList(); Power.render(); SharedTests.hello();
     window.addEventListener('pagehide', () => Runner.autosaveNow());
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Runner.autosaveNow(); });
     Runner.offerRestore();
@@ -4388,6 +4471,7 @@ const App = {
       The checklist answers (Pass and N/A on checklist steps) are kept too, to be put back when the next test starts. */
   nextDevice() {
     const run = Runner.run, t = run && Store.get(run.templateId);
+    if (Power.on) Power.off(true);   // the next device goes on the same outlet: it is switched off first
     $('#runSummary').hidden = true; $('#runSetup').hidden = false;
     if (!t) { $$('#dutFields input').forEach((i, k) => { if (k === 0) i.value = ''; }); $('#dutFields input')?.focus(); return; }   // its template has gone: back to the list as before
     this.pick(t.id);

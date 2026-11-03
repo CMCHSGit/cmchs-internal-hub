@@ -194,6 +194,17 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   copy is kept (once a day) in the Results folder's **Asset list backups** folder (downloaded if no Results folder is set up), and the result is
   read back and checked before it replaces the file. If it can't save (open in Excel, no permission) it says so and the test can start anyway.
   Only the cells filled in are changed; every other part of the workbook is copied across as it was, and Excel tables grow to take a new row.
+- **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
+  `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under
+  Previous tests ("Shared by …"); opening one fetches it onto that PC. The PDF and the Ansur record (.mtr) aren't stored: the bench
+  rebuilds them from the test. The hub does the Firestore side (`apps/testbench/src/section.jsx`, `bench-tests*.js`) and talks to the
+  bench by `postMessage` (`chs-bench:run`, `…:shared-list`, `…:get-run`, `…:delete-run`). Engineers, Management, Application and admins read; the engineer
+  who shared a test, or an admin, changes or removes it (**Remove for everyone**; **Just this PC** keeps the shared copy). Offline, the
+  write waits in Firestore's device copy and goes when the hub is next online. Needs the rules in `rules/firestore.rules` published.
+- **The device is powered to charge after the electrical tests.** When the auto sequence finishes (and when a test is finished), the
+  bench switches mains on to the device from the ESA612 outlet (the same as **Power the device**), reads the current and says what it
+  draws, with a warning if it is almost nothing. Not when an electrical safety test failed, the test was stopped, or the ESA612
+  isn't connected; the setting is on the Devices page ("Power the device … so it charges"). **Test another device** switches it off.
 - **Test another device** (end of a test) goes straight to the next device on the same template, keeping the details except the serial number.
   The **checklist answers carry over too**: on plain checklist steps, the Pass and N/A answers of the last device are filled in when the next
   test starts (the tester changes what differs, and a toast says how many were kept). A **Fail**, typed readings (battery volts…), ESA612
