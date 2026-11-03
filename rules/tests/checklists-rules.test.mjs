@@ -39,8 +39,8 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'checklists/priv/items/d1'), device())
 })
 
-const as = (uid) => env.authenticatedContext(uid, { email: uid + '@cass.co.nz' }).firestore()
-const outsider = env.authenticatedContext('eve', { email: 'eve@gmail.com' }).firestore()
+const as = (uid) => env.authenticatedContext(uid, { email: uid + '@cass.co.nz', firebase: { sign_in_provider: 'microsoft.com' } }).firestore()
+const outsider = env.authenticatedContext('eve', { email: 'eve@gmail.com', firebase: { sign_in_provider: 'microsoft.com' } }).firestore()
 const anon = env.unauthenticatedContext().firestore()
 let pass = 0, fail = 0
 async function check(label, expectAllowed, fn) {

@@ -9,7 +9,7 @@
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { getFirestore } from 'firebase-admin/firestore'
-import { TEST_ACCOUNTS, TEST_PASSWORD } from '../shared/test-accounts.js'
+import { TEST_ACCOUNTS } from '../shared/test-accounts.js'
 import { sampleAsks } from '../apps/asks/src/sample.js'
 import { statsOf } from '../apps/asks/src/model.js'
 import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL } from '../apps/projects/src/sample.js'
@@ -42,7 +42,11 @@ export async function seed() {
 
   // ── people ──
   for (const a of TEST_ACCOUNTS) {
-    await auth.createUser({ uid: a.uid, email: a.email, password: TEST_PASSWORD, displayName: a.name, emailVerified: true })
+    // A Microsoft sign-in, as the real ones are: the rules only accept that (firestore.rules viaMicrosoft).
+    // The page signs in with the same uid as the Microsoft id (shared/session.js signInAsTest).
+    const imp = await auth.importUsers([{ uid: a.uid, email: a.email, displayName: a.name, emailVerified: true,
+      providerData: [{ uid: a.uid, providerId: 'microsoft.com', email: a.email, displayName: a.name }] }])
+    if (imp.failureCount) throw new Error('Could not create the test sign-in for ' + a.uid + ': ' + imp.errors[0].error.message)
     const rec = { displayName: a.name, email: a.email, team: a.team || null, role: a.role, createdAt: new Date(now - 90 * 86400000) }
     if (a.hr) rec.hr = true
     if (a.trackerRole) rec.trackerRole = a.trackerRole

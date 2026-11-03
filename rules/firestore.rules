@@ -6,7 +6,14 @@ service cloud.firestore {
     // Signed in with a company account. Microsoft sign-in is limited to the
     // company's tenant; this is the second lock, in case a guest or another
     // account ever gets a token for this project.
-    function isSignedIn()     { return request.auth != null && isCompanyEmail(); }
+    //
+    // The third lock: how they signed in. An email address alone proves nothing
+    // (the email/password provider lets anyone register any address, verified
+    // or not), so only a Microsoft sign-in counts. Everyone's real sign-in is
+    // Microsoft; the test copy's made-up staff sign in through the emulator's
+    // fake Microsoft provider (shared/session.js signInAsTest).
+    function isSignedIn()     { return request.auth != null && viaMicrosoft() && isCompanyEmail(); }
+    function viaMicrosoft()   { return request.auth.token.firebase.sign_in_provider == 'microsoft.com'; }
     function isCompanyEmail() { return request.auth.token.get('email', '').lower().matches('[^@]+@(cass|chsnz)[.]co[.]nz'); }
     function isAdmin()        { return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; }
     function isOwner(uid)     { return isSignedIn() && request.auth.uid == uid; }

@@ -22,7 +22,7 @@ async function seed() {
   })
 }
 
-const as = (uid) => env.authenticatedContext(uid, { email: uid + '@cass.co.nz' }).firestore()
+const as = (uid) => env.authenticatedContext(uid, { email: uid + '@cass.co.nz', firebase: { sign_in_provider: 'microsoft.com' } }).firestore()
 const anon = env.unauthenticatedContext().firestore()
 let pass = 0, fail = 0
 async function check(label, expectAllowed, fn) {

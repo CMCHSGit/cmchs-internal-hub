@@ -2,14 +2,14 @@
    one of the made-up test staff. Loaded only there (SignIn.jsx). */
 import { useState } from 'react'
 import { signInAsTest } from '../../../shared/session.js'
-import { TEST_ACCOUNTS, TEST_PASSWORD } from '../../../shared/test-accounts.js'
+import { TEST_ACCOUNTS } from '../../../shared/test-accounts.js'
 
 export default function TestSignIn({ onError }) {
   const [busy, setBusy] = useState('')
   async function go(a) {
     setBusy(a.email)
     onError(null)
-    try { await signInAsTest(a.email, TEST_PASSWORD) } catch (e) { onError('Test sign-in failed: ' + (e?.code || e?.message || e) + '. Are the emulators running and seeded (npm run emulators)?') } finally { setBusy('') }
+    try { await signInAsTest(a) } catch (e) { onError('Test sign-in failed: ' + (e?.code || e?.message || e) + '. Are the emulators running and seeded (npm run emulators)?') } finally { setBusy('') }
   }
   return (
     <div className="signin-test" role="group" aria-label="Test copy: sign in as">

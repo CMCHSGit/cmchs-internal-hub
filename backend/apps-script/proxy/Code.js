@@ -2035,6 +2035,10 @@ function verifyScheduleIdTokenShape_(idToken) {
   // Company accounts only: the second lock behind the tenant-only Microsoft
   // sign-in (firestore.rules isCompanyEmail checks the same).
   if (!/^[^@\s]+@(cass|chsnz)\.co\.nz$/i.test(String(claims.email || ''))) throw new Error('Not a company account');
+  // And it must be a Microsoft sign-in: the email/password provider lets anyone
+  // register any address, so an address alone proves nothing (firestore.rules
+  // viaMicrosoft checks the same).
+  if (!claims.firebase || claims.firebase.sign_in_provider !== 'microsoft.com') throw new Error('Not a Microsoft sign-in');
   return { uid: uid, email: claims.email || '', exp: claims.exp };
 }
 

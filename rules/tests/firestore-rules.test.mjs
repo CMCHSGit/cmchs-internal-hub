@@ -30,7 +30,7 @@ await env.withSecurityRulesDisabled(async (ctx) => {
 })
 
 // Signed in with a company account, as everyone really is (rules: isCompanyEmail).
-const as = (uid, email = uid + '@cass.co.nz') => env.authenticatedContext(uid, { email }).firestore()
+const as = (uid, email = uid + '@cass.co.nz') => env.authenticatedContext(uid, { email, firebase: { sign_in_provider: 'microsoft.com' } }).firestore()
 const anon = env.unauthenticatedContext().firestore()
 let pass = 0, fail = 0
 async function check(label, expectAllowed, fn) {
@@ -62,6 +62,17 @@ await check('user can\'t pick their own team, even while it\'s empty (admins and
   updateDoc(doc(as('notyet'), 'users/notyet'), { team: 'Engineers' }))
 await check('@chsnz.co.nz is a company account too', true, () =>
   getDoc(doc(as('chs', 'someone@chsnz.co.nz'), 'users/bob')))
+// An email address alone proves nothing: the email/password provider lets anyone
+// register any address, so only a Microsoft sign-in counts.
+const via = (provider, email = 'bob@cass.co.nz') => env.authenticatedContext('bob', { email, firebase: { sign_in_provider: provider } }).firestore()
+await check('a company email registered with email/password is refused', false, () =>
+  getDoc(doc(via('password'), 'users/bob')))
+await check('a company email on a custom or Google sign-in is refused', false, () =>
+  getDoc(doc(via('google.com'), 'users/bob')))
+await check('a company email with no sign-in provider at all is refused', false, () =>
+  getDoc(doc(env.authenticatedContext('bob', { email: 'bob@cass.co.nz' }).firestore(), 'users/bob')))
+await check('the same person signing in with Microsoft is allowed', true, () =>
+  getDoc(doc(via('microsoft.com'), 'users/bob')))
 await check('user registers a phone for push (push.js)', true, () =>
   updateDoc(doc(as('bob'), 'users/bob'), { fcmTokens: arrayUnion('tok-123') }))
 await check('user turns their own schedule reminder off (Settings → Your notifications)', true, () =>

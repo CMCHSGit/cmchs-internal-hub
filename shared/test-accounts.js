@@ -1,12 +1,10 @@
 /* Made-up staff for the test copy (`npm run dev:emulators`, README "Test copy").
    They exist only in the Firebase emulators on this computer, never in the live
-   sign-in, so the shared password below opens nothing real. One per kind of
+   sign-in, so they open nothing real. One per kind of
    access, so each screen can be checked as the people who use it.
 
    Used by the sign-in page's "Sign in as" list (test copy only) and by
    scripts/emulator-seed.mjs, which creates them. */
-
-export const TEST_PASSWORD = 'test-copy-only'
 
 export const TEST_ACCOUNTS = [
   { uid: 'test-admin', name: 'Alex Admin', email: 'alex.admin@cass.co.nz', team: 'Management', role: 'admin', trackerRole: 'service', about: 'Admin (Management team)' },

@@ -5,7 +5,7 @@
 // key) is shared: sign in once at the hub and /service, /demo, /schedule all
 // see you as signed in. The session survives browser restarts until you sign
 // out. No React here, so plain pages (the /service tools' gate) can use it too.
-import { onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth'
+import { OAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut } from 'firebase/auth'
 // The site's one Firebase start-up (shared with every tool's apps/schedule/src/firebase.js)
 import { auth, configured, emulators, microsoftProvider } from './firebase.js'
 import { clearBadges } from './badges.js'
@@ -34,9 +34,13 @@ export async function signIn() {
 }
 
 /** The test copy only: sign in as one of shared/test-accounts.js's made-up staff (they exist only in the local emulator). */
-export async function signInAsTest(email, password) {
+export async function signInAsTest(account) {
   if (!emulators || !auth) throw new Error('Test sign-in is only for the test copy.')
-  await signInWithEmailAndPassword(auth, email, password)
+  // Through the emulator's fake Microsoft provider, not email and password: the
+  // rules only accept a Microsoft sign-in (firestore.rules viaMicrosoft), and the
+  // emulator reads this "token" as who the made-up person is.
+  const idToken = JSON.stringify({ sub: account.uid, email: account.email, email_verified: true, name: account.name })
+  await signInWithCredential(auth, new OAuthProvider('microsoft.com').credential({ idToken }))
 }
 
 export async function signOutUser() {
