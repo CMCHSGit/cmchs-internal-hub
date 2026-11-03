@@ -62,7 +62,13 @@ async function readSource() {
     if (key.project_id !== 'chs-equipment') fail('CHS_SA is not a chs-equipment key')
     const db = getDatabase(initializeApp({ credential: cert(key), databaseURL: RTDB_URL }, 'chs'))
     const tree = {}
-    for (const p of MOVED) tree[p] = (await db.ref(p).get()).val()
+    for (const p of MOVED) {
+      const t0 = Date.now()
+      tree[p] = (await db.ref(p).get()).val()
+      // Progress, counts only: a slow read says which path it is stuck on.
+      const n = tree[p] && typeof tree[p] === 'object' ? Object.keys(tree[p]).length : tree[p] == null ? 0 : 1
+      console.log(`  read ${p}: ${n} entries, ${Math.round((Date.now() - t0) / 100) / 10}s`)
+    }
     const top = Object.keys(await fetchShallow(db))
     return { tree, top, files: (k, id) => tree.testReportFiles?.[k]?.[id] ?? null }
   }
