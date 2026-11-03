@@ -55,4 +55,4 @@ always the one tested.
 `firestore.rules` as of commit `f4a48f3` (the tracker's collections, `settings/equipmentCutover`, `tileLocations`, Checklists) was published on 29 Oct 2026, reported by Jonathan in chat.
 `firestore.rules` with the tightened `activity` rule (the hub-wide activity log: the time must be the server's, only these fields, a line of at most 500 characters) is **not yet published**. The log works without it (the old rule accepts every line the apps now write); publish it to stop a person backdating or padding a line.
 
-`firestore.rules` with `benchTests` and `benchTestData` (the Test Bench's shared previous tests, 4 Nov 2026) is **not yet published**. Until it is, the bench works as before (tests stay on each laptop) and the hub's attempts to share are refused quietly; publish it, then a test finished afterwards is shared. Tested in the emulator: `tests/bench-rules.test.mjs`.
+`firestore.rules` with `benchTests` and `benchTestData` (the Test Bench's shared previous tests) was published on 4 Nov 2026, reported by Jonathan in chat. Tested in the emulator: `tests/bench-rules.test.mjs`.
