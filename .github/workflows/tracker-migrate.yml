@@ -1,0 +1,85 @@
+# The demo tracker's data, from its old Realtime Database into the hub's Firestore
+# (step 5B, STEP-5-PLAN.md, backend/tracker-migration/migrate.mjs), run here so
+# no service-account key ever has to leave GitHub. By hand only: Actions ->
+# Tracker migration -> Run workflow.
+#
+#   dry-run  reads the old database and Firestore, writes nothing, prints what it would write.
+#   write    the real copy, then it reads Firestore back and compares ("Everything matches."),
+#            then a dry run again, which should say "Documents to write: 0". Needs confirm = WRITE.
+#            Turn Manage -> Data source -> Read-only ON first, so nothing changes mid-copy.
+#   check    only the comparison.
+#
+# It never moves the switch (Manage -> Data source does that) and never deletes anything.
+# NB: this repo is public, so run logs are too. migrate.mjs prints counts only, never names.
+name: Tracker migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run reads only; write copies for real (needs confirm); check only compares'
+        type: choice
+        options: [dry-run, write, check]
+        default: dry-run
+      confirm:
+        description: 'For write only: type WRITE (and have turned Read-only on in Manage -> Data source)'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tracker-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: A write needs the word WRITE
+        if: inputs.mode == 'write' && inputs.confirm != 'WRITE'
+        run: |
+          echo "Not writing: type WRITE in the confirm box (and turn Read-only on first)."
+          exit 1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: backend/tracker-migration
+      # The two keys, written to the runner's temp folder only for this job and removed after.
+      - name: Put the keys where migrate.mjs reads them
+        env:
+          CHS_EQUIPMENT_SERVICE_ACCOUNT: ${{ secrets.CHS_EQUIPMENT_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID:   ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY:  ${{ secrets.FIREBASE_PRIVATE_KEY }}
+        run: |
+          node <<'EOF'
+          const fs = require('fs'), dir = process.env.RUNNER_TEMP, e = process.env
+          if (!e.CHS_EQUIPMENT_SERVICE_ACCOUNT || !e.FIREBASE_PROJECT_ID || !e.FIREBASE_CLIENT_EMAIL || !e.FIREBASE_PRIVATE_KEY) { console.error('A secret is missing.'); process.exit(1) }
+          fs.writeFileSync(dir + '/chs-sa.json', e.CHS_EQUIPMENT_SERVICE_ACCOUNT, { mode: 0o600 })
+          fs.writeFileSync(dir + '/hub-sa.json', JSON.stringify({ type: 'service_account', project_id: e.FIREBASE_PROJECT_ID, client_email: e.FIREBASE_CLIENT_EMAIL, private_key: e.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') }), { mode: 0o600 })
+          EOF
+          echo "HUB_SA=$RUNNER_TEMP/hub-sa.json" >> "$GITHUB_ENV"
+          echo "CHS_SA=$RUNNER_TEMP/chs-sa.json" >> "$GITHUB_ENV"
+      - name: Dry run
+        if: inputs.mode == 'dry-run'
+        run: node migrate.mjs --from live
+        working-directory: backend/tracker-migration
+      - name: Copy for real (writes, then checks itself)
+        if: inputs.mode == 'write' && inputs.confirm == 'WRITE'
+        run: node migrate.mjs --from live --write
+        working-directory: backend/tracker-migration
+      - name: Run it again, which should now write nothing
+        if: inputs.mode == 'write' && inputs.confirm == 'WRITE'
+        run: node migrate.mjs --from live
+        working-directory: backend/tracker-migration
+      - name: Check only
+        if: inputs.mode == 'check'
+        run: node migrate.mjs --from live --check
+        working-directory: backend/tracker-migration
+      - name: Remove the keys
+        if: always()
+        run: rm -f "$RUNNER_TEMP/chs-sa.json" "$RUNNER_TEMP/hub-sa.json"
