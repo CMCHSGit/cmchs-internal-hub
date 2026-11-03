@@ -433,9 +433,9 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <button class="btn quiet" id="sumSkipRest" type="button" hidden>Skip steps not done</button>
           <button class="btn quiet" id="sumEdit" type="button">Edit details</button>
           <button class="btn quiet" id="sumReload" type="button" title="Load the latest version of this template, keeping the results already recorded"><svg class="i"><use href="#i-refresh"/></svg>Reload template</button>
-          <button class="btn" id="sumPdf" type="button"><svg class="i"><use href="#i-download"/></svg>Save PDF</button>
+          <button class="btn" id="sumPdf" type="button" title="Saves the PDF report and the Ansur record (.mtr) together, in a folder you choose."><svg class="i"><use href="#i-download"/></svg>Save PDF + Ansur file</button>
           <button class="btn quiet" id="sumPrint" type="button"><svg class="i"><use href="#i-printer"/></svg>Print</button>
-          <button class="btn" id="sumMtr" type="button" title="An Ansur record (.mtr) that opens in Ansur and can be attached to a Simpro job. Saved to the Results folder."><svg class="i"><use href="#i-download"/></svg>Ansur file (.mtr)</button>
+          <button class="btn quiet" id="sumMtr" type="button" title="Just the Ansur record (.mtr), which opens in Ansur and can be attached to a Simpro job. Saved to the Results folder."><svg class="i"><use href="#i-download"/></svg>Ansur file only</button>
           <button class="btn quiet" id="sumExport" type="button" title="The whole test as a file that can be reopened here later with every detail. Simpro won't take it, so use the Ansur file for jobs."><svg class="i"><use href="#i-download"/></svg>Results file (.json)</button>
         </div>
       </div>
@@ -3944,6 +3944,33 @@ async function exportMtr(run) {
   } catch (e) { log('er', 'RUN', 'Ansur export failed: ' + e.message); dialog({ title: 'Couldn’t create the Ansur file', body: `<p>${esc(e.message)}</p>` }); }
 }
 
+/**
+ * Save PDF + Ansur file: both are saved together, in a folder chosen each time (the picker opens where it was last). Where the browser
+ * can't choose a folder both are downloaded; closing the picker cancels. Each also goes to the hub's Saved reports. A test opened from
+ * an Ansur record (or a results file) gets the PDF only: its Ansur record is the file it came from.
+ */
+async function saveReportFiles(run) {
+  run = run || Runner.run; if (!run) return;
+  let dir = null;
+  if (typeof window.showDirectoryPicker === 'function') {
+    try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }); }   // first, while the click still counts
+    catch (e) { if (e.name === 'AbortError') return; log('er', 'RUN', 'Folder not chosen, downloading instead: ' + e.message); }
+  }
+  const btns = ['#sumPdf', '#sumMtr'].map((s) => $(s)).filter(Boolean); btns.forEach((b) => { b.disabled = true; });
+  try {
+    const files = [[ReportPdf.fileName(run), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' })]];
+    if (!run.imported) files.push([outName(run, 'mtr'), new Blob([buildMtr(run)], { type: 'application/xml' })]);
+    for (const [name, blob] of files) {
+      if (dir) { const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(blob); await w.close(); }
+      else download(name, blob);
+      offerToHub(name, blob);
+    }
+    log('in', 'RUN', `${dir ? 'Saved' : 'Downloaded'} ${files.map((f) => f[0]).join(' and ')}${dir ? ` to ${dir.name}` : ''}`);
+    toast(`${dir ? 'Saved to ' + dir.name : 'Downloaded'}: ${files.map((f) => f[0]).join(' and ')}`, 5000);
+  } catch (e) { log('er', 'RUN', 'Saving the report files failed: ' + e.message); dialog({ title: 'Couldn’t save the report', body: `<p>${esc(e.message)}</p><p class="muted">Use Print instead and choose Save as PDF.</p>` }); }
+  btns.forEach((b) => { b.disabled = false; });
+}
+
 /* ======================= Ansur template (.mtt / .mtr) → Test Bench template ======================= */
 /** Plain text from an Ansur procedure (RTF or HTML). */
 function ansurProcText(raw) {
@@ -4253,6 +4280,22 @@ window.addEventListener('message', (e) => {
     reply({ mime: 'application/xml', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
   } catch (err) { log('er', 'RUN', 'Ansur record for Saved reports failed: ' + err.message); reply({ error: err.message }); }
 });
+/** Inside the hub: builds the PDF report from a saved results file or Ansur record when Saved reports asks (a test saved with only one of
+    those still downloads with its PDF). Replies with the bytes, or why it can't. */
+window.addEventListener('message', async (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  const m = e.data; if (!m || m.type !== 'chs-bench:build-pdf' || !(m.buffer instanceof ArrayBuffer)) return;
+  const reply = (o) => window.parent.postMessage({ type: 'chs-bench:pdf', id: m.id, ...o }, location.origin);
+  try {
+    const buf = new Uint8Array(m.buffer), head = new TextDecoder('ascii').decode(buf.slice(0, 200));
+    const text = new TextDecoder(/encoding="(iso-?8859-1|windows-1252)"/i.test(head) ? 'windows-1252' : 'utf-8').decode(buf);
+    let run;
+    if (/^\s*</.test(text)) run = ansurToRun(text, m.name || 'record.mtr');
+    else { const f = JSON.parse(text); if (!f || !f.run) throw new Error('This results file is an older kind with no test data in it, so a PDF can’t be made from it.'); run = f.run; }
+    const bytes = await ReportPdf.build(run);
+    reply({ mime: 'application/pdf', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
+  } catch (err) { log('er', 'RUN', 'PDF for Saved reports failed: ' + err.message); reply({ error: err.message }); }
+});
 /* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
 const SharedTests = {
   list: [], me: '', admin: false, ok: false, asks: new Map(), timers: {},
@@ -4434,7 +4477,7 @@ const App = {
     $('#tplCopySteps').addEventListener('click', () => copyStepsDialog());
     Devices.onChange(() => { if (!Devices.esa) Power.lost(); else Power.render(); });
     $('#sumPrint').addEventListener('click', () => Runner.printReport());
-    $('#sumPdf').addEventListener('click', () => ReportPdf.download());
+    $('#sumPdf').addEventListener('click', () => saveReportFiles());
 
     this.refreshRunPicker(); this.renderDevices(); this.fromHash(); Records.renderList(); Power.render(); SharedTests.hello();
     window.addEventListener('pagehide', () => Runner.autosaveNow());

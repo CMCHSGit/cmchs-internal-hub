@@ -124,7 +124,7 @@ test('the bench page: fonts are its own (works offline), and it hands saved file
   for (const m of css.matchAll(/url\((fonts\/[^)]+)\)/g)) assert.ok(existsSync(new URL(m[1], dir)), m[1] + ' is there')
   assert.ok(/Titillium Web/.test(css) && /Source Sans 3/.test(css) && /IBM Plex Mono/.test(css))
   // Every save (PDF, results file, Ansur record) goes through Results.save; each way out of it offers the file to the hub.
-  assert.equal((html.match(/offerToHub\(/g) || []).length, 4, 'defined once, called at the three ways a file leaves')
+  assert.equal((html.match(/offerToHub\(/g) || []).length, 5, 'defined once, called at the ways a file leaves (download, Results folder, fallback, and the chosen folder)')
   assert.ok(html.includes("type: 'chs-bench:file'") && html.includes('location.origin'), 'to the hub\'s own origin only')
   assert.ok(html.includes('window.parent === window'), 'alone, it does nothing extra')
   assert.ok(/<script>[\s\S]*PDFLib/.test(html), 'the PDF library is inside the page')

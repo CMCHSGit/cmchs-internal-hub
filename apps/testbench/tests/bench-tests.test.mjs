@@ -57,3 +57,17 @@ test('an ESA612 still in remote mode (REMOTE refused with error 02) is reset wit
   assert.match(html, /opts\.stillRemote/, 'the simulator can mimic it')
   assert.match(html, /if \(c === 'REMOTE'\) \{ if \(esaRemote\) return reply\('!02'\)/)
 })
+
+test('Save PDF + Ansur file saves both together after asking where; Saved reports saves PDF and Ansur record for every test, making whichever is missing', () => {
+  assert.match(html, /async function saveReportFiles\(run\)/)
+  assert.match(html, /showDirectoryPicker\(\{ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' \}\)/, 'asks where, opening where it was last')
+  assert.match(html, /if \(!run\.imported\) files\.push\(\[outName\(run, 'mtr'\)/, 'the Ansur record is made too (not for one opened from an Ansur record)')
+  assert.match(html, /\$\('#sumPdf'\)\.addEventListener\('click', \(\) => saveReportFiles\(\)\)/)
+  assert.match(html, /m\.type !== 'chs-bench:build-pdf'/, 'the bench can build a PDF from a results file or an Ansur record')
+  const reports = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.match(reports, /const needPdf = /)
+  assert.match(reports, /await makePdf\(g\)/)
+  assert.match(reports, /showDirectoryPicker\(\{ id: 'chs-test-bench-save'/, 'Saved reports asks where too')
+  assert.match(reports, /remove\(\[\.\.\.files, \.\.\.stale\]/, 'removing a test removes the older copies of it too')
+  assert.match(section, /'chs-bench:build-pdf'/)
+})

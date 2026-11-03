@@ -194,6 +194,14 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   copy is kept (once a day) in the Results folder's **Asset list backups** folder (downloaded if no Results folder is set up), and the result is
   read back and checked before it replaces the file. If it can't save (open in Excel, no permission) it says so and the test can start anyway.
   Only the cells filled in are changed; every other part of the workbook is copied across as it was, and Excel tables grow to take a new row.
+- **Saving gives both files, and asks where.** The summary's **Save PDF + Ansur file** saves the PDF report and the Ansur record (.mtr)
+  together (a test opened from an Ansur record gets the PDF only), in a folder chosen each time (the picker opens where it was last; browsers
+  that can't choose a folder download both). Saved reports' **Save to a folder…** does the same for the ticked tests: each gets its PDF and
+  its Ansur record, made on the spot by the bench from the results file or the other file when one is missing (so attaching to a Simpro job
+  sends both too).
+- **A device is one customer, and a test is one test.** In Saved reports every test of a serial number shows under that serial's latest customer,
+  and files with the same test start time saved under two names (a serial, model or customer corrected) are one test: saving replaces the older
+  copy of the same kind, and any already stored show as one (removing the test removes the older copies).
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
   `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under
   Previous tests ("Shared by …"); opening one fetches it onto that PC. The PDF and the Ansur record (.mtr) aren't stored: the bench

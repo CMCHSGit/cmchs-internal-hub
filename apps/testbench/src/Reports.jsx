@@ -19,7 +19,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, makeMtr, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -38,7 +38,11 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const files = useMemo(() => pickFiles(visible, [...chosen], exts), [visible, chosen, exts])
   // Ticked tests that have a results file but no Ansur record: the bench makes the record when they are downloaded or attached.
   const needMtr = useMemo(() => (exts.includes('mtr') ? visible.filter((g) => chosen.has(g.base) && g.files.some((f) => f.ext === 'json') && !g.files.some((f) => f.ext === 'mtr')) : []), [visible, chosen, exts])
-  const count = files.length + needMtr.length
+  // Ticked tests that have no PDF: made from the results file or the Ansur record, so a download always has the PDF and the Ansur record.
+  const needPdf = useMemo(() => (exts.includes('pdf') ? visible.filter((g) => chosen.has(g.base) && !g.files.some((f) => f.ext === 'pdf') && g.files.some((f) => f.ext === 'json' || f.ext === 'mtr')) : []), [visible, chosen, exts])
+  // Older copies of the same test saved under another name: removed along with it.
+  const stale = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.stale || []), [visible, chosen])
+  const count = files.length + needMtr.length + needPdf.length
   const picked = visible.filter((g) => chosen.has(g.base)).length
   const total = reports.reduce((n, r) => n + (r.size || 0), 0)
   const waiting = outbox.filter((x) => x.status === 'waiting').length
@@ -47,25 +51,34 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const toggle = (bases, on) => setChosen((s) => { const n = new Set(s); for (const b of bases) on ? n.add(b) : n.delete(b); return n })
   const allOf = (list) => list.length > 0 && list.every((g) => chosen.has(g.base))
 
-  /** The ticked files plus an Ansur record made for each ticked test that has none. `skipped` counts the ones that couldn't be made (older results files). */
+  /** The ticked files plus an Ansur record and a PDF made for each ticked test that lacks one. `skipped` counts the ones that couldn't be made (older results files). */
   async function withMtr() {
     const made = []; let skipped = 0
     for (const g of needMtr) { try { made.push(await makeMtr(g)) } catch { skipped++ } }
+    for (const g of needPdf) { try { made.push(await makePdf(g)) } catch { skipped++ } }
     return { list: [...files, ...made], skipped }
   }
-  const skippedNote = (n) => (n ? ` ${n} test${n === 1 ? '' : 's'} had no Ansur record made (an older results file).` : '')
+  const skippedNote = (n) => (n ? ` ${n} file${n === 1 ? '' : 's'} couldn’t be made (an older results file).` : '')
+  const canPickFolder = typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function'
 
+  /** Saves the ticked tests' files (each with its PDF and Ansur record) into a folder chosen each time, one file apiece; where the browser can't choose a folder, as a zip. */
   async function download() {
     if (!count) return
+    let dir = null
+    if (canPickFolder) {   // first, while the click still counts
+      try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }) } catch (e) { if (e.name === 'AbortError') return }
+    }
     setBusy(true)
     try {
       const { list, skipped } = await withMtr()
       if (!list.length) throw new Error('Nothing to download.' + skippedNote(skipped))
-      if (list.length === 1) saveBlob(list[0].name, new Blob([list[0].buffer], { type: list[0].mime }))
+      if (dir) {
+        for (const f of list) { const w = await (await dir.getFileHandle(f.name, { create: true })).createWritable(); await w.write(new Blob([f.buffer], { type: f.mime })); await w.close() }
+      } else if (list.length === 1) saveBlob(list[0].name, new Blob([list[0].buffer], { type: list[0].mime }))
       else saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(list.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
-      logActivity(null, `Downloaded ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
-      setNote({ text: (list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: 'success' })
-    } catch (e) { setNote({ text: 'Not downloaded: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+      logActivity(null, `Saved ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
+      setNote({ text: (dir ? `Saved ${list.length} file${list.length === 1 ? '' : 's'} to ${dir.name}.` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: 'success' })
+    } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
   async function attach() {
@@ -171,8 +184,8 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
           <div className="tb-actionbar">
             <div className="tb-actionbar-row">
               <strong>{count ? `${count} file${count === 1 ? '' : 's'} from ${picked} test${picked === 1 ? '' : 's'}` : 'Tick tests above'}</strong>
-              <Button variant="secondary" disabled={busy || !count} onClick={download}>{count > 1 ? 'Download as zip' : 'Download'}</Button>
-              <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove(files, `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
+              <Button variant="secondary" disabled={busy || !count} onClick={download}>{canPickFolder ? 'Save to a folder…' : count > 1 ? 'Download as zip' : 'Download'}</Button>
+              <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove([...files, ...stale], `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
               <span>Attach to Simpro job:</span>

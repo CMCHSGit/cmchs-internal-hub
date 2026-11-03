@@ -132,7 +132,7 @@ function TestBench() {
         toBench({ type: 'chs-bench:deleted', reqId: m.reqId, id: m.id, ...reply })
         return
       }
-      if (m?.type === 'chs-bench:mtr') {   // the bench's answer to a request for an Ansur record
+      if (m?.type === 'chs-bench:mtr' || m?.type === 'chs-bench:pdf') {   // the bench's answer to a request for an Ansur record or a PDF
         const p = asks.current.get(m.id); asks.current.delete(m.id)
         if (p) m.error || !(m.buffer instanceof ArrayBuffer) ? p.reject(new Error(m.error || 'The bench sent nothing back.')) : p.resolve({ buffer: m.buffer, mime: m.mime })
         return
@@ -150,15 +150,17 @@ function TestBench() {
     return () => window.removeEventListener('message', onMessage)
   }, [reportStore, refreshReports, user, sendShared, toBench])
 
-  /** Asks the bench (still loaded behind this tab) to build an Ansur record (.mtr) from a results file. */
-  const toMtr = useCallback((buffer) => new Promise((resolve, reject) => {
+  /** Asks the bench (still loaded behind this tab) to build a file from a saved one: an Ansur record (.mtr) from a results file, or a PDF from a results file or an Ansur record. */
+  const askBench = useCallback((type, buffer, name) => new Promise((resolve, reject) => {
     const win = frame.current?.contentWindow
     if (!win) { reject(new Error('The Test Bench isn’t loaded yet. Open the Test Bench tab once, then try again.')); return }
     const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const timer = setTimeout(() => { asks.current.delete(id); reject(new Error('The Test Bench didn’t answer. Reload the page and try again.')) }, 20000)
     asks.current.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v) }, reject: (e) => { clearTimeout(timer); reject(e) } })
-    win.postMessage({ type: 'chs-bench:build-mtr', id, buffer: buffer.slice(0) }, location.origin)
+    win.postMessage({ type, id, name, buffer: buffer.slice(0) }, location.origin)
   }), [])
+  const toMtr = useCallback((buffer) => askBench('chs-bench:build-mtr', buffer), [askBench])
+  const toPdf = useCallback((buffer, name) => askBench('chs-bench:build-pdf', buffer, name), [askBench])
 
   /** An Ansur record for a saved test that has a results file but no .mtr: made by the bench, then kept with the others. */
   const makeMtr = useCallback(async (g) => {
@@ -169,6 +171,16 @@ function TestBench() {
     refreshReports()
     return { ...rec, ext: 'mtr', kind: 'Ansur record' }
   }, [reportStore, toMtr, refreshReports])
+
+  /** A PDF for a saved test that has only a results file or an Ansur record: made by the bench, then kept with the others. */
+  const makePdf = useCallback(async (g) => {
+    const src = g.files.find((f) => f.ext === 'json') || g.files.find((f) => f.ext === 'mtr')
+    if (!src || !reportStore) throw new Error('This test has no file to make a PDF from.')
+    const { buffer, mime } = await toPdf(src.buffer, src.name)
+    const rec = await saveReport(reportStore, { name: g.base + '.pdf', mime, buffer, meta: src.meta })
+    refreshReports()
+    return { ...rec, ext: 'pdf', kind: 'Report' }
+  }, [reportStore, toPdf, refreshReports])
 
   /** Sends what is waiting. Safe to call whenever: one run at a time, and it only stops for a missing connection or sign-in. */
   const sendWaiting = useCallback(async (quiet = false) => {
@@ -256,7 +268,7 @@ function TestBench() {
       {tab === 'reports' && (
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
-          onAttach={attach} makeMtr={makeMtr}
+          onAttach={attach} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
           onSendWaiting={() => sendWaiting()}

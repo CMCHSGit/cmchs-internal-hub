@@ -63,6 +63,11 @@ export async function saveReport(store, { name, mime, buffer, meta }, now = Date
   const rec = { id: name, name, mime: mime || '', buffer, size: buffer.byteLength, savedAt: now, sent: [],
     meta: { customer: text(m.customer), serial: text(m.serial), model: text(m.model), template: text(m.template), testedAt: text(m.testedAt) } }
   await store.put(rec)
+  // The same test saved again under another name (a serial or model corrected, a copy kept) is that test, not a second one: its older copy of this kind goes.
+  if (rec.meta.testedAt) {
+    const ext = describeFile(name).ext
+    for (const o of await store.all()) if (o.id !== rec.id && o.meta && o.meta.testedAt === rec.meta.testedAt && describeFile(o.name).ext === ext) await store.remove(o.id)
+  }
   return rec
 }
 
@@ -99,7 +104,49 @@ export function groupReports(list) {
     g.sentTo = [...new Set(g.files.flatMap((f) => f.sent.map((s) => s.job)))]
     g.unsent = g.files.some((f) => !f.sent.length)
   }
-  return [...m.values()].sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt))
+  return oneCustomerPerDevice(mergeSameTest([...m.values()])).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt))
+}
+
+/**
+ * A test is one run, and a run has one time it started: files with the same start time are the same test even if they were saved under
+ * two names (a serial corrected, a copy kept), so they become one group, the newest save leading. Of each kind (PDF, results file, Ansur
+ * record) the newest is the one kept in `files`; any older copy is in `stale`, to be removed with the test.
+ */
+function mergeSameTest(groups) {
+  const byRun = new Map(), out = []
+  for (const g of groups) {
+    if (!g.testedAt) { out.push(g); continue }
+    if (!byRun.has(g.testedAt)) byRun.set(g.testedAt, [])
+    byRun.get(g.testedAt).push(g)
+  }
+  for (const list of byRun.values()) {
+    if (list.length === 1) { out.push(list[0]); continue }
+    list.sort((a, b) => b.savedAt - a.savedAt)
+    const [lead, ...rest] = list
+    const merged = { ...lead, files: [], stale: [...(lead.stale || [])] }
+    const byKind = new Map()
+    for (const f of list.flatMap((g) => g.files).sort((a, b) => b.savedAt - a.savedAt)) { if (byKind.has(f.ext)) merged.stale.push(f); else byKind.set(f.ext, f) }
+    merged.files = [...byKind.values()]
+    merged.files.sort((a, b) => ({ pdf: 0, json: 1, mtr: 2 }[a.ext] ?? 9) - ({ pdf: 0, json: 1, mtr: 2 }[b.ext] ?? 9))
+    merged.savedAt = Math.max(...list.map((g) => g.savedAt))
+    merged.sentTo = [...new Set(merged.files.flatMap((f) => f.sent.map((s) => s.job)))]
+    merged.unsent = merged.files.some((f) => !f.sent.length)
+    for (const g of rest) { if (!merged.serial) merged.serial = g.serial; if (!merged.model) merged.model = g.model; if (merged.customer === NO_CUSTOMER) merged.customer = g.customer; if (!merged.template) merged.template = g.template }
+    out.push(merged)
+  }
+  return out
+}
+
+/** A device belongs to one customer: every test of a serial number takes the customer of its most recently saved test that has one. */
+function oneCustomerPerDevice(groups) {
+  const latest = new Map()
+  for (const g of groups) {
+    const k = String(g.serial || '').trim().toLowerCase()
+    if (!k || g.customer === NO_CUSTOMER) continue
+    if (!latest.has(k) || g.savedAt > latest.get(k).savedAt) latest.set(k, g)
+  }
+  for (const g of groups) { const k = String(g.serial || '').trim().toLowerCase(), w = latest.get(k); if (k && w) g.customer = w.customer }
+  return groups
 }
 
 export const PERIODS = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['30', 'Last 30 days']]

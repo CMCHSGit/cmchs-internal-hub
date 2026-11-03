@@ -91,3 +91,6 @@ Power for charging: Runner.chargeAfterTests() calls Power.start(true) at the end
 
 ## ESA612 "REMOTE: error 02: Illegal command" on connecting (04/11/2026)
 The ESA612 refuses REMOTE (error 02) while it is still in remote mode from a session that was not closed with LOCAL, which showed as a toast and left the connection in an error state. Devices.connect now answers error 02 with LOCAL, a 0.4 s wait and REMOTE again; any other error (or a second refusal) is reported as before. The simulator has opts.stillRemote to mimic it.
+
+## Both files on save, asking where, and no duplicate tests (04/11/2026)
+Save PDF + Ansur file (saveReportFiles) writes both into a folder from showDirectoryPicker (id chs-test-bench-save), else downloads both; Saved reports' download does the same per ticked test and makes a missing PDF (bench message chs-bench:build-pdf, from the results file or the Ansur record) or Ansur record. reports.js: saveReport replaces an older file of the same kind from the same run (same meta.testedAt); groupReports merges groups with the same start time (mergeSameTest: newest of each kind in files, the rest in stale) and gives every test of a serial number the customer of its latest saved test (oneCustomerPerDevice). Reports.jsx removes stale copies with the test.
