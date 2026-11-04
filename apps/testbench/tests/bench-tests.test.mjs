@@ -146,3 +146,12 @@ test('the template for a device model: one clear match, else none (the bench the
   assert.equal(best('Nonexistent X99'), null, 'a model with a number that no template lists')
   assert.equal(best(''), null)
 })
+
+test('the first-column script and the bench both build the same link, and the backup falls back to a download', () => {
+  const ps = readFileSync(new URL('../tools/add-test-link-column.ps1', import.meta.url), 'utf8')
+  assert.match(ps, /ListColumns\.Add\(1\)/, 'Excel inserts the column first')
+  assert.match(ps, /Font\.Color = 0/, 'a black header: red means mandatory')
+  assert.match(ps, /'Old'/, 'a copy is kept first')
+  assert.ok(ps.includes('https://internal.chsnz.co.nz/testbench/') && ps.includes("'?'") && ps.includes('ENCODEURL([@['), 'the same link as the bench writes')
+  assert.match(html, /Backup in the Results folder failed/, 'a Results folder that can\'t be written falls back to a download')
+})

@@ -2621,9 +2621,14 @@ const Sheet = {
     const name = file.replace(/\.xlsx?$/i, '') + ` backup ${stamp}.xlsx`;
     let dir = null; try { dir = await Results.folder(); } catch {}
     if (!dir) { download(name, new Blob([buf])); return; }   // no Results folder set up on this PC: the browser downloads the copy instead
-    const sub = await dir.getDirectoryHandle('Asset list backups', { create: true });
-    try { await sub.getFileHandle(name); return; } catch {}   // the first copy of the day is the one worth keeping
-    const w = await (await sub.getFileHandle(name, { create: true })).createWritable(); await w.write(buf); await w.close();
+    try {
+      const sub = await dir.getDirectoryHandle('Asset list backups', { create: true });
+      try { await sub.getFileHandle(name); return; } catch {}   // the first copy of the day is the one worth keeping
+      const w = await (await sub.getFileHandle(name, { create: true })).createWritable(); await w.write(buf); await w.close();
+    } catch (e) {   // the Results folder can't be written (moved, renamed, or not synced yet): the browser downloads the copy instead
+      log('er', 'SHEET', `Backup in the Results folder failed (${e.message}); downloaded instead`);
+      download(name, new Blob([buf])); toast('The backup copy was downloaded instead (the Results folder couldn’t be used).', 5000);
+    }
   },
   /**
    * Puts the entered details into the asset list: the device's row, or the first free row of the chosen sheet for a new device. The file is read
