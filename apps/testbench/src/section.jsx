@@ -250,7 +250,7 @@ function TestBench() {
   return (
     <div className="tb-host" ref={host} style={top ? { height: `calc(100dvh - ${top}px)` } : undefined}>
       <div className="tb-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={tab === 'bench'} className={tab === 'bench' ? 'is-on' : ''} onClick={() => setTab('bench')}>Test Bench</button>
+        <button type="button" role="tab" aria-selected={tab === 'bench'} className={tab === 'bench' ? 'is-on' : ''} onClick={() => { if (tab === 'bench') toBench({ type: 'chs-bench:home' }); setTab('bench') }}>Test Bench</button>
         <button type="button" role="tab" aria-selected={tab === 'reports'} className={tab === 'reports' ? 'is-on' : ''} onClick={() => { setTab('reports'); setJustSaved([]); refreshReports(); refreshOutbox() }}>
           Saved reports
           {tests.length > 0 && <Badge tone="purple">{unsent ? `${unsent} not sent` : `${tests.length}`}</Badge>}

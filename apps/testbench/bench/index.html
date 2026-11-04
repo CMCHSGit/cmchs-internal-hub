@@ -4654,6 +4654,8 @@ const App = {
     $('#editDut').addEventListener('click', () => Runner.editDetails());
     $('#sumEdit').addEventListener('click', () => Runner.editDetails());
     $('#sumNew').addEventListener('click', () => this.nextDevice());
+    $('.brand').addEventListener('click', (e) => this.home(e));
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.source === window.parent && e.data && e.data.type === 'chs-bench:home') this.home(); });   // the hub's Test Bench tab, clicked again
     $('#nextOther').addEventListener('click', () => { $('#runSetup').classList.remove('next-device'); this.refreshRunPicker(); window.scrollTo({ top: 0 }); });
     $('#sumResume').addEventListener('click', () => Runner.resume());
     $('#runReload').addEventListener('click', () => Runner.reloadTemplate());
@@ -4824,6 +4826,14 @@ const App = {
   },
   /** After a test: the next device on the same template. The details stay (customer, engineer, model…); the serial number is blank.
       The checklist answers (Pass and N/A on checklist steps) are kept too, to be put back when the next test starts. */
+  /** The logo and "Test Bench" (and the hub's Test Bench tab): back to Choose a template. A test in progress is never left behind; a finished one is already saved. */
+  home(e) {
+    if (e) e.preventDefault();
+    if (!$('#runActive').hidden) { this.show('run'); return; }
+    if (!$('#runSummary').hidden) { if (Power.on) Power.off(true); $('#runSummary').hidden = true; $('#runSetup').hidden = false; }
+    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true;
+    this.show('run'); this.refreshRunPicker(); window.scrollTo({ top: 0 });
+  },
   nextDevice() {
     const run = Runner.run, t = run && Store.get(run.templateId);
     if (Power.on) Power.off(true);   // the next device goes on the same outlet: it is switched off first

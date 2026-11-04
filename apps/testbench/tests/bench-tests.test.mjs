@@ -176,3 +176,13 @@ test('a browser with no folder picker (Firefox) loads the templates published wi
   const sync = readFileSync(new URL('../tools/sync-templates.mjs', import.meta.url), 'utf8')
   assert.match(sync, /_Run a test layout\.json/, 'the team layout goes with the templates')
 })
+
+test('the logo, "Test Bench" and the hub\'s Test Bench tab take a finished test back to Choose a template, never leaving one in progress', () => {
+  assert.ok(html.includes("$('.brand').addEventListener('click', (e) => this.home(e))"))
+  assert.ok(html.includes("e.data.type === 'chs-bench:home') this.home()"), 'the hub can ask too')
+  const home = html.slice(html.indexOf('  home(e) {'), html.indexOf('  nextDevice() {'))
+  assert.ok(home.includes("if (!$('#runActive').hidden) { this.show('run'); return; }"), 'a test in progress is only shown')
+  assert.ok(home.includes("$('#runSummary').hidden = true; $('#runSetup').hidden = false") && home.includes("$('#tplSearch').value = ''") && home.includes('this.refreshRunPicker()'))
+  const sec = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
+  assert.ok(sec.includes("if (tab === 'bench') toBench({ type: 'chs-bench:home' })"), 'the open Test Bench tab, clicked again')
+})
