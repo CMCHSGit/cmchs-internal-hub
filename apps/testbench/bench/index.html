@@ -213,6 +213,8 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .tpl-tile:hover{box-shadow:var(--shadow-card-hover);transform:translateY(-2px)}
 .tpl-tile[aria-pressed="true"]{border-color:var(--chs-purple);box-shadow:0 0 0 2px var(--chs-purple)}
 .tpl-tile .t-name{font:600 14.5px/1.25 var(--font-display);color:var(--text-strong)}
+.tpl-tile.hl{border-color:var(--chs-purple-60);background:#f6f4fb;box-shadow:inset 4px 0 0 var(--chs-purple),var(--shadow-card)}
+.tpl-tile.hl .t-name{color:var(--chs-purple-dark)}
 .tpl-tile .chips .badge{font-size:11px;padding:1px 7px}
 .tpl-tile .chips{display:flex;gap:6px;flex-wrap:wrap}
 .runner{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
@@ -478,6 +480,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
             <input class="input" id="tplDesc" placeholder="Short description, e.g. Mindray TM80, Class I, CF applied parts" aria-label="Template description" style="margin-top:8px;min-height:34px">
             <input class="input" id="tplCategory" list="tplCats" aria-label="Template group" style="margin-top:8px;min-height:34px">
             <datalist id="tplCats"></datalist>
+            <label class="check" style="margin-top:8px"><input type="checkbox" id="tplHighlight"> Highlight this template on the Run a test page (for the main patient monitors)</label>
           </div>
           <div class="row" style="flex-wrap:nowrap">
             <button class="icon-btn" id="tplSaveShared" type="button" aria-label="Save to the shared templates folder" title="Save to the shared templates folder"><svg class="i"><use href="#i-upload"/></svg></button>
@@ -1387,7 +1390,7 @@ const stepForModel = (s, model) => !model || !Array.isArray(s.models) || !s.mode
 const modelBadge = (t, s) => { const all = tplModels(t); return all.length > 1 && Array.isArray(s.models) && s.models.length && s.models.length < all.length ? `${s.models.join(', ')} only` : ''; };
 /* Template groups: the headings on the Run a test page (Anaesthesia, Monitoring…). A template's own group (Templates page)
    wins; without one it is worked out from the name and description. */
-const CATEGORIES = ['Anaesthesia', 'Monitoring', 'Defibrillation', 'Power supplies', 'Computers'];
+const CATEGORIES = ['Anaesthesia', 'Monitoring', 'Modules', 'Defibrillation', 'Power supplies', 'Computers'];
 function categoryOf(t) {
   const own = String(t.category || '').trim(); if (own) return own;
   const x = `${t.name || ''} ${t.desc || ''}`;
@@ -1395,6 +1398,7 @@ function categoryOf(t) {
   if (/anaesth|anesth|ventilat|\ba[5-9]\b/i.test(x)) return 'Anaesthesia';
   if (/defib|\baed\b|\bd[36]0\b/i.test(x)) return 'Defibrillation';
   if (/power supply|isolated output|\bpsu\b/i.test(x)) return 'Power supplies';
+  if (/\bmodules?\b/i.test(t.name || '') && !/monitor/i.test(t.name || '')) return 'Modules';
   if (/monitor|module|ecg|spo2|nibp|capno|\btm\d|patient/i.test(x)) return 'Monitoring';
   return 'Other';
 }
@@ -1406,7 +1410,7 @@ function groupTemplates(list) {
 }
 /** Build a clean Test Bench template from imported JSON (file, shared folder or copy). */
 function templateFromRaw(raw, fallbackName) {
-  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
+  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), highlight: !!raw.highlight, updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
     steps: raw.steps.filter(s => s && TYPES[s.type]).map(s => newStep(s.type, { title: String(s.title || TYPES[s.type].label), instructions: String(s.instructions || ''), hold: Math.max(0, +s.hold || 0), images: Array.isArray(s.images) ? s.images.filter(i => i && /^data:image\//.test(i.src)) : [], params: s.params || {}, models: Array.isArray(s.models) && s.models.length ? s.models.map(String) : undefined })) };
 }
 function newStep(type, over = {}) {
@@ -1422,7 +1426,7 @@ function stepCmdsBlocked(step) {
 function defaultTemplates() {
   const vis = newStep('check', { title: 'Visual inspection', instructions: 'Inspect the device, cables and accessories.', params: { items: ['The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.', 'The external connecting cables are not frayed and the connector pins are not loose or bent.', 'The external connectors are not loose and their pins are not bent.', 'The safety labels and data plate are clearly legible.', 'The power-on test is passed. The power indicator and alarm system work correctly and the monitor starts up properly.'] } });
   const t1 = {
-    id: uid(), name: 'Patient monitor', desc: 'Class I, CF applied parts. Limits from the CHS Ansur template.', updated: Date.now(),
+    id: uid(), name: 'Patient monitor', highlight: true, desc: 'Class I, CF applied parts. Limits from the CHS Ansur template.', updated: Date.now(),
     appliedParts: [{ id: uid(), name: 'ECG, SpO2, Temp', apclass: 'CF', leads: [...LEADS] }],
     dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'CHS asset #', 'Customer asset #'],
     steps: [
@@ -1447,7 +1451,7 @@ function defaultTemplates() {
     ],
   };
   const t2 = {
-    id: uid(), name: 'Mindray TM80', desc: 'Performance verification only. Matches the TM80 Ansur template.', updated: Date.now(),
+    id: uid(), name: 'Mindray TM80', highlight: true, desc: 'Performance verification only. Matches the TM80 Ansur template.', updated: Date.now(),
     dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'Customer asset #'],
     steps: [
       clone(vis),
@@ -1678,6 +1682,7 @@ const Builder = {
     $('#tplImportFile').addEventListener('change', (e) => this.importTemplate(e));
     $('#tplName').addEventListener('input', (e) => { this.tpl.name = e.target.value; Store.save(this.tpl); this.renderTplList(); });
     $('#tplDesc').addEventListener('input', (e) => { this.tpl.desc = e.target.value; Store.save(this.tpl); });
+    $('#tplHighlight').addEventListener('change', (e) => { if (!this.tpl) return; this.tpl.highlight = e.target.checked; Store.save(this.tpl); this.renderTplList(); });
     $('#tplCategory').addEventListener('input', (e) => { this.tpl.category = e.target.value.trim(); Store.save(this.tpl); this.renderTplList(); $('#tplCategory').placeholder = `Group on the Run a test page (now: ${categoryOf(this.tpl)}), e.g. Anaesthesia, Monitoring`; });
     this.bindCanvas();
     this.bindInspector();
@@ -1697,6 +1702,7 @@ const Builder = {
   },
   renderHeader() {
     $('#tplName').value = this.tpl?.name || ''; $('#tplDesc').value = this.tpl?.desc || '';
+    $('#tplHighlight').checked = !!this.tpl?.highlight;
     $('#tplCategory').value = this.tpl?.category || ''; $('#tplCategory').placeholder = this.tpl ? `Group on the Run a test page (now: ${categoryOf(this.tpl)}), e.g. Anaesthesia, Monitoring` : 'Group';
     $('#tplCats').innerHTML = [...new Set([...CATEGORIES, ...Store.templates.map(categoryOf), 'Other'])].map(c => `<option value="${esc(c)}">`).join('');
     Shared.renderTpl();
@@ -4502,7 +4508,7 @@ const App = {
   refreshRunPicker() {
     const tiles = groupTemplates(Store.templates).map(([cat, list]) => `<div class="tpl-group" role="presentation">${esc(cat)}</div>` + list.map(t => {
       const g = new Set(t.steps.map(s => TYPES[s.type]?.group));
-      return `<button type="button" class="tpl-tile" data-id="${t.id}" aria-pressed="${this.picked === t.id}"${t.desc ? ` title="${esc(t.desc)}"` : ''}>
+      return `<button type="button" class="tpl-tile${t.highlight ? ' hl' : ''}" data-id="${t.id}" aria-pressed="${this.picked === t.id}"${t.desc ? ` title="${esc(t.desc)}"` : ''}>
         <span class="t-name">${esc(t.name)}</span>
         <span class="chips"><span class="badge">${t.steps.length} steps</span>${g.has('esa') ? '<span class="badge warn">ESA612</span>' : ''}${g.has('ps') ? '<span class="badge pass">ProSim 8</span>' : ''}</span></button>`;
     }).join('')).join('');

@@ -4,7 +4,7 @@
   "template": {
     "name": "Mindray C.O. Module",
     "desc": "Cardiac output (C.O.) module, CF applied part. From the CHS Ansur template “C.O. Module AS-NZS 3551 PVT”. Needs the ESA612.",
-    "category": "Monitoring",
+    "category": "Modules",
     "dut": [
       "Serial number",
       "Manufacturer",

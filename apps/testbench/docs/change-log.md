@@ -108,3 +108,6 @@ The tiles on Run a test show the name and the ESA612 / ProSim 8 badges only; the
 
 ## Shorter template titles (04/11/2026)
 The " – AS/NZS 3551 EST and PVT" (and EST / PVT) ending was dropped from every template title (the files in the Templates folder, the repo copies, the generators and the bench's two starter templates); the standard is still in each description. The 8 existing Templates-folder files were copied to Templates\Old first. The bench matches shared templates by file, so nothing is duplicated; tests already saved keep the old title.
+
+## Modules group and highlighted patient monitors (04/11/2026)
+Run a test now has a **Modules** group (after Monitoring) for the module templates (any template with "Module" in its name that is not a monitor), set with `category: "Modules"` in the file. A template can be **highlighted** (`highlight: true`, or the tick box in Templates → settings "Highlight this template on the Run a test page"): its tile has a purple edge, a tinted background and a purple name. The general patient monitors (R700/R12, TM80, PM-60, VS8/VS9, VS-600/VS-900, Patient Monitor and OR Modules) and the two starter monitor templates are highlighted. The 8 changed Templates-folder files were copied to Templates\Old first ("before groups and highlight 04.11.2026").

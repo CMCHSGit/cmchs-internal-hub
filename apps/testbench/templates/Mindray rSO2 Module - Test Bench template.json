@@ -4,7 +4,7 @@
   "template": {
     "name": "Mindray rSO2 Module",
     "desc": "rSO2 module, BF applied part: visual and electrical safety (no performance test in the Ansur template). From the CHS Ansur template “Visual + EST AS-NZS 3551 CL1” (rSO2). Needs the ESA612.",
-    "category": "Monitoring",
+    "category": "Modules",
     "dut": [
       "Serial number",
       "Manufacturer",

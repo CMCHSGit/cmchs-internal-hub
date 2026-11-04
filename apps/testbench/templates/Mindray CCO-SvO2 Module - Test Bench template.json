@@ -4,7 +4,7 @@
   "template": {
     "name": "Mindray CCO / SvO2 Module",
     "desc": "Continuous cardiac output and SvO2 module, CF applied parts (ECG leads). From the CHS Ansur template “CCO-SvO2 Module AS-NZS 3551 PVT”. Needs the ESA612.",
-    "category": "Monitoring",
+    "category": "Modules",
     "dut": [
       "Serial number",
       "Manufacturer",

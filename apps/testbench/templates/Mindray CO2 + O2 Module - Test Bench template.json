@@ -4,7 +4,7 @@
   "template": {
     "name": "Mindray CO2 + O2 Module",
     "desc": "Microstream CO2 and O2 module, BF applied part. From the CHS Ansur template “CO2+O2 module AS-NZS 3551 PVT”. Needs the ESA612.",
-    "category": "Monitoring",
+    "category": "Modules",
     "dut": [
       "Serial number",
       "Manufacturer",

@@ -47,3 +47,13 @@ test('the BeneHeart templates: internally powered units have no mains, earth or 
   assert.ok(d1.steps.filter((s) => s.models && s.models.join() === 'Pro').length >= 4)
   const aed = d1.steps.find((s) => s.id === 'aed'); assert.equal(aed.models, undefined, 'the AED test is for both')
 })
+
+test('modules are in their own group, and the general patient monitors are highlighted', () => {
+  const all = files.map((f) => JSON.parse(readFileSync(new URL(f, dir), 'utf8')).template)
+  for (const t of all.filter((x) => /\bModules?\b/.test(x.name) && !/Monitor/.test(x.name))) assert.equal(t.category, 'Modules', t.name)
+  for (const n of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600']) assert.equal(all.find((t) => t.name.includes(n)).highlight, true, n)
+  assert.ok(!all.some((t) => t.category === 'Modules' && t.highlight))
+  assert.match(html, /const CATEGORIES = \['Anaesthesia', 'Monitoring', 'Modules'/)
+  assert.match(html, /\.tpl-tile\.hl\{/)
+  assert.match(html, /highlight: !!raw\.highlight/, 'the flag survives loading a template from a file')
+})

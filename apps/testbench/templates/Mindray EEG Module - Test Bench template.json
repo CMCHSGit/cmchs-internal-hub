@@ -4,7 +4,7 @@
   "template": {
     "name": "Mindray EEG Module",
     "desc": "EEG module, CF applied part. From the CHS Ansur template “EEG Module AS-NZS 3551 EST and PVT”. Needs the ESA612.",
-    "category": "Monitoring",
+    "category": "Modules",
     "dut": [
       "Serial number",
       "Manufacturer",

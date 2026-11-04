@@ -73,7 +73,7 @@ test('Save PDF + Ansur file saves both together after asking where; Saved report
 })
 
 test('the template tiles are compact: name and badges, the description only as a hover title', () => {
-  assert.match(html, /class="tpl-tile" data-id="\$\{t\.id\}" aria-pressed="\$\{this\.picked === t\.id\}"\$\{t\.desc \? ` title="\$\{esc\(t\.desc\)\}"` : ''\}>/)
+  assert.match(html, /class="tpl-tile\$\{t\.highlight \? ' hl' : ''\}" data-id="\$\{t\.id\}" aria-pressed="\$\{this\.picked === t\.id\}"\$\{t\.desc \? ` title="\$\{esc\(t\.desc\)\}"` : ''\}>/)
   assert.doesNotMatch(html, /<span class="muted" style="font-size:14px">\$\{esc\(t\.desc\)\}<\/span>/, 'no description text in the tile')
   assert.match(html, /\.tpl-pick\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(210px,1fr\)\)/)
 })

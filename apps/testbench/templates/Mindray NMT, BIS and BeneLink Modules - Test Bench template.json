@@ -4,7 +4,7 @@
   "template": {
     "name": "Mindray NMT, BIS and BeneLink Modules",
     "desc": "NMT (CF) and BIS (BF) modules and the BeneLink module. From the CHS Ansur template “NMT, BIS, BL. Module AS-NZS 3551 PVT”. Needs the ESA612.",
-    "category": "Monitoring",
+    "category": "Modules",
     "dut": [
       "Serial number",
       "Manufacturer",
