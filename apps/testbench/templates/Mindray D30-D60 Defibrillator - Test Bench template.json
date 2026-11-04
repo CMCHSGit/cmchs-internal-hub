@@ -1,0 +1,620 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "id": "cjh2ixk5riei",
+  "name": "Mindray BeneHeart D30 / D60 Defibrillator",
+  "desc": "Class I. Applied parts: ECG, SpO2, Temp (CF) and paddles (B). One template for both models; D60-only steps are left out when testing a D30.",
+  "updated": 1793583215886,
+  "models": [
+   "D30",
+   "D60"
+  ],
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "vu8ufe387xe7",
+    "name": "ECG, SpO2, Temp",
+    "apclass": "CF",
+    "leads": [
+     "RA"
+    ]
+   },
+   {
+    "id": "hrra6p2f7xe7",
+    "name": "Pads",
+    "apclass": "BF",
+    "leads": [
+     "LA"
+    ]
+   }
+  ],
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing engineer"
+  ],
+  "steps": [
+   {
+    "id": "zhht126j7xe7",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Service Manual 4.2. Inspect the shell, display, buttons, paddles, cables and accessories.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+      "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+      "The external connectors are not loose and their pins are not bent.",
+      "The safety labels and data plate are clearly legible.",
+      "The power-on test is passed. The power indicator and alarm system work correctly and the equipment starts up properly."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "akky39wx7xe7",
+    "type": "check",
+    "title": "Power-on test, user test and recorder",
+    "instructions": "Power-on test (4.3):\n1. Place the paddles (if used) on the electrode base. Insert the battery and connect AC mains: the AC power and battery indicators light.\n2. Set Mode to Monitor and check the equipment passes its self-test and starts. The battery icon should look normal; a self-test failure flashes the status indicator red.\n\nUser test (4.4):\n1. Paddles on the electrode base, or the pads cable connected to the 50 Ω test load.\n2. Battery inserted (AC mains if no battery).\n3. Main Menu > Common > User test, and follow the prompts.\n4. Click Record to print the result.\n\nRecorder (4.5.1): in Monitor mode, print ECG waveforms. Then remove the paper or loosen the recorder pin and check the error message, and that printing works again afterwards. Mark N/A if no recorder is fitted.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Power-on: AC and battery indicators light and the self-test passes.",
+      "User test passes and the result is printed.",
+      "Recorder: printed ECG waveforms are clear and correct.",
+      "Recorder: the paper-out / pin error is shown and printing recovers once fixed."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "q28t1xul7xe7",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Set up for the electrical safety tests:\n1. Plug the ESA612 into the mains supply.\n2. Connect the defibrillator’s power cord to the ESA612 equipment outlet and switch it on in Monitor mode.\n3. Connect the ECG/SpO2 (and Temp on the D60) applied parts to the ESA612 RA post, and the paddles (or pads) to the LA post. These are two applied-part groups: ECG, SpO2, Temp as type CF and Paddles as type B. Use Change applied parts on the patient leakage step if the device is set up differently.\nThen start the auto sequence. It pauses only when the red test lead has to be moved.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
+   },
+   {
+    "id": "i91k0hfb7xe7",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "tmc4kmid7xe7",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "853bazzp7xe7",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to protective earth",
+    "instructions": "Recorded only. The Ansur template sets no limit for this measurement.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "APINS",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "konpr2qh7xe7",
+    "type": "esa_ins",
+    "title": "Insulation: mains to applied parts",
+    "instructions": "Recorded only. The Ansur template sets no limit for this measurement.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_AP",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "rrlqt5zy7xe7",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to non-earth accessible part",
+    "instructions": "Clip the red test lead to a conductive, non-earthed accessible part of the device (for example metal foil on the shell). Recorded only; the Ansur template sets no limit.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "AP_NE",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "dyza7n027xe7",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible part",
+    "instructions": "Keep the red test lead on the non-earthed accessible part.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "wkbhxemf7xe7",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Keep the red test lead on the non-earthed accessible part (metal foil on the shell).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "k1utkagf7xe7",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 500
+      },
+      {
+       "c": "ON",
+       "hi": 1000
+      }
+     ]
+    }
+   },
+   {
+    "id": "y7o84lfg7xe7",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Each applied-part group is measured on its own: ECG, SpO2, Temp (CF) on RA, paddles (B) on LA.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "f9edxiti7xe7",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Measured for the CF group only; AS/NZS 3551 doesn’t test mains on applied parts for type B (paddles).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "orqxlbwj7xe7",
+    "type": "check",
+    "title": "Manual defibrillation: charge and discharge",
+    "instructions": "Service Manual 4.5.2. Test tool: defibrillator/pacer analyser.\n1. Remove the battery and run on AC mains. Turn the Mode Select knob to Manual Defib.\n2. Connect the external paddles and place them on the analyser.\n3. Configuration – Main > Record Setup: set Shock Event to On.\n4. Set the analyser to Energy Measurement (it should read 0 or blank).\n5. Select 1 J, charge and discharge, and enter the energy the analyser measures. Repeat at 100 J and 360 J.\n6. Repeat on a fully charged battery, then with pads.\n7. Check the shock events are recorded.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Repeated on a fully charged battery: energies within the same limits.",
+      "Repeated with pads: energies within the same limits.",
+      "Shock events are recorded automatically and correctly.",
+      "Delivered energy at 1 J (paddles, AC) is no more than 3 J",
+      "Delivered energy at 100 J (paddles, AC) is between 90 and 110 J",
+      "Delivered energy at 360 J (paddles, AC) is between 324 and 396 J"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "h0g0bjyx7xe7",
+    "type": "check",
+    "title": "Energy disarming",
+    "instructions": "Service Manual 4.5.2.\n1. Disconnect AC; run on a fully charged battery. Press the Defib mode key.\n2. Connect the pads/paddles to the analyser in Energy Measurement mode (reads 0 or blank).\n3. Select 360 J and charge: the charge tone sounds.\n4. When charged, click Disarm.\n5. Configuration Main > Manual Defib Setup: set Time to Auto Disarm to 60 s. Select 360 J and charge, then wait 60 s without shocking.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The charge tone sounds while charging.",
+      "\"Charge Removed\" appears and the charge done tone stops when disarmed.",
+      "The analyser reads 0 J or blank after disarming.",
+      "After 60 s with Auto Disarm set to 60 s, \"Shock Removed\" appears and the analyser reads 0 J or blank."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "a5rsq7d67xe7",
+    "type": "check",
+    "title": "Synchronised cardioversion",
+    "instructions": "Service Manual 4.5.2.\n1. Connect the pads/paddles and the ECG leads to the analyser. Set the analyser to Synchronized Cardioversion with normal sinus rhythm (1 mV, 60 bpm).\n2. Configuration Main > Therapy Setup > Manual Defib Setup: set Sync After Shock to On.\n3. Select 10 J and press Enter Sync (choose Local if Remote Sync is On).\n4. Select Pads or Paddles as the ECG source, charge, and hold the Shock key.\n5. Repeat with lead II as the ECG source.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Synchronous discharge succeeds.",
+      "The sync mark appears on the R wave.",
+      "Prompt messages are correct during the test.",
+      "Repeated with lead II as the ECG source: passes.",
+      "Delivered energy at 10 J (sync) is between 8 and 12 J",
+      "Synchronisation delay is no more than 60 ms"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "a73al7gk7xe7",
+    "type": "check",
+    "title": "AED",
+    "instructions": "Service Manual 4.5.3.\n1. Connect the pads cable and pads to the analyser; set the analyser to output V-Fib.\n2. Config. Edit > AED Setup: set the shock energy to 200 J, 300 J and 360 J in turn.\n3. Power off and on, enter AED mode, and let it analyse, charge and discharge. Enter the energy the analyser measures for each setting.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "AED performs rhythm analysis, charging and discharging.",
+      "AED delivered energy at 200 J is between 180 and 220 J",
+      "AED delivered energy at 300 J is between 270 and 330 J",
+      "AED delivered energy at 360 J is between 324 and 396 J"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "3mcqqhec7xe7",
+    "type": "check",
+    "title": "Pacing",
+    "instructions": "Service Manual 4.5.4.\n1. Disconnect AC; run on a fully charged battery. Press the Pacing mode key and set Pacer Mode to Fixed.\n2. Connect the pads to the analyser in Pacing Measurement mode with the 50 Ω test load.\n3. Set 70 PPM and 30 mA, press Start Pacing, and enter the analyser readings.\n4. Stop Pacing, set 170 PPM and 200 mA, start again and enter the readings.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Pacer rate at 70 PPM is between 69 and 71 PPM",
+      "Pacer output at 30 mA is between 25 and 35 mA",
+      "Pacer rate at 170 PPM is between 168 and 172 PPM",
+      "Pacer output at 200 mA is between 190 and 210 mA"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "t3m7weqa7xe7",
+    "type": "check",
+    "title": "RT impedance",
+    "instructions": "Service Manual 4.5.10 (D30) / 4.5.16 (D60).\n1. Paddles on the analyser, or the pads cable on the 50 Ω test load.\n2. In Monitor mode press −, + and Discharge in turn to open the Debug page.\n3. Enter the RT Imped value. If adult paddles fail, check the paediatric paddles, then the pads cable and test load.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "RT impedance reads between 425 and 575 Ω (500 Ω ±75)"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mcloibel7xe7",
+    "type": "ps_nsr",
+    "title": "ECG: heart rate, lead off and calibration",
+    "instructions": "Service Manual 4.5.5. Set Mode to Monitor. Connect the ECG leads to the ProSim 8 (sinus rhythm, 60 bpm, 1 mV).\n1. Enter the HR shown (60 ±1 bpm) and check the waves are clean.\n2. Disconnect each lead in turn: the ECG Lead Off alarm appears.\n3. ECG calibration: set the ECG filter to Diagnostic, ECG Setup > Calibrate, and compare the calibration wave with the wave scale. Enter the difference. Select Stop Calibrating when done.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "who": "A",
+     "rate": 60,
+     "ampl": "1.00",
+     "monitor": {
+      "enabled": true,
+      "label": "Heart rate on monitor reads between 59 and 61 bpm",
+      "unit": "bpm",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "ECG waves are displayed correctly without noise.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      },
+      {
+       "label": "ECG Lead Off alarm behaves correctly.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      },
+      {
+       "label": "Calibration wave height matches the wave scale within 5%",
+       "unit": "%",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "h3923g0u7xe7",
+    "type": "ps_paced",
+    "title": "ECG: paced signals",
+    "instructions": "Set Paced to Yes on the defibrillator. The simulator outputs a paced signal.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "wave": "ASY",
+     "ampl": "",
+     "monitor": {
+      "enabled": true,
+      "label": "Pace signals are detected and pace pulse marks are displayed when Paced is set to Yes.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "xcgpwk5o7xe7",
+    "type": "ps_resp",
+    "title": "Respiration",
+    "instructions": "Service Manual 4.5.6. Set the Resp lead to II. The simulator outputs 20 rpm (manual: base impedance 500 Ω, delta 1 Ω, lead II). Enter the Resp rate shown.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "rate": 20,
+     "monitor": {
+      "enabled": true,
+      "label": "Resp rate on monitor reads between 19 and 21 rpm",
+      "unit": "rpm",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "The Resp waveform is not distorted.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "rdrnrdrh7xe7",
+    "type": "ps_temp",
+    "title": "Temperature",
+    "instructions": "Service Manual 4.5.9 (D60). The simulator outputs 37.0 °C (or use a resistance box at 1354.9 Ω). Check every temperature channel and enter the reading.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "t": "37.0",
+     "monitor": {
+      "enabled": true,
+      "label": "Temperature on monitor reads between 36.9 and 37.1 °C",
+      "unit": "°C",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "All temperature channels read within 37 ±0.1 °C.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    },
+    "models": [
+     "D60"
+    ]
+   },
+   {
+    "id": "l9ykvmp87xe7",
+    "type": "ps_custom",
+    "title": "IBP: static pressure",
+    "instructions": "Service Manual 4.5.10 (D60). Zero each IBP channel on the defibrillator first (simulator at 0 mmHg), then the simulator sets each channel to 200 mmHg. Enter what the defibrillator shows. Mark channel 2 N/A if there is only one channel. If out of range, calibrate (IBP > Setup > Calibrate at 200 mmHg) and test again.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPS=1,+200\nIBPS=2,+200",
+     "monitor": {
+      "enabled": true,
+      "label": "IBP channel 1 reads between 198 and 202 mmHg",
+      "unit": "mmHg",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "IBP channel 2 reads between 198 and 202 mmHg",
+       "unit": "mmHg",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    },
+    "models": [
+     "D60"
+    ]
+   },
+   {
+    "id": "prguoixa7xe7",
+    "type": "ps_custom",
+    "title": "IBP: ART and LV waveforms",
+    "instructions": "The simulator outputs ART on channel 1 and LV on channel 2 (manual: ART 120/80, LV 120/0 mmHg). Swap channels with a second run if needed so each channel is checked with both waves.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPW=1,ART\nIBPW=2,LV",
+     "monitor": {
+      "enabled": true,
+      "label": "The ART and LV waves for each IBP channel are displayed correctly.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    },
+    "models": [
+     "D60"
+    ]
+   },
+   {
+    "id": "d2j6dgz47xe7",
+    "type": "check",
+    "title": "SpO2",
+    "instructions": "Service Manual 4.5.7. Connect the adult SpO2 sensor, set Patient Category to Adult and PR Source to SpO2. Measure on your own finger, then remove the sensor from the finger.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "A Pleth waveform and PR value are displayed.",
+      "\"SpO2 Sensor Off\" is reported when the sensor is removed from the finger.",
+      "Displayed SpO2 reads between 95 and 100%"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "ikecd4xh7xe7",
+    "type": "check",
+    "title": "NIBP",
+    "instructions": "Service Manual 4.5.8.\nAccuracy: connect the cuff tubing, a 500 mL metal vessel, a balloon pump and a reference manometer with a T-piece. Maintenance > Module > NIBP > NIBP Accuracy Test. Compare the manometer and the screen at 0, 50 and 200 mmHg (wait 10 s at each) and enter the largest difference.\nLeakage: Patient Category Adult, adult cuff around a cylinder, Maintenance > Module > NIBP > NIBP Leakage Test. It deflates after about 20 s; \"NIBP Pneumatic Leak\" means a leak.\nOverpressure: Factory Maintenance > NIBP > Overpressure Protection Circuit Test. Adu/Ped: pump to 320–330 mmHg and click Test. Neo: pump to 160–165 mmHg and click Test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Leakage test passes (no \"NIBP Pneumatic Leak\").",
+      "Overpressure test passes for Adult/Paediatric (320–330 mmHg).",
+      "Overpressure test passes for Neonate (160–165 mmHg).",
+      "NIBP reads within ±3 mmHg of the reference manometer at 0, 50 and 200 mmHg"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "1rnuwmo77xe7",
+    "type": "check",
+    "title": "Sidestream CO2",
+    "instructions": "Service Manual 4.5.9 (D30) / 4.5.12 (D60). Mark N/A if no sidestream CO2 module is fitted.\nLeakage: after warm-up, block the air inlet for about 60 s (\"CO2 Airway Occluded\" appears). Main Menu > Maintenance > Module > CO2: the flow should be under 10 mL/min.\nPerformance: connect a 3–7% CO2 cylinder (N2 balance) through a T-piece and flowmeter at 10–50 mL/min. Maintenance > Module > CO2. Enter the cylinder concentration and the displayed value. Calibrate (Module Calibration) if it’s out by more than 0.2%.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Leak test: flow under 10 mL/min with the inlet blocked (no leak).",
+      "Displayed CO2 is within ±0.2% of the cylinder CO2 concentration"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "6gg0gixd7xe7",
+    "type": "check",
+    "title": "Mainstream CO2",
+    "instructions": "Service Manual 4.5.11 (D60). Mark N/A if no mainstream CO2 module is fitted. Check the barometric pressure setting matches local pressure first.\n1. Connect the sensor; after warm-up, CO2 Setup > Start Zero Cal.\n2. Set Apnea Time to 10 s, breathe on the sensor, then leave it in air.\n3. Connect 6% CO2 and 100% N2 cylinders through a T-piece at 2–5 L/min, switching between them every 6–10 s.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Zero calibration succeeds (waveform baseline returns to zero).",
+      "\"Apnea\" alarm appears with the sensor in air (Apnea Time 10 s).",
+      "Displayed CO2 with 6% gas reads between 43 and 47 mmHg"
+     ],
+     "readings": []
+    },
+    "models": [
+     "D60"
+    ]
+   },
+   {
+    "id": "dbyh82t47xe7",
+    "type": "check",
+    "title": "D60 options: IR ear thermometer, camera and ultrasound",
+    "instructions": "Service Manual 4.5.13–4.5.15 (D60). Mark N/A for options that aren’t fitted.\nIR ear thermometer: take a reading, hold the NFC label near the Discharge button until it beeps, and compare.\nCamera: Monitor mode, Main Screen > >> > Camera Capture.\nUltrasound: connect the probe to the USB 3.0 port, hold its power key for 2 s, Main Screen > >> > Ultrasound.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "IR ear thermometer: probe clean; the reading shown on the D60 matches the thermometer.",
+      "Camera: images show in the correct colour and resolution.",
+      "Ultrasound: the probe powers on and images display normally."
+     ],
+     "readings": []
+    },
+    "models": [
+     "D60"
+    ]
+   },
+   {
+    "id": "i1y74itj7xe7",
+    "type": "check",
+    "title": "Network and battery",
+    "instructions": "Mark network items N/A if the device isn’t networked.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Network: the device can print over the network.",
+      "Network: the network printer correctly prints ECG reports.",
+      "Battery: the device operates correctly from battery when AC power fails.",
+      "Battery: the operating time of the battery meets the product specification."
+     ],
+     "readings": []
+    }
+   }
+  ]
+ }
+}

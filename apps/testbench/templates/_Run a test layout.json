@@ -1,0 +1,36 @@
+{
+ "format": "chs-test-bench-layout",
+ "version": 1,
+ "layout": {
+  "groups": [],
+  "order": [],
+  "scale": 0,
+  "saved": 1,
+  "items": {
+   "patient monitor and or modules - test bench template.json": {
+    "covers": [
+     "ePM",
+     "uMEC",
+     "N-Series",
+     "V-Series",
+     "V200",
+     "V500",
+     "V700",
+     "VMAX"
+    ]
+   },
+   "name:patient monitor": {
+    "covers": [
+     "ePM",
+     "uMEC",
+     "N-Series",
+     "V-Series",
+     "V200",
+     "V500",
+     "V700",
+     "VMAX"
+    ]
+   }
+  }
+ }
+}

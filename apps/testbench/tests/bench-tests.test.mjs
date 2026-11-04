@@ -134,9 +134,8 @@ test('the template for a device model: one clear match, else none (the bench the
   const a = html.indexOf('const CATEGORIES'), b = html.indexOf('/** Build a clean Test Bench template')
   const L = vm.runInNewContext('const DB = {}, clone = (o) => JSON.parse(JSON.stringify(o)); ' + html.slice(a, b) + '; ({ Layout })').Layout
   const dir = new URL('../templates/', import.meta.url)
-  const list = readdirSync(dir).filter(n => n.endsWith('.json')).map(n => JSON.parse(readFileSync(new URL(n, dir), 'utf8')).template)
+  const list = readdirSync(dir).filter(n => n.endsWith('.json') && !n.startsWith('_')).map(n => JSON.parse(readFileSync(new URL(n, dir), 'utf8')).template)
   L.data = L.clean({ items: { 'name:patient monitor and or modules': { covers: ['ePM', 'uMEC', 'N-Series', 'V-Series', 'V200', 'V500', 'V700', 'VMAX'] } } })
-  list.push({ name: 'Patient Monitor and OR Modules', desc: '', models: [] })
   const best = (m) => (L.bestFor(list, m) || {}).name || null
   assert.equal(best('BeneHeart D1 Pro'), 'Mindray BeneHeart D1 Defibrillator')
   assert.equal(best('BeneVision N12'), 'Patient Monitor and OR Modules')
@@ -154,4 +153,16 @@ test('the first-column script and the bench both build the same link, and the ba
   assert.match(ps, /'Old'/, 'a copy is kept first')
   assert.ok(ps.includes('https://internal.chsnz.co.nz/testbench/') && ps.includes("'?'") && ps.includes('ENCODEURL([@['), 'the same link as the bench writes')
   assert.match(html, /Backup in the Results folder failed/, 'a Results folder that can\'t be written falls back to a download')
+})
+
+test('a browser with no folder picker (Firefox) loads the templates published with the site, read-only, and the build publishes them', () => {
+  assert.match(html, /if \(!this\.supported\(\)\) \{ this\.state = 'unsupported'; this\.render\(\); await this\.loadPublished\(\); return; \}/)
+  assert.match(html, /async loadPublished\(\)/)
+  assert.match(html, /fetch\('templates\/index\.json', \{ cache: 'no-store' \}\)/)
+  assert.match(html, /existing\.shared\.v === e\.v \|\| existing\.sharedDirty/, 'an unchanged one, or one changed on this PC, is left alone')
+  assert.match(html, /t\.shared\.published\) \{ el\.innerHTML/, 'its note says it is a published copy')
+  const build = readFileSync(new URL('../../../scripts/build.mjs', import.meta.url), 'utf8')
+  assert.match(build, /bench-app\/templates/); assert.match(build, /writeFileSync\(join\(to, 'index\.json'\)/)
+  const sync = readFileSync(new URL('../tools/sync-templates.mjs', import.meta.url), 'utf8')
+  assert.match(sync, /_Run a test layout\.json/, 'the team layout goes with the templates')
 })

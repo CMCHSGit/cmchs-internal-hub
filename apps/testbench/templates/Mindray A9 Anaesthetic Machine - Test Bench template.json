@@ -1,0 +1,505 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray A9 Anaesthetic Machine",
+  "desc": "Class I, one BF applied part (airway hoses, AG+O2, auxiliary, ACGO). From the CHS Ansur A9 template, Mindray’s A9 test checklist and the A8/A9 Service Manual V7.0.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "name": "Airway Hoses, AG+O2, Auxiliary, ACGO",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Inspect the machine, modules, cables and accessories.",
+    "params": {
+     "items": [
+      "The case, display screen, buttons, knob, SMR, modules, power cord, wall-mount bracket and accessories have no obvious signs of damage.",
+      "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+      "The external connectors are not loose and their pins are not bent.",
+      "The safety labels and data plate are clearly legible.",
+      "The power-on test is passed. The power indicator and alarm system work correctly and the machine starts up properly."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "System check and PM kit",
+    "instructions": "System check (Service Manual 7.1–7.2):\n7.1.1 Performing the Power-on Self-Test & System Check\n1. Turn the power switch on the front panel to the ON position. The equipment powers up and begins its power-on self-test. Once completed, perform the System Check, following the setup shown on the screen.\nThe system check runs the power-on self-test, then the leak test (or the vaporizer test when an electronic vaporizer is fitted).\n\nPM kit (part numbers from Mindray’s A9 test checklist):\nPM Kit Replacement\n1. Replace the necessary seals included in the PM kits.\n2. Once completed, perform the System Check again to ensure no leaks were introduced during replacement of seals.\nMark seals N/A when they weren’t replaced at this PM.",
+    "params": {
+     "items": [
+      "The unit powers on normally and the power-on self-test passes.",
+      "AC / battery indicator check.",
+      "Battery mode check.",
+      "AC mode check.",
+      "The unit passes all system checks, including the leak test or vaporizer test.",
+      "PM kit: special seal (0348-00-0185) replaced.",
+      "PM kit: sealing cushion for the bypass trigger plate (049-000142-00) replaced.",
+      "PM kit: 23.47×2.95 O-ring, silicone rubber A70 (082-003300-00) replaced.",
+      "PM kit: sealing ring for the bypass absorber canister (049-001491-00) replaced.",
+      "The machine passes the system check again after the seals were replaced."
+     ]
+    }
+   },
+   {
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Set up for the electrical safety tests:\n1. Plug the ESA612 into the mains supply.\n2. Connect the anaesthetic machine’s power cord to the ESA612 equipment outlet and switch the machine on.\n3. Connect the applied parts (airway hoses, AG+O2, auxiliary, ACGO) to the ESA612 RA post. They are tested as one type BF applied part; use Change applied parts on the patient leakage step if this machine is different.\nThen start the auto sequence. It pauses only when the red test lead has to be moved.",
+    "params": {}
+   },
+   {
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "",
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "",
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to protective earth",
+    "instructions": "Recorded only. The Ansur template sets no limit for this measurement.",
+    "params": {
+     "target": "APINS",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: mains to applied parts",
+    "instructions": "Must be over 1 Mohm (AS/NZS 3551 B9.3). The Ansur template set no limit for this measurement.",
+    "params": {
+     "target": "MAINS_AP",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to non-earth accessible part",
+    "instructions": "Clip the red test lead to a conductive, non-earthed accessible part of the machine. Recorded only; the Ansur template sets no limit.",
+    "params": {
+     "target": "AP_NE",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible part",
+    "instructions": "Keep the red test lead on the non-earthed accessible part.",
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Keep the red test lead on a conductive non-earthed accessible part.\nNote: only a representative sample of conductive non-earthed accessible parts needs to be tested.",
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "",
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "",
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Auxiliary power receptacles and work light",
+    "instructions": "Auxiliary power receptacles (7.18.1): verify AC voltage is present on every auxiliary output receptacle whether the system is on or off. Use a multimeter to check the voltage and earthing.\n\nWork light (7.18.2): press the work light switch once (on), again (high brightness) and again (off).",
+    "params": {
+     "items": [
+      "Auxiliary power receptacles: AC voltage present and earthed on every outlet, with the system on and off.",
+      "Work light: on, high brightness, then off with three presses."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Gas supply: O2, N2O and air pipelines and cylinders",
+    "instructions": "O2:\nO2 Pipeline & Cylinder Test\nNote: Turn off O2 cylinder before performing this test.\n1. Connect the O2 pipeline and cylinder to the machine. Leave the cylinder off.\n2. Check that the O2 supply pressure gauge reads 280–600 kPa.\n3. Turn on the system switch.\n4. Open the BFCS door to let the machine enter the BFCS work mode.\n5. Fully open the O2 needle valve.\n6. Observe the float of the total flowmeter, which should be at the top of the flowmeter.\n7. Disconnect the O2 pipeline supply.\n8. Check that the O2 supply pressure gauge decreases to zero and ensure that the alarms of O2 Supply Failure and Drive Gas Pressure Low appear.\n9. Turn on the O2 cylinder and verify the alarms disappear and no leak is detected. Observe the O2 cylinder pressure gauge rise and ensure the difference between the pressure displayed on the O2 high pressure gauge and the pressure displayed on the cylinder pressure gauge does not exceed 1.25 MPa\n10. Turn the O2 cylinder back off and re-connect the O2 pipeline.\n11. Adjust the flow to 3L/min and close the BFCS door. The door should automatically re-open. Fully close the valve and notice the flow should be in the vicinity of 1L/min.\n12. Close the backup door and verify the prompt \"Manual Valves must be closed!\" and \"Are you sure you want to disable Backup Flow Control?\" comes up. Select Yes and verify the door can be normally closed.\n\nN2O:\nN2O Pipeline & Cylinder Test\nNote: Turn off N2O cylinder before performing this test\n1. Connect the machine to the O2 and N2O pipeline and N2O cylinders to the machine. Leave the cylinder off.\n2. Check that the O2 and N2O supply pressure gauges read 280–600 kPa.\n3. Turn on the system switch.\n4. Start a case and change the balance gas to N2O.\n5. Set the balance gas to N2O. Set the ventilation mode to the manual mode.\n6. Adjust the N2O flow to 1 L/min. Slowly increase N2O flow to 6L/min and verify O2 flow also increases.\n7. Disconnect the N2O pipeline supply.\n8. Ensure that the N2O supply pressure gauge decreases to zero and\nBalance Gas Branch Flow Not Achieved alarm is displayed.\n9. Turn on the N2O cylinder and verify the alarm disappears and no leak is detected. Observe the N2O cylinder pressure gauge rise and ensure the difference between the pressure displayed on the N2O high pressure gauge and the pressure displayed on the cylinder pressure gauge does not exceed 1.25 MPa.\n10. Turn the N2O cylinder back off and re-connect the N2O pipeline.\n\nAir:\nN2O Pipeline & Cylinder Test\nNote: Turn off N2O cylinder before performing this test\n1. Connect the machine to the O2, Air pipeline and Air cylinder to the machine. Leave the cylinder off.\n2. Check that the O2 and Air supply pressure gauges read 280–600 kPa.\n3. Turn on the system switch.\n4. Start a case and change the balance gas to Air.\n5. Set the balance gas to Air. Set the ventilation mode to the manual mode.\n6. Adjust the Air flow to 1 L/min. Increase Air flow to 6L/min.\n7. Disconnect the Air pipeline supply.\n8. Ensure that the Air supply pressure gauge decreases to zero and\nBalance Gas Branch Flow Not Achieved alarm is displayed.\n9. Turn on the Air cylinder and verify the alarm disappears and no leak is detected. Observe the Air cylinder pressure gauge rise and ensure the difference between the pressure displayed on the Air high pressure gauge and the pressure displayed on the cylinder pressure gauge does not exceed 1.25 MPa.\n10. Turn the Aircylinder back off and re-connect the Air pipeline.",
+    "params": {
+     "items": [
+      "O2 pipeline: supply pressure 280–600 kPa; \"O2 Supply Failure\" and \"Drive Gas Pressure Low\" appear when disconnected and the gauge falls to zero.",
+      "O2 cylinder: alarms clear, no leak, and the high pressure gauge is within 1.25 MPa of the cylinder gauge.",
+      "N2O pipeline: supply pressure 280–600 kPa; O2 flow rises with N2O flow (N2O 6 L/min); gauge falls to zero when disconnected.",
+      "N2O: \"Balance Gas Branch Flow Not Achieved\" is displayed when the N2O supply is lost.",
+      "N2O cylinder: alarm clears, no leak, and the high pressure gauge is within 1 MPa of the cylinder gauge.",
+      "Air pipeline: supply pressure 280–600 kPa; gauge falls to zero when disconnected.",
+      "Air: \"Balance Gas Branch Flow Not Achieved\" is displayed when the air supply is lost.",
+      "Air cylinder: alarm clears, no leak, and the high pressure gauge is within 1.25 MPa of the cylinder gauge."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "EFCS accuracy: O2 and air",
+    "instructions": "EFCS Accuracy Test\n1. Set the balance gas to Direct Flow and Air.\n2. Start the machine in Manual mode and set O2 flow to 0.2L\n3. Go into Service > Data Monitors > FCS and scroll down to see O2 and Balance Limb Flow.\n4. Increase the O2 flow to 0.2, 1, 10 and 15L and verify the accuracy is within tolerance.\n5. Turn off O2 flow and increase the balance flow to 1, 3, 10 and 15L. Verify the accuracy is within tolerance.",
+    "params": {
+     "items": [
+      "O2 set to 0.2 L/min (balance gas none): reads 0.15–0.25 L/min.",
+      "O2 set to 1 L/min: reads 0.95–1.05 L/min.",
+      "O2 set to 10 L/min: reads 9.50–10.50 L/min.",
+      "O2 set to 15 L/min: reads 14.25–15.75 L/min.",
+      "Air set to 1 L/min (balance gas air): reads 0.95–1.05 L/min.",
+      "Air set to 3 L/min: reads 2.85–3.15 L/min.",
+      "Air set to 10 L/min: reads 9.50–10.50 L/min.",
+      "Air set to 15 L/min: reads 14.25–15.75 L/min."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "BFCS: switchover, needle valves and accuracy",
+    "instructions": "Service Manual 7.6. The O2 pipeline and cylinder test above covers the start of this.\n1. In the EFCS state, open the BFCS door: the \"Backup Flow Control is enabled\" alarm appears and the total flowmeter backlight comes on.\n2. With the needle valves closed, the glass tube flowmeter and the screen show about 1 L/min (basal flow).\n3. Turn the O2 needle valve on, then off: the total flow rises to about 15 L/min and falls back to about 1 L/min. Repeat with the air needle valve.\n4. Open the O2 needle valve about 1/2 turn and click Disable Backup Flow Control: \"Close manual valves prior to disabling Backup Flow Control\" appears and the BFCS door opens again. Close the valve; the prompt clears and the door closes normally. Repeat with the air needle valve.\n5. Accuracy: APL at SP, manual mode, Y-piece on the leak test port. Set the backup flowmeter O2 knob to 2 L/min and 15 L/min and compare the glass tube with the flow on the left of the screen.",
+    "params": {
+     "items": [
+      "\"Backup Flow Control is enabled\" alarm when the BFCS door is opened; total flowmeter backlight on.",
+      "Basal flow: glass tube flowmeter and screen read about 1 L/min with the needle valves closed.",
+      "O2 needle valve: total flow rises to about 15 L/min and returns to about 1 L/min when closed.",
+      "Air needle valve: total flow rises to about 15 L/min and returns to about 1 L/min when closed.",
+      "O2 needle valve open: \"Close manual valves prior to disabling Backup Flow Control\" prompt and the door re-opens; the door closes normally once the valve is closed.",
+      "Air needle valve open: the same prompt and the door re-opens; the door closes normally once the valve is closed.",
+      "Backup flowmeter O2 at 2 L/min: screen reads 1.8–2.2 L/min.",
+      "Backup flowmeter O2 at 15 L/min: screen reads 13.5–16.5 L/min."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Electronic vaporizers: monitoring, locking and leak",
+    "instructions": "Mark N/A for a vaporizer position that isn’t used.\n\nMonitoring (vaporizer 1, then repeat in position 2):\n7.7.1 Vaporizer Monitoring Function Test Monitoring the heating foil temperature:\n1. Before the test, ensure that the vaporizer has been powered off for at least 2 hours, and install the vaporizer in canister position 1 of the vaporizer manifold.\n2. Choose Setup > Service > Diagnostic Tests > Vaporizer 1 Tests to access the vaporizer test screen.\n3. Verify that the difference between the displayed values of Heating Temp Sensor 1 and Heating Temp Sensor 2 does not exceed 1°C.\n4. Verify that the difference between the displayed value of Heating Temp Sensor and the ambient temperature is within ±3°C.\n5. Turn off all valves and verify that the Drive Gas Pressure is 0±5 kPa. Set Drive Gas Valve Status to On and verify that the displayed value of Drive Gas Pressure is stable at 150±5 kPa.\n6. Open the cover of the vaporizer and verify the Drive Gas Pressure decreases to 0±5 kPa.\n7. Close the cover of the vaporizer and set the Drive Gas Valve to Off.\n8. Verify the liquid level displayed on the status display is consistent with the actual liquid level on the vaporizer.\n\nSelf-locking and interlock:\nVaporizer Self-Locking Test\n1. Install the vaporizer in canister position 1 of the vaporizer manifold. Verify that the vaporizer can be unlocked and pulled out.\n2. Enter the ventilation mode, set the vaporizer output concentration to 0.2%, Verify that the vaporizer can't be pulled out. Verify the backlight of vaporizer 1 is on.\n3. Without turning off vaporizer 1, set the output of vaporizer 2 to 0.2%. Verify the backlight of the vaporizer 2 is on and vaporizer 1 backlight is off. Verify vaporizer 2 cannot be pulled out.\nInterlock (7.7.4): with both vaporizers fitted and in ventilation mode, set vaporizer 1 to 0.2%, then set vaporizer 2 to its minimum: vaporizer 1 stops (backlight off, status grey) and vaporizer 2 runs. Then set vaporizer 1 to its minimum: vaporizer 2 stops and vaporizer 1 runs.\n\nLeak test:\n7.8.3 Vaporiser Leak Test\n1. Adjust the Auto/Manual switch to Manual.\n2. Adjust the APL valve to SP.\n3. Connect a manual bag to the bag arm port.\n4. Connect the Y-piece in the breathing circuit to the leak test port, and the other two ends to the expiratory and inspiratory ports of the circuit.\n5. Mount and lock the vaporizer onto the vaporizer mount. (The vaporizer must be set to at least 1%.)\n6. Set the fresh gas flow to 0.2 L/min.\n7. Adjust the APL valve to 70 cmH2O.\n8. Push the O2 flush button until the airway pressure gauge value increases to about 30 cmH2O.\n9. Release the flush button. Ensure that there is no pressure decrease on the airway pressure gauge.\n10. Turn off the vaporiser.",
+    "params": {
+     "items": [
+      "Vaporizer 1: Heating Temp Sensor 1 and Heating Temp Sensor 2 differ by no more than 1 °C.",
+      "Vaporizer 1: Heating Temp Sensor is within ±3 °C of ambient temperature.",
+      "Vaporizer 1: heating foil holds at 47 ±3 °C (44–50 °C) for sevoflurane or isoflurane, or 37 ±3 °C (34–40 °C) for desflurane.",
+      "Vaporizer 1: with all valves off, Drive Gas Pressure is 0 ±5 kPa.",
+      "Vaporizer 1: Drive Gas Valve Status On, Drive Gas Pressure is stable at 150 ±5 kPa (145–155 kPa).",
+      "Vaporizer 1: with the vaporizer cover open, Drive Gas Pressure falls to 0 ±5 kPa.",
+      "Vaporizer 1: liquid level on the status display matches the vaporizer.",
+      "Vaporizer 2: Heating Temp Sensor 1 and Heating Temp Sensor 2 differ by no more than 1 °C.",
+      "Vaporizer 2: Heating Temp Sensor is within ±3 °C of ambient temperature.",
+      "Vaporizer 2: heating foil holds at 47 ±3 °C (44–50 °C) for sevoflurane or isoflurane, or 37 ±3 °C (34–40 °C) for desflurane.",
+      "Vaporizer 2: with all valves off, Drive Gas Pressure is 0 ±5 kPa.",
+      "Vaporizer 2: Drive Gas Valve Status On, Drive Gas Pressure is stable at 150 ±5 kPa (145–155 kPa).",
+      "Vaporizer 2: with the vaporizer cover open, Drive Gas Pressure falls to 0 ±5 kPa.",
+      "Vaporizer 2: liquid level on the status display matches the vaporizer.",
+      "Vaporizer 1 can be unlocked and pulled out when not in ventilation mode.",
+      "Vaporizer 1 can’t be pulled out in ventilation mode (output 0.2%).",
+      "Vaporizer 2 can be unlocked and pulled out when not in ventilation mode.",
+      "Vaporizer 2 can’t be pulled out in ventilation mode (output 0.2%).",
+      "Interlock: vaporizer in position 1 stops (backlight off, status grey) and position 2 runs.",
+      "Interlock: vaporizer in position 2 stops (backlight off, status grey) and position 1 runs.",
+      "Leak test (fresh gas 0.2 L/min, APL 70 cmH2O, flushed to about 30 cmH2O): no pressure drop, each vaporizer."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Vaporizer accuracy, internal AG module and O2 concentration",
+    "instructions": "Mark N/A for agents that aren’t fitted. Limits are from the A8/A9 Service Manual V7.0 (7.7.5).\n\nVaporizer accuracy:\n7.8.3 Vaporizer Accuracy Test\n1. Adjust the APL valve to SP.\n2. Adjust the auto/manual switch to Manual.\n3. Connect the inspiratory port to the expiratory port through a breathing hose. Connect a manual bag to the bag arm port.\n4. Connect the sampling tube of the AG module to the inspiratory port of the anesthesia machine, as shown in the figure.\n5. Ensure that the scavenging system is connected to the wall and the float is between the minimum and maximum scales.\n6. Install a vaporiser.\n7. Turn on the anesthesia machine, exit the standby mode, and enable the anesthesia machine to operate in manual mode.\n8. Set the fresh gas flow to 2 L/min.\n9. Adjust the output concentration of the vaporizer as follows: 0,\n0.2%, 1%. Observe the monitored value of the AG module is within tolerance.\n10. While the machine is running at 1%, navigate to Service > Data Monitors > AG and verify the vaporiser is reading between 0.8% and 1.2% on the internal module. If no reading is displayed, wait until the\n11. Continue with the rest of the values 3%, 5% and 8%.\n10. To speed up reading time, continuously squeeze the bag every half a second.\n\nInternal AG module (7.9.6): with the vaporizer at 1%, Setup > Service > Data Monitors > AG.\n\nO2 concentration:\nO2 Concentration Test\n1. Keeping the same setup from the vaporiser accuracy test, set balance gas to Air and direct flow.\n2. Set the O2 and Air flow to 3L/min.\n3. Squeeze the bag once every half a second to speed up the sampling rate.\n4. Verify the O2 concentration reads 60±3%.",
+    "params": {
+     "items": [
+      "Isoflurane set to 0%: AG module reads ≤ 0.05%.",
+      "Isoflurane set to 0.2%: AG module reads 0–0.45%.",
+      "Isoflurane set to 1.0%: AG module reads 0.75–1.25%.",
+      "Isoflurane set to 3.0%: AG module reads 2.55–3.45%.",
+      "Isoflurane set to 5.0%: AG module reads 4.25–5.75%.",
+      "Sevoflurane set to 0%: AG module reads ≤ 0.05%.",
+      "Sevoflurane set to 0.2%: AG module reads 0–0.6%.",
+      "Sevoflurane set to 1.0%: AG module reads 0.6–1.4%.",
+      "Sevoflurane set to 3.0%: AG module reads 2.55–3.45%.",
+      "Sevoflurane set to 5.0%: AG module reads 4.25–5.75%.",
+      "Sevoflurane set to 8.0%: AG module reads 6.8–9.2%.",
+      "Desflurane set to 0%: AG module reads ≤ 0.05%.",
+      "Desflurane set to 0.2%: AG module reads 0–1.1%.",
+      "Desflurane set to 1.0%: AG module reads 0.1–1.9%.",
+      "Desflurane set to 5.0%: AG module reads 4.1–5.9%.",
+      "Desflurane set to 8.0%: AG module reads 6.8–9.2%.",
+      "Desflurane set to 12.0%: AG module reads 10.2–13.8%.",
+      "Desflurane set to 18.0%: AG module reads 15.3–20.7%.",
+      "Internal AG module: extraction flow stable at 150 ±5 mL/min (145–155 mL/min).",
+      "Internal AG module: agent type matches the vaporizer and the concentration at 1% reads 0.8–1.2%.",
+      "O2 concentration (O2 and air 3 L/min each): reads 60 ±3% (57–63%) on the external analyser."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Functional tests: flowmeters, O2 flush and ACGO",
+    "instructions": "Mark N/A for options that aren’t fitted.\n\nAuxiliary flowmeter (7.9.1): provide O2 and air; press the auxiliary flowmeter switch.\n\nHigh-flow O2 and high-pressure O2 output:\nHigh Flow Auxiliary Flowmeter Test\n1. Provide O2 and air supply for the anesthesia machine.\n2. Press the high-flow O2 supply switch to enable high-flow O2 supply.\n3. Verify that the initial flow is 0, the initial O2 concentration is 100%, and the glass tube float is at the bottom.\n4. Set the O2 concentration to 100%. Verify that the flow can be adjusted to a maximum of 60 L/min and the flow indication of the glass tube is about 60 L/min (with a deviation not exceeding 10 L/min).\n5. Check with your finger and verify that there is high-pressure gas output.\n6. Press and hold the high-flow O2 supply switch for a few seconds and then release it. Verify that high-flow O2 supply is disabled and the glass tube float is at the bottom.\n\nO2 flush:\n7.9.4 O2 Flush Test\n1. Connect the O2 pipeline supply or open the O2 cylinder.\n2. Adjust the Auto/Manual switch to Manual.\n3. Verify that the ring light of the APL valve is on. Put the machine on Standby.\n4. Occlude the patient connection port with a leak test plug.\n5. Connect a 3 L or 1 L bag to the bag arm port. Fully deflate the bag.\n6. Set ACGO to Off.\n7. Adjust the APL valve to 75 cmH2O.\n8. Press and hold O2 flush button . Measure the time for bellows to be fully inflated.\n9. Repeat the above steps at least twice.\n10. Check that the time for bellows to be fully inflated is 3s to 6s for 3L and 1s to 3s for 1L bag.\n\nACGO:\n7.9.5\nMechanical ACGO Function Test\n1. Set the fresh gas flow to 1 L/min, the mode to VCV, and Patient Size to Adult. Retain default values for other parameters. Connect the patient pipeline to the test lung.\n2. Change Auto/Manual switch to Auto. Verify that the ring light of the APL valve is off. Run the equipment for three to five cycles in normal ventilation mode.\n3. Turn the ACGO switch to the ACGO mode and verify that \"VCV\" in the display area in system ventilation mode is replaced with \"ACGO\".\n4. Block the ACGO outlet (for example, with a leak test plug). The PAW waveform obviously fluctuates on the screen.\n5. Turn the ACGO switch to the non-ACGO mode and verify that the system switches to the VCV mode and the ventilation is normal.\n6. Set the fresh gas flow to 0.2 L/min.\n7. Turn the ACGO switch to the ACGO mode. Block the ACGO port and verify that the reading on the airway pressure gauge increases to above 30 cmH2O within one minute.",
+    "params": {
+     "items": [
+      "Aux flowmeter: initial flow 0, initial O2 100%, glass tube float at the bottom.",
+      "Aux flowmeter at 100% O2: adjusts to 15 L/min maximum and the glass tube reads 15 ±1.5 L/min (13.5–16.5 L/min).",
+      "Aux flowmeter at 21% O2: adjusts to 15 L/min maximum and the glass tube reads 15 ±2 L/min (13–17 L/min).",
+      "Aux flowmeter: holding the switch turns it off and the float returns to the bottom.",
+      "High-flow O2: disabled at the start with the glass tube float at the bottom.",
+      "High-flow O2 at 100% O2: adjusts to 60 L/min maximum and the glass tube reads about 60 L/min (within 10 L/min).",
+      "High-flow O2: holding the switch disables it and the float returns to the bottom.",
+      "High-pressure O2 output: gas flows when the check valve is pressed and stops when released.",
+      "O2 flush (APL 75 cmH2O, ACGO off): the 3 L bag fills in 3–6 s, or the 1 L bag in 1–3 s.",
+      "ACGO (fresh gas 1 L/min, VCV adult): \"VCV\" is replaced with \"ACGO\" in ACGO mode.",
+      "ACGO: the PAW waveform clearly rises when the ACGO outlet is blocked.",
+      "ACGO: switching out of ACGO returns the system to VCV and ventilation is normal.",
+      "ACGO (fresh gas 0.2 L/min): the airway pressure gauge rises above 30 cmH2O within one minute with the outlet blocked."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Circuit function: APL valve, auto/manual switch, heating and sample gas return",
+    "instructions": "APL valve:\n7.10.2 APL Valve Test\n1. Adjust the Auto/Manual switch to Manual.\n2. Ensure that the ring light of the APL valve is on.\n3. Connect a manual bag to the bag arm port.\n4. Connect the Y-piece in the breathing circuit to the leak test port.\n5. Turn the APL valve control knob to 30 cmH2O.\n6. Push the O2 flush button to inflate the manual bag.\n7. Ensure that the value displayed on the PAW gauge ranges from 20 to 40 cmH2O.\n8. Pull the APL valve and observe the reading on the airway pressure gauge to verify that the pressure immediately decreases to 0±2 cmH2O.\n9. Turn the APL valve control knob to SP (minimum).\n10. Set the O2 flow to 3 L/min. Turn any other gases off.\n11. Ensure that the value displayed on the PAW gauge is smaller than 5 cmH2O.\n12. Push the O2 flush button continuously. Ensure that the value displayed on the PAW gauge does not exceed 10 cmH2O.\n13. Release the O2 flush button and turn the O2 flow control knob to the minimum flow position. Ensure that the value displayed on the PAW gauge does not decrease below 0 cmH2O.\n\nAuto/manual switch (7.10.3): exit standby; switch to Manual, then Auto.\n\nPatient circuit heating:\n7.10.4 Patient Circuit Heating Test\n1. Ensure that the system is AC powered and standby, the patient circuit remains in place, and the heating module has been working for more than 10 minutes.\n2. Choose Setup > Service > Data Monitors > Power System to access the Data Monitors screen.\n3. Verify that the actual values displayed for Heating Probe T1 Temp and Heating Probe T2 Temp range from 50°C to 70°C.\n\nSample gas return (7.10.5): press the leaf spring above the snap hook on the sample gas exhaust port; with a quick connector on the return port and the rear hose blocked, run the automatic leak test; with the AG module warmed up and exhausting to the return port, O2 about 1 L/min, ventilate a test lung at Vt 500, rate 8, Tp 30, I:E 1:2, PEEP 5 for 10 breaths.",
+    "params": {
+     "items": [
+      "APL valve at 30 cmH2O: the PAW gauge reads 20–40 cmH2O.",
+      "APL valve pulled: the pressure immediately drops to 0 ±2 cmH2O.",
+      "APL valve at SP (minimum), O2 3 L/min: the PAW gauge reads below 5 cmH2O.",
+      "With O2 flush held: the PAW gauge doesn’t exceed 10 cmH2O.",
+      "After releasing O2 flush: the PAW gauge doesn’t drop below 0 cmH2O.",
+      "Manual: APL valve ring light on and the screen shows manual mode.",
+      "Auto: APL valve ring light off and the screen shows auto mode.",
+      "Heating Probe T1 Temp and T2 Temp read 50–70 °C after more than 10 minutes heating.",
+      "Sample gas exhaust port snap hook self-locks.",
+      "Sample gas return leak test passes.",
+      "Sample gas return: displayed Vt is 500 mL ±45 mL (455–545 mL)."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Active AGSS check",
+    "instructions": "Service Manual 7.11: connect the vacuum hose to the hospital EVAC or vacuum port and turn the disposal system on. Exit standby and choose Setup > Service > Data Monitors > VPM > AGSS Pump Rate. Mark N/A for the flow range that doesn’t apply.",
+    "params": {
+     "items": [
+      "High-flow AGSS: pump rate 75–105 L/min.",
+      "Low-flow AGSS: pump rate 25–50 L/min.",
+      "The AGSS flow on the status display is between the MIN and MAX lines."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Negative pressure suction: pipeline and venturi",
+    "instructions": "Mark N/A for a suction type that isn’t fitted.\n\nPipeline:\n7.12.1 Pipeline\nNegative Pressure Suction Test\n1. Check that the suction tubes between the overfill protection cup, filter, and liquid collection bottle are correctly connected.\n2. Connect the external negative pressure source and the negative pressure gas supply inlet assembly of the anesthesia machine via negative pressure gas supply hose.\n3. Fold the patient connection of the suction tube.\nSet the negative pressure regulator to FULL and check if the negative pressure gauge displays the maximum negative pressure value.\n4. Set the negative pressure regulator to OFF and check if the pointer on the negative pressure gauge returns to zero gradually.\n5. Set the negative pressure regulator to REG and turn the negative pressure regulating knob slowly. When you turn the knob clockwise, the pressure value displayed on the negative pressure gauge decreases gradually until returning to zero. When you turn the knob counterclockwise, the pressure value displayed on the negative pressure gauge increases gradually until reaching the maximum value.\n6. Set the negative pressure regulator to OFF again. Loosen the folded negative pressure suction tube.\n7. Disconnect the negative pressure gas supply hose.\n\nVenturi (7.12.2): the same steps, with an air supply (at least 280 kPa) connected to the air inlet instead of the negative pressure source. Don’t block the muffler exhaust.",
+    "params": {
+     "items": [
+      "Pipeline: the gauge shows the maximum negative pressure with the regulator at FULL.",
+      "Pipeline: the gauge returns to zero gradually with the regulator at OFF.",
+      "Pipeline: the pressure decreases gradually to zero when the knob is turned clockwise.",
+      "Pipeline: the pressure increases gradually to the maximum when the knob is turned counterclockwise.",
+      "Venturi: the gauge shows the maximum negative pressure with the regulator at FULL.",
+      "Venturi: the gauge returns to zero gradually with the regulator at OFF.",
+      "Venturi: the pressure decreases gradually to zero when the knob is turned clockwise.",
+      "Venturi: the pressure increases gradually to the maximum when the knob is turned counterclockwise."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Alarm tests",
+    "instructions": "Power failure, circuit and canister:\n7.13.1 Power Failure Alarm Test\n1. Disconnect the AC mains.\n2. Ensure that the AC power indicator and battery charge indicator are off. An audible alarm should sound, and the prompt message Battery in Use should be displayed on the main screen.\n3. Reconnect the AC mains.\n4. Ensure that an audible alarm sounds and the AC power indicator and battery charge indicator are on. The prompt message Battery in Use should not be displayed on the main screen.\n7.13.4 Absorber Canister Alarm Test Open the handle of the absorber canister (the L-type arm handle is vertically downward). An alarm CO2 Absorber Canister Not Locked should occur. Close the handle of the absorbent canister (the L-type alarm handle is horizontally towards the right). Verify that the alarm disappears.\n7.13.2 Breathing Circuit Not Installed Alarm Test\n1. Remove the patient circuit. An alarm Breathing System Not Mounted should occur.\n2. Reconnect the patient circuit. Verify the alarm disappears.\n7.13.3 Volume Exchanger Not Installed Alarm Test Remove the patient circuit and the volume exchanger. An alarm Volume Exchanger Not Mounted should occur. Install the volume exchanger. The alarm disappears.\n\nGas supply alarms (7.13.5): with O2, air and N2O at 300 kPa or more, manual mode, ventilation started. In the BFCS state set the total flow to about 1 L/min and disconnect the O2 supply; the alarm should occur at 220 ±34 kPa and clear at 220 ±34 kPa when reconnected. With only O2 connected, set the balance gas to air (then N2O) at 5 L/min. Disconnect the drive gas pipeline for Drive Gas Pressure Low. Skip N2O items if there is no N2O supply.\n\nVentilator alarms:\nVentilator Alarm Tests\nNote: CO2 is needed to generate alarms\nSetup as follows:\n1. Connect test lung to the end of the breathing circuit.\n2. Set the following parameters:\nPatient size - Adult\nVentilation Mode - VCV\nVt - 600\nRate - 8\nI:E - 1:2\nTpause - 10\nPEEP - OFF\nPlimit - 50\n3. Start Ventilation. Set the FiO2 low alarm limit to 50% Set air flow to 5L/min and disable O2 flow.\n4. Connect a CO2 bottle to the circuit or directly into the AG module. Verify the CO2 concentration is 6% ± 0.3%.\n5. After a few breathing cycles, verify FiO2 Too Low alarm appears on the screen. Disconnect the CO2 and put the sampling line back into the breathing circuit.\n6. Set FiO2 low alarm limit to 18% and verify the alarm disappears.\n7. Set the FiO2 high alarm limit to 50%, set O2 flow to 5L/min and disable Air flow.\n8. Verify FiO2 Too High alarm appears on the screen. Set the\nFiO2 high alarm limit to the maximum value and verify the alarm disappears.\n9. Continue the next tests using the same VCV setup.\n\n7.13.6.4 Paw Alarm Test\n1. Set the peak low alarm limit to the lowest value.\n2. Adjust the peak high alarm limit setting to a value about 5 to 8 cmH2O lower than the peak pressure displayed on the screen.\n3. Verify the Paw Too High alarm is displayed.\n4. Set the peak high alarm limit to 65 (cmH2O).\n5. Verify that the alarm signals disappear.\n6. Set the peak low alarm limit to 50 (cmH2O).\n7. Verify the Paw Too Low alarm is displayed.\n8. Set the PAW low alarm limit to 1 (cmH2O).\n9. Verify that the alarm signals disappear.\n7.13.6.5 Minute Ventilation Alarm Test\n1. Set the MV high and low alarm limits to the highest values.\n2. Verify the MV Too Low alarm appears.\n3. Set the MV low alarm limit to the lowest value and verify the alarm\n4. Verify that the alarm signals disappear.\n5. Set the MV high alarm limit to the lowest value.\n6. Verify the MV Too High alarm appears.\n7. Set the MV high alarm limit to the highest value.\n8. Verify that the alarm signals disappear.\n7.13.6.6 Apnea Alarm Test\n1. Let the machine ventilate for at least 6 breath cycles.\n2. Remove the test lung and wait at least 30s to ensure a yellow Apnea alarm appears.\n3. Reconnect the test lung and verify the Apnea alarm disappears.\n\nApnea (7.13.6.6): after more than six breaths in VCV, remove the test lung for at least 30 s, then reconnect.\n\nContinuous airway pressure:\n1. Connect a manual bag to the manual bag port.\n2. Set the O2 flow to the minimum value.\n3. Turn the APL valve control knob to adjust the APL valve to 30 cmH2O.\n4. Adjust the ventilation switch to Manual.\n5. Push the O2 flush button for approximately 20s. Ensure that the Continuous Airway Pressure alarm occurs.\n6. Disconnect the breathing circuit and ensure that the alarm disappears.\n7. Reconnect the breathing circuit.",
+    "params": {
+     "items": [
+      "Power failure: \"Battery in Use\" is displayed and the audible alarm works; it clears when AC is reconnected.",
+      "\"Breathing System Not Mounted\" occurs when the patient circuit is removed.",
+      "\"Volume Exchanger Not Mounted\" occurs when the patient circuit and volume exchanger are removed.",
+      "\"CO2 Absorber Canister Not Locked\" occurs when the canister handle is open.",
+      "\"O2 Supply Failure\" occurs when the O2 supply is disconnected (220 ±34 kPa) and clears when reconnected.",
+      "\"Balance Gas Branch Flow Not Achieved\" occurs when the other gas supplies are disconnected (balance gas 5 L/min).",
+      "\"N2O Supply Failure\" occurs.",
+      "\"Air Supply Failure\" occurs.",
+      "\"Drive Gas Pressure Low\" occurs when the drive gas pipeline is disconnected.",
+      "\"FiO2 Too Low\" (limit set to 50%, air 5 L/min, O2 off, CO2 6 ±0.3% present) appears and the alarm is audible.",
+      "\"FiO2 Too High\" (limit set to 50%, O2 5 L/min, air off) appears and the alarm is audible.",
+      "\"Paw Too High\" (high limit 5–8 cmH2O below the peak) appears and the alarm is audible.",
+      "\"Paw Too Low\" (low limit set to 50 cmH2O) appears and the alarm is audible.",
+      "\"MV Too Low\" (both MV limits at maximum) appears and the alarm is audible.",
+      "\"MV Too High\" (MV high limit at minimum) appears and the alarm is audible.",
+      "Apnea alarm occurs (test lung removed for at least 30 s) and clears when reconnected.",
+      "\"Continuous Airway Pressure\" occurs (O2 minimum, APL 30 cmH2O, O2 flush held about 20 s) and clears when the circuit is disconnected.",
+      "Each alert message and sound clears after the limit is reset."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Ventilation performance: manual, VCV and PCV",
+    "instructions": "Manual:\n1. Adjust the mechanical auto/manual switch to Manual. Perform operations on the screen to switch the system to the manual mode.\n2. Adjust the APL valve to 25 cmH2O. Push the O2 flush button to fill the breathing bag.\n3. Set the flow to 1 L/min.\n4. Squeeze the breathing bag once every 3s.\n5. Verify the inflation and deflation of the test lung.\n6. Verify that a PAW waveform and all numeric values appear on the screen during bag compression.\n7. Stop squeezing the breathing bag and adjust the APL valve to the open position (SP).\n\nVCV adult (same settings as the ventilator alarm tests: Vt 600, rate 8, I:E 1:2, Tpause 10, PEEP off, Plimit 50, O2 2 L/min):\n7.14.2 VCV Adult Ventilation Mode Test\n1. Following the same parameters as the previous test, ventilate in Auto mode.\n2. Verify the waveforms are displayed and appear normal.\n3. After a minute of ventilation, verify the tidal volume displayed is within 7% (±42mL) of the value set (600mL).\n\nVCV child:\n7.14.3 VCV Child Ventilation Mode Test\n1. Attach a breathing circuit and a manual bag.\n2. Attach an adult test lung to the Y-piece of the breathing circuit.\n3. Connect a ventilation tester between the expiratory port and the breathing hose.\n4. Set the O2 flow to 2 L/min and disable the N2O and air flows.\n5. Adjust the auto/manual switch to Auto.\n6. Set breathing parameters.\nPatient Size = Child\nVentilation Mode = VCV\nVt = 120 Rate = 15\nI:E = 1:2\nTpause = 10\nPEEP = Off\nPlimit = 40\n7. Start ventilation.\n8. Verify that the pressure waveform, respiratory volume, mean or plateau pressure, respiratory rate, and minute ventilation appear on the screen.\n9. Verify that the tidal volume displayed on the anesthesia machine is within ±15 mL of the value displayed on the ventilation tester within approximately the first 1 minute after ventilation starts.\n10. Verify that the tidal volume displayed on the anesthesia machine is within ±15 mL of the setting within approximately the first 1 minute after ventilation starts.\n\nPCV adult:\n7.14.4 PCV Adult Ventilation Mode Test\n1. Attach a breathing circuit and a manual bag.\n2. Attach an adult test lung to the Y-piece of the breathing circuit.\n3. Connect a ventilation tester between the expiratory port and the breathing hose.\n4. Set the O2 flow to 3 L/min and disable the N2O and air flows.\n5. Set breathing parameters\nPatient Size = Adult\nVentilation Mode = PCV\nVtG = Off\nPinsp = 15\nRate = 8\nI:E = 1:2\nTslope = 0.2\nPEEP = Off\nPlimitVG = NA\n6. Start ventilation.\n7. Verify that the peak pressure reading on the display is within the set\nPinsp ± 2 cmH2O.\n8. Verify that the pressure waveform, respiratory volume, respiratory rate, and minute ventilation appear on the screen.\n9. Verify that the peak value measured by the ventilation tester reaches 15±2.5 cmH2O within the first five breathing cycles after ventilation starts.",
+    "params": {
+     "items": [
+      "Manual (APL 25 cmH2O, 1 L/min, squeeze every 3 s): the test lung inflates and deflates.",
+      "Manual: the PAW waveform and all values appear during bag compression.",
+      "VCV adult (Vt 600 mL, rate 8): pressure waveform, volume, mean or plateau pressure, rate and minute volume are displayed.",
+      "VCV adult: Vt on the machine is within 7% (±42 mL) of the ventilation tester reading.",
+      "VCV adult: Vt on the machine is 600 mL ±42 mL (558–642 mL).",
+      "VCV child (Vt 120 mL, rate 15, Plimit 40): pressure waveform, volume, mean or plateau pressure, rate and minute volume are displayed.",
+      "VCV child: Vt on the machine is within ±15 mL of the ventilation tester reading.",
+      "VCV child: Vt on the machine is 120 mL ±15 mL (105–135 mL).",
+      "PCV adult (Pinsp 15 cmH2O, rate 8, Tslope 0.2, O2 3 L/min): displayed peak pressure is 15 ±2 cmH2O (13–17 cmH2O).",
+      "PCV adult: pressure waveform, volume, rate and minute volume are displayed.",
+      "PCV adult: the ventilation tester peak reaches 15 ±2.5 cmH2O (12.5–17.5 cmH2O) within the first five breaths."
+     ]
+    }
+   },
+   {
+    "type": "check",
+    "title": "Sensors: pressure and flow accuracy, zero point",
+    "instructions": "Pressure sensor accuracy:\nPressure Sensor Accuracy Test\n1. Put the machine in Standby, remove the patient circuit, and mount the pressure calibration test fixture to the circuit adapter block in place.\n2. Connect the syringe and the pressure sampling port of the pressure test equipment by using a three-way silicon tube.\n3. Set the calibration device as described below. To set the VT-Plus, perform the following operations: a. Pressure settings: Press the PRESSURE button on the front calibration control panel. Select Range and then set it to Low Press.\n4. Choose Setup > Service > Data Monitors > VCM and find the actual airway pressure values.\n5. Adjust the pressure by using the syringe so that the pressure test equipment displays (5±1) cmH2O, (20±1) cmH2O, (50±1) cmH2O, (70±2) cmH2O, and (90±2) cmH2O in sequence.\n6. Ensure that the deviation between the measured value of the PAW sensor displayed on the machine and that of the pressure test equipment does not exceed 1 cmH2O or 2% of the measured value of the calibration device, whichever is greater. Otherwise, perform pressure calibration again.\n\nFlow sensor accuracy:\nFlow Sensor Accuracy Test\n1. Remove the water collection cup.\n2. Use a pipe to connect the inspiratory port and expiratory port of the anaesthesia machine the same way\n3. Choose Setup > Service > Diagnostic Tests > Valves to access the flow test screen.\n4. Set Safety Valve to On.\n5. Set PEEP Valve Pressure to 100 cmH2O, and Auto/Manual Valve to Auto.\n6. Set Insp Valve Flow to the following values: 3L/min, 10L/min, 20L/min, 30L/min, and 60L/min.\n7. Check the values displayed on the inspiratory flow sensor and expiratory flow sensor. The deviations between these values and the measured values of the flow sensors on the anaesthesia machine do not exceed 1 L/min or 5% of the measured values of the flow sensors on the anaesthesia machine, whichever is greater. Otherwise, perform flow calibration again.\n8. After calibration is completed, reinstall the water collection cup.\n\nZero point (enter the current zero point of each sensor below):\n1. Disconnect the tubes from the inspiratory and expiratory ports.\n2. Ensure that the system is in standby mode.\n3. Navigate to Setup > Service > Calibration Sensor Data > Zero Sensors to access the zero display screen.\n4. Enter the current zero point (AD counts) for each sensor below. Mark the esophageal pressure sensor N/A if it isn’t fitted.",
+    "params": {
+     "items": [
+      "PAW sensor at 5 cmH2O: reads 4–6 cmH2O.",
+      "PAW sensor at 20 cmH2O: reads 19–21 cmH2O.",
+      "PAW sensor at 50 cmH2O: reads 49–51 cmH2O.",
+      "PAW sensor at 70 cmH2O: reads 68–72 cmH2O.",
+      "PAW sensor at 90 cmH2O: reads 88–92 cmH2O.",
+      "Flow sensors at 3 L/min: read 2–4 L/min.",
+      "Flow sensors at 10 L/min: read 9–11 L/min.",
+      "Flow sensors at 20 L/min: read 19–21 L/min.",
+      "Flow sensors at 30 L/min: read 28.5–31.5 L/min.",
+      "Flow sensors at 60 L/min: read 57–63 L/min."
+     ],
+     "readings": [
+      {
+       "label": "PAW sensor zero",
+       "unit": "AD counts",
+       "lo": 1068,
+       "hi": 1765
+      },
+      {
+       "label": "PEEP sensor zero",
+       "unit": "AD counts",
+       "lo": 1068,
+       "hi": 1765
+      },
+      {
+       "label": "Inspiratory flow sensor zero",
+       "unit": "AD counts",
+       "lo": 289,
+       "hi": 632
+      },
+      {
+       "label": "Expiratory flow sensor zero",
+       "unit": "AD counts",
+       "lo": 289,
+       "hi": 632
+      },
+      {
+       "label": "Esophageal pressure sensor zero",
+       "unit": "AD counts",
+       "lo": 1068,
+       "hi": 1765
+      },
+      {
+       "label": "Balance gas flow sensor (EFCS) zero",
+       "unit": "AD counts",
+       "lo": 0,
+       "hi": 200
+      },
+      {
+       "label": "O2 flow sensor (EFCS) zero",
+       "unit": "AD counts",
+       "lo": 0,
+       "hi": 200
+      },
+      {
+       "label": "Total flow sensor (EFCS) zero",
+       "unit": "AD counts",
+       "lo": 0,
+       "hi": 200
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

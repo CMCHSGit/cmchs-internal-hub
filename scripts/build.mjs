@@ -14,7 +14,8 @@
 //
 // Adding an app = one more entry in APPS (and a card in tools.json).
 import { execSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { injectManifest } from 'workbox-build'
@@ -59,6 +60,22 @@ for (const app of APPS) {
     filter: src => !/[\\/](node_modules|dist)([\\/]|$)/.test(src.slice(from.length)) && !/simpro_key\.js$/.test(src),
   })
   console.log(`  ${app.dir} -> /${app.path}`)
+}
+
+// The Test Bench's templates, published beside it (/bench-app/templates/) for browsers that can't use the shared SharePoint folder
+// (Firefox has no folder picker): the bench reads index.json, then each file. Copied from apps/testbench/templates by
+// apps/testbench/tools/sync-templates.mjs, so SharePoint stays the master. Never precached (the service worker's list is fixed below).
+{
+  const from = join(ROOT, 'apps/testbench/templates'), to = join(DIST, 'bench-app/templates')
+  if (existsSync(from)) {
+    mkdirSync(to, { recursive: true })
+    const entry = (file) => { const data = readFileSync(join(from, file)); writeFileSync(join(to, file), data); return { file, v: createHash('sha1').update(data).digest('hex').slice(0, 12) } }
+    const files = readdirSync(from).filter(n => /.json$/i.test(n))
+    const layout = files.find(n => n === '_Run a test layout.json')
+    const index = { generated: new Date().toISOString(), templates: files.filter(n => !/^[._~]/.test(n)).map(entry), layout: layout ? entry(layout) : null }
+    writeFileSync(join(to, 'index.json'), JSON.stringify(index))
+    console.log(`  apps/testbench/templates -> /bench-app/templates (${index.templates.length} templates)`)
+  }
 }
 
 // The site has one service worker, at scope "/", so its precache list has to be

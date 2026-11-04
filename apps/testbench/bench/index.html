@@ -1659,11 +1659,35 @@ const Shared = {
   async useRoot() { if (this.root) { const t = await this.findSub(this.root, /^templates$/i); this.dir = t || await this.root.getDirectoryHandle('Templates', { create: true }); } },
   supported() { return typeof window.showDirectoryPicker === 'function'; },
   async init() {
-    if (!this.supported()) { this.state = 'unsupported'; this.render(); return; }
+    if (!this.supported()) { this.state = 'unsupported'; this.render(); await this.loadPublished(); return; }
     try { this.root = (await DB.getKV('benchDir')) || null; this.dir = (await DB.getKV('sharedDir')) || null; } catch { this.root = this.dir = null; }
     if (!this.access) { this.state = 'none'; this.render(); return; }
     let perm = 'prompt'; try { perm = await this.access.queryPermission({ mode: 'readwrite' }); } catch {}
     if (perm === 'granted') { try { await this.useRoot(); } catch {} await this.sync(true); } else { this.state = 'needs-permission'; this.render(); }
+  },
+  /** A browser with no folder picker (Firefox): the templates published with the site (/bench-app/templates/, a copy of the SharePoint
+      folder made by tools/sync-templates.mjs). They are read-only copies here: change them in Chrome or Edge and sync. */
+  async loadPublished() {
+    let idx; try { const r = await fetch('templates/index.json', { cache: 'no-store' }); if (!r.ok) throw new Error('HTTP ' + r.status); idx = await r.json(); } catch { return; }   // opened from a file, or offline: what is stored stays
+    let added = 0, updated = 0, removed = 0; const seen = new Set(), problems = [];
+    for (const e of idx.templates || []) {
+      const existing = Store.templates.find(x => x.shared && x.shared.published && x.shared.file === e.file);
+      if (existing) seen.add(existing.id);
+      if (existing && (existing.shared.v === e.v || existing.sharedDirty)) continue;   // unchanged, or changed on this PC: kept
+      let raw; try { raw = await (await fetch('templates/' + encodeURIComponent(e.file), { cache: 'no-store' })).json(); } catch { problems.push(e.file); continue; }
+      const d = raw && raw.template ? raw.template : raw; if (!d || !Array.isArray(d.steps)) { problems.push(e.file); continue; }
+      const tpl = templateFromRaw(d, e.file.replace(/\.json$/i, '')); tpl.shared = { file: e.file, mtime: 0, published: true, v: e.v };
+      const twin = existing || Store.templates.find(x => !x.shared && x.name === tpl.name);
+      if (twin) { tpl.id = twin.id; Store.templates[Store.templates.indexOf(twin)] = tpl; await DB.put('templates', tpl).catch(() => {}); updated++; }
+      else { await Store.add(tpl); added++; }
+      seen.add(tpl.id);
+    }
+    for (const x of [...Store.templates]) if (x.shared && x.shared.published && !seen.has(x.id) && !x.sharedDirty) { await Store.remove(x.id); removed++; }
+    Store.templates.sort((a, b) => a.name.localeCompare(b.name));
+    if (idx.layout) { try { const j = await (await fetch('templates/' + encodeURIComponent(idx.layout.file), { cache: 'no-store' })).json(); if (j && j.layout) { Layout.team = Layout.clean(j.layout); await DB.putKV('layoutTeam', clone(Layout.team)); } } catch {} }
+    this.state = 'published'; this.count = Store.templates.filter(x => x.shared && x.shared.published).length; this.last = new Date();
+    log('in', 'APP', `Published templates: ${added} added, ${updated} updated, ${removed} removed${problems.length ? `; skipped ${problems.join('; ')}` : ''}`);
+    this.render(); App.refreshRunPicker(); if (!$('#view-templates').hidden) Builder.renderAll();
   },
   async menu() {
     if (!this.supported()) { dialog({ title: 'Shared folder not available', body: '<p>This browser can’t open folders. Use Chrome or Edge, or import templates one at a time with Import.</p>' }); return; }
@@ -1788,7 +1812,7 @@ const Shared = {
   render() {
     const st = $('#sharedStatus'), bn = $('#sharedBanner');
     const name = this.access ? esc(this.root ? `${this.root.name} › ${this.dir?.name || 'Templates'}` : this.dir.name) : '';
-    if (st) st.innerHTML = this.state === 'unsupported' ? '' : !this.access ? 'No shared templates folder set. Choose one to load the team’s templates from SharePoint.'
+    if (st) st.innerHTML = this.state === 'published' ? `Templates from the hub: ${this.count}. This browser can’t use the shared SharePoint folder, so these are read-only copies (change them in Chrome or Edge).` : this.state === 'unsupported' ? '' : !this.access ? 'No shared templates folder set. Choose one to load the team’s templates from SharePoint.'
       : this.state === 'needs-permission' ? `Shared folder <b>${name}</b>: click <i>Shared templates folder</i> to load the latest templates.`
       : this.state === 'loading' ? `Checking <b>${name}</b> for templates…`
       : this.state === 'error' ? `Shared folder <b>${name}</b> couldn’t be read: ${esc(this.error)}`
@@ -1805,6 +1829,7 @@ const Shared = {
     const el = $('#sharedTplNote'); if (!el) return;
     const t = typeof Builder !== 'undefined' ? Builder.tpl : null;
     if (!t || !t.shared) { el.innerHTML = ''; return; }
+    if (t.shared.published) { el.innerHTML = `<div class="banner info">${icon('layers')}<div>Published with the hub: <b>${esc(t.shared.file)}</b>. ${t.sharedDirty ? 'Changed on this PC only. ' : ''}This browser can’t save to the shared folder; changes stay here, and the hub’s copy replaces them when it is updated and you have not changed it.</div></div>`; return; }
     el.innerHTML = t.sharedDirty
       ? `<div class="banner warn">${icon('alert')}<div style="flex:1">Changed on this PC only. Other engineers still get the shared version of <b>${esc(t.shared.file)}</b>${t.sharedConflict ? ', which someone has also changed since' : ''}.</div><button type="button" class="btn secondary sm" id="sharedSaveNow">Save to shared folder</button></div>`
       : `<div class="banner info">${icon('layers')}<div>From the shared folder: <b>${esc(t.shared.file)}</b>. Changes stay on this PC until you save them to the shared folder.</div></div>`;

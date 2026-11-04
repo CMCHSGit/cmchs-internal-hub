@@ -1,0 +1,120 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Medical power supply (isolated DC output) – Class I",
+  "desc": "Class I power supply brick with an isolated SELV DC output (4-pin DIN). Earth continuity to the output recorded as N/A.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "showNA": true,
+  "steps": [
+   {
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Do not open the power supply brick: it is a sealed medical supply.",
+    "params": {
+     "items": [
+      "AC lead: plug, cable and C13 connector undamaged; plug pins straight and secure; strain relief intact.",
+      "Power supply brick: case undamaged, no cracks, rattles, heat marks or missing screws.",
+      "DC output cable and 4-pin DIN plug: cable not frayed or cut, metal shell and pins undamaged, strain relief intact.",
+      "Labels legible: model and ratings, Class I symbol, and the isolated output (\"ISO\") marking."
+     ]
+    }
+   },
+   {
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply. Nothing needs to be connected to the equipment outlet for this step.",
+    "params": {}
+   },
+   {
+    "type": "esa_pe",
+    "title": "AC lead earth continuity",
+    "instructions": "Test the AC lead on its own, disconnected from the power supply.\n1. Plug the AC lead into the ESA612 equipment outlet.\n2. Clip the red test lead to the earth contact inside the C13 connector.\nThis checks the cord from the plug earth pin to the C13 earth pin. The earth pin inside the brick can’t be checked from outside.",
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "type": "check",
+    "title": "Connect the supply; earth continuity to the output",
+    "instructions": "Class I supply with an isolated (SELV) DC output. The DC side is deliberately kept separate from mains earth, so an open reading from the earth pin to the output pins and the DIN shell is correct. Earth continuity to the output is recorded as N/A: isolated SELV output, no earth-bonded accessible parts.\n\n1. Disconnect the PC (or any device) from the DC output. It must stay disconnected for the insulation and leakage tests.\n2. Connect the AC lead to the power supply and plug it into the ESA612 equipment outlet.\n3. Check from the earth pin to the DC output pins and the DIN shell: it should read open circuit.\n4. Record earth continuity to the output as N/A.",
+    "params": {
+     "items": [
+      "PC / connected device disconnected from the DC output.",
+      "Earth pin to DC output pins and DIN shell reads open circuit (expected: isolated output).",
+      "Protective earth continuity to the DC output: N/A (isolated SELV output, no earth-bonded accessible parts)."
+     ]
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Mains pins (live and neutral linked by the ESA612) to the earth pin of the supply. The PC must be disconnected.",
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "type": "esa_ins",
+    "title": "Insulation: mains to DC output and shell",
+    "instructions": "Shows the isolation barrier between mains and the output is intact.\nClip the red test lead to the DC output pins and the metal shell of the DIN plug (link them, for example with a shorting clip or foil, so all are tested together). The PC must be disconnected.",
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "type": "esa_encl",
+    "title": "Touch leakage (DC output and shell)",
+    "instructions": "Keep the red test lead on the DC output pins and the DIN shell. Mark this step skipped if your procedure doesn’t require it.",
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Mark this step skipped if your procedure doesn’t require it. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
