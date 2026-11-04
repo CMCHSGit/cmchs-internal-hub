@@ -97,6 +97,7 @@ export function startApp({ transport, who }) {
   async function loadTypes() {
     const cid = $('company').value;
     assetTypes = await getAll(`/companies/${cid}/setup/assetTypes/`);
+    if (!assetTypes.length) throw new Error('Simpro returned no asset types for this company.');
     assetTypes.sort((a, b) => a.Name.localeCompare(b.Name));
     renderSheetRows(); // re-populate every sheet row's type options for the (possibly new) company
     $('delType').innerHTML = '<option value="">Choose…</option>' + assetTypeOptionsHtml('');
@@ -240,7 +241,8 @@ export function startApp({ transport, who }) {
   window.addEventListener('drop', e => e.preventDefault());
 
   function updateButtons() {
-    $('runDry').disabled = busy || !book || !getCheckedSheets().length;
+    // Not before Simpro's asset types are in: a sheet row's type list is built from them, so without them it has none to choose.
+    $('runDry').disabled = busy || !book || !assetTypes.length || !getCheckedSheets().length;
     $('apply').disabled = busy || !plan || plan.applied || actionCount(plan) === 0;
     $('delFind').disabled = busy || !$('delType').value;
     $('delRun').disabled = busy || !delPlan || delPlan.ran || !delChosen().length;
@@ -342,7 +344,22 @@ export function startApp({ transport, who }) {
   $('runDry').onclick = async () => {
     showError(''); resetResults(); logLines = []; setBusy(true);
     const cid = $('company').value;
-    const sheets = getCheckedSheets();
+    let sheets = getCheckedSheets();
+    // A sheet with no asset type used to run on regardless and failed on a Simpro address with the type missing
+    // from it ("assetTypes//customFields/"). The types are loaded again if they never arrived, and a sheet that
+    // still has none is named, not sent.
+    if (!assetTypes.length) {
+      progress('Loading the asset types from Simpro…');
+      try { await loadTypes(); } catch (e) { /* named below */ }
+      sheets = getCheckedSheets();
+    }
+    const noType = sheets.filter(x => !/^\d+$/.test(String(x.tid)));
+    if (!sheets.length || noType.length) {
+      showError(noType.length
+        ? `No Simpro asset type is chosen for ${noType.map(x => '"' + x.name + '"').join(', ')}. The list of types didn't load: reload the page and try again, or check the company at the top.`
+        : 'Tick at least one sheet to sync.');
+      progressDone(); setBusy(false); return;
+    }
     // "Only these serials" restricts the sync itself (unchanged, pre-existing
     // behaviour). The Extended Warranty checkbox does NOT - every asset in
     // the ticked sheets is still created/updated as normal; it only controls
