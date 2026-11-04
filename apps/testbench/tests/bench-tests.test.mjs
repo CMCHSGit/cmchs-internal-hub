@@ -58,11 +58,15 @@ test('an ESA612 still in remote mode (REMOTE refused with error 02) is reset wit
   assert.match(html, /if \(c === 'REMOTE'\) \{ if \(esaRemote\) return reply\('!02'\)/)
 })
 
-test('Save PDF + Ansur file saves both together after asking where; Saved reports saves PDF and Ansur record for every test, making whichever is missing', () => {
-  assert.match(html, /async function saveReportFiles\(run\)/)
+test('Save keeps the PDF and Ansur record in Saved reports, Download writes both after asking where; Saved reports saves PDF and Ansur record for every test, making whichever is missing', () => {
+  assert.match(html, /async function saveReportFiles\(run, mode = 'download'\)/)
   assert.match(html, /showDirectoryPicker\(\{ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' \}\)/, 'asks where, opening where it was last')
   assert.match(html, /if \(!run\.imported\) files\.push\(\[outName\(run, 'mtr'\)/, 'the Ansur record is made too (not for one opened from an Ansur record)')
-  assert.match(html, /\$\('#sumPdf'\)\.addEventListener\('click', \(\) => saveReportFiles\(\)\)/)
+  assert.match(html, /\$\('#sumSave'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'save'\)\)/, 'Save keeps both in Saved reports')
+  assert.match(html, /\$\('#sumDownload'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'download'\)\)/, 'Download writes both to a folder')
+  assert.match(html, /if \(keep\) \{ offerToHub\(name, blob\); continue; \}/, 'Save asks for no folder and writes no file')
+  assert.match(html, /if \(!keep && typeof window\.showDirectoryPicker === 'function'\)/, 'only Download asks where')
+  assert.doesNotMatch(html, /id="sumExport"|id="sumMtr"/, 'no results-file or Ansur-only button')
   assert.match(html, /m\.type !== 'chs-bench:build-pdf'/, 'the bench can build a PDF from a results file or an Ansur record')
   const reports = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.match(reports, /const needPdf = /)
@@ -146,13 +150,19 @@ test('the template for a device model: one clear match, else none (the bench the
   assert.equal(best(''), null)
 })
 
-test('the first-column script and the bench both build the same link, and the backup falls back to a download', () => {
+test('the Excel script puts a button-looking link first, replaces an older one, and the bench no longer writes the column itself', () => {
   const ps = readFileSync(new URL('../tools/add-test-link-column.ps1', import.meta.url), 'utf8')
-  assert.match(ps, /ListColumns\.Add\(1\)/, 'Excel inserts the column first')
-  assert.match(ps, /Font\.Color = 0/, 'a black header: red means mandatory')
-  assert.match(ps, /'Old'/, 'a copy is kept first')
-  assert.ok(ps.includes('https://internal.chsnz.co.nz/testbench/') && ps.includes("'?'") && ps.includes('ENCODEURL([@['), 'the same link as the bench writes')
-  assert.match(html, /Backup in the Results folder failed/, 'a Results folder that can\'t be written falls back to a download')
+  assert.ok(ps.includes('ListColumns.Add(1)'), 'Excel inserts the column first')
+  assert.ok(ps.includes('.Delete(); $replaced = $true'), 'an older column is replaced')
+  assert.ok(ps.includes(`FormatConditions.Add(1, 4, '=""')`), 'rows with a link look like buttons, rows without stay plain')
+  assert.ok(ps.includes('Interior.Color = 9848149; $fc.Font.Color = 16777215'), 'white on CHS purple')
+  assert.ok(ps.includes('Font.Color = 0'), 'a black header: red means mandatory')
+  assert.ok(ps.includes("'Old'"), 'a copy is kept first')
+  assert.ok(ps.includes('https://internal.chsnz.co.nz/testbench/') && ps.includes("'?'") && ps.includes('SUBSTITUTE('), 'the link is built from plain SUBSTITUTE calls')
+  assert.ok(!ps.split('\n').filter((l) => !/^\s*(#|\.)/.test(l)).join('\n').includes('ENCODEURL(['), 'no ENCODEURL in the formula (not in every Excel)')
+  assert.ok(ps.includes('-Pick'))
+  assert.ok(!html.includes('addLinkColumn') && !html.includes('data-sheet="addLinks"'), 'the bench does not write the column itself')
+  assert.ok(html.includes('Backup in the Results folder failed'), 'a Results folder that cannot be written falls back to a download')
 })
 
 test('a browser with no folder picker (Firefox) loads the templates published with the site, read-only, and the build publishes them', () => {
