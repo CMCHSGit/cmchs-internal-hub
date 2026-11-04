@@ -91,6 +91,13 @@ scheduled task runs that).
   each cell just before writing it and leaves it if it has changed or holds a formula.
 - **Limits:** a run that would change more than `maxCells` (60) cells is refused and writes nothing.
 - **Config keys:** `"writeBack": true` and optionally `"maxCells": 60` in the same `excel-import.json`.
+- **Whole-day cells are split when the app has two halves (5 Nov 2026).** In the workbook an AM and a PM cell that say the
+  same thing are merged into one (`D48:D49`). When the app has a different morning and afternoon, the write-back unmerges
+  the cell and writes the two halves, as a person would by hand (`apply-excel-edits.ps1`). This includes a plan that changes
+  only one half: before this, writing the merged cell changed both halves, the next plan changed them back, and one person's
+  Wednesday to Friday swapped between two values every run for days ("1 of 5 cells written, 4 left", 400+ times in the log).
+  A cell that already says what the plan wants counts as written. Only a merge of exactly two cells (two rows, one column) is
+  split, and only while it still says what it said when the plan was made; anything else is left alone.
 - **Quiet runs are skipped (4 Nov 2026).** A full pass reads every person and every recent week (about a hundred Firestore
   documents), which at every 5 minutes was most of a day's reads on a quiet hub. A run now skips when the workbook is the
   file the last pass left (`excel-export-state.json` beside the config), the last pass didn't ask to be retried (the workbook
