@@ -71,3 +71,9 @@ test('Save PDF + Ansur file saves both together after asking where; Saved report
   assert.match(reports, /remove\(\[\.\.\.files, \.\.\.stale\]/, 'removing a test removes the older copies of it too')
   assert.match(section, /'chs-bench:build-pdf'/)
 })
+
+test('the template tiles are compact: name and badges, the description only as a hover title', () => {
+  assert.match(html, /class="tpl-tile" data-id="\$\{t\.id\}" aria-pressed="\$\{this\.picked === t\.id\}"\$\{t\.desc \? ` title="\$\{esc\(t\.desc\)\}"` : ''\}>/)
+  assert.doesNotMatch(html, /<span class="muted" style="font-size:14px">\$\{esc\(t\.desc\)\}<\/span>/, 'no description text in the tile')
+  assert.match(html, /\.tpl-pick\{display:grid;grid-template-columns:repeat\(auto-fill,minmax\(210px,1fr\)\)/)
+})

@@ -183,7 +183,7 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 
 /* ---------- runner ---------- */
 .run-setup{max-width:880px}
-.tpl-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:18px}
+.tpl-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-bottom:14px}
 .tpl-group{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 -2px;font:700 12px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
 .tpl-group:first-child{margin-top:0}
 .tpl-group::after{content:"";flex:1;height:1px;background:var(--border-subtle)}
@@ -209,10 +209,11 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .next-bar b{font:600 20px/1.2 var(--font-display);color:var(--text-strong)}
 #runSetup.next-device .next-bar{display:flex}
 #runSetup.next-device .page-head,#runSetup.next-device #tplPick,#runSetup.next-device #prevCard,#runSetup.next-device #sharedBanner{display:none}
-.tpl-tile{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:#fff;padding:14px;text-align:left;cursor:pointer;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:6px;transition:box-shadow .22s var(--ease),transform .22s var(--ease)}
+.tpl-tile{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:#fff;padding:9px 12px;text-align:left;cursor:pointer;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:5px;transition:box-shadow .22s var(--ease),transform .22s var(--ease)}
 .tpl-tile:hover{box-shadow:var(--shadow-card-hover);transform:translateY(-2px)}
 .tpl-tile[aria-pressed="true"]{border-color:var(--chs-purple);box-shadow:0 0 0 2px var(--chs-purple)}
-.tpl-tile .t-name{font:600 16px/1.25 var(--font-display);color:var(--text-strong)}
+.tpl-tile .t-name{font:600 14.5px/1.25 var(--font-display);color:var(--text-strong)}
+.tpl-tile .chips .badge{font-size:11px;padding:1px 7px}
 .tpl-tile .chips{display:flex;gap:6px;flex-wrap:wrap}
 .runner{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
 .steplist{list-style:none;margin:0;padding:6px}
@@ -4501,8 +4502,8 @@ const App = {
   refreshRunPicker() {
     const tiles = groupTemplates(Store.templates).map(([cat, list]) => `<div class="tpl-group" role="presentation">${esc(cat)}</div>` + list.map(t => {
       const g = new Set(t.steps.map(s => TYPES[s.type]?.group));
-      return `<button type="button" class="tpl-tile" data-id="${t.id}" aria-pressed="${this.picked === t.id}">
-        <span class="t-name">${esc(t.name)}</span>${t.desc ? `<span class="muted" style="font-size:14px">${esc(t.desc)}</span>` : ''}
+      return `<button type="button" class="tpl-tile" data-id="${t.id}" aria-pressed="${this.picked === t.id}"${t.desc ? ` title="${esc(t.desc)}"` : ''}>
+        <span class="t-name">${esc(t.name)}</span>
         <span class="chips"><span class="badge">${t.steps.length} steps</span>${g.has('esa') ? '<span class="badge warn">ESA612</span>' : ''}${g.has('ps') ? '<span class="badge pass">ProSim 8</span>' : ''}</span></button>`;
     }).join('')).join('');
     $('#tplPick').innerHTML = tiles || '<div class="empty">No templates yet. Build one on the Templates page.</div>';
