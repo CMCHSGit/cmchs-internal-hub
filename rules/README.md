@@ -28,6 +28,23 @@ Realtime Database was open to anyone. Before publishing it, `checkDatabaseAuth()
 
 ## Testing
 
+**Automatic:** the workflow `.github/workflows/rules-tests.yml` runs every test
+file on the emulator whenever `rules/`, the tracker's code (`apps/equipment/src/`)
+or the workflow changes, and shows a green or red tick on the commit. It does not
+publish anything and does not stop the site deploying. **On your computer** (needs
+Java; run `npm ci` once at the repo root as well, for the tracker data-layer test):
+
+```
+cd rules
+npm ci
+npm test
+```
+
+(`rules/package.json` holds the test tools, kept apart from the hub's own install.
+On Windows, see the Java "loopback" note below if the emulator stops at once.)
+
+The manual way, which still works, is:
+
 `tests/` runs the real rules engine (the Firestore emulator), not a mock. It
 needs Java. From an empty folder outside the repo:
 

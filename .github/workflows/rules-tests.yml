@@ -1,0 +1,52 @@
+# Runs the Firestore security-rules tests (rules/tests) on the Firebase emulator
+# whenever the rules, the tests, the tracker's data layer or this file change, and
+# on request. A failing run means a rule no longer does what its test says. It does
+# not publish anything and does not hold up the site deploy; the result shows on
+# the commit. How to run the same thing locally: rules/README.md, "Testing".
+name: Rules tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'rules/**'
+      - 'apps/equipment/src/**'
+      - '.github/workflows/rules-tests.yml'
+  pull_request:
+    paths:
+      - 'rules/**'
+      - 'apps/equipment/src/**'
+      - '.github/workflows/rules-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rules-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            rules/package-lock.json
+      # The emulator needs Java.
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # The hub's own install: the tracker data-layer test bundles its code with esbuild.
+      - run: npm ci
+      - run: npm ci
+        working-directory: rules
+      - run: npm test
+        working-directory: rules

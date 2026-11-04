@@ -13,3 +13,8 @@ graphify-out/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
+
+# Rules tests (rules/package.json): installed tools and the layer test's generated files.
+rules/node_modules/
+rules/layer-stub.mjs
+rules/layer.bundle.mjs
