@@ -183,7 +183,7 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 
 /* ---------- runner ---------- */
 .run-setup{max-width:880px}
-.tpl-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin-bottom:14px}
+.tpl-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(210px*var(--g,1)),1fr));gap:8px;margin-bottom:14px}
 .tpl-group{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 -2px;font:700 12px/1 var(--font-display);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
 .tpl-group:first-child{margin-top:0}
 .tpl-group::after{content:"";flex:1;height:1px;background:var(--border-subtle)}
@@ -212,10 +212,39 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .tpl-tile{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:#fff;padding:9px 12px;text-align:left;cursor:pointer;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:5px;transition:box-shadow .22s var(--ease),transform .22s var(--ease)}
 .tpl-tile:hover{box-shadow:var(--shadow-card-hover);transform:translateY(-2px)}
 .tpl-tile[aria-pressed="true"]{border-color:var(--chs-purple);box-shadow:0 0 0 2px var(--chs-purple)}
-.tpl-tile .t-name{font:600 14.5px/1.25 var(--font-display);color:var(--text-strong)}
-.tpl-tile.hl{border-color:var(--chs-purple-60);background:#f6f4fb;box-shadow:inset 4px 0 0 var(--chs-purple),var(--shadow-card)}
-.tpl-tile.hl .t-name{color:var(--chs-purple-dark)}
-.tpl-tile .chips .badge{font-size:11px;padding:1px 7px}
+.tpl-tile .t-name{font:600 calc(14.5px*var(--ts,1))/1.25 var(--font-display);color:var(--text-strong)}
+.tpl-tile.hl{border-color:var(--hc-b);background:var(--hc-bg);box-shadow:inset 4px 0 0 var(--hc),var(--shadow-card)}
+.tpl-tile.hl .t-name{color:var(--hc-d)}
+.c-purple{--hc:var(--chs-purple);--hc-b:var(--chs-purple-60);--hc-bg:#f6f4fb;--hc-d:var(--chs-purple-dark)}
+.c-green{--hc:#2f8f4e;--hc-b:#8cc79f;--hc-bg:#eef8f1;--hc-d:#1f6b39}
+.c-orange{--hc:#e07a1f;--hc-b:#f0b982;--hc-bg:#fff4e8;--hc-d:#a85410}
+.c-blue{--hc:#2b6fd1;--hc-b:#9bbbe8;--hc-bg:#eef4fd;--hc-d:#1d4f9a}
+.c-red{--hc:#c93b3b;--hc-b:#e8a0a0;--hc-bg:#fdeeee;--hc-d:#962626}
+.c-grey{--hc:#5b6770;--hc-b:#b8c0c6;--hc-bg:#f1f3f4;--hc-d:#3a444b}
+.tpl-tile .chips .badge{font-size:calc(11px*var(--ts,1));padding:1px 7px}
+.arrange-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 10px}
+.arrange-bar .hint{flex:1;min-width:200px}
+.arrange-bar .search{flex:1 1 280px;max-width:420px}
+.arrange-bar label.sz{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted)}
+.arrange-bar label.sz select{height:32px}
+.arr-row.r2 select{flex:1}
+.tpl-tile.arr{cursor:grab}
+.tpl-tile.arr:hover{transform:none}
+.tpl-tile.arr.dragging{opacity:.45}
+.tpl-tile.arr.over{box-shadow:inset 0 3px 0 var(--chs-purple),var(--shadow-card)}
+.tpl-group.over{color:var(--chs-purple-dark)}
+.tpl-group.over::after{background:var(--chs-purple);height:2px}
+.arr-top{display:flex;align-items:flex-start;gap:6px}
+.arr-top .t-name{flex:1}
+.arr-row{display:flex;align-items:center;gap:4px}
+.arr-row select{flex:1;min-width:0;font-size:13px;padding:3px 6px;height:30px}
+.arr-b{border:1px solid var(--border-subtle);background:#fff;border-radius:6px;min-width:30px;height:30px;font:600 14px/1 var(--font-display);cursor:pointer;color:var(--text-strong)}
+.arr-b:hover:not(:disabled){border-color:var(--chs-purple);color:var(--chs-purple-dark)}
+.arr-b:disabled{opacity:.35;cursor:default}
+.arr-b.star[aria-pressed="true"]{color:var(--chs-purple-dark);border-color:var(--chs-purple);background:#ece8f6}
+.tpl-group .arr-btns{display:inline-flex;gap:4px;margin-left:4px;letter-spacing:0;text-transform:none}
+.tpl-group .arr-b{min-width:26px;height:24px;font-size:12px;padding:0 6px}
+
 .tpl-tile .chips{display:flex;gap:6px;flex-wrap:wrap}
 .runner{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
 .steplist{list-style:none;margin:0;padding:6px}
@@ -375,6 +404,9 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         </div>
       </div>
       <div class="next-bar" id="nextBar"><span class="overline">Next device</span><b id="nextName"></b><span class="hint">Same template. The details are kept; enter the serial number.</span><button class="btn quiet sm" id="nextOther" type="button">Choose a different template</button></div>
+      <div class="arrange-bar"><input class="input search" id="tplSearch" type="search" placeholder="Search templates, models or keywords (e.g. N1, V500, anaesthesia)" aria-label="Search templates" autocomplete="off"><button class="btn quiet sm" id="tplArrange" type="button">Arrange templates</button></div>
+      <div class="arrange-bar" id="arrangeTools" hidden><label class="sz">Text size <select class="input" id="arrScale"><option value="0.9">Small</option><option value="1">Normal</option><option value="1.15">Large</option><option value="1.3">Extra large</option></select></label><button class="btn quiet sm" id="arrPublish" type="button">Publish as team layout</button><button class="btn quiet sm" id="arrReset" type="button">Reset my layout</button></div>
+      <p class="hint" id="arrangeHint" style="margin:0 0 10px"></p>
       <div class="tpl-pick" id="tplPick"></div>
       <div class="card pad run-setup" id="dutCard" hidden>
         <div class="section-title"><h2>Device under test</h2><span class="badge info" id="pickedName"></span></div>
@@ -1402,10 +1434,111 @@ function categoryOf(t) {
   if (/monitor|module|ecg|spo2|nibp|capno|\btm\d|patient/i.test(x)) return 'Monitoring';
   return 'Other';
 }
-/** [[category, templates]] in the order shown: the usual groups first, then others by name, "Other" last. */
+/* How each engineer has arranged the Run a test page: group, order, highlight colour, text size and the models a template covers.
+   It is that user's own (kept in this browser) and overrides what the template says for itself; templates are not changed.
+   A "team layout" (_Run a test layout.json in the shared Templates folder, ignored by the template loader) is the starting point
+   for everyone who has not changed something themselves; "Publish as team layout" writes it. */
+const LAYOUT_FILE = '_Run a test layout.json';
+const HL_COLOURS = { purple: 'Purple', green: 'Green', orange: 'Orange', blue: 'Blue', red: 'Red', grey: 'Grey' };
+const SIZES = { s: 0.85, '': 1, l: 1.2, xl: 1.45 };
+const blankLayout = () => ({ groups: [], order: [], items: {}, scale: 0, saved: 0 });
+const normKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9*]+/g, '');
+const Layout = {
+  data: blankLayout(), team: blankLayout(), dirty: false,   // data: this user's changes; team: the shared folder's
+  key(t) { return t.shared && t.shared.file ? String(t.shared.file).toLowerCase() : 'name:' + String(t.name || '').toLowerCase(); },
+  item(t) { const k = this.key(t); return Object.assign({}, this.team.items[k], this.data.items[k]); },
+  get groups() { return this.data.groups.length ? this.data.groups : this.team.groups; },
+  get order() { return this.data.order.length ? this.data.order : this.team.order; },
+  get scale() { return this.data.scale || this.team.scale || 1; },
+  cat(t) { return this.item(t).group || categoryOf(t); },
+  /** The highlight colour name, or '' for none. A template with highlight: true in its file is purple unless changed. */
+  color(t) { const c = this.item(t).color; return c === undefined ? (t.highlight ? 'purple' : '') : (HL_COLOURS[c] ? c : ''); },
+  tileScale(t) { return +(this.scale * (SIZES[this.item(t).size || ''] || 1)).toFixed(3); },
+  covers(t) { return Array.isArray(this.item(t).covers) ? this.item(t).covers : []; },
+  index(t) { const i = this.order.indexOf(this.key(t)); return i < 0 ? 1e9 : i; },
+  clean(raw) {
+    const s = (a) => (Array.isArray(a) ? a.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()) : []), items = {};
+    for (const [k, v] of Object.entries((raw && raw.items) || {})) if (v && typeof v === 'object') {
+      const o = {}; if (typeof v.group === 'string' && v.group.trim()) o.group = v.group.trim();
+      if (typeof v.color === 'string' && (HL_COLOURS[v.color] || v.color === '')) o.color = v.color;
+      if (typeof v.size === 'string' && v.size in SIZES) o.size = v.size;
+      if (Array.isArray(v.covers)) o.covers = s(v.covers);
+      items[k] = o;
+    }
+    return { groups: s(raw && raw.groups), order: s(raw && raw.order), items, scale: [0.9, 1, 1.15, 1.3].includes(+(raw && raw.scale)) ? +raw.scale : 0, saved: +(raw && raw.saved) || 0 };
+  },
+  async load() {
+    try { const d = await DB.getKV('layout'); if (d) this.data = this.clean(d); } catch {}
+    try { const d = await DB.getKV('layoutTeam'); if (d) this.team = this.clean(d); } catch {}
+  },
+  /** Search: every word must match the template's name, description, group, models or the models it covers. A word matches a
+      word that starts with it; a covered entry like "N-Series" matches N1, N12…; "uMEC" matches uMEC12; "*" is a wildcard. */
+  matches(t, q) {
+    const words = String(q || '').toLowerCase().split(/[\s,;]+/).map(normKey).filter(Boolean); if (!words.length) return true;
+    const tokens = [t.name, t.desc, this.cat(t), ...(Array.isArray(t.models) ? t.models : [])].join(' ').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const entries = this.covers(t).map(e => String(e).toLowerCase());
+    return words.every(w => {
+      if (tokens.some(k => k.startsWith(w))) return true;
+      return entries.some(e => {
+        const series = /^([a-z]+)[\s-]*series$/.exec(e.trim());
+        if (series) return new RegExp('^' + series[1] + '\\d').test(w) || w === series[1];
+        const n = normKey(e); if (!n) return false;
+        if (n.includes('*')) return new RegExp('^' + n.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(w);
+        return n.startsWith(w) || (n.length >= 2 && w.startsWith(n)) || e.split(/[^a-z0-9]+/).some(k => k && (k.startsWith(w) || (k.length >= 2 && w.startsWith(k))));
+      });
+    });
+  },
+  /** Fix the page as it is now, so that moving one template moves only that one. */
+  snapshot(list) { const g = groupTemplates(list); this.data.groups = g.map(x => x[0]); this.data.order = g.flatMap(x => x[1].map(t => this.key(t))); },
+  setItem(t, patch) { const k = this.key(t); this.data.items[k] = Object.assign({}, this.data.items[k], patch); },
+  /** Put t in a group, before another template, or (without one) at the end of the group. */
+  move(t, group, before, list) {
+    const k = this.key(t), o = this.order.filter(x => x !== k), gs = this.groups.slice();
+    this.setItem(t, { group }); if (!gs.includes(group)) gs.push(group); this.data.groups = gs;
+    let at = before ? o.indexOf(this.key(before)) : -1;
+    if (at < 0) { const mates = list.filter(x => x !== t && this.cat(x) === group).map(x => o.indexOf(this.key(x))).filter(i => i >= 0); at = mates.length ? Math.max(...mates) + 1 : o.length; }
+    o.splice(at, 0, k); this.data.order = o;
+  },
+  moveGroup(name, dir, names) {
+    const g = names.slice(), i = g.indexOf(name), j = i + dir; if (i < 0 || j < 0 || j >= g.length) return;
+    [g[i], g[j]] = [g[j], g[i]]; this.data.groups = g;
+  },
+  renameGroup(from, to, list) { for (const t of list) if (this.cat(t) === from) this.setItem(t, { group: to }); this.data.groups = this.groups.map(g => g === from ? to : g).filter((g, i, a) => a.indexOf(g) === i); },
+  /** The template's own setting takes over again (the Templates page changed it). */
+  clearItem(t, field) { const it = this.data.items[this.key(t)]; if (it && field in it) { delete it[field]; this.persist(); } },
+  reset() { this.data = blankLayout(); },
+  persist() { this.data.saved = Date.now(); return DB.putKV('layout', clone(this.data)); },
+  /** What this user sees: the team's, with this user's changes on top. */
+  effective() {
+    const items = {}; for (const k of new Set([...Object.keys(this.team.items), ...Object.keys(this.data.items)])) items[k] = Object.assign({}, this.team.items[k], this.data.items[k]);
+    return { groups: this.groups, order: this.order, items, scale: this.scale, saved: Date.now() };
+  },
+  /** The team layout from the shared folder (the user's own changes stay on top of it). */
+  async pullShared() {
+    const dir = Shared.dir; if (!dir) return false;
+    try {
+      const f = await (await dir.getFileHandle(LAYOUT_FILE)).getFile(), j = JSON.parse(await readText(f));
+      if (!j || j.format !== 'chs-test-bench-layout' || !j.layout) return false;
+      this.team = this.clean(j.layout); await DB.putKV('layoutTeam', clone(this.team)); return true;
+    } catch { return false; }
+  },
+  /** Make the user's layout the team layout (needs a click, for the browser's permission). Returns 'shared' or 'local'. */
+  async pushShared() {
+    const dir = Shared.dir; if (!dir || !Shared.access) return 'local';
+    let perm = 'denied'; try { perm = await Shared.access.requestPermission({ mode: 'readwrite' }); } catch {}
+    if (perm !== 'granted') return 'local';
+    try {
+      const eff = this.effective(), w = await (await dir.getFileHandle(LAYOUT_FILE, { create: true })).createWritable();
+      await w.write(JSON.stringify({ format: 'chs-test-bench-layout', version: 1, layout: eff }, null, 1)); await w.close();
+      this.team = this.clean(eff); await DB.putKV('layoutTeam', clone(this.team)); return 'shared';
+    } catch { return 'local'; }
+  },
+};
+/** [[category, templates]] in the order shown: the arranged groups first, then the usual groups, then others by name, "Other" last. */
 function groupTemplates(list) {
-  const m = new Map(); for (const t of list) { const c = categoryOf(t); if (!m.has(c)) m.set(c, []); m.get(c).push(t); }
-  const rank = (c) => { const i = CATEGORIES.indexOf(c); return i >= 0 ? i : c === 'Other' ? 1e6 : 1000; };
+  const m = new Map();
+  for (const t of [...list].sort((a, b) => Layout.index(a) - Layout.index(b))) { const c = Layout.cat(t); if (!m.has(c)) m.set(c, []); m.get(c).push(t); }
+  const rank = (c) => { const g = Layout.groups.indexOf(c); if (g >= 0) return g; const i = CATEGORIES.indexOf(c); return 1000 + (i >= 0 ? i : c === 'Other' ? 1e6 : 500); };
   return [...m].sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
 }
 /** Build a clean Test Bench template from imported JSON (file, shared folder or copy). */
@@ -1594,6 +1727,7 @@ const Shared = {
       }
       for (const t of [...Store.templates]) if (t.shared && !seen.has(t.id) && !t.sharedDirty) { await Store.remove(t.id); removed++; }
       Store.templates.sort((a, b) => a.name.localeCompare(b.name));
+      await Layout.pullShared();
       this.count = Store.templates.filter(t => t.shared).length; this.last = new Date(); this.state = 'ready'; this.error = '';
       log('in', 'APP', `Shared templates folder "${this.dir.name}": ${added} added, ${updated} updated, ${removed} removed${kept ? `, ${kept} kept (changed on this PC)` : ''}${problems.length ? `; skipped ${problems.join('; ')}` : ''}`);
       if (!quiet || added || updated || removed) toast(added || updated || removed ? `Shared templates: ${added} new, ${updated} updated${removed ? `, ${removed} removed` : ''}` : 'Shared templates are up to date');
@@ -1682,8 +1816,8 @@ const Builder = {
     $('#tplImportFile').addEventListener('change', (e) => this.importTemplate(e));
     $('#tplName').addEventListener('input', (e) => { this.tpl.name = e.target.value; Store.save(this.tpl); this.renderTplList(); });
     $('#tplDesc').addEventListener('input', (e) => { this.tpl.desc = e.target.value; Store.save(this.tpl); });
-    $('#tplHighlight').addEventListener('change', (e) => { if (!this.tpl) return; this.tpl.highlight = e.target.checked; Store.save(this.tpl); this.renderTplList(); });
-    $('#tplCategory').addEventListener('input', (e) => { this.tpl.category = e.target.value.trim(); Store.save(this.tpl); this.renderTplList(); $('#tplCategory').placeholder = `Group on the Run a test page (now: ${categoryOf(this.tpl)}), e.g. Anaesthesia, Monitoring`; });
+    $('#tplHighlight').addEventListener('change', (e) => { if (!this.tpl) return; this.tpl.highlight = e.target.checked; Layout.clearItem(this.tpl, 'color'); Store.save(this.tpl); this.renderTplList(); });
+    $('#tplCategory').addEventListener('input', (e) => { this.tpl.category = e.target.value.trim(); Layout.clearItem(this.tpl, 'group'); Store.save(this.tpl); this.renderTplList(); $('#tplCategory').placeholder = `Group on the Run a test page (now: ${Layout.cat(this.tpl)}), e.g. Anaesthesia, Monitoring`; });
     this.bindCanvas();
     this.bindInspector();
     document.addEventListener('paste', (e) => {
@@ -1702,9 +1836,9 @@ const Builder = {
   },
   renderHeader() {
     $('#tplName').value = this.tpl?.name || ''; $('#tplDesc').value = this.tpl?.desc || '';
-    $('#tplHighlight').checked = !!this.tpl?.highlight;
-    $('#tplCategory').value = this.tpl?.category || ''; $('#tplCategory').placeholder = this.tpl ? `Group on the Run a test page (now: ${categoryOf(this.tpl)}), e.g. Anaesthesia, Monitoring` : 'Group';
-    $('#tplCats').innerHTML = [...new Set([...CATEGORIES, ...Store.templates.map(categoryOf), 'Other'])].map(c => `<option value="${esc(c)}">`).join('');
+    $('#tplHighlight').checked = !!this.tpl && !!Layout.color(this.tpl);
+    $('#tplCategory').value = this.tpl?.category || ''; $('#tplCategory').placeholder = this.tpl ? `Group on the Run a test page (now: ${Layout.cat(this.tpl)}), e.g. Anaesthesia, Monitoring` : 'Group';
+    $('#tplCats').innerHTML = [...new Set([...CATEGORIES, ...Layout.groups, ...Store.templates.map(x => Layout.cat(x)), 'Other'])].map(c => `<option value="${esc(c)}">`).join('');
     Shared.renderTpl();
   },
   renderPalette() {
@@ -4405,7 +4539,7 @@ function outName(run, ext) {
 const App = {
   picked: null,
   async init() {
-    await Store.load();
+    await Store.load(); await Layout.load();
     Builder.init();
     $('#sharedBtn').addEventListener('click', () => Shared.menu());
     $('#tplSaveShared').addEventListener('click', () => Builder.tpl && Shared.save(Builder.tpl));
@@ -4482,6 +4616,29 @@ const App = {
     $('#prevFile').addEventListener('change', (e) => Records.openFile(e));
     $('#prevSearch').addEventListener('input', () => Records.renderList());
     $('#tplCopySteps').addEventListener('click', () => copyStepsDialog());
+    $('#tplArrange').addEventListener('click', async () => {
+      if (!this.arranging) { this.arranging = true; Layout.dirty = false; await Layout.pullShared(); Layout.snapshot(Store.templates); this.refreshRunPicker(); return; }
+      this.arranging = false; this.refreshRunPicker();
+      if (Layout.dirty) { Layout.dirty = false; Layout.persist(); log('in', 'APP', 'Run a test layout changed and saved on this PC.'); toast('Your layout is saved on this PC.'); }
+    });
+    $('#tplSearch').addEventListener('input', () => this.refreshRunPicker());
+    $('#tplSearch').addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { e.target.value = ''; this.refreshRunPicker(); return; }
+      if (e.key !== 'Enter' || this.arranging) return;
+      const hits = $$('#tplPick .tpl-tile'); if (hits.length === 1) this.pick(hits[0].dataset.id);   // one match: Enter picks it
+    });
+    $('#arrScale').addEventListener('change', (e) => { Layout.data.scale = +e.target.value; Layout.dirty = true; Layout.persist(); this.refreshRunPicker(); });
+    $('#arrReset').addEventListener('click', async () => {
+      const ok = await dialog({ title: 'Reset your layout?', body: '<p>Your groups, order, colours, text sizes and models go back to the team layout (or, with none, to what each template says for itself).</p>', buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Reset my layout', value: true }] });
+      if (!ok) return; Layout.reset(); Layout.dirty = false; Layout.persist(); Layout.data.saved = 0; DB.putKV('layout', clone(Layout.data)); this.refreshRunPicker();
+    });
+    $('#arrPublish').addEventListener('click', async () => {
+      const ok = await dialog({ title: 'Publish as the team layout?', body: '<p>Your arrangement becomes the starting point for every engineer using the shared Templates folder, including the models each template covers. Anyone who has arranged things themselves keeps their own changes on top.</p>', buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Publish', value: true }] });
+      if (!ok) return;
+      const r = await Layout.pushShared();
+      log('in', 'APP', `Run a test layout published as the team layout (${r === 'shared' ? 'saved in the shared folder' : 'not saved: no shared folder access'}).`);
+      toast(r === 'shared' ? 'Published: the team layout is saved in the shared folder.' : 'Couldn’t write to the shared folder. Connect it (Shared templates folder) and allow access, then try again.', 4500);
+    });
     Devices.onChange(() => { if (!Devices.esa) Power.lost(); else Power.render(); });
     $('#sumPrint').addEventListener('click', () => Runner.printReport());
     $('#sumPdf').addEventListener('click', () => saveReportFiles());
@@ -4506,15 +4663,76 @@ const App = {
   renderPrefs() { $$('#view-devices [data-pref]').forEach(c => { c.checked = !!Prefs.get(c.dataset.pref); }); },
   /* ----- run setup ----- */
   refreshRunPicker() {
-    const tiles = groupTemplates(Store.templates).map(([cat, list]) => `<div class="tpl-group" role="presentation">${esc(cat)}</div>` + list.map(t => {
-      const g = new Set(t.steps.map(s => TYPES[s.type]?.group));
-      return `<button type="button" class="tpl-tile${t.highlight ? ' hl' : ''}" data-id="${t.id}" aria-pressed="${this.picked === t.id}"${t.desc ? ` title="${esc(t.desc)}"` : ''}>
+    const arr = !!this.arranging, all = groupTemplates(Store.templates), names = all.map(g => g[0]), q = ($('#tplSearch').value || '').trim();
+    const groups = q ? all.map(([c, l]) => [c, l.filter(t => Layout.matches(t, q))]).filter(g => g[1].length) : all;
+    const matesOf = (t) => all.find(g => g[0] === Layout.cat(t))[1];
+    const scale = Layout.scale; $('#tplPick').style.setProperty('--g', scale);
+    const tile = (t) => {
+      const g = new Set(t.steps.map(s => TYPES[s.type]?.group)), c = Layout.color(t), cov = Layout.covers(t);
+      const title = [t.desc, cov.length ? 'Covers: ' + cov.join(', ') : ''].filter(Boolean).join('\n');
+      return `<button type="button" class="tpl-tile${c ? ' hl c-' + c : ''}" data-id="${t.id}" style="--ts:${Layout.tileScale(t)}" aria-pressed="${this.picked === t.id}"${title ? ` title="${esc(title)}"` : ''}>
+        <span class="t-name">${esc(t.name)}</span><span class="chips"><span class="badge">${t.steps.length} steps</span>${g.has('esa') ? '<span class="badge warn">ESA612</span>' : ''}${g.has('ps') ? '<span class="badge pass">ProSim 8</span>' : ''}</span></button>`;
+    };
+    const arrTile = (t) => {
+      const c = Layout.color(t), cat = Layout.cat(t), mates = matesOf(t), i = mates.indexOf(t), cov = Layout.covers(t), sz = Layout.item(t).size || '';
+      return `<div class="tpl-tile arr${c ? ' hl c-' + c : ''}" draggable="true" data-id="${t.id}" style="--ts:${Layout.tileScale(t)}"${t.desc ? ` title="${esc(t.desc)}"` : ''}>
         <span class="t-name">${esc(t.name)}</span>
-        <span class="chips"><span class="badge">${t.steps.length} steps</span>${g.has('esa') ? '<span class="badge warn">ESA612</span>' : ''}${g.has('ps') ? '<span class="badge pass">ProSim 8</span>' : ''}</span></button>`;
-    }).join('')).join('');
-    $('#tplPick').innerHTML = tiles || '<div class="empty">No templates yet. Build one on the Templates page.</div>';
-    $$('#tplPick .tpl-tile').forEach(b => b.addEventListener('click', () => this.pick(b.dataset.id)));
+        <span class="arr-row"><select class="input" data-color aria-label="Highlight colour of ${esc(t.name)}"><option value="">No highlight</option>${Object.entries(HL_COLOURS).map(([k, n]) => `<option value="${k}"${k === c ? ' selected' : ''}>${n}</option>`).join('')}</select>
+        <select class="input" data-size aria-label="Text size of ${esc(t.name)}">${[['s', 'Small'], ['', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']].map(([k, n]) => `<option value="${k}"${k === sz ? ' selected' : ''}>${n}</option>`).join('')}</select></span>
+        <span class="arr-row"><select class="input" data-grp aria-label="Group of ${esc(t.name)}">${names.map(n => `<option value="${esc(n)}"${n === cat ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="__new">New group…</option></select>
+        <button type="button" class="arr-b" data-mv="-1" aria-label="Move ${esc(t.name)} earlier" title="Earlier"${i === 0 ? ' disabled' : ''}>←</button><button type="button" class="arr-b" data-mv="1" aria-label="Move ${esc(t.name)} later" title="Later"${i === mates.length - 1 ? ' disabled' : ''}>→</button></span>
+        <span class="arr-row"><button type="button" class="arr-b" data-covers style="flex:1;font-weight:500;font-size:13px" title="${esc(cov.join(', '))}">Models covered${cov.length ? ` (${cov.length})` : ''}…</button></span></div>`;
+    };
+    const tiles = groups.map(([cat, list]) => { const gi = names.indexOf(cat); return `<div class="tpl-group" role="presentation" data-group="${esc(cat)}"><span>${esc(cat)}</span>${arr ? `<span class="arr-btns"><button type="button" class="arr-b" data-gmove="-1" aria-label="Move group ${esc(cat)} up" title="Move the group up"${gi === 0 ? ' disabled' : ''}>↑</button><button type="button" class="arr-b" data-gmove="1" aria-label="Move group ${esc(cat)} down" title="Move the group down"${gi === names.length - 1 ? ' disabled' : ''}>↓</button><button type="button" class="arr-b" data-grename>Rename</button></span>` : ''}</div>` + list.map(t => arr ? arrTile(t) : tile(t)).join(''); }).join('');
+    $('#tplPick').innerHTML = tiles || (q ? `<div class="empty">No template matches “${esc(q)}”. Try the model, the series or part of the name, or clear the search.</div>` : '<div class="empty">No templates yet. Build one on the Templates page.</div>');
+    $$('#tplPick .tpl-tile:not(.arr)').forEach(b => b.addEventListener('click', () => this.pick(b.dataset.id)));
+    const n = groups.reduce((a, g) => a + g[1].length, 0);
+    $('#tplArrange').textContent = arr ? 'Done' : 'Arrange templates'; $('#tplArrange').classList.toggle('quiet', !arr);
+    $('#arrangeTools').hidden = !arr; $('#arrScale').value = String(scale);
+    $('#arrangeHint').textContent = arr ? 'This layout is yours: drag a template to move it (or use the lists and arrows), pick its colour and text size, and list the models it covers so a search for them finds it. Publish as team layout makes it the starting point for everyone.' : (q && n ? `${n} template${n === 1 ? '' : 's'} match “${q}”.` : '');
+    if (arr) this.bindArrange(all);
     if (this.picked && !Store.get(this.picked)) { this.picked = null; $('#dutCard').hidden = true; }
+  },
+  /** Arrange mode: drag a template onto another (to put it before that one) or onto a group heading (to the end of the group). */
+  bindArrange(all) {
+    const list = Store.templates, byId = (id) => Store.get(id), matesOf = (t) => all.find(g => g[0] === Layout.cat(t))[1];
+    const changed = () => { Layout.dirty = true; Layout.persist(); this.refreshRunPicker(); };
+    const over = (el, on) => el.classList.toggle('over', on);
+    const askGroup = async (title, value = '') => {
+      const r = await dialog({ title, body: `<div class="field"><label for="askGroupIn">Group name</label><input class="input" id="askGroupIn" value="${esc(value)}"></div>`, collect: (ov) => $('#askGroupIn', ov).value.trim(), focus: '#askGroupIn', enterNext: true, buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'OK', value: true }] });
+      return r && r.value && r.data ? r.data : null;
+    };
+    $$('#tplPick .arr').forEach(el => {
+      const t = byId(el.dataset.id), cat = Layout.cat(t), mates = matesOf(t), i = mates.indexOf(t);
+      el.addEventListener('dragstart', (e) => { this.dragId = t.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t.id); el.classList.add('dragging'); });
+      el.addEventListener('dragend', () => { this.dragId = null; el.classList.remove('dragging'); $$('#tplPick .over').forEach(x => over(x, false)); });
+      el.addEventListener('dragover', (e) => { if (this.dragId && this.dragId !== t.id) { e.preventDefault(); over(el, true); } });
+      el.addEventListener('dragleave', () => over(el, false));
+      el.addEventListener('drop', (e) => { e.preventDefault(); const d = byId(this.dragId); if (d && d !== t) { Layout.move(d, cat, t, list); changed(); } });
+      $('[data-color]', el).addEventListener('change', (e) => { Layout.setItem(t, { color: e.target.value }); changed(); });
+      $('[data-size]', el).addEventListener('change', (e) => { Layout.setItem(t, { size: e.target.value }); changed(); });
+      $$('[data-mv]', el).forEach(b => b.addEventListener('click', () => { const before = +b.dataset.mv < 0 ? mates[i - 1] : mates[i + 2]; Layout.move(t, cat, before, list); changed(); }));
+      $('[data-grp]', el).addEventListener('change', async (e) => {
+        let g = e.target.value;
+        if (g === '__new') { g = await askGroup('New group'); if (!g) { this.refreshRunPicker(); return; } }
+        Layout.move(t, g, null, list); changed();
+      });
+      $('[data-covers]', el).addEventListener('click', async () => {
+        const r = await dialog({ title: `Models covered by “${t.name}”`, wide: true,
+          body: `<p>The models and series this test is used for, one per line or separated by commas. Searching for any of them finds this template. <b>N-Series</b> matches N1, N12, N17…; <b>uMEC</b> matches uMEC10, uMEC12…; <b>V5*</b> is a wildcard.</p><div class="field"><textarea class="input" id="coversIn" rows="7" placeholder="ePM, uMEC, N-Series, V-Series, V200, V500, V700, VMAX">${esc(Layout.covers(t).join('\n'))}</textarea></div>`,
+          collect: (ov) => $('#coversIn', ov).value, focus: '#coversIn', buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Save', value: true }] });
+        if (!r || !r.value) return;
+        Layout.setItem(t, { covers: r.data.split(/[\n,;]+/).map(x => x.trim()).filter(Boolean) }); changed();
+      });
+    });
+    $$('#tplPick .tpl-group').forEach(h => {
+      const name = h.dataset.group;
+      h.addEventListener('dragover', (e) => { if (this.dragId) { e.preventDefault(); over(h, true); } });
+      h.addEventListener('dragleave', () => over(h, false));
+      h.addEventListener('drop', (e) => { e.preventDefault(); const d = byId(this.dragId); if (d) { Layout.move(d, name, null, list); changed(); } });
+      $$('[data-gmove]', h).forEach(b => b.addEventListener('click', () => { Layout.moveGroup(name, +b.dataset.gmove, all.map(g => g[0])); changed(); }));
+      $('[data-grename]', h)?.addEventListener('click', async () => { const n = await askGroup('Rename group', name); if (n && n !== name) { Layout.renameGroup(name, n, list); changed(); } });
+    });
   },
   pick(id) {
     if (this.carry && this.carry.templateId !== id) this.carry = null;   // checklist answers only go to the same template
