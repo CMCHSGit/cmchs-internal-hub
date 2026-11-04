@@ -1,0 +1,300 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray BeneHeart D1 Defibrillator – AS/NZS 3551 EST and PVT",
+    "desc": "BeneHeart D1, Pro (manual defibrillation, synchronised cardioversion, AED, 3-lead ECG) and Public (AED only): one template, Pro-only steps are left out for a Public. Internally powered, so electrical safety is enclosure leakage, patient leakage and mains on applied part. From the D1 service manual V3.0. Applied part types (ECG CF, pads BF) are assumed like the D30: check the Operator’s Manual. Needs the ESA612, a defibrillator analyser and (Pro) the ProSim 8.",
+    "category": "Defibrillation",
+    "models": [
+      "Pro",
+      "Public"
+    ],
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "showNA": false,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "ECG",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      },
+      {
+        "id": "ap2",
+        "name": "Pads",
+        "apclass": "BF",
+        "leads": [
+          "LA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Service Manual 5.2. Inspect the housing, display, buttons, pads, cables and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The housing, display, buttons and accessories have no obvious signs of damage.",
+            "The pad connector and the other external connectors are not loose and their pins are not bent; cables are not frayed.",
+            "The safety labels and the data plate are clearly legible."
+          ]
+        }
+      },
+      {
+        "id": "power-user",
+        "type": "check",
+        "title": "Power-on test and user test",
+        "instructions": "Service Manual 5.2. Insert a full or new battery.\n1. Power-on: the green power indicator and the screen light. If the battery-insert test screen appears, switch off and on again. Check the alarm message area and the battery icon.\n2. User test: connect the pads, switch on, Maintenance > User Test. Follow the prompts through the controls test, audio test and auto test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Power-on: starts normally with the green power indicator and screen lit; no alarm message.",
+            "User test result is PASS (a failure code is shown if it fails: see the manual’s fault codes)."
+          ]
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Internally powered: normal condition only. Wrap metal foil tightly around the enclosure and clip the ESA612 test lead to it (foil about 20 cm x 10 cm). Limit: 100 µA. A Public has no ECG socket: leave the ECG group unconnected and mark its readings N/A.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Each applied-part group is measured on its own: ECG (CF) on RA, pads (BF) on LA. Internally powered: normal condition only. Limits: B/BF 100 µA, CF 10 µA (AC).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "High voltage (110% mains) is applied to the applied part: keep clear. Foil on the enclosure, red lead to it. Limits: BF 5000 µA, CF 50 µA, normal and reversed polarity.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM",
+            "REV"
+          ]
+        }
+      },
+      {
+        "id": "manual-charge",
+        "type": "check",
+        "title": "Manual defibrillation: charge and discharge",
+        "instructions": "Service Manual 5.5.2 (Pro only). Test tool: defibrillator analyser. Pads on the analyser in energy measurement mode (reads 0 or blank). Manual mode: select 1 J, charge, discharge and enter the analyser reading. Repeat at 100 J and 360 J. The manual’s limits are about ±15% (1 J: 0–3 J).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Shock events are recorded automatically and correctly."
+          ],
+          "readings": [
+            {
+              "label": "Delivered energy at 1 J",
+              "unit": "J",
+              "lo": 0,
+              "hi": 3
+            },
+            {
+              "label": "Delivered energy at 100 J",
+              "unit": "J",
+              "lo": 85,
+              "hi": 115
+            },
+            {
+              "label": "Delivered energy at 360 J",
+              "unit": "J",
+              "lo": 306,
+              "hi": 414
+            }
+          ]
+        },
+        "models": [
+          "Pro"
+        ]
+      },
+      {
+        "id": "disarm",
+        "type": "check",
+        "title": "Energy disarming",
+        "instructions": "Service Manual 5.5.3 (Pro only). Pads on the analyser in energy measurement mode. Manual mode, select 360 J and charge: the charge tone sounds. Press Disarm. Charge again and leave it for 60 s.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The charge tone sounds while charging.",
+            "“Charge Removed” appears and the charge tone stops when disarmed; the analyser reads 0 J or blank.",
+            "After 60 s unattended, “Shock Removed” appears and the analyser reads 0 J or blank."
+          ]
+        },
+        "models": [
+          "Pro"
+        ]
+      },
+      {
+        "id": "sync",
+        "type": "check",
+        "title": "Synchronised cardioversion",
+        "instructions": "Service Manual 5.5.4 (Pro only). Pads and ECG leads on the analyser; sinus rhythm 1 mV, 60 bpm. Manual mode: Enter Sync, Yes, select 10 J. With the source set to the ECG lead, charge and deliver (hold Shock). Repeat with the source set to the pads.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Synchronous discharge succeeds with the ECG lead as the source, and with the pads as the source.",
+            "The sync marker appears on the R wave and the prompts are correct."
+          ],
+          "readings": [
+            {
+              "label": "Delivered energy at 10 J (sync)",
+              "unit": "J",
+              "lo": 8,
+              "hi": 12
+            },
+            {
+              "label": "Synchronisation delay",
+              "unit": "ms",
+              "lo": 0,
+              "hi": 60
+            }
+          ]
+        },
+        "models": [
+          "Pro"
+        ]
+      },
+      {
+        "id": "aed",
+        "type": "check",
+        "title": "AED",
+        "instructions": "Service Manual 5.5.1. Pads on the analyser set to output a shockable rhythm. Enter AED mode: it should analyse, charge and discharge. In Config. Edit > AED Setup set Shock Series to 200 J, 300 J and 360 J in turn, restart, re-enter AED mode, charge and discharge and enter the analyser readings. The manual’s AED step prints its 1 / 100 / 360 J table by mistake; the limits here are its ±15% applied to 200, 300 and 360 J. Both Pro and Public.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "AED performs rhythm analysis, charging and discharging.",
+            "Shock events are recorded automatically and correctly."
+          ],
+          "readings": [
+            {
+              "label": "AED delivered energy at 200 J",
+              "unit": "J",
+              "lo": 170,
+              "hi": 230
+            },
+            {
+              "label": "AED delivered energy at 300 J",
+              "unit": "J",
+              "lo": 255,
+              "hi": 345
+            },
+            {
+              "label": "AED delivered energy at 360 J",
+              "unit": "J",
+              "lo": 306,
+              "hi": 414
+            }
+          ]
+        }
+      },
+      {
+        "id": "ecg-nsr",
+        "type": "ps_nsr",
+        "title": "ECG: heart rate and lead off",
+        "instructions": "Service Manual 5.5.5 (Pro only). ECG cable on the ProSim 8: sinus rhythm, 80 bpm, 1 mV. Check the ECG lead too, then the pads (set [Lead] to the pads). Detach the simulator to test lead off.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "who": "A",
+          "rate": 80,
+          "ampl": "1.00",
+          "monitor": {
+            "enabled": true,
+            "label": "Heart rate on monitor (80 ±1 bpm)",
+            "unit": "bpm",
+            "lo": 79,
+            "hi": 81
+          },
+          "extra": [
+            {
+              "label": "ECG waves are displayed correctly without noise (ECG lead and pads).",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            },
+            {
+              "label": "ECG Lead Off alarm behaves correctly.",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            }
+          ]
+        },
+        "models": [
+          "Pro"
+        ]
+      },
+      {
+        "id": "ecg-paced",
+        "type": "ps_paced",
+        "title": "ECG: pacemaker pulses",
+        "instructions": "Service Manual 5.5.5 (Pro only). In Config. Edit > ECG Setup enable Pacemaker Detection, then send pace signals from the ProSim 8 on the ECG lead and then on the pads.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "wave": "ASY",
+          "ampl": "",
+          "monitor": {
+            "enabled": true,
+            "label": "Pace pulses are detected and pace marks are displayed (ECG lead and pads).",
+            "unit": "",
+            "lo": "",
+            "hi": ""
+          }
+        },
+        "models": [
+          "Pro"
+        ]
+      }
+    ]
+  }
+}

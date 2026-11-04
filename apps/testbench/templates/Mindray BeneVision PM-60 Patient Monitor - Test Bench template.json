@@ -1,0 +1,171 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray BeneVision PM-60 Patient Monitor – AS/NZS 3551 EST and PVT",
+    "desc": "Patient monitor with CF applied parts (SpO2, ECG leads): insulation to accessible parts, enclosure and patient leakage, mains on applied parts, SpO2 performance and battery. From the CHS Ansur template “PM-60 AS-NZS 3551 EST and PVT Master”. Needs the ESA612.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "Applied parts",
+        "apclass": "CF",
+        "leads": [
+          "RA",
+          "LA",
+          "LL",
+          "RL",
+          "V1"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the monitor, cables and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "mains",
+        "type": "esa_mains",
+        "title": "Mains voltage",
+        "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+        "images": [],
+        "hold": 0,
+        "params": {}
+      },
+      {
+        "id": "ins-mains-ne",
+        "type": "esa_ins",
+        "title": "Insulation: mains to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_NE",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            },
+            {
+              "c": "OE"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            },
+            {
+              "c": "ON",
+              "hi": 500
+            },
+            {
+              "c": "OE",
+              "hi": 500
+            }
+          ]
+        }
+      },
+      {
+        "id": "spo2-performance-test",
+        "type": "check",
+        "title": "SpO2 Performance test",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "SpO2 Checklist: Verify that the alarms work correctly"
+          ],
+          "readings": [
+            {
+              "label": "SpO2 Accuracy Test: Measure SpO2 on a healthy person’s finger and a Pleth wave and PR value are displayed. The displayed SpO2 value is within 95% and 100%",
+              "unit": "%",
+              "lo": 95,
+              "hi": 100
+            }
+          ]
+        }
+      },
+      {
+        "id": "battery-test",
+        "type": "check",
+        "title": "Battery Test",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The monitor operates correctly from battery power when external AC power fails accidentally",
+            "The operating time of the battery meets the product specification."
+          ]
+        }
+      }
+    ]
+  }
+}

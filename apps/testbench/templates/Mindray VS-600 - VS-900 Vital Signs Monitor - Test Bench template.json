@@ -1,0 +1,487 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray VS-600 / VS-900 Vital Signs Monitor – AS/NZS 3551 EST and PVT",
+    "desc": "VS-600 spot-check monitor and VS-900 monitor in one template (models VS-600, VS-900; VS-900-only steps are left out for a VS-600). Class I with a battery, CF applied parts (SpO2, NIBP, Temp). Electrical safety from the CHS Ansur VS template with AS/NZS 3551:2012+A2 limits; performance tests from the VS-600 service manual (Version 1.0, May 2013) and the VS-900 service manual V6.0. Fitted options are optional: mark the steps for parameters that are not fitted N/A. Needs the ESA612.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "SPO2, NIBP",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      }
+    ],
+    "models": [
+      "VS-600",
+      "VS-900"
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Service Manual 4.2. Inspect the case, screen, buttons, knob (VS-900), cables, connectors and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "power-on",
+        "type": "check",
+        "title": "Power-on test",
+        "instructions": "Service Manual 4.3. Insert the battery and connect AC power, then press the power key.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The AC power and battery indicators light.",
+            "The power indicator and screen come on and the main interface appears."
+          ]
+        }
+      },
+      {
+        "id": "beep-lamp",
+        "type": "check",
+        "title": "Power-on: beep and alarm lamp",
+        "instructions": "Service Manual 4.3 (VS-900). Press the power key and watch and listen as the monitor starts.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "A beep sounds at start-up (audible alarm self-test passed).",
+            "The alarm lamp turns yellow, then red, then off (lamp self-test passed)."
+          ]
+        },
+        "models": [
+          "VS-900"
+        ]
+      },
+      {
+        "id": "mains",
+        "type": "esa_mains",
+        "title": "Mains voltage",
+        "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+        "images": [],
+        "hold": 0,
+        "params": {}
+      },
+      {
+        "id": "pe",
+        "type": "esa_pe",
+        "title": "Protective earth resistance",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "hi": 0.2
+        }
+      },
+      {
+        "id": "ins-mins",
+        "type": "esa_ins",
+        "title": "Insulation: mains to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MINS",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-apins",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "APINS",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "ins-mains-ap",
+        "type": "esa_ins",
+        "title": "Insulation: mains to applied parts",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3). The Ansur template set no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_AP",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-mains-ne",
+        "type": "esa_ins",
+        "title": "Insulation: mains to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_NE",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-ap-ne",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "AP_NE",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Connect the test lead a conductive non-earthed exposed part on the DUT.\nNote: Only a representative sample of conductive non-earthed exposed parts need to be tested.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            },
+            {
+              "c": "ON",
+              "hi": 500
+            },
+            {
+              "c": "OE",
+              "hi": 500
+            }
+          ]
+        }
+      },
+      {
+        "id": "earthl",
+        "type": "esa_earthl",
+        "title": "Earth leakage",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 5000
+            },
+            {
+              "c": "ON",
+              "hi": 10000
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            },
+            {
+              "c": "OE"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "spo2",
+        "type": "check",
+        "title": "SpO2",
+        "instructions": "Service Manual 4.3 and 4.4. Method 1: adult SpO2 sensor on the finger of a healthy person (adult category), enter the SpO2 shown. Method 2 (optional): SpO2 simulator, Index 2 recommended, set to SpO2 96% and PR 80 bpm: adult and paediatric ±2%, neonate ±3%, PR ±3 bpm. Mark the simulator readings N/A if you used a finger.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The Pleth wave and pulse rate are displayed (VS-900: Pleth wave on the screen).",
+            "Remove the sensor: the “SpO2 Sensor Off” alarm triggers."
+          ],
+          "readings": [
+            {
+              "label": "SpO2 on a healthy finger",
+              "unit": "%",
+              "lo": 95,
+              "hi": 100
+            },
+            {
+              "label": "SpO2 with the simulator at 96% (adult or paediatric)",
+              "unit": "%",
+              "lo": 94,
+              "hi": 98
+            },
+            {
+              "label": "Pulse rate with the simulator at 80 bpm",
+              "unit": "bpm",
+              "lo": 77,
+              "hi": 83
+            }
+          ]
+        }
+      },
+      {
+        "id": "nibp",
+        "type": "check",
+        "title": "NIBP",
+        "instructions": "Service Manual 4.5 and 4.6. Cuff on a rigid vessel (500 ±25 ml) with a reference manometer (0.75 mmHg or better), or an NIBP simulator. Leakage: pump to 250 mmHg, wait 5 s, note the pressure, note it again after 60 s. Accuracy: check 0, 50 and 200 mmHg, 10 s to settle, and enter the difference (monitor minus reference). VS-900: Main > Maintenance > NIBP Leakage Test (about 20 s; “NIBP Pneumatic Leak” means fail) and NIBP Accuracy Test. VS-600: maintenance mode (hold the key within 10 s of the beep): leakage test code 550, accuracy test code 555.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "NIBP pneumatic leakage test passes (no leak message)."
+          ],
+          "readings": [
+            {
+              "label": "Pressure drop over 60 s from 250 mmHg",
+              "unit": "mmHg",
+              "lo": 0,
+              "hi": 6
+            },
+            {
+              "label": "Difference at 0 mmHg",
+              "unit": "mmHg",
+              "lo": -3,
+              "hi": 3
+            },
+            {
+              "label": "Difference at 50 mmHg",
+              "unit": "mmHg",
+              "lo": -3,
+              "hi": 3
+            },
+            {
+              "label": "Difference at 200 mmHg",
+              "unit": "mmHg",
+              "lo": -3,
+              "hi": 3
+            }
+          ]
+        }
+      },
+      {
+        "id": "temp",
+        "type": "check",
+        "title": "Temperature (SmarTemp)",
+        "instructions": "Service Manual 4.8 (VS-600) and 4.8 (VS-900). Only for a monitor with the predictive Temp module. Resistance box (accuracy better than 0.1 Ω) on the two orange wires of the probe connector: 9882.0 Ω = 25.3 °C, 6037.1 Ω = 37.0 °C, 4619.2 Ω = 43.7 °C. Enter what the monitor shows at each setting (±0.1 °C). Mark N/A if there is no Temp module.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "readings": [
+            {
+              "label": "Temperature at 9882.0 Ω (25.3 °C)",
+              "unit": "°C",
+              "lo": 25.2,
+              "hi": 25.4
+            },
+            {
+              "label": "Temperature at 6037.1 Ω (37.0 °C)",
+              "unit": "°C",
+              "lo": 36.9,
+              "hi": 37.1
+            },
+            {
+              "label": "Temperature at 4619.2 Ω (43.7 °C)",
+              "unit": "°C",
+              "lo": 43.6,
+              "hi": 43.8
+            }
+          ]
+        }
+      },
+      {
+        "id": "temp-other",
+        "type": "check",
+        "title": "Temperature (infrared ear or Exergen)",
+        "instructions": "Service Manual 4.8 to 4.10 (VS-900). Only for a VS-900 with an infrared ear thermometer or an Exergen TemporalScanner. Blackbody or water bath at the temperatures below, against a 4-channel reference. Mark the ones that are not fitted N/A. The manual is inconsistent for the Exergen (procedure 37.0 and 42.0 °C, report form 16.0 and 43.0 °C): use the procedure’s points.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "readings": [
+            {
+              "label": "Infrared ear THP79JU error at 37.0 °C",
+              "unit": "°C",
+              "lo": -0.2,
+              "hi": 0.2
+            },
+            {
+              "label": "Infrared ear THP79JU error at 42.0 °C",
+              "unit": "°C",
+              "lo": -0.2,
+              "hi": 0.2
+            },
+            {
+              "label": "Covidien Genius 2 error at 37.0 °C",
+              "unit": "°C",
+              "lo": -0.1,
+              "hi": 0.1
+            },
+            {
+              "label": "Covidien Genius 2 error at 42.0 °C",
+              "unit": "°C",
+              "lo": -0.2,
+              "hi": 0.2
+            },
+            {
+              "label": "Exergen error at 37.0 °C",
+              "unit": "°C",
+              "lo": -0.1,
+              "hi": 0.1
+            },
+            {
+              "label": "Exergen error at 42.0 °C",
+              "unit": "°C",
+              "lo": -0.1,
+              "hi": 0.1
+            }
+          ]
+        },
+        "models": [
+          "VS-900"
+        ]
+      },
+      {
+        "id": "co2",
+        "type": "check",
+        "title": "CO2",
+        "instructions": "Service Manual 4.7 (VS-900, CO2 option only; mark N/A if not fitted). 5.0 ±0.03% CO2 in N2 cylinder (P/N 0075-00-0033-01) through a T-piece, flow to vent. Read the value in the Calibrate CO2 screen (User Maintenance, password needed).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "readings": [
+            {
+              "label": "CO2 with the 5.0% gas",
+              "unit": "%",
+              "lo": 4.7,
+              "hi": 5.3
+            }
+          ]
+        },
+        "models": [
+          "VS-900"
+        ]
+      },
+      {
+        "id": "touch-recorder",
+        "type": "check",
+        "title": "Touchscreen, recorder, nurse call and barcode scanner",
+        "instructions": "Service Manual 4.10 and 4.11 (VS-900). Mark the options that are not fitted N/A.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Touchscreen: Main > Maintenance > Touchscreen Calibration passes (“Screen Calibration Completed!”).",
+            "Recorder: the SpO2 Pleth printout is clear; with the paper removed the out-of-paper prompt appears and clears when paper is back; trend data prints.",
+            "Nurse call: on the multifunction connector the relay follows the alarm (continuous: stays on during an alarm; pulse: a 1 s positive pulse).",
+            "Barcode scanner: a scanned barcode beeps, the characters show on the monitor and the indicator turns green."
+          ]
+        },
+        "models": [
+          "VS-900"
+        ]
+      },
+      {
+        "id": "battery",
+        "type": "check",
+        "title": "Battery",
+        "instructions": "Service Manual 4.8 and 4.12. Run the monitor on AC with the battery fitted, then pull the AC lead.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The monitor keeps working on battery when AC power is removed.",
+            "The battery run time meets the specification in the Operator’s Manual (no figure is given in the service manual)."
+          ]
+        }
+      },
+      {
+        "id": "network",
+        "type": "check",
+        "title": "Network",
+        "instructions": "VS-900 only; mark N/A if the monitor is not networked.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The monitor connects to the network (Wi-Fi or cable) and the central station or printer works."
+          ]
+        },
+        "models": [
+          "VS-900"
+        ]
+      },
+      {
+        "id": "production",
+        "type": "check",
+        "title": "Production test",
+        "instructions": "From the CHS Ansur template (not in the service manuals). Run the production test under factory maintenance.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Run the production test and confirm all tests pass."
+          ]
+        }
+      }
+    ]
+  }
+}

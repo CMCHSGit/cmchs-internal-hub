@@ -1,0 +1,243 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray NMT, BIS and BeneLink Modules – AS/NZS 3551 PVT",
+    "desc": "NMT (CF) and BIS (BF) modules and the BeneLink module. From the CHS Ansur template “NMT, BIS, BL. Module AS-NZS 3551 PVT”. Needs the ESA612.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "NMT",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      },
+      {
+        "id": "ap2",
+        "name": "BIS",
+        "apclass": "BF",
+        "leads": [
+          "LA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the module, its cables and its connectors. Do not open the module.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "mains",
+        "type": "esa_mains",
+        "title": "Mains voltage",
+        "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+        "images": [],
+        "hold": 0,
+        "params": {}
+      },
+      {
+        "id": "pe",
+        "type": "esa_pe",
+        "title": "Protective earth resistance",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "hi": 0.2
+        }
+      },
+      {
+        "id": "ins-mins",
+        "type": "esa_ins",
+        "title": "Insulation: mains to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MINS",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-apins",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "APINS",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "ins-mains-ap",
+        "type": "esa_ins",
+        "title": "Insulation: mains to applied parts",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3). The Ansur template set no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_AP",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Connect the test lead a conductive non-earthed exposed part on the DUT.\nNote: Only a representative sample of conductive non-earthed exposed parts need to be tested.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            },
+            {
+              "c": "ON",
+              "hi": 500
+            },
+            {
+              "c": "OE",
+              "hi": 500
+            }
+          ]
+        }
+      },
+      {
+        "id": "earthl",
+        "type": "esa_earthl",
+        "title": "Earth leakage",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 5000
+            },
+            {
+              "c": "ON",
+              "hi": 10000
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            },
+            {
+              "c": "OE"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "nmt-performance-test",
+        "type": "check",
+        "title": "NMT Performance Test",
+        "instructions": "Method 1: Tools required: resistance box, multimeter.\n1. Set the resistance value to 1kOhm. Connect the stimulation electrodes to the two wiring terminals.\n2. Set the multimeter to operate in DC mode. Connect the multimeter sensors to the NMT stimulation electrodes, making sure that the sensor and electrode connected have the same polarity.\n3. Insert the NMT module into the module rack of the monitor. Select the NMT parameter area of the monitor to access the NMT Setup menu. Set the Stimulation Current to Supra(60mA). Set the Pulse Width to 300 µs. Perform a PTC measurement.\n4. Check the voltage change detected by the multimeter and verify normal output of NMT stimulation. Sensor Check\nTools required: n None.\n1. Connect the patient monitor, NMT module, and NMT accessories.\n2. Select Main Menu→Maintenance→enter the required password→Module→NMT.\n3. Follow the on-screen instructions to check the NMT sensor. If sensor check completes successfully, the message Test passed. The function of NMT sensor is OK is displayed, indicating a functional sensor. If the check fails, check whether the sensor is placed correctly as instructed, and perform the sensor check again.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Verify that the voltage change is detected (between 33 - 37 V) and normal output of NMT Simulation",
+            "Verify the pulse width range is from 180 to 220 µs",
+            "Verify that NMT Passes Sensor Check"
+          ]
+        }
+      },
+      {
+        "id": "bis-performance-test",
+        "type": "check",
+        "title": "BIS Performance Test",
+        "instructions": "Method:\n1. Insert the BIS module to the monitor, connect the BIS cable to the Covidien simulator.\n2. Connect test cable from signal generator to Covidien simulator, adjust the signal generator to output a 90Hz, 35.4mV(RMS) sine signal to the Covidien simulator. (Note: set the output mode of signal generator to HighZ module, if set to 50ohm the output will be wrong)\n3. Verify the BIS waveform appears on monitor.\n4. Turn on Tabular Trends review in [Main Menu] - [Review] - [Tabular Trends]. In ''Trend Group'' select BIS parameter. Set ''Interval'' (resolution) to shortest (5 seconds). Then verify EMG value ranges from 65 to 75, and SQI value should be 100. (wait a few seconds to make the SQI reading stable)\n5. Turn on [BIS Setup], select [Sensor Check], verify all displayed electrodes are green (pass status).\n6. If you test BISx4 module, there will be EMG L (left) and EMG R (right) values, verify both values are between 65-75. There won't be any SQI values if you test BISx4. So you only check EMG values for BISx4.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Verify the BIS waveform appears on monitor.",
+            "Verify EMG value ranges from 65 to 75, and SQI value should be 100. (BISx2 Module)",
+            "Verify EMG value ranges from 65 to 75 (BISx4 Module)",
+            "Verify all displayed electrodes are green during Sensor Check Test"
+          ]
+        }
+      },
+      {
+        "id": "benelink-module",
+        "type": "check",
+        "title": "Benelink Module",
+        "instructions": "1. Connect the BeneLink module to the ventilator or the anesthesia machine.\n2. Connect the gas supply and test lungs to the ventilator or anesthesia machine, turn on the device, and configure as follows:\nSetup the serial port of the external device.\nSetup the pressure control mode and check if the ventilator or anesthesia machine works normally.\n3. Check the ID adapter is correctly configured, and the green indicator of corresponding port on the BeneLink module illuminates constantly.\n4. Access [Devices Integrated] screen on the patient monitor. Check that the device type (ventilator or anesthesia machine) and ventilation mode are correctly displayed.\n5. Select parameters PEEP, Pmean, VTe, MV, I:E, and f(RR) respectively on the patient monitor and check if the parameter values displayed on the patient monitor are consistent with those displayed on the ventilator or anesthesia machine.\n6. Re-configure the above parameters on the ventilator or the anesthesia machine and check if the parameter values displayed on the patient monitor change accordingly.\n7. Trigger alarms [MV Too Low], [Airway Pressure Too High], [PAW Too High], [Peak Too High], and [No Gas Supply] (no Air or O2) on the ventilator or the anesthesia machine. Check that these alarm messages are correctly recorded in the alarm list of the patient monitor.\n8. Switch the ventilator or anesthesia machine to volume control ventilation mode. Check if the ventilation mode displayed on the patient monitor changes accordingly, and if the parameter values of PEEP, Pmean, VTe, MV, I:E, and f(RR) are correctly displayed. Codes: A9/Wato EX- 65 Pro - 4D52B2AE SV 600/800 - 4D56B2AA",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Verify the ID adapter is correctly configured, and the green indicator of corresponding port on the BeneLink module illuminates constantly",
+            "Verify if the parameter values displayed on the patient monitor are consistent with those displayed on the ventilator or anesthesia machine.",
+            "Verify that alarm messages are correctly recorded in the alarm list of the patient monitor."
+          ]
+        }
+      }
+    ]
+  }
+}

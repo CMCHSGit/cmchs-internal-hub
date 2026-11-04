@@ -1,0 +1,158 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray BeneHeart C / S Series AED – AS/NZS 3551 EST and PVT",
+    "desc": "BeneHeart C and S series automated external defibrillator (AED only: no manual mode, pacing or monitoring). Internally powered by a disposable battery, so electrical safety is enclosure leakage, patient leakage and mains on applied part. From the C & S series service manual V1.0. The pads are BF per the manual’s report sheet. Needs the ESA612 and a defibrillator analyser.",
+    "category": "Defibrillation",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "showNA": false,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "Pads",
+        "apclass": "BF",
+        "leads": [
+          "LA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Service Manual 4.2. Inspect the case, display (if fitted), buttons, pads and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display (if fitted), buttons and accessories have no obvious signs of damage.",
+            "The pad connector and the other external connectors are not loose and their pins are not bent; cables are not frayed.",
+            "The safety labels and the data plate are clearly legible."
+          ]
+        }
+      },
+      {
+        "id": "battery-test",
+        "type": "check",
+        "title": "Battery loading test",
+        "instructions": "Service Manual 4.2. Connect new pads and close the lid. Remove the battery for 3 minutes, reinsert it: the unit runs its battery-load self-test. Follow the voice prompts through the auto, audio and button tests. After a failed test remove the battery and wait over 3 minutes before retesting. Wireless units: after the pass close the lid, the unit runs a wireless test (green light) and switches off after about a minute.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The voice says “Test completed, Device OK”.",
+            "Wireless units: the Alert platform received the self-test report (mark N/A if not wireless)."
+          ]
+        }
+      },
+      {
+        "id": "user-power",
+        "type": "check",
+        "title": "User test and power-on test",
+        "instructions": "Service Manual 4.2 and 4.3. Pads connected, battery in, open the lid.\n1. User test: hold the language button 5 s then toggle the patient switch twice (or hold the Shock button 5 s then toggle the patient switch twice; or use the device management tool). Follow the prompts through the auto, audio and button tests.\n2. Power-on test: insert the battery and open the lid.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "User test passes: “Test completed, Device OK”.",
+            "Power-on: the status indicator is green and there is no fault voice prompt."
+          ]
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Internally powered: normal condition only. Wrap metal foil tightly around the enclosure and clip the ESA612 test lead to it (foil about 20 cm x 10 cm). Limit: 100 µA. The unit has no mains lead: only the normal condition is tested.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Each applied-part group is measured on its own: pads (BF) on LA. Internally powered: normal condition only. Limits: B/BF 100 µA, CF 10 µA (AC).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "High voltage (110% mains) is applied to the applied part: keep clear. Foil on the enclosure, red lead to it. Limits: BF 5000 µA, CF 50 µA, normal and reversed polarity.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM",
+            "REV"
+          ]
+        }
+      },
+      {
+        "id": "aed",
+        "type": "check",
+        "title": "AED",
+        "instructions": "Service Manual 4.4 (the AED test). Pads on the analyser set to VF. Open the lid and check the unit analyses the rhythm, charges and discharges. With the PC configuration tool write sequential shock energies 200 J, 300 J and 360 J, disconnect the PC, restart the unit, re-enter AED analysis, charge and discharge at each energy and enter the analyser readings. Then export the event file and check each discharge was recorded.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The unit analyses the rhythm, charges and discharges.",
+            "Each discharge is recorded in the event file and the content is normal."
+          ],
+          "readings": [
+            {
+              "label": "AED delivered energy at 200 J",
+              "unit": "J",
+              "lo": 180,
+              "hi": 220
+            },
+            {
+              "label": "AED delivered energy at 300 J",
+              "unit": "J",
+              "lo": 270,
+              "hi": 330
+            },
+            {
+              "label": "AED delivered energy at 360 J",
+              "unit": "J",
+              "lo": 324,
+              "hi": 396
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

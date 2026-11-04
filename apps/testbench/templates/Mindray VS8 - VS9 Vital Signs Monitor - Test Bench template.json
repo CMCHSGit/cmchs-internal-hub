@@ -1,0 +1,296 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray VS8 / VS9 Vital Signs Monitor – AS/NZS 3551 EST and PVT",
+    "desc": "Class I vital signs monitor, CF applied parts (SpO2, ECG, Temp, NIBP, IBP). From the CHS Ansur template “VS Series AS-NZS 3551 EST and PVT”. Electrical limits from AS/NZS 3551:2012+A2. Needs the ESA612 and the ProSim 8.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "SpO2, ECG, TEMP, NIBP, IBP",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the monitor, cables and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "mains",
+        "type": "esa_mains",
+        "title": "Mains voltage",
+        "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+        "images": [],
+        "hold": 0,
+        "params": {}
+      },
+      {
+        "id": "pe",
+        "type": "esa_pe",
+        "title": "Protective earth resistance",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "hi": 0.2
+        }
+      },
+      {
+        "id": "ins-mins",
+        "type": "esa_ins",
+        "title": "Insulation: mains to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MINS",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-apins",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "APINS",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "ins-mains-ap",
+        "type": "esa_ins",
+        "title": "Insulation: mains to applied parts",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3). The Ansur template set no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_AP",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-mains-ne",
+        "type": "esa_ins",
+        "title": "Insulation: mains to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_NE",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-ap-ne",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "AP_NE",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Connect the test lead a conductive non-earthed exposed part on the DUT.\nNote: Only a representative sample of conductive non-earthed exposed parts need to be tested.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            },
+            {
+              "c": "ON",
+              "hi": 500
+            },
+            {
+              "c": "OE",
+              "hi": 500
+            }
+          ]
+        }
+      },
+      {
+        "id": "earthl",
+        "type": "esa_earthl",
+        "title": "Earth leakage",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 5000
+            },
+            {
+              "c": "ON",
+              "hi": 10000
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            },
+            {
+              "c": "OE"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "spo2-performance-test",
+        "type": "check",
+        "title": "SpO2 Performance Test",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [],
+          "readings": [
+            {
+              "label": "Measure SpO2 on a healthy person’s finger and a Pleth wave and PR value are displayed. The displayed SpO2 value is within 95% and 100%",
+              "unit": "%",
+              "lo": 95,
+              "hi": 100
+            }
+          ]
+        }
+      },
+      {
+        "id": "nibp-performance-test",
+        "type": "check",
+        "title": "NIBP Performance Test",
+        "instructions": "1. Set Patient Category to Adult.\n2. Connect the NIBP cuff to the NIBP connector on the monitor.\n3. Wrap the cuff around the cylinder as shown below.\n4. Select Main Menu?System?Maintenance >>?Module?NIBP?NIBP Leakage Test. The message \"Leakage Testing…\" is displayed in the NIBP parameter area.\n5. Verify the difference between the simulator and monitor is within 3mmHg/min. After about 20s, the cuff automatically deflates, which indicates that the NIBP leakage test is completed. If no message is displayed in the NIBP parameter area, it indicates that the system has no leakage. If the message \"NIBP Pneumatic Leak\" is displayed, it indicates that the system may have a leakage. In this case, check that all connections are in good condition and the cuff and air tubing have no leakage. Then perform the test again",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The test differences of 0, 50, and 200 mmHg in the NIBP pressure test cannot exceed ±3mmHg",
+            "NIBP is free of air leakage, or the manual air leakage detection result does not exceed 6mmHg/min"
+          ]
+        }
+      },
+      {
+        "id": "nibp-overpressure-test",
+        "type": "check",
+        "title": "NIBP Overpressure Test",
+        "instructions": "1. Select Main Menu?Maintenance?enter the required password?Factory Maintenance?NIBP.\n2. Set Patient Category to Adult/Ped in the Overpressure Protection Circuit Test. Raise the pump pressure to 320- 330 mmHg. After the pressure value is stabilized, select the Test button to start a calibration, and the NIBP menu will display Test successful, if pressure is not between 320-330 mmHg, the test will fail.\n3. Set Patient Category to Neo in the Overpressure\nProtection Circuit Test, and raise the pressure to 160-165 mmHg. After the pressure value is stabilized, select Test to start a calibration. and the NIBP menu will display Test successful, if pressure is not between 160-165 mmHg, the test will fail.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Test passes for Adult and Peds",
+            "Test passes for Neo"
+          ]
+        }
+      },
+      {
+        "id": "temperature",
+        "type": "ps_temp",
+        "title": "Temperature",
+        "instructions": "The simulator outputs 37.0 °C. Check every temperature channel on the monitor.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "t": "37.0",
+          "monitor": {
+            "enabled": true,
+            "label": "The value displayed for each Temp channel of the monitor is within 37±0.1 °C",
+            "unit": "",
+            "lo": "",
+            "hi": ""
+          }
+        }
+      },
+      {
+        "id": "network-and-battery-test",
+        "type": "check",
+        "title": "Network and Battery Test",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Network Test: Confirm that the monitor can print over the network",
+            "Network Test: The network printer correctly prints ECG reports",
+            "Battery Test: The monitor operates correctly from battery power when external AC power fails accidentally",
+            "Battery Test: The operating time of the battery meets the product specification."
+          ]
+        }
+      }
+    ]
+  }
+}

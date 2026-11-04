@@ -1,0 +1,216 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray BeneVision TM80 Telemetry Monitor – AS/NZS 3551 PVT",
+    "desc": "Battery-powered (internally powered) telemetry monitor, CF applied parts (SpO2, ECG): patient leakage and mains on applied parts only, then ECG, respiration and SpO2 performance, network and battery. From the CHS Ansur template “TM80 AS-NZS 3551 PVT”. Needs the ESA612 and the ProSim 8.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "SPO2, ECG",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the monitor, cables and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "ecg-heart-rate-waveform-and-lead-off",
+        "type": "ps_nsr",
+        "title": "ECG: heart rate, waveform and lead off",
+        "instructions": "Connect the ECG leads to the ProSim 8. The simulator is set to ECG sinus rhythm, 60 bpm, 1 mV.\n1. Enter the HR shown on the monitor (60±1 bpm).\n2. Check the ECG waves are displayed correctly without noise.\n3. Disconnect each lead in turn and check the matching lead off message appears. Reconnect all leads.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "who": "A",
+          "rate": 60,
+          "ampl": "1.00",
+          "monitor": {
+            "enabled": true,
+            "label": "Heart rate on monitor",
+            "unit": "bpm",
+            "lo": 59,
+            "hi": 61
+          },
+          "extra": [
+            {
+              "label": "ECG waves are displayed correctly without noise.",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            },
+            {
+              "label": "ECG Lead Off alarm appears correctly for each lead.",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            }
+          ]
+        }
+      },
+      {
+        "id": "ecg-calibration-square-wave",
+        "type": "ps_perf",
+        "title": "ECG: calibration square wave",
+        "instructions": "The simulator outputs a square wave (performance). Set the ECG filter on the monitor to Diagnostic and verify the wave scale difference does not exceed 5%.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "wave": "SQUARE=2.0",
+          "monitor": {
+            "enabled": true,
+            "label": "The difference between the amplitude of the ECG calibration square wave and that of the wave scale is not greater than 5%.",
+            "unit": "",
+            "lo": "",
+            "hi": ""
+          }
+        }
+      },
+      {
+        "id": "ecg-paced-signals",
+        "type": "ps_paced",
+        "title": "ECG: paced signals",
+        "instructions": "The simulator outputs a paced signal. Set Paced to Yes on the monitor and check the pace pulse marks on the screen.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "wave": "ASY",
+          "ampl": "",
+          "monitor": {
+            "enabled": true,
+            "label": "Paced signals are detected and pace pulse marks are displayed when [Paced] is set to [Yes].",
+            "unit": "",
+            "lo": "",
+            "hi": ""
+          }
+        }
+      },
+      {
+        "id": "respiration",
+        "type": "ps_resp",
+        "title": "Respiration",
+        "instructions": "The simulator outputs respiration at 20 rpm. Verify the Resp wave is not distorted and enter the Resp rate shown on the monitor (20±2).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "rate": 20,
+          "monitor": {
+            "enabled": true,
+            "label": "Resp rate on monitor",
+            "unit": "rpm",
+            "lo": 18,
+            "hi": 22
+          },
+          "extra": [
+            {
+              "label": "The Resp wave is not distorted.",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            }
+          ]
+        }
+      },
+      {
+        "id": "spo2-performance-test",
+        "type": "check",
+        "title": "SpO2 Performance Test",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The Pleth wave and Pulse rate are displayed properly.",
+            "The SpO2 Probe off alarm operates correctly."
+          ],
+          "readings": [
+            {
+              "label": "Measure SpO2 on a healthy person’s finger. The displayed SpO2 value is within 95% and 100%",
+              "unit": "%",
+              "lo": 95,
+              "hi": 100
+            }
+          ]
+        }
+      },
+      {
+        "id": "network-and-battery-test",
+        "type": "check",
+        "title": "Network and Battery Test",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "Battery Test: The operating time of the battery meets the product specification.",
+            "Network Test: Confirm that the monitor connects to the CMS"
+          ]
+        }
+      }
+    ]
+  }
+}

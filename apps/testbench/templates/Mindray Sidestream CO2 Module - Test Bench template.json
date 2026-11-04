@@ -1,0 +1,61 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray Sidestream CO2 Module – AS/NZS 3551 PVT",
+    "desc": "Sidestream CO2 module (plugs into the monitor): visual, leak test and CO2 accuracy. From the CHS Ansur template “Side Stream CO2 module AS-NZS 3551 PVT”. No electrical safety tests: the host monitor’s are done on the monitor.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the module, its cables and its connectors. Do not open the module.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "sidestream-co2-test-and-calibration",
+        "type": "check",
+        "title": "Sidestream CO2 Test and Calibration",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "CO2 Leak Test: Block the gas inlet of the module or watertrap. The sidestream CO2 flowrate is slower than 10ml/min and an alarm of CO2 Filterline Err is given. It indicates that there is no leakage."
+          ],
+          "readings": [
+            {
+              "label": "CO2 Accuracy Test: The displayed CO2 value is within 6.0±0.3%.",
+              "unit": "%",
+              "lo": 5.6,
+              "hi": 6.4
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

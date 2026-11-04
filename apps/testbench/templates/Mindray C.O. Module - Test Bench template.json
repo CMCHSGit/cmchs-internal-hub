@@ -1,0 +1,236 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray C.O. Module – AS/NZS 3551 PVT",
+    "desc": "Cardiac output (C.O.) module, CF applied part. From the CHS Ansur template “C.O. Module AS-NZS 3551 PVT”. Needs the ESA612.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "C.O.",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the module, its cables and its connectors. Do not open the module.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "mains",
+        "type": "esa_mains",
+        "title": "Mains voltage",
+        "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+        "images": [],
+        "hold": 0,
+        "params": {}
+      },
+      {
+        "id": "pe",
+        "type": "esa_pe",
+        "title": "Protective earth resistance",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "hi": 0.2
+        }
+      },
+      {
+        "id": "ins-mins",
+        "type": "esa_ins",
+        "title": "Insulation: mains to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MINS",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-apins",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "APINS",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "ins-mains-ap",
+        "type": "esa_ins",
+        "title": "Insulation: mains to applied parts",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3). The Ansur template set no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_AP",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-mains-ne",
+        "type": "esa_ins",
+        "title": "Insulation: mains to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_NE",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-ap-ne",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "AP_NE",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Connect the test lead a conductive non-earthed exposed part on the DUT.\nNote: Only a representative sample of conductive non-earthed exposed parts need to be tested.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            },
+            {
+              "c": "ON",
+              "hi": 500
+            },
+            {
+              "c": "OE",
+              "hi": 500
+            }
+          ]
+        }
+      },
+      {
+        "id": "earthl",
+        "type": "esa_earthl",
+        "title": "Earth leakage",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 5000
+            },
+            {
+              "c": "ON",
+              "hi": 10000
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            },
+            {
+              "c": "OE"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "c-o-performance-test",
+        "type": "check",
+        "title": "C.O Performance Test",
+        "instructions": "C.O Blood Temperature Test:\n1. Connect the patient simulator to the C.O. connector by using the C.O. trunk cable through the adapter box.\n2. Set the blood temperature (TB) to 37°C on the patient simulator and check that the temperature value is within 37±0.2°C.\n\nC.O Function Test:\n1. In the C.O. Setup menu, set Auto IT to Off, IT to 2°C, and Comp. Const to 0.542. Open the C.O. Measure window.\n2. Click Start to start C.O. measurement.\n3. On the patient simulator, set C.O. to 5 L/min, and wait for 3 to 10 seconds.\n4. Verify that the C.O. value is within 5±0.25 L/min",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "C.O Function Test: Correct C.O. Value is displayed on the monitor and no errors are shown."
+          ],
+          "readings": [
+            {
+              "label": "C.O Blood Temperature Test: Temperature value is within 37±0.2°C",
+              "unit": "°C",
+              "lo": 36.8,
+              "hi": 37.2
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

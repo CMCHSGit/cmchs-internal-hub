@@ -202,6 +202,10 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
 - **A device is one customer, and a test is one test.** In Saved reports every test of a serial number shows under that serial's latest customer,
   and files with the same test start time saved under two names (a serial, model or customer corrected) are one test: saving replaces the older
   copy of the same kind, and any already stored show as one (removing the test removes the older copies).
+- **Templates for the Mindray monitors and defibrillators** (4 Nov 2026, in `apps/testbench/templates/` and the SharePoint Templates folder): R700 / R12, TM80, PM-60,
+  VS8 / VS9, VS-600 / VS-900 (one template, two models), Exergen, eleven modules (sidestream CO2, AG + O2, NMT+, NMT / BIS / BeneLink, rSO2, C.O.,
+  CCO / SvO2, CO2 + O2, EEG, IBP, PiCCO), and the BeneHeart D1 (Pro / Public) and C / S series AED. Where each came from, the limits chosen and what
+  wasn't checked against a manual is in `apps/testbench/docs/change-log.md`.
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
   `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under
   Previous tests ("Shared by …"); opening one fetches it onto that PC. The PDF and the Ansur record (.mtr) aren't stored: the bench

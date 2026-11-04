@@ -1,0 +1,300 @@
+{
+  "format": "chs-test-bench-template",
+  "version": 1,
+  "template": {
+    "name": "Mindray BeneVision R700 / R12 Patient Monitor – AS/NZS 3551 EST and PVT",
+    "desc": "Class I patient monitor, CF applied parts (SpO2, ECG, Temp, NIBP, IBP). From the CHS Ansur template “R700_R12 AS-NZS 3551 EST and PVT”. Electrical limits from AS/NZS 3551:2012+A2. Needs the ESA612 and the ProSim 8.",
+    "category": "Monitoring",
+    "dut": [
+      "Serial number",
+      "Manufacturer",
+      "Model",
+      "Customer",
+      "Location",
+      "CHS asset #",
+      "Customer asset #",
+      "Testing engineer"
+    ],
+    "esaAuto": true,
+    "esaHalt": true,
+    "appliedParts": [
+      {
+        "id": "ap1",
+        "name": "SpO2, ECG, TEMP, NIBP, IBP",
+        "apclass": "CF",
+        "leads": [
+          "RA"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "id": "visual-inspection",
+        "type": "check",
+        "title": "Visual inspection",
+        "instructions": "Inspect the monitor, cables and accessories.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+            "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+            "The external connectors are not loose and their pins are not bent.",
+            "The safety labels and data plate are clearly legible.",
+            "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+          ]
+        }
+      },
+      {
+        "id": "mains",
+        "type": "esa_mains",
+        "title": "Mains voltage",
+        "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+        "images": [],
+        "hold": 0,
+        "params": {}
+      },
+      {
+        "id": "pe",
+        "type": "esa_pe",
+        "title": "Protective earth resistance",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "hi": 0.2
+        }
+      },
+      {
+        "id": "ins-mins",
+        "type": "esa_ins",
+        "title": "Insulation: mains to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MINS",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-apins",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to protective earth",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "APINS",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "ins-mains-ap",
+        "type": "esa_ins",
+        "title": "Insulation: mains to applied parts",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3). The Ansur template set no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_AP",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-mains-ne",
+        "type": "esa_ins",
+        "title": "Insulation: mains to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "MAINS_NE",
+          "volts": "HIGH",
+          "lo": 1
+        }
+      },
+      {
+        "id": "ins-ap-ne",
+        "type": "esa_ins",
+        "title": "Insulation: applied parts to non-earth accessible conductive part",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only. The Ansur template sets no limit for this measurement.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "target": "AP_NE",
+          "volts": "HIGH",
+          "lo": ""
+        }
+      },
+      {
+        "id": "encl",
+        "type": "esa_encl",
+        "title": "Enclosure leakage",
+        "instructions": "Connect the test lead a conductive non-earthed exposed part on the DUT.\nNote: Only a representative sample of conductive non-earthed exposed parts need to be tested.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 100
+            },
+            {
+              "c": "ON",
+              "hi": 500
+            },
+            {
+              "c": "OE",
+              "hi": 500
+            }
+          ]
+        }
+      },
+      {
+        "id": "earthl",
+        "type": "esa_earthl",
+        "title": "Earth leakage",
+        "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "conds": [
+            {
+              "c": "NC",
+              "hi": 5000
+            },
+            {
+              "c": "ON",
+              "hi": 10000
+            }
+          ]
+        }
+      },
+      {
+        "id": "pat",
+        "type": "esa_pat",
+        "title": "Patient leakage",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "conds": [
+            {
+              "c": "NC"
+            },
+            {
+              "c": "ON"
+            },
+            {
+              "c": "OE"
+            }
+          ]
+        }
+      },
+      {
+        "id": "map",
+        "type": "esa_map",
+        "title": "Mains on applied parts",
+        "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "mode": "together",
+          "pols": [
+            "NORM"
+          ]
+        }
+      },
+      {
+        "id": "ecg-heart-rate-waveform-and-lead-off",
+        "type": "ps_nsr",
+        "title": "ECG: heart rate, waveform and lead off",
+        "instructions": "Connect the ECG leads to the ProSim 8. The simulator is set to ECG sinus rhythm, 60 bpm, 1 mV.\n1. Enter the HR shown on the monitor (60±1 bpm).\n2. Check the ECG waves are displayed correctly without noise.\n3. Disconnect each lead in turn and check the matching lead off message appears. Reconnect all leads.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "who": "A",
+          "rate": 60,
+          "ampl": "1.00",
+          "monitor": {
+            "enabled": true,
+            "label": "Heart rate on monitor",
+            "unit": "bpm",
+            "lo": 59,
+            "hi": 61
+          },
+          "extra": [
+            {
+              "label": "ECG waves are displayed correctly without noise.",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            },
+            {
+              "label": "ECG Lead Off alarm appears correctly for each lead.",
+              "unit": "",
+              "lo": "",
+              "hi": ""
+            }
+          ]
+        }
+      },
+      {
+        "id": "ecg-calibration-square-wave",
+        "type": "ps_perf",
+        "title": "ECG: calibration square wave",
+        "instructions": "The simulator outputs a square wave (performance). Set the ECG filter on the monitor to Diagnostic and verify the wave scale difference does not exceed 5%.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "wave": "SQUARE=2.0",
+          "monitor": {
+            "enabled": true,
+            "label": "The difference between the amplitude of the ECG calibration square wave and that of the wave scale is not greater than 5%.",
+            "unit": "",
+            "lo": "",
+            "hi": ""
+          }
+        }
+      },
+      {
+        "id": "ecg-paced-signals",
+        "type": "ps_paced",
+        "title": "ECG: paced signals",
+        "instructions": "The simulator outputs a paced signal. Set Paced to Yes on the monitor and check the pace pulse marks on the screen.",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "wave": "ASY",
+          "ampl": "",
+          "monitor": {
+            "enabled": true,
+            "label": "Paced signals are detected and pace pulse marks are displayed when [Paced] is set to [Yes].",
+            "unit": "",
+            "lo": "",
+            "hi": ""
+          }
+        }
+      },
+      {
+        "id": "recorder-check",
+        "type": "check",
+        "title": "Recorder Check",
+        "instructions": "",
+        "images": [],
+        "hold": 0,
+        "params": {
+          "items": [
+            "The recorder can print ECG waves correctly and the printout is clear",
+            "Simulate recorder problems such as out of paper and paper jam, the message \"Check Recorder\" should appear"
+          ]
+        }
+      }
+    ]
+  }
+}
