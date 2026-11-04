@@ -1471,22 +1471,34 @@ const Layout = {
     try { const d = await DB.getKV('layout'); if (d) this.data = this.clean(d); } catch {}
     try { const d = await DB.getKV('layoutTeam'); if (d) this.team = this.clean(d); } catch {}
   },
-  /** Search: every word must match the template's name, description, group, models or the models it covers. A word matches a
-      word that starts with it; a covered entry like "N-Series" matches N1, N12…; "uMEC" matches uMEC12; "*" is a wildcard. */
-  matches(t, q) {
-    const words = String(q || '').toLowerCase().split(/[\s,;]+/).map(normKey).filter(Boolean); if (!words.length) return true;
-    const tokens = [t.name, t.desc, this.cat(t), ...(Array.isArray(t.models) ? t.models : [])].join(' ').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-    const entries = this.covers(t).map(e => String(e).toLowerCase());
-    return words.every(w => {
-      if (tokens.some(k => k.startsWith(w))) return true;
-      return entries.some(e => {
-        const series = /^([a-z]+)[\s-]*series$/.exec(e.trim());
-        if (series) return new RegExp('^' + series[1] + '\\d').test(w) || w === series[1];
-        const n = normKey(e); if (!n) return false;
-        if (n.includes('*')) return new RegExp('^' + n.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(w);
-        return n.startsWith(w) || (n.length >= 2 && w.startsWith(n)) || e.split(/[^a-z0-9]+/).some(k => k && (k.startsWith(w) || (k.length >= 2 && w.startsWith(k))));
-      });
+  words(q) { return String(q || '').toLowerCase().split(/[\s,;]+/).map(normKey).filter(Boolean); },
+  /** How well one search word matches a template: 0 not at all, 1 its name, description or group, 3 a model it lists or covers.
+      A word matches a word that starts with it; a covered entry like "N-Series" matches N1, N12…; "uMEC" matches uMEC12; "*" is a wildcard. */
+  hit(t, w) {
+    const entries = [...this.covers(t), ...(Array.isArray(t.models) ? t.models : [])].map(e => String(e).toLowerCase());
+    const listed = entries.some(e => {
+      const series = /^([a-z]+)[\s-]*series$/.exec(e.trim());
+      if (series) return new RegExp('^' + series[1] + '\\d').test(w) || w === series[1];
+      const n = normKey(e); if (!n) return false;
+      if (n.includes('*')) return new RegExp('^' + n.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(w);
+      return n.startsWith(w) || (n.length >= 2 && w.startsWith(n)) || e.split(/[^a-z0-9]+/).some(k => k && (k.startsWith(w) || (k.length >= 2 && w.startsWith(k))));
     });
+    if (listed) return 3;
+    const text = [t.name, t.desc, this.cat(t)].join(' ').toLowerCase();   // words, and hyphenated ones joined too (PM-60 as pm60)
+    return [...text.split(/[^a-z0-9]+/), ...text.split(/[\s/,;()]+/).map(normKey)].filter(Boolean).some(k => k.startsWith(w)) ? 1 : 0;
+  },
+  /** Search: every word must match the template's name, description, group, models or the models it covers. */
+  matches(t, q) { const words = this.words(q); return words.every(w => this.hit(t, w) > 0); },
+  /** The one template for a device model (e.g. "BeneHeart D30"), or null when none, or more than one, fits best. A word with a digit
+      (D30, N12) names the model, so a template must match all of those; plain words (BeneHeart) only add to the score. */
+  bestFor(list, model) {
+    const words = this.words(model), model_ = words.filter(w => /\d/.test(w)); if (!words.length) return null;
+    const scored = list.map(t => {
+      const h = words.map(w => this.hit(t, w));
+      if (model_.length && !words.every((w, i) => h[i] > 0 || !/\d/.test(w))) return { t, s: 0 };
+      return { t, s: words.reduce((a, w, i) => a + (h[i] ? (/\d/.test(w) ? 3 : 1) * (h[i] === 3 ? 1.5 : 1) : 0), 0) };
+    }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+    return scored.length && (scored.length === 1 || scored[0].s > scored[1].s) ? scored[0].t : null;
   },
   /** Fix the page as it is now, so that moving one template moves only that one. */
   snapshot(list) { const g = groupTemplates(list); this.data.groups = g.map(x => x[0]); this.data.order = g.flatMap(x => x[1].map(t => this.key(t))); },
@@ -4622,6 +4634,7 @@ const App = {
       if (Layout.dirty) { Layout.dirty = false; Layout.persist(); log('in', 'APP', 'Run a test layout changed and saved on this PC.'); toast('Your layout is saved on this PC.'); }
     });
     $('#tplSearch').addEventListener('input', () => this.refreshRunPicker());
+    window.addEventListener('message', (e) => { if (e.origin === location.origin && e.source === window.parent && e.data && e.data.type === 'chs-bench:open-device') this.openDevice(e.data.device); });   // from the hub: a "Test this device" link
     $('#tplSearch').addEventListener('keydown', (e) => {
       if (e.key === 'Escape') { e.target.value = ''; this.refreshRunPicker(); return; }
       if (e.key !== 'Enter' || this.arranging) return;
@@ -4734,6 +4747,29 @@ const App = {
       $('[data-grename]', h)?.addEventListener('click', async () => { const n = await askGroup('Rename group', name); if (n && n !== name) { Layout.renameGroup(name, n, list); changed(); } });
     });
   },
+  /** A "Test this device" link from a customer's asset list: the matching template, with the device's details filled in. */
+  openDevice(d) {
+    if (!d || typeof d !== 'object') return;
+    if (Runner.run && !$('#runActive').hidden) { toast('A test is in progress. Finish or stop it, then open the link again.', 5000); return; }
+    this.show('run');
+    let t = null;
+    if (d.template) { const q = String(d.template).toLowerCase(); t = Store.templates.find(x => x.name.toLowerCase() === q) || Store.templates.find(x => x.name.toLowerCase().includes(q)) || null; }
+    if (!t && d.model) t = Layout.bestFor(Store.templates, d.model);
+    this.pendingDevice = d;
+    log('in', 'APP', `Opened from a link: ${d.model || d.template || 'a device'}${t ? ` → template “${t.name}”` : ' (no single template fits; choose one)'}.`);
+    if (t) { $('#tplSearch').value = ''; this.refreshRunPicker(); this.pick(t.id); }
+    else { $('#tplSearch').value = String(d.model || d.template || '').slice(0, 60); this.refreshRunPicker(); toast(`No single template fits ${d.model || 'this device'}. Pick one and the details are filled in.`, 6000); }
+  },
+  fillDevice(d) {
+    const cleanV = (v) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120);
+    const map = [['serial', /^serial/i], ['manufacturer', /^(manufacturer|make)/i], ['model', /^model/i], ['customer', /^customer( name)?$/i], ['site', /^site/i], ['asset', /^chs asset/i], ['custasset', /^customer asset/i], ['ward', /ward|location/i]];
+    const inputs = $$('#dutFields input'); let n = 0;
+    for (const [k, re] of map) { const v = cleanV(d[k]); if (!v) continue; const el = inputs.find(i => re.test(i.dataset.k.trim())); if (el) { el.value = v; n++; } }
+    this.updateStartHint();
+    const ser = inputs.find(i => /^serial/i.test(i.dataset.k.trim())); if (ser && cleanV(d.serial)) ser.dispatchEvent(new Event('change'));   // the customer's spreadsheet fills the rest
+    $('#startRun').focus();
+    toast(`${n} detail${n === 1 ? '' : 's'} filled in from the link. Check them, then Start test.`, 4500);
+  },
   pick(id) {
     if (this.carry && this.carry.templateId !== id) this.carry = null;   // checklist answers only go to the same template
     this.picked = id; const t = Store.get(id);
@@ -4746,6 +4782,7 @@ const App = {
     $$('#dutFields input').filter(i => /^(serial|chs asset|customer asset)/i.test(i.dataset.k.trim())).forEach(i => i.addEventListener('change', () => Sheet.onTyped(i)));   // in the customer's spreadsheet: fill the rest
     $('#dutFields input')?.focus();
     $('#dutCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (this.pendingDevice) { const d = this.pendingDevice; this.pendingDevice = null; this.fillDevice(d); }
   },
   /** After a test: the next device on the same template. The details stay (customer, engineer, model…); the serial number is blank.
       The checklist answers (Pass and N/A on checklist steps) are kept too, to be put back when the next test starts. */

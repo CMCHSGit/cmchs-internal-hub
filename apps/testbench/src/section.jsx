@@ -21,6 +21,7 @@ import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
 import { groupReports, idbReports, markSent, saveReport } from './reports.js'
 import Reports from './Reports.jsx'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
+import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
 import './testbench.css'
 
 const BENCH_URL = '/bench-app/index.html'
@@ -96,6 +97,9 @@ function TestBench() {
   who.current = { email: (user?.email || '').toLowerCase(), name: profile?.displayName || user?.displayName || user?.email || '', admin: profile?.role === 'admin' }
   const shared = useRef({ list: [], ok: false })
   const toBench = useCallback((msg) => frame.current?.contentWindow?.postMessage(msg, location.origin), [])
+  // A "Test this device" link (device-link.js): handed to the bench once it says hello, then taken out of the address bar.
+  const sendDevice = useCallback(() => { const d = takeDeviceLink(); if (d) { toBench({ type: 'chs-bench:open-device', device: d }); try { history.replaceState(null, '', cleanAddress()) } catch { /* the address stays as it is */ } } }, [toBench])
+  useEffect(() => { if (!peekDeviceLink()) return undefined; const t = setTimeout(sendDevice, 4000); return () => clearTimeout(t) }, [sendDevice])   // in case the hello was missed
   const sendShared = useCallback(() => toBench({ type: 'chs-bench:shared-list', me: who.current.email, admin: who.current.admin, ok: shared.current.ok, list: shared.current.list }), [toBench])
   useEffect(() => {
     if (!user) { shared.current = { list: [], ok: false }; sendShared(); return undefined }
@@ -111,7 +115,7 @@ function TestBench() {
     const onMessage = async (e) => {
       if (e.origin !== location.origin || e.source !== frame.current?.contentWindow) return
       const m = e.data
-      if (m?.type === 'chs-bench:hello') { sendShared(); return }
+      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); return }
       if (m?.type === 'chs-bench:run' && typeof m.json === 'string') {   // a test finished or changed on this laptop: share it
         if (!user || (m.sharedBy && m.sharedBy !== who.current.email)) return
         try {
@@ -148,7 +152,7 @@ function TestBench() {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [reportStore, refreshReports, user, sendShared, toBench])
+  }, [reportStore, refreshReports, user, sendShared, sendDevice, toBench])
 
   /** Asks the bench (still loaded behind this tab) to build a file from a saved one: an Ansur record (.mtr) from a results file, or a PDF from a results file or an Ansur record. */
   const askBench = useCallback((type, buffer, name) => new Promise((resolve, reject) => {
