@@ -377,3 +377,51 @@ test('the asset list: red columns are the mandatory ones; missing details are sa
   await assert.rejects(Sheet.verify(written, 'NSH', [{ row: 5, col: 0, value: 'other' }], 3), /did not read back/)
   assert.match(html, /Sheet\.beforeStart\(\)/, 'Start test goes through it')
 })
+
+test('"Test this device" link column: added to every table that has a Serial Number, as a calculated column, nothing else in the workbook changes', async () => {
+  const { default: vm } = await import('node:vm')
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const a = html.indexOf('const XlsxLite = '), b = html.indexOf('const Runner = {')
+  const tx = (ref, t, s = 0) => `<c r="${ref}"${s ? ` s="${s}"` : ''} t="inlineStr"><is><t>${t}</t></is></c>`
+  const sheet1 = `<worksheet><dimension ref="A1:C3"/><sheetData>
+    <row r="1" spans="1:3">${tx('A1', 'Serial Number', 1)}${tx('B1', 'Device Model', 2)}${tx('C1', 'Manufacturer', 2)}</row>
+    <row r="2" spans="1:3">${tx('A2', 'SN1')}${tx('B2', 'BeneHeart D30')}${tx('C2', 'Mindray', 2)}</row>
+    <row r="3" spans="1:3">${tx('A3', 'SN2')}${tx('B3', 'N12')}<c r="C3" s="2"/></row>
+    </sheetData></worksheet>`
+  const sheet2 = `<worksheet><sheetData><row r="1">${tx('A1', 'Serial Number')}</row><row r="2">${tx('A2', 'W1')}</row></sheetData></worksheet>`   // no table
+  const extra = {
+    'xl/styles.xml': '<styleSheet><fonts count="2"><font><sz val="11"/></font><font><color rgb="FFFF0000"/></font></fonts><cellXfs count="3"><xf numFmtId="0" fontId="0"/><xf numFmtId="0" fontId="1"/><xf numFmtId="0" fontId="0"/></cellXfs></styleSheet>',
+    'xl/worksheets/_rels/sheet1.xml.rels': '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>',
+    'xl/tables/table1.xml': '<table id="1" name="T_NSH" displayName="T_NSH" ref="A1:C3"><autoFilter ref="A1:C3"/><tableColumns count="3"><tableColumn id="1" name="Serial Number"/><tableColumn id="2" name="Device Model"/><tableColumn id="3" name="Manufacturer"/></tableColumns></table>',
+    'docProps/untouched.txt': 'left exactly as it was' }
+  const buf = await makeXlsx([{ name: 'NSH', xml: sheet1 }, { name: 'Other', xml: sheet2 }], extra)
+  const ctx = { Blob, Response, DecompressionStream, CompressionStream, TextDecoder, TextEncoder, Uint8Array, Uint32Array, DataView, Math, Date, Set, Map, Object, Number, String, Array, Error, RegExp, JSON, Promise, $$: () => [], $: () => null, toast() {}, log() {}, esc: String, DB: {}, Shared: {} }
+  const { XlsxLite, Sheet } = vm.runInNewContext(html.slice(a, b) + '; ({ XlsxLite, Sheet })', ctx)
+  const plain = (x) => JSON.parse(JSON.stringify(x))
+  const r = await XlsxLite.addLinkColumn(buf)
+  assert.deepEqual(plain(r.done), [{ sheet: 'NSH', table: 'T_NSH', col: 3, r0: 1, last: 3 }])
+  assert.equal(r.skipped.length, 0, 'a sheet with no table is simply left alone')
+  const before = await XlsxLite.read(buf), after = await XlsxLite.read(r.buffer)
+  assert.equal(after[0].rows[0][3], 'Test this device', 'the header, in the new last column')
+  assert.equal(after[0].rows[1][3], 'Test this device', 'the cached value of the link formula')
+  for (const [i, row] of before[0].rows.entries()) assert.deepEqual(plain(after[0].rows[i].slice(0, 3)), plain(row), 'every other cell is as it was')
+  assert.deepEqual(plain(after[1].rows), plain(before[1].rows), 'the other sheet is as it was')
+  const sx = await XlsxLite.text(r.buffer, 'xl/worksheets/sheet1.xml'), tbl = await XlsxLite.text(r.buffer, 'xl/tables/table1.xml'), wb = await XlsxLite.text(r.buffer, 'xl/workbook.xml')
+  assert.match(sx, /<c r="D2" t="str"><f>IF\(T_NSH\[\[#This Row\],\[Serial Number\]\]=&quot;&quot;|<f>IF\(T_NSH\[\[#This Row\],\[Serial Number\]\]=""/, 'a formula per row, with the table\'s structured references')
+  assert.ok(sx.includes('_xlfn.ENCODEURL(T_NSH[[#This Row],[Device Model]])') && sx.includes('"&amp;serial="&amp;_xlfn.ENCODEURL(T_NSH[[#This Row],[Serial Number]])'), 'model and serial go in the link')
+  assert.ok(!sx.includes('Customer Asset Number'), 'only the columns the table has')
+  assert.match(sx, /<dimension ref="A1:D3"\/>/); assert.match(sx, /<cols><col min="4" max="4" width="18" customWidth="1"\/><\/cols><sheetData/)
+  assert.match(tbl, /ref="A1:D3"/); assert.match(tbl, /<autoFilter ref="A1:D3"\/>/); assert.match(tbl, /<tableColumns count="4">/)
+  assert.match(tbl, /<tableColumn id="4" name="Test this device"><calculatedColumnFormula>IF\(T_NSH/, 'a calculated column, so new rows get the link')
+  assert.match(wb, /<calcPr fullCalcOnLoad="1"\/>/, 'recalculated when opened')
+  assert.equal(await XlsxLite.text(r.buffer, 'docProps/untouched.txt'), 'left exactly as it was')
+  assert.ok(!/<c r="D1"[^>]* s="1"/.test(sx), 'the new header does not take a red (mandatory) style')
+  // again: nothing to add; and the column is never counted as a mandatory (red) one
+  const again = await XlsxLite.addLinkColumn(r.buffer)
+  assert.equal(again.buffer, null); assert.match(again.skipped[0], /already has the column/)
+  assert.ok(!Sheet.parse(after).length || !Sheet.info.NSH.red.includes('Test this device'))
+  // the bench part: a button for it, a backup first, and everything else read back unchanged before the file is replaced
+  assert.match(html, /data-sheet="addLinks"/); assert.match(html, /async addLinks\(other\)/)
+  assert.match(html, /await this\.backup\(buf, handle\.name\)/)
+  assert.match(html, /if \(a\.rows\.length < b\.rows\.length\) throw/)
+})

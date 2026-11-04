@@ -2319,6 +2319,10 @@ const XlsxLite = (() => {
         const t = edited[tp] ?? await z.text(tp); if (t) edited[tp] = growTable(t, last);
       }
     }
+    return repack(z, edited);
+  }
+  /** The workbook's zip again, with the parts in `edited` (path → new text) replaced and every other part copied across byte for byte. */
+  async function repack(z, edited) {
     const names = Object.keys(z.entries).sort((a, b) => z.entries[a].lho - z.entries[b].lho), parts = [], central = []; let offset = 0;
     const u32 = (dv, o, v) => dv.setUint32(o, v >>> 0, true), u16 = (dv, o, v) => dv.setUint16(o, v, true);
     for (let i = 0; i < names.length; i++) {
@@ -2337,7 +2341,88 @@ const XlsxLite = (() => {
     const out = new Uint8Array(offset + cdSize + 22); let at = 0; for (const p of [...parts, ...central, end]) { out.set(p, at); at += p.length; }
     return out.buffer;
   }
-  return { read, write, colName, text: async (buf, name) => (await unzip(buf)).text(name) };
+  /* ----- the "Test this device" link column ----- */
+  const LINK_HEADER = 'Test this device', LINK_URL = 'https://internal.chsnz.co.nz/testbench/';
+  /** The formula (no "=") of one table's link column: the device's model, serial number, manufacturer and asset numbers, from the columns the table has. */
+  function linkFormula(table, cols) {
+    const ref = (c) => `${table}[[#This Row],[${c}]]`;
+    const parts = [['model', 'Device Model'], ['serial', 'Serial Number'], ['manufacturer', 'Manufacturer'], ['asset', 'CHS Asset Number'], ['custasset', 'Customer Asset Number'], ['ward', 'Ward/Location']].filter(([, c]) => cols.includes(c) && !/[\[\]#']/.test(c));
+    return `IF(${ref('Serial Number')}="","",HYPERLINK("${LINK_URL}"&${parts.map(([k, c], i) => `"${i ? '&' : '?'}${k}="&_xlfn.ENCODEURL(${ref(c)})`).join('&')},"${LINK_HEADER}"))`;
+  }
+  /** Which cell styles (cellXfs) have a red font: the asset list marks its mandatory columns' headers red, and the new column must not look mandatory. */
+  function redStyles(stXml) {
+    const fonts = (stXml.match(/<fonts\b[^>]*>([\s\S]*?)<\/fonts>/) || [, ''])[1], fontRed = []; let m; const fRe = /<font\b[^>]*?(?:\/>|>([\s\S]*?)<\/font>)/g;
+    while ((m = fRe.exec(fonts))) fontRed.push(/<color\b[^>]*rgb="(?:FF)?FF0000"/i.test(m[1] || ''));
+    const xfs = (stXml.match(/<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/) || [, ''])[1], out = []; const xRe = /<xf\b([^>]*?)(\/>|>)/g;
+    while ((m = xRe.exec(xfs))) out.push(!!fontRed[+(attrs(m[1]).fontId || 0)]);
+    return out;
+  }
+  /** Adds the link column's cells to rows r0..last of a sheet: the header in r0, the formula below. Returns { xml } or { bad } (nothing changed). */
+  function addColumnCells(xml, o) {
+    let bad = null, seen = 0;
+    const out = xml.replace(/<row\b([^>]*?)(\/>|>([\s\S]*?)<\/row>)/g, (all, a, end, inner) => {
+      const rn = +((/\br="(\d+)"/.exec(a) || [])[1] || 0); if (rn < o.r0 || rn > o.last || bad) return all;
+      seen++;
+      const cells = cellsOf(inner || '');
+      if (cells.some(c => c.col >= o.col && /<v>|<f[ >]|<is>/.test(c.xml))) { bad = `row ${rn} already has something in column ${colName(o.col)}`; return all; }
+      const keep = cells.filter(c => c.col < o.col), ref = colName(o.col) + rn, before = keep.find(c => c.col === o.col - 1);
+      const s = rn === o.r0 ? o.hdrStyle : (before && before.s);
+      const cell = rn === o.r0 ? `<c r="${ref}"${s ? ` s="${s}"` : ''} t="inlineStr"><is><t>${xmlEsc(LINK_HEADER)}</t></is></c>` : `<c r="${ref}"${s ? ` s="${s}"` : ''} t="str"><f>${xmlEsc(o.formula)}</f><v>${xmlEsc(LINK_HEADER)}</v></c>`;
+      return `<row${a.replace(/\sspans="[^"]*"/, '')}>${keep.map(c => c.xml).join('')}${cell}</row>`;
+    });
+    if (!bad && seen !== o.last - o.r0 + 1) bad = 'some rows of the table are missing from the sheet';
+    if (bad) return { bad };
+    const n = o.col + 1, withDim = out.replace(/<dimension ref="([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?"\s*\/>/, (all, c1, r1, c2, r2) => `<dimension ref="${c1}${r1}:${colName(Math.max(c2 ? colIndex(c2 + '1') : colIndex(c1 + '1'), o.col))}${Math.max(+(r2 || r1), o.last)}"/>`);
+    // a width for the new column, unless the sheet already sets one for it
+    const colsM = /<cols>([\s\S]*?)<\/cols>/.exec(withDim), newCol = `<col min="${n}" max="${n}" width="18" customWidth="1"/>`;
+    if (!colsM) return { xml: withDim.replace('<sheetData', () => `<cols>${newCol}</cols><sheetData`) };
+    const list = [...colsM[1].matchAll(/<col\b[^>]*\/>/g)].map(x => ({ xml: x[0], a: attrs(x[0]) }));
+    if (list.some(c => +c.a.min <= n && n <= +c.a.max)) return { xml: withDim };
+    const at = list.findIndex(c => +c.a.min > n), all = list.map(c => c.xml); all.splice(at < 0 ? all.length : at, 0, newCol);
+    return { xml: withDim.replace(colsM[0], () => `<cols>${all.join('')}</cols>`) };
+  }
+  /** The table's definition with one more (calculated) column on the right. */
+  function addTableColumn(txml, letter, formula) {
+    const grow = (all, a, from, c2, r2, b) => `${a}${from}:${letter}${r2}${b}`;
+    const id = Math.max(0, ...[...txml.matchAll(/<tableColumn\b[^>]*\bid="(\d+)"/g)].map(m => +m[1])) + 1;
+    return txml.replace(/(<table\b[^>]*\bref=")([A-Z]+\d+):([A-Z]+)(\d+)(")/, grow).replace(/(<autoFilter\b[^>]*\bref=")([A-Z]+\d+):([A-Z]+)(\d+)(")/, grow)
+      .replace(/<tableColumns count="(\d+)">/, (m, n) => `<tableColumns count="${+n + 1}">`)
+      .replace('</tableColumns>', () => `<tableColumn id="${id}" name="${LINK_HEADER}"><calculatedColumnFormula>${xmlEsc(formula)}</calculatedColumnFormula></tableColumn></tableColumns>`);
+  }
+  /**
+   * Adds the "Test this device" column (a link per device row, a calculated column so new rows get it) to every Excel table in the workbook
+   * that has a "Serial Number" column. Returns { buffer, done: [{ sheet, table, col, r0, last }], skipped: [text] }; buffer is null when nothing was changed.
+   */
+  async function addLinkColumn(buf) {
+    const z = await unzip(buf), { sheets } = await listSheets(z), edited = {}, done = [], skipped = [], red = redStyles((await z.text('xl/styles.xml')) || '');
+    for (const sh of sheets) {
+      const rels = await z.text(sh.path.replace(/worksheets\/([^/]+)$/, 'worksheets/_rels/$1.rels')); if (!rels) continue;
+      let xml = await z.text(sh.path), changed = false;
+      for (const rm of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) {
+        const ra = attrs(rm[1]); if (!/\/table$/.test(ra.Type || '')) continue;
+        const tp = ra.Target.startsWith('/') ? ra.Target.slice(1) : 'xl/' + ra.Target.replace(/^\.\.\//, ''), txml = edited[tp] ?? await z.text(tp); if (!txml) continue;
+        const ta = attrs((/<table\b[^>]*>/.exec(txml) || [''])[0]), name = ta.displayName || ta.name, ref = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ta.ref || '');
+        const cols = [...txml.matchAll(/<tableColumn\b([^>]*)>/g)].map(m => attrs(m[1]).name);
+        const skip = (why) => skipped.push(`${sh.name} (${name || 'table'}): ${why}`);
+        if (!ref || !name) { skip('not a table the Test Bench understands'); continue; }
+        if (cols.includes(LINK_HEADER)) { skip('already has the column'); continue; }
+        if (!cols.includes('Serial Number')) { skip('no Serial Number column'); continue; }
+        if (+(ta.totalsRowCount || 0) > 0) { skip('has a totals row'); continue; }
+        const r0 = +ref[2], last = +ref[4], col = colIndex(ref[3] + '1') + 1, hdr = (findRow(xml, r0) ? cellsOf(findRow(xml, r0).inner) : []).filter(c => c.col >= colIndex(ref[1] + '1') && c.col < col);
+        const hdrStyle = (hdr.find(c => !red[+(c.s || 0)]) || {}).s || null;   // the first header that is not red
+        if (hdr.length && !hdr.some(c => !red[+(c.s || 0)])) { skip('every header is red, so the new header would look mandatory'); continue; }
+        const formula = linkFormula(name, cols), res = addColumnCells(xml, { r0, last, col, formula, hdrStyle });
+        if (res.bad) { skip(res.bad); continue; }
+        xml = res.xml; edited[tp] = addTableColumn(txml, colName(col), formula); changed = true; done.push({ sheet: sh.name, table: name, col, r0, last });
+      }
+      if (changed) edited[sh.path] = xml;
+    }
+    if (!done.length) return { buffer: null, done, skipped };
+    const wb = await z.text('xl/workbook.xml');   // recalculate on opening, so the links work without anyone pressing anything
+    edited['xl/workbook.xml'] = /<calcPr\b/.test(wb) ? wb.replace(/<calcPr\b([^>]*?)(\/?)>/, (m, a, s) => /fullCalcOnLoad=/.test(a) ? m : `<calcPr${a} fullCalcOnLoad="1"${s}>`) : wb.replace(/(<extLst\b|<\/workbook>)/, () => '<calcPr fullCalcOnLoad="1"/>$1'.replace('$1', wb.includes('<extLst') ? '<extLst' : '</workbook>'));
+    return { buffer: await repack(z, edited), done, skipped };
+  }
+  return { read, write, colName, addLinkColumn, LINK_HEADER, linkFormula, text: async (buf, name) => (await unzip(buf)).text(name) };
 })();
 
 /**
@@ -2398,7 +2483,7 @@ const Sheet = {
       const cols = sh.rows[h].map(c => str(c)), redRow = (sh.red && sh.red[h]) || [], colIdx = {};
       cols.forEach((c, i) => { if (c && colIdx[c] === undefined) colIdx[c] = i; });
       // What the sheet itself holds per column: the red (mandatory) headers, how often each value appears, and whether a column is numbers.
-      const si = info[sh.name] = { header: h + 1, cols: colIdx, red: cols.filter((c, i) => c && redRow[i] && colIdx[c] === i), last: 0, numeric: {}, common: {} };
+      const si = info[sh.name] = { header: h + 1, cols: colIdx, red: cols.filter((c, i) => c && c !== XlsxLite.LINK_HEADER && redRow[i] && colIdx[c] === i), last: 0, numeric: {}, common: {} };
       // The last row of the list (any row with something in it, such as a spare with no serial number; but not a stray value far below it,
       // which is more than 50 empty rows on): a new device goes under it. `used` is every row with something in it.
       si.last = h + 1; si.used = new Set();
@@ -2480,15 +2565,15 @@ const Sheet = {
     if (this.state === 'unsupported') { bar.hidden = true; return; }
     bar.hidden = false;
     const when = this.modified ? new Date(this.modified).toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-    if (this.state === 'none') bar.innerHTML = `<span class="hint">Fill the details from a customer’s equipment spreadsheet, so they are only typed once.</span><button type="button" class="btn secondary sm" data-sheet="choose">Choose spreadsheet…</button>`;
+    if (this.state === 'none') bar.innerHTML = `<span class="hint">Fill the details from a customer’s equipment spreadsheet, so they are only typed once.</span><button type="button" class="btn secondary sm" data-sheet="choose">Choose spreadsheet…</button><button type="button" class="btn quiet sm" data-sheet="addLinks" title="Adds a link beside each device in an asset list that opens the Test Bench for it">Add test links to a workbook…</button>`;
     else if (this.state === 'needs-permission') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint">The browser needs your OK to read it again.</span><button type="button" class="btn secondary sm" data-sheet="connect">Reconnect</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button>`;
     else if (this.state === 'error') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint" style="color:var(--critical)">${esc(this.error)}</span><button type="button" class="btn secondary sm" data-sheet="reload">Try again</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button>`;
     else bar.innerHTML = `<div class="sheet-top"><b>${esc(this.file)}</b><span class="hint">${this.rows.length} devices${when ? ` · file saved ${esc(when)}` : ''}</span>
-        <button type="button" class="btn quiet sm" data-sheet="reload">Read again</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button><button type="button" class="btn quiet sm" data-sheet="forget">Stop using</button></div>
+        <button type="button" class="btn quiet sm" data-sheet="reload">Read again</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button><button type="button" class="btn quiet sm" data-sheet="forget">Stop using</button>${this.info && Object.values(this.info).some(s => !(XlsxLite.LINK_HEADER in s.cols)) ? '<button type="button" class="btn quiet sm" data-sheet="addLinks" title="Adds a Test this device link beside each device in this asset list">Add test links</button>' : ''}<button type="button" class="btn quiet sm" data-sheet="addLinksOther" title="Adds the links to another asset list, such as the master template">Add test links to another…</button></div>
       <div class="sheet-find"><div class="field"><label for="sheetFind">Find a device</label><input class="input" id="sheetFind" autocomplete="off" placeholder="Serial or asset number, ward, room, bed, name…"></div>
         <div class="field"><label for="sheetCust">Customer on the report</label><input class="input" id="sheetCust" value="${esc(this.customer)}"></div></div>
       <div id="sheetHits" class="sheet-hits"></div><p class="hint" id="sheetNote" style="margin:0"></p>`;
-    bar.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => this[b.dataset.sheet]()));
+    bar.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => b.dataset.sheet === 'addLinksOther' ? this.addLinks(true) : this[b.dataset.sheet]()));
     $('#sheetFind')?.addEventListener('input', (e) => this.showHits(e.target.value));
     $('#sheetCust')?.addEventListener('change', (e) => { this.customer = e.target.value.trim(); DB.putKV('sheetCustomer', this.customer); });
   },
@@ -2531,9 +2616,9 @@ const Sheet = {
     }
     return this.save(gaps.map(g => ({ col: g.col, value: val(g) })));
   },
-  async backup(buf) {
+  async backup(buf, file = this.file) {
     const d = new Date(), stamp = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-    const name = this.file.replace(/\.xlsx?$/i, '') + ` backup ${stamp}.xlsx`;
+    const name = file.replace(/\.xlsx?$/i, '') + ` backup ${stamp}.xlsx`;
     let dir = null; try { dir = await Results.folder(); } catch {}
     if (!dir) { download(name, new Blob([buf])); return; }   // no Results folder set up on this PC: the browser downloads the copy instead
     const sub = await dir.getDirectoryHandle('Asset list backups', { create: true });
@@ -2590,6 +2675,43 @@ const Sheet = {
     this.cur = null; this.renderGaps();
     await this.load(true);
     return true;
+  },
+  /**
+   * Adds the "Test this device" link column to every table of a workbook (this one, or another chosen by the user, such as the master
+   * template), after keeping a dated copy, and checks that every other cell reads back unchanged before the file is replaced.
+   */
+  async addLinks(other) {
+    let handle = !other && this.state === 'ready' ? this.handle : null;
+    if (!handle) {
+      try { handle = (await window.showOpenFilePicker({ id: 'chs-customer-sheet', startIn: Shared.root || 'documents', types: [{ description: 'Excel spreadsheet', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] }))[0]; }
+      catch (e) { if (e.name !== 'AbortError') toast('Couldn’t open that file: ' + e.message, 4000); return; }
+    }
+    const stop = (title, msg) => dialog({ title, body: `<p>${esc(msg)}</p><p class="muted">Nothing in the workbook was changed.</p>` });
+    const ok = await dialog({ title: 'Add “Test this device” links?', body: `<p>A new last column, <b>Test this device</b>, is added to every table in <b>${esc(handle.name)}</b>. Its link opens the Test Bench on the right template with the device’s model, serial number and asset numbers filled in. New rows get it too.</p><p>A dated copy of the workbook is kept first (in the Results folder’s “Asset list backups”), and everything else in it is checked unchanged before it is saved. Close the workbook in Excel first. It recalculates the next time it is opened.</p>`,
+      buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Add the links', value: true }] });
+    if (!ok) return;
+    let perm = 'denied'; try { perm = await handle.requestPermission({ mode: 'readwrite' }); } catch {}
+    if (perm !== 'granted') { toast('The browser didn’t allow changes to the workbook.'); return; }
+    let buf, r, next;
+    try { buf = await (await handle.getFile()).arrayBuffer(); r = await XlsxLite.addLinkColumn(buf); }
+    catch (e) { return stop('Couldn’t read the workbook', e.message); }
+    if (!r.buffer) return stop('Nothing to add', r.skipped.length ? r.skipped.join('\n') : 'No table with a Serial Number column was found.');
+    try {
+      const before = await XlsxLite.read(buf), after = await XlsxLite.read(r.buffer); next = r.buffer;
+      for (const d of r.done) {
+        const b = before.find(s => s.name === d.sheet), a = after.find(s => s.name === d.sheet); if (!b || !a) throw new Error(`sheet ${d.sheet} missing after the change`);
+        if (a.rows.length < b.rows.length) throw new Error(`${d.sheet} lost rows`);
+        b.rows.forEach((row, i) => { if (row && JSON.stringify(row) !== JSON.stringify((a.rows[i] || []).slice(0, row.length))) throw new Error(`${d.sheet} row ${i + 1} changed`); });
+        if (a.rows[d.r0 - 1][d.col] !== XlsxLite.LINK_HEADER) throw new Error(`${d.sheet}: the header did not read back`);
+        if (d.last > d.r0 && typeof a.rows[d.r0][d.col] !== 'string') throw new Error(`${d.sheet}: the links did not read back`);
+      }
+    } catch (e) { return stop('The change couldn’t be made safely', e.message); }
+    try { await this.backup(buf, handle.name); } catch (e) { return stop('Couldn’t make a backup copy first', e.message); }
+    try { const w = await handle.createWritable(); await w.write(next); await w.close(); }
+    catch (e) { return stop('Couldn’t save the workbook', /modif|not allowed|lock|busy|in use|denied/i.test(e.message) ? `It can’t be changed right now. Is it open in Excel? Close it there and try again. (${e.message})` : e.message); }
+    log('in', 'SHEET', `Added the Test this device link column to ${handle.name}: ${r.done.map(d => `${d.sheet} (${d.last - d.r0} rows)`).join(', ')}${r.skipped.length ? `; skipped ${r.skipped.join('; ')}` : ''}`);
+    dialog({ title: 'Links added', body: `<p>The Test this device column is in ${r.done.length} sheet${r.done.length === 1 ? '' : 's'} of <b>${esc(handle.name)}</b>.${r.skipped.length ? ` Skipped: ${esc(r.skipped.join('; '))}.` : ''} Open it in Excel and click a link to try it.</p>` });
+    if (handle === this.handle) await this.load(true);
   },
   /** Reads the new file back: the cells are what was entered, and the same number of devices are there. Throws if not. */
   async verify(buf, sheet, cells, expectDevices) {
@@ -4761,7 +4883,7 @@ const App = {
     else { $('#tplSearch').value = String(d.model || d.template || '').slice(0, 60); this.refreshRunPicker(); toast(`No single template fits ${d.model || 'this device'}. Pick one and the details are filled in.`, 6000); }
   },
   fillDevice(d) {
-    const cleanV = (v) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120);
+    const cleanV = (v) => { const s = String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120); return /^[-–—.]+$|^n\/?a$/i.test(s) ? '' : s; };   // the asset lists use "-" for nothing
     const map = [['serial', /^serial/i], ['manufacturer', /^(manufacturer|make)/i], ['model', /^model/i], ['customer', /^customer( name)?$/i], ['site', /^site/i], ['asset', /^chs asset/i], ['custasset', /^customer asset/i], ['ward', /ward|location/i]];
     const inputs = $$('#dutFields input'); let n = 0;
     for (const [k, re] of map) { const v = cleanV(d[k]); if (!v) continue; const el = inputs.find(i => re.test(i.dataset.k.trim())); if (el) { el.value = v; n++; } }
