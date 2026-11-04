@@ -12,9 +12,18 @@ step 5. Tick items here as they land, with the commit.
 > with the stored key, so no key left GitHub: 3,003 documents, 572 audit lines, 128 reminder records and 9 test
 > reports, "Everything matches", a second run writing 0. Read-only was on for about 40 minutes. A bug found by the
 > dry run (12 loans' records kept only at `/loanMeta`) was fixed first. Four old paths stay behind on purpose:
-> `overdueReminders`, `loanColors`, `debug`, `notifications`. **Still to do:** the next-morning checks (steps 11 to
-> 13), then the freeze (step 14, by someone who is an Owner of `chs-equipment`, which internal@ is), then 5A (the
-> team list) before `chs-equipment` can be retired.
+> `overdueReminders`, `loanColors`, `debug`, `notifications`.
+>
+> **Next morning, 5 Nov (steps 11 to 12 passed, 14 done about 09:00).** All five backups ran at 03:06 and match the live
+> data (the tracker JSON backup takes the tracker from Firestore and the rest from the old database);
+> `sendDemoReminders`, `sendStuckLoanReminders` and `sendReturnReminders` ran from Firestore, and the Apps Script jobs now
+> report to Settings → Background jobs (they could not before the Cloud Datastore User grant). A missed step was found:
+> the return-reminder trigger had not been reinstalled under the new owner account (a code comment about removed emails
+> was misread), so no due-back pushes went out from 3 to 5 Nov; `installReturnReminderTrigger()` was run and a catch-up
+> `sendReturnReminders()` sent them. The old database was then **frozen** with the rules in step 14 (everything
+> read-only except `/accountManagers`). **Still to do:** 5A (the team list) before `chs-equipment` can be retired; then
+> delete its service-account key (stored in Script Properties and the `CHS_EQUIPMENT_SERVICE_ACCOUNT` secret) and remove
+> the old account from it.
 
 Everything that says **you** needs Jonathan's console access (Firebase, Google Cloud, GitHub, Apps Script).
 Claude sessions must not run the migration against live data, move the switch, publish rules or change live
