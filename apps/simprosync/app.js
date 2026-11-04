@@ -4,6 +4,7 @@
    Script proxy - this file never sees a Simpro key. */
 import { XLSXLite } from './reader.js';
 import { SyncCore } from './core.js';
+import { fastSiteAssets } from './fast-assets.js';
 
 export function startApp({ transport, who }) {
   const DEFAULT_COMPANY = 3, DEFAULT_TYPE = 114;
@@ -26,9 +27,13 @@ export function startApp({ transport, who }) {
 
   /* ---------- logging & progress ---------- */
   function log(msg) { logLines.push(msg); $('log').textContent = logLines.join('\n'); }
+  // When Simpro throttles us (429) or errs, each call waits and retries; say so, or a long wait looks like a hang.
+  let slowNote = '', lastProgressText = '';
+  function showSlow(msg) { slowNote = msg; if (!$('progress').hidden) $('progText').textContent = lastProgressText + (msg ? ' - ' + msg : ''); }
   function progress(text, done, total) {
     $('progress').hidden = false;
-    $('progText').textContent = text;
+    lastProgressText = text;
+    $('progText').textContent = text + (slowNote ? ' - ' + slowNote : '');
     $('progBar').style.width = total ? Math.round(100 * done / total) + '%' : '100%';
     $('progBar').classList.toggle('indeterminate', !total);
   }
@@ -48,13 +53,15 @@ export function startApp({ transport, who }) {
         // UI alone, so this is the first thing worth checking on any future
         // slowdown report.
         console.warn('[simproSync] call() retry', a + 1, 'of 4 -', method, path, '-', e.message);
-        if (a < 3) { await sleep(2000 * (a + 1)); continue; }
+        if (a < 3) { showSlow(`the connection dropped, trying again in ${2 * (a + 1)}s`); await sleep(2000 * (a + 1)); continue; }
         return { status: 0, data: 'Network error: ' + e.message };
       }
       if ((r.status === 429 || r.status >= 500) && a < 3) {
         console.warn('[simproSync] call() retry', a + 1, 'of 4 -', method, path, '- status', r.status);
+        showSlow(r.status === 429 ? `Simpro asked us to slow down, waiting ${4 * (a + 1)}s` : `Simpro returned ${r.status}, trying again in ${4 * (a + 1)}s`);
         await sleep(4000 * (a + 1)); continue;
       }
+      if (slowNote) showSlow('');
       return r;
     }
   }
@@ -393,21 +400,31 @@ export function startApp({ transport, who }) {
 
         const sites = [...new Set(recs.map(x => SyncCore.asText(x.r[SyncCore.SITE_COL])))];
         const sheetExisting = new Map();
+        // The quick way: this type's assets on all the sites, custom fields included, a few hundred to a call and checked
+        // against Simpro the old way (fast-assets.js). Null means it can't be trusted here: read site by site, as before.
+        let fast = null;
+        try { fast = await fastSiteAssets({ transport, call, cid, tid: sr.tid, sites, onProgress: t => progress(t) }); }
+        catch (e) { console.warn('[simproSync] quick asset read failed, reading site by site -', e.message); fast = null; }
+        log(fast ? '  Assets read the quick way (a few company-wide calls, checked against Simpro).' : '  Assets read site by site (slower).');
         for (const site of sites) {
           if (!/^\d+$/.test(site)) { log(`  Skipping rows with bad Site ID "${site}"`); continue; }
-          let siteAssets = siteAssetsCache.get(site);
-          if (!siteAssets) {
-            progress(`Finding assets on site ${site}…`);
-            siteAssets = await getAll(`/companies/${cid}/sites/${site}/assets/`);
-            siteAssetsCache.set(site, siteAssets);
+          let assets;
+          if (fast) assets = fast.get(String(site)) || [];
+          else {
+            let siteAssets = siteAssetsCache.get(site);
+            if (!siteAssets) {
+              progress(`Finding assets on site ${site}…`);
+              siteAssets = await getAll(`/companies/${cid}/sites/${site}/assets/`);
+              siteAssetsCache.set(site, siteAssets);
+            }
+            assets = siteAssets.filter(a => String((a.AssetType || {}).ID) === String(sr.tid) && !a.Archived);
           }
-          const assets = siteAssets.filter(a => String((a.AssetType || {}).ID) === String(sr.tid) && !a.Archived);
           log(`  Site ${site}: ${assets.length} ${sr.typeName} assets in Simpro`);
           // One call per asset is unavoidable (the serial we match on is
           // itself a custom field, so there's no knowing which assets matter
           // until they're read) - but at 50 wide these pack into full
           // 25-request batches instead of quarter-full ones.
-          const cfs = await pool(assets, 50, async a => {
+          const cfs = fast ? assets.map(a => a.CustomFields) : await pool(assets, 50, async a => {
             const { status, data } = await call('GET', `/companies/${cid}/sites/${site}/assets/${a.ID}/customFields/?pageSize=250`);
             if (status !== 200) { log(`    could not read asset ${a.ID}: ${status}`); return null; }
             return data;
