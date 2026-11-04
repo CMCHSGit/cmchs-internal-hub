@@ -32,7 +32,7 @@ const functional = () => step('functional', 'check', 'Power on and function', 'D
 })
 
 const classI = {
-  name: 'Computer / IT equipment – Class I – AS/NZS 3551 EST',
+  name: 'Computer / IT equipment – Class I',
   desc: 'Class I (earthed) computer, laptop power supply, monitor or other IT equipment. Limits from AS/NZS 3551:2012+A2 Appendix B: earth resistance 0.2 ohm (fixed lead or detachable lead alone) or 0.1 ohm (appliance inlet to earthed metal); insulation over 1 Mohm at 500 V; touch current 100 uA normal, 500 uA neutral open or earth open; earth leakage 5000 uA normal, 10000 uA neutral open. Non-medical equipment in the patient environment must meet the touch current limits (clause 6.1).',
   category: 'Computers',
   steps: [
@@ -55,7 +55,7 @@ const classI = {
 }
 
 const classII = {
-  name: 'Computer / IT equipment – Class II – AS/NZS 3551 EST',
+  name: 'Computer / IT equipment – Class II',
   desc: 'Class II (double insulated, no earth) computer, laptop power supply, monitor or other IT equipment. AS/NZS 3551:2012+A2 Appendix B: insulation over 1 Mohm at 500 V (B9.3). No earth continuity, mains-to-earth insulation or earth leakage test (no protective earth), and no touch current test: B10.1 considers touch current from Class I equipment only.',
   category: 'Computers',
   steps: [

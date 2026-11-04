@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray PiCCO Module – AS/NZS 3551 PVT",
+    "name": "Mindray PiCCO Module",
     "desc": "PiCCO (CCO and IBP) module, CF applied part. From the CHS Ansur template “PiCCO Module AS-NZS 3551 PVT”. Needs the ESA612.",
     "category": "Monitoring",
     "dut": [

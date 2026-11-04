@@ -30,7 +30,7 @@ const esaBlock = (ap, extra) => [
 
 // ---------- BeneHeart D1 ----------
 const d1 = {
-  name: 'Mindray BeneHeart D1 Defibrillator – AS/NZS 3551 EST and PVT',
+  name: 'Mindray BeneHeart D1 Defibrillator',
   desc: 'BeneHeart D1, Pro (manual defibrillation, synchronised cardioversion, AED, 3-lead ECG) and Public (AED only): one template, Pro-only steps are left out for a Public. Internally powered, so electrical safety is enclosure leakage, patient leakage and mains on applied part. From the D1 service manual V3.0. Applied part types (ECG CF, pads BF) are assumed like the D30: check the Operator’s Manual. Needs the ESA612, a defibrillator analyser and (Pro) the ProSim 8.',
   category: 'Defibrillation', models: ['Pro', 'Public'], dut: DUT, esaAuto: true, esaHalt: true, showNA: false,
   appliedParts: [{ id: 'ap1', name: 'ECG', apclass: 'CF', leads: ['RA'] }, { id: 'ap2', name: 'Pads', apclass: 'BF', leads: ['LA'] }],
@@ -63,7 +63,7 @@ const d1 = {
 
 // ---------- BeneHeart C and S series ----------
 const c = {
-  name: 'Mindray BeneHeart C / S Series AED – AS/NZS 3551 EST and PVT',
+  name: 'Mindray BeneHeart C / S Series AED',
   desc: 'BeneHeart C and S series automated external defibrillator (AED only: no manual mode, pacing or monitoring). Internally powered by a disposable battery, so electrical safety is enclosure leakage, patient leakage and mains on applied part. From the C & S series service manual V1.0. The pads are BF per the manual’s report sheet. Needs the ESA612 and a defibrillator analyser.',
   category: 'Defibrillation', dut: DUT, esaAuto: true, esaHalt: true, showNA: false,
   appliedParts: [{ id: 'ap1', name: 'Pads', apclass: 'BF', leads: ['LA'] }],

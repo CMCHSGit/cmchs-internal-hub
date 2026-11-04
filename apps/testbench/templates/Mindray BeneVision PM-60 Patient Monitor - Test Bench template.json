@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray BeneVision PM-60 Patient Monitor – AS/NZS 3551 EST and PVT",
+    "name": "Mindray BeneVision PM-60 Patient Monitor",
     "desc": "Patient monitor with CF applied parts (SpO2, ECG leads): insulation to accessible parts, enclosure and patient leakage, mains on applied parts, SpO2 performance and battery. From the CHS Ansur template “PM-60 AS-NZS 3551 EST and PVT Master”. Needs the ESA612.",
     "category": "Monitoring",
     "dut": [

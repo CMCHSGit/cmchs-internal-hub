@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray BeneVision TM80 Telemetry Monitor – AS/NZS 3551 PVT",
+    "name": "Mindray BeneVision TM80 Telemetry Monitor",
     "desc": "Battery-powered (internally powered) telemetry monitor, CF applied parts (SpO2, ECG): patient leakage and mains on applied parts only, then ECG, respiration and SpO2 performance, network and battery. From the CHS Ansur template “TM80 AS-NZS 3551 PVT”. Needs the ESA612 and the ProSim 8.",
     "category": "Monitoring",
     "dut": [

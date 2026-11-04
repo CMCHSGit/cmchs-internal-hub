@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray AG + O2 (+BIS) Gas Module – AS/NZS 3551 EST and PVT",
+    "name": "Mindray AG + O2 (+BIS) Gas Module",
     "desc": "Anaesthetic gas module with O2 (and BIS), BF applied part. From the CHS Ansur template “AG+O2+BIS AS-NZS 3551 EST and PVT”. Needs the ESA612.",
     "category": "Monitoring",
     "dut": [

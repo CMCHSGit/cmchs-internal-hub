@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray IBP Module (N1, N17 series) – AS/NZS 3551 EST and PVT",
+    "name": "Mindray IBP Module (N1, N17 series)",
     "desc": "Invasive blood pressure module for the N1 and N17 series, B applied part. From the CHS Ansur template “N1, N17 + Module Series AS-NZS 3551 EST and PVT”. Needs the ESA612.",
     "category": "Monitoring",
     "dut": [

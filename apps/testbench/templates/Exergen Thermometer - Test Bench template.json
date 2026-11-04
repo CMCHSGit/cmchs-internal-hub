@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Exergen Thermometer – AS/NZS 3551 EST and PVT",
+    "name": "Exergen Thermometer",
     "desc": "Class I, BF applied part (Temp). From the CHS Ansur template “Exergen AS-NZS 3551 EST and PVT”. Needs the ESA612 and a verification thermometer.",
     "category": "Monitoring",
     "dut": [

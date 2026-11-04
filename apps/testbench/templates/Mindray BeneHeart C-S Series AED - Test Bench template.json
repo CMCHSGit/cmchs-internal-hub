@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray BeneHeart C / S Series AED – AS/NZS 3551 EST and PVT",
+    "name": "Mindray BeneHeart C / S Series AED",
     "desc": "BeneHeart C and S series automated external defibrillator (AED only: no manual mode, pacing or monitoring). Internally powered by a disposable battery, so electrical safety is enclosure leakage, patient leakage and mains on applied part. From the C & S series service manual V1.0. The pads are BF per the manual’s report sheet. Needs the ESA612 and a defibrillator analyser.",
     "category": "Defibrillation",
     "dut": [

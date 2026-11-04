@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray VS-600 / VS-900 Vital Signs Monitor – AS/NZS 3551 EST and PVT",
+    "name": "Mindray VS-600 / VS-900 Vital Signs Monitor",
     "desc": "VS-600 spot-check monitor and VS-900 monitor in one template (models VS-600, VS-900; VS-900-only steps are left out for a VS-600). Class I with a battery, CF applied parts (SpO2, NIBP, Temp). Electrical safety from the CHS Ansur VS template with AS/NZS 3551:2012+A2 limits; performance tests from the VS-600 service manual (Version 1.0, May 2013) and the VS-900 service manual V6.0. Fitted options are optional: mark the steps for parameters that are not fitted N/A. Needs the ESA612.",
     "category": "Monitoring",
     "dut": [

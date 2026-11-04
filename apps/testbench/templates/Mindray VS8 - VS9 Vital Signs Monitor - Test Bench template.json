@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray VS8 / VS9 Vital Signs Monitor – AS/NZS 3551 EST and PVT",
+    "name": "Mindray VS8 / VS9 Vital Signs Monitor",
     "desc": "Class I vital signs monitor, CF applied parts (SpO2, ECG, Temp, NIBP, IBP). From the CHS Ansur template “VS Series AS-NZS 3551 EST and PVT”. Electrical limits from AS/NZS 3551:2012+A2. Needs the ESA612 and the ProSim 8.",
     "category": "Monitoring",
     "dut": [

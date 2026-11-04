@@ -105,3 +105,6 @@ Save PDF + Ansur file (saveReportFiles) writes both into a folder from showDirec
 
 ## Compact template tiles (04/11/2026)
 The tiles on Run a test show the name and the ESA612 / ProSim 8 badges only; the description is the tile's hover text (and still in Templates). Tiles are smaller (210 px minimum, 8 px gap), so more fit on a row.
+
+## Shorter template titles (04/11/2026)
+The " – AS/NZS 3551 EST and PVT" (and EST / PVT) ending was dropped from every template title (the files in the Templates folder, the repo copies, the generators and the bench's two starter templates); the standard is still in each description. The 8 existing Templates-folder files were copied to Templates\Old first. The bench matches shared templates by file, so nothing is duplicated; tests already saved keep the old title.

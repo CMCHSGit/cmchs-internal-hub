@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray BeneHeart D1 Defibrillator – AS/NZS 3551 EST and PVT",
+    "name": "Mindray BeneHeart D1 Defibrillator",
     "desc": "BeneHeart D1, Pro (manual defibrillation, synchronised cardioversion, AED, 3-lead ECG) and Public (AED only): one template, Pro-only steps are left out for a Public. Internally powered, so electrical safety is enclosure leakage, patient leakage and mains on applied part. From the D1 service manual V3.0. Applied part types (ECG CF, pads BF) are assumed like the D30: check the Operator’s Manual. Needs the ESA612, a defibrillator analyser and (Pro) the ProSim 8.",
     "category": "Defibrillation",
     "models": [

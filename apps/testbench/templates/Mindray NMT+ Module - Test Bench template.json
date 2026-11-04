@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray NMT+ Module – AS/NZS 3551 PVT",
+    "name": "Mindray NMT+ Module",
     "desc": "Neuromuscular transmission (NMT+) module, CF applied part, with the BIS check. From the CHS Ansur template “NMT + Module AS-NZS 3551 PVT”. Needs the ESA612.",
     "category": "Monitoring",
     "dut": [

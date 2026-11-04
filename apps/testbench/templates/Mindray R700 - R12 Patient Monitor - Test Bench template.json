@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray BeneVision R700 / R12 Patient Monitor – AS/NZS 3551 EST and PVT",
+    "name": "Mindray BeneVision R700 / R12 Patient Monitor",
     "desc": "Class I patient monitor, CF applied parts (SpO2, ECG, Temp, NIBP, IBP). From the CHS Ansur template “R700_R12 AS-NZS 3551 EST and PVT”. Electrical limits from AS/NZS 3551:2012+A2. Needs the ESA612 and the ProSim 8.",
     "category": "Monitoring",
     "dut": [

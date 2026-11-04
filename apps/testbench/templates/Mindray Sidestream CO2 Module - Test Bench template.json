@@ -2,7 +2,7 @@
   "format": "chs-test-bench-template",
   "version": 1,
   "template": {
-    "name": "Mindray Sidestream CO2 Module – AS/NZS 3551 PVT",
+    "name": "Mindray Sidestream CO2 Module",
     "desc": "Sidestream CO2 module (plugs into the monitor): visual, leak test and CO2 accuracy. From the CHS Ansur template “Side Stream CO2 module AS-NZS 3551 PVT”. No electrical safety tests: the host monitor’s are done on the monitor.",
     "category": "Monitoring",
     "dut": [
