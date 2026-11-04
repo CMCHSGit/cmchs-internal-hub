@@ -40,7 +40,7 @@ export function planExport({ weeks, mapping, existing, nameKey }) {
   const stats = { people: 0, days: 0, comments: 0, cells: 0, conflicts: 0, unsplittable: 0 }
 
   for (const weekStart of [...weeks.keys()].sort()) {
-    const { sheet, layout, people } = weeks.get(weekStart)
+    const { sheet, layout, people, fresh } = weeks.get(weekStart) // fresh: a sheet only being started (excelNewWeeks.js)
     const seen = new Set()
     for (const p of people) {
       const target = mapping.get(nameKey(p.name))
@@ -66,7 +66,7 @@ export function planExport({ weeks, mapping, existing, nameKey }) {
         if (!halves) { stats.unsplittable++; continue }
         const col = layout.firstDayCol + i
         for (let h = 0; h < 2; h++) {
-          if (!same(halves[h], p.halves[i][h])) mine.push({ sheet, weekStart, id, row: p.row + h, col, before: p.halves[i][h], text: halves[h] })
+          if (!same(halves[h], p.halves[i][h])) mine.push({ sheet, weekStart, id, row: p.row + h, col, before: p.halves[i][h], text: halves[h], ...(fresh && { fresh: true }) })
         }
         newBaseDays[i] = combineHalves(halves[0], halves[1])
         stats.days++
@@ -80,7 +80,7 @@ export function planExport({ weeks, mapping, existing, nameKey }) {
         if (p.comment && !(b != null && same(p.comment, b))) stats.conflicts++
         else {
           const row = p.commentRow
-          mine.push({ sheet, weekStart, id, row, col: layout.commentCol, before: p.comment, text: wantComment })
+          mine.push({ sheet, weekStart, id, row, col: layout.commentCol, before: p.comment, text: wantComment, comment: true, ...(fresh && { fresh: true }) })
           newComment = wantComment
           stats.comments++
           wrote = true

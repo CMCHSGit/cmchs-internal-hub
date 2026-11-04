@@ -9,6 +9,10 @@
  * workbook that the app has entries for and the Excel doesn't contradict (src/utils/excelExportPlan.js). The changes are
  * made in Excel itself by apply-excel-edits.ps1, so formatting is kept and people can keep editing the file.
  *
+ * New weeks: when the app has entries for a week the workbook has no sheet for, the sheet is started first, as a copy of
+ * the newest one with the entries cleared (src/utils/excelNewWeeks.js), and filled from the app in the same run.
+ * Try it on a copy of the workbook with a dry run's --edits-out and --sheets-out, then apply-excel-edits.ps1 -NewSheets.
+ *
  * Config (the same file as the import, %USERPROFILE%\.cmchs\excel-import.json), extra keys:
  *   "writeBack": true       off unless this is true
  *   "maxCells": 60          refuse a run that would change more cells than this
@@ -93,13 +97,14 @@ function firestoreStore(serviceAccountFile) {
 }
 
 /** Makes the edits in Excel itself (apply-excel-edits.ps1) and reads back what happened to each cell. */
-function applyInExcel(workbookFile, edits) {
+function applyInExcel(workbookFile, edits, newSheets = []) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cmchs-excel-edits-'))
-  const editsFile = path.join(tmp, 'edits.json'), resultFile = path.join(tmp, 'result.json')
+  const editsFile = path.join(tmp, 'edits.json'), resultFile = path.join(tmp, 'result.json'), sheetsFile = path.join(tmp, 'sheets.json')
   try {
-    fs.writeFileSync(editsFile, JSON.stringify(edits.map(({ sheet, row, col, before, text }) => ({ sheet, row, col, before, text }))), 'utf8')
+    fs.writeFileSync(editsFile, JSON.stringify(edits.map(({ sheet, row, col, before, text, comment }) => ({ sheet, row, col, before, text, ...(comment && { comment: true }) }))), 'utf8')
+    fs.writeFileSync(sheetsFile, JSON.stringify(newSheets), 'utf8')
     const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'apply-excel-edits.ps1'),
-      '-Workbook', workbookFile, '-Edits', editsFile, '-Result', resultFile], { encoding: 'utf8', timeout: 5 * 60 * 1000, windowsHide: true })
+      '-Workbook', workbookFile, '-Edits', editsFile, '-Result', resultFile, '-NewSheets', sheetsFile], { encoding: 'utf8', timeout: 5 * 60 * 1000, windowsHide: true })
     if (!fs.existsSync(resultFile)) return { state: `error: Excel didn't answer (${(r.stderr || '').trim().slice(0, 120) || 'exit ' + r.status})`, statuses: [] }
     const result = JSON.parse(fs.readFileSync(resultFile, 'utf8').replace(/^﻿/, ''))
     return { state: result.state, statuses: [].concat(result.statuses || []) }
@@ -136,7 +141,7 @@ async function main() {
   const workbook = await readWorkbook(config.workbook)
   const result = await runExport({
     workbook, store, fromWeek: getCurrentWeekStart(-weeksBack), apply, maxCells,
-    applyEdits: async edits => applyInExcel(config.workbook, edits),
+    applyEdits: async (edits, newSheets) => applyInExcel(config.workbook, edits, newSheets),
   })
   // Remember the workbook as the pass left it (its own writes included) and when it began.
   if (apply && result.status !== 'too-many') {
@@ -149,6 +154,7 @@ async function main() {
     return 2
   }
   if (option('--edits-out') && result.edits) fs.writeFileSync(option('--edits-out'), JSON.stringify(result.edits), 'utf8') // for trying apply-excel-edits.ps1 on a copy
+  if (option('--sheets-out') && result.sheetSteps) fs.writeFileSync(option('--sheets-out'), JSON.stringify(result.sheetSteps), 'utf8') // the sheets to start, for the same
   if (flag('--show') && result.edits) for (const e of result.edits) console.log(`  week ${e.weekStart}  row ${e.row} col ${e.col}  "${e.before}" -> "${e.text}"`) // no names
   const word = { 'dry-run': 'Would write', done: 'Wrote', partial: 'Wrote some', locked: 'The workbook is open read-only, nothing written', error: 'FAILED' }[result.status]
   log(`${word} — ${result.summary}`)

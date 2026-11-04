@@ -2,6 +2,9 @@
 # workbook keeps all its formatting and stays safe for people editing it at the same time (OneDrive co-authoring).
 #
 # Input  -Edits   a JSON list of { sheet, row, col, before, text }
+#        -NewSheets  (optional) a JSON list of week sheets to start first (src/utils/excelNewWeeks.js): each is a copy of
+#                 the newest week's sheet, put at the end, cleared of its entries and given the new Monday's date. If a
+#                 sheet fails half-way, every sheet made in this run is deleted again and nothing is saved.
 # Output -Result  { state, statuses } with one status per edit, in order: written | mismatch | failed
 #
 # Each cell is checked first: if it no longer says what it said when the plan was made (someone just changed it),
@@ -11,7 +14,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$Workbook,
   [Parameter(Mandatory = $true)][string]$Edits,
-  [Parameter(Mandatory = $true)][string]$Result
+  [Parameter(Mandatory = $true)][string]$Result,
+  [string]$NewSheets = ''
 )
 $ErrorActionPreference = 'Stop'
 
@@ -20,11 +24,20 @@ function Norm($s) { return (([string]$s) -replace '[\s ]+', ' ').Trim().ToLower
 # Windows PowerShell hands a JSON list back as ONE array object, so pass it through the pipeline to get its items.
 # (PowerShell variable names ignore case, so this can't be called $edits: that is the -Edits parameter.)
 $list = @(Get-Content -Raw -Encoding UTF8 $Edits | ConvertFrom-Json | ForEach-Object { $_ })
+$sheetList = @()
+if ($NewSheets -and (Test-Path $NewSheets)) { $sheetList = @(Get-Content -Raw -Encoding UTF8 $NewSheets | ConvertFrom-Json | ForEach-Object { $_ }) }
 $statuses = New-Object System.Collections.ArrayList
 $state = 'ok'
 $excel = $null; $wb = $null; $startedHere = $false; $openedHere = $false
 $excelPid = 0
 $pidFile = Join-Path $env:USERPROFILE '.cmchs\excel-writeback.pid'
+
+# Deletes the sheets this run made (a failure part-way through starting new weeks), without Excel asking.
+function Remove-Created($sheets) {
+  foreach ($sh in @($sheets)) {
+    try { $was = $excel.DisplayAlerts; $excel.DisplayAlerts = $false; $sh.Delete() } catch { } finally { try { $excel.DisplayAlerts = $was } catch { } }
+  }
+}
 
 # The hidden Excel this script starts can fail to quit (a save to OneDrive that hangs, the run being
 # stopped), and then it keeps the workbook open, so every later run says "Excel cannot access the file".
@@ -67,6 +80,50 @@ try {
 
   if ($state -eq 'ok') {
     $changed = 0
+    # Start the new weeks first: a copy of the newest sheet at the end of the workbook, its entries cleared, its Monday set.
+    $created = New-Object System.Collections.ArrayList
+    try {
+      foreach ($n in $sheetList) {
+        $name = [string]$n.name
+        $monday = [datetime]::ParseExact([string]$n.weekStart, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)
+        $oa = [double]$monday.ToOADate()
+        $already = $false   # a sheet of that name, or one already on that Monday (someone made it since the plan was made): the edits then fill it as it is
+        foreach ($w in $wb.Worksheets) {
+          if ($w.Name -ieq $name) { $already = $true; break }
+          try { if ([double]$w.Cells.Item(1, [int]$n.dateCol).Value2 -eq $oa) { $already = $true; break } } catch { }
+        }
+        if ($already) { continue }
+        $keep = $null; try { $keep = $wb.ActiveSheet } catch { }
+        $src = $wb.Worksheets.Item([string]$n.source)
+        $src.Copy([Type]::Missing, $wb.Worksheets.Item($wb.Worksheets.Count))
+        $ws = $wb.Worksheets.Item($wb.Worksheets.Count)
+        [void]$created.Add($ws)
+        $ws.Visible = -1
+        $ws.Name = $name
+        $ws.Cells.Item(1, [int]$n.dateCol).Value2 = $oa
+        $seen = @{}
+        foreach ($r in @($n.clearRows)) {
+          foreach ($c in @($n.clearCols)) {
+            $cell = $ws.Cells.Item([int]$r, [int]$c)
+            if ($cell.MergeCells) { $cell = $cell.MergeArea.Cells.Item(1, 1) }
+            $k = $cell.Address($false, $false)
+            if ($seen.ContainsKey($k)) { continue }
+            $seen[$k] = $true
+            if (-not $cell.HasFormula) { if ($cell.MergeCells) { [void]$cell.MergeArea.ClearContents() } else { [void]$cell.ClearContents() } }
+          }
+        }
+        foreach ($f in @($n.nameFixes)) {
+          $cell = $ws.Cells.Item([int]$f.row, [int]$f.col)
+          if ($cell.MergeCells) { $cell = $cell.MergeArea.Cells.Item(1, 1) }
+          $cell.Value2 = [string]$f.text
+        }
+        try { if ($keep) { [void]$keep.Activate() } } catch { }
+      }
+    } catch {
+      Remove-Created $created
+      throw
+    }
+    $changed += $created.Count
     $done = @{}      # target cell -> the text now in it (an AM and a PM cell merged into one are one cell)
     $wanted = @{}    # target cell -> the texts wanted in it; two different ones can't both be written
     $targets = @{}
@@ -93,6 +150,7 @@ try {
         if ($idx.Count -eq 0) { continue }
         $top = $targets[$idx[0]]
         if (-not $top.MergeCells) { continue }
+        if (@($idx | Where-Object { $list[$_].comment }).Count -gt 0) { continue }   # the week's comment (a two-row cell too) is one text, not an AM and a PM half
         $area = $top.MergeArea
         if ($area.Rows.Count -ne 2 -or $area.Columns.Count -ne 1) { continue }
         $topRow = [int]$top.Row

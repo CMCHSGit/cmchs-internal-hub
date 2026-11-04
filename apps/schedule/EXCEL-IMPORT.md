@@ -86,10 +86,10 @@ scheduled task runs that).
 - **What it changes:** a cell where the app has an entry the Excel doesn't match, and the Excel is blank there or still
   says what it said when the import last looked (so nobody has changed it in the Excel since). A day with one place goes
   in both the AM and PM rows; "Starship / Cass Office" splits into AM and PM. The week's comment too.
-- **What it never does:** clear a cell, add a person or a sheet, touch a cell somebody changed in the Excel since the last
+- **What it never does:** clear a cell, add a person, touch a cell somebody changed in the Excel since the last
   import (the import brings their change into the app instead), or write a day with more than two places in it. It checks
   each cell just before writing it and leaves it if it has changed or holds a formula.
-- **Limits:** a run that would change more than `maxCells` (60) cells is refused and writes nothing.
+- **Limits:** a run that would change more than `maxCells` (60) cells is refused and writes nothing (cells on a sheet it is starting, below, have their own limit, `maxNewCells`, 1500).
 - **Config keys:** `"writeBack": true` and optionally `"maxCells": 60` in the same `excel-import.json`.
 - **Whole-day cells are split when the app has two halves (5 Nov 2026).** In the workbook an AM and a PM cell that say the
   same thing are merged into one (`D48:D49`). When the app has a different morning and afternoon, the write-back unmerges
@@ -106,8 +106,26 @@ scheduled task runs that).
   Cost: a change made in the app reaches the Excel on the next 5-minute run as before, but a cell the app and Excel
   disagree on and can't be written (a "partial" run) is retried when something changes or every 30 minutes, not every 5.
   `--force` or a dry run always does the whole pass.
+- **Next week's sheet is made for you (5 Nov 2026).** People fill the schedule in the hub and nobody makes the week's tab by hand any
+  more, so when the app has an entry (a day with a place, or the week's comment) for a week the workbook has no sheet for, the
+  write-back starts the sheet and fills it in the same run, the way a person would: a **copy of the newest week's sheet** (so the people
+  and their teams, the merged AM/PM cells, the leave / customer / on-call colour rules and the column widths are exactly as they were),
+  put at the end of the workbook, its day and comment cells cleared, "- OnCall" taken off the name (the colour is a rule on that word),
+  the new Monday in the header (the other days are formulas from it) and a name like `9-Nov` (`Sept` for September; `9-Nov-26` if that
+  name is already used by last year's sheet). Then the usual copy writes each person's days and comment onto it.
+  - **Only ahead, never a gap in the past:** weeks after the newest sheet, up to 6 weeks past this one, at most 6 sheets in a run; a week
+    in between with no entries is made too, so there are no holes. A mistyped date far ahead makes nothing.
+  - **Safe if it fails:** if Excel fails part-way, every sheet made in that run is deleted again and nothing is saved. A sheet for that
+    Monday that someone made meanwhile (by hand, or under another name) is left alone and filled as it is.
+  - **Not done:** people who are in the app but not on the newest sheet are not added (a new starter appears on the sheet when someone
+    adds the row by hand, as before); the on-call week is not written to the name cell (the on-call roster is the app's).
+  - Code: `src/utils/excelNewWeeks.js` (what to start; tests `tests/excelNewWeeks.test.mjs`), `scripts/excelExportJob.mjs`,
+    and `scripts/apply-excel-edits.ps1 -NewSheets` (the Excel side).
 - **Try it first:** `node apps/schedule/scripts/excel-export.mjs` is a dry run (add `--show` to list each cell: week, row,
-  column, old text, new text, never names). `--apply` writes for real (needs `writeBack`).
+  column, old text, new text, never names). `--apply` writes for real (needs `writeBack`). The dry run also says which new week sheets it would start.
+  To try the Excel side on a copy of the workbook, never the live file: `--edits-out e.json --sheets-out s.json` on a dry run, then
+  `powershell -File apps/schedule/scripts/apply-excel-edits.ps1 -Workbook <copy.xlsx> -Edits e.json -NewSheets s.json -Result r.json`.
+  (Never use `--apply` with a test config: it records in the live app what the Excel now says.)
 - **Log:** the same log; lines start "Write-back:". It only logs a run that does something or is refused. Real writes
   also add "Excel write-back (automatic)" to the activity log in Admin settings.
 - **After re-running the installer:** `powershell -ExecutionPolicy Bypass -File appsschedulescriptsinstall-excel-import-task.ps1`
