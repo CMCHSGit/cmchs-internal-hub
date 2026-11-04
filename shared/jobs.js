@@ -33,6 +33,7 @@ export const JOBS = [
 
   { id: 'excel-import',    group: 'pc', name: 'Excel → schedule', does: 'Brings changes made in the Excel schedule into the app.',    when: 'Every 5 minutes', staleMin: 30 },
   { id: 'excel-writeback', group: 'pc', name: 'Schedule → Excel', does: 'Writes what people put in the app into the Excel schedule.', when: 'Every 5 minutes', staleMin: 30 },
+  { id: 'oncall-roster',   group: 'pc', name: 'On-call roster → hub and schedule', does: 'Copies the on-call roster file into the hub’s roster page and the schedule’s weekly on-call.', when: 'Every 5 minutes', staleMin: 30 },
 ]
 
 export const jobById = id => JOBS.find(j => j.id === id)

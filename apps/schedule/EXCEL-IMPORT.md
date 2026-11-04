@@ -130,3 +130,28 @@ scheduled task runs that).
   also add "Excel write-back (automatic)" to the activity log in Admin settings.
 - **After re-running the installer:** `powershell -ExecutionPolicy Bypass -File appsschedulescriptsinstall-excel-import-task.ps1`
   points the task at `excel-sync.mjs`; the import alone still works with `excel-import.mjs`.
+
+## On-call roster → hub and schedule (5 Nov 2026)
+
+The on-call engineer for each week is kept in the Service team's workbook, `Oncall roster.xlsx` (one sheet a year, an engineer a week).
+`scripts/oncall-sync.mjs` copies it into both places the app keeps on-call, so nobody types it twice:
+
+- **The hub's On-call roster page** (`oncallHistory`: a document a sheet, what an admin's import on that page writes). Rewritten when the file changes.
+- **The schedule's weekly on-call** (`oncall/{Monday}`: who is "Name - OnCall" on the Team week, My week and the home page), from 2 weeks ago to the end of the roster.
+  Checked on every run of the file (every `oncallRecheckMinutes`, 60, when the file hasn't changed).
+
+**The roster file wins.** A week where the app says someone else is set to what the file says (so an on-call change made in the app is undone
+within the hour: change the file instead, or the app's roster page will be overwritten too). A week the file leaves blank, or names someone who
+isn't exactly one person in the app (two with the same first name, "Ana / Bo", a name that isn't a user), is left as it is and counted in the log.
+Nothing is ever cleared. The names in the file are matched like this: the same full name, else the same first name when only one person (or only one
+Engineer) has it.
+
+- **Setting it up:** add `"oncallRoster": "C:\Users\<you>\Cass Medical Limited\...\Oncall Roster and Schedules\Oncall roster.xlsx"` to `excel-import.json`
+  (optional: `"oncallWeeksBack": 2`, `"oncallRecheckMinutes": 60`). Without it nothing runs. `excel-sync.mjs` runs it first, then the import and the copy;
+  its failure never stops them.
+- **Try it:** `node apps/schedule/scripts/oncall-sync.mjs` is a dry run (weeks to set, to change, left, and "hub roster page: N roster sheets"); `--apply` writes.
+- **Log:** the same log, lines start "On-call roster:", counts only. Real writes add "On-call roster sync (automatic)" to the activity log; each run reports to
+  Settings → Background jobs ("On-call roster → hub and schedule").
+- **The staff schedule Excel is not written** with the on-call week (the "- OnCall" on a name): a new week's sheet starts without it. The Excel import still
+  reads that suffix, but only sets a week the app has nobody for, so it can't undo the roster.
+- Code: `src/utils/onCallRoster.js` (matching and the plan), `scripts/oncallSyncJob.mjs` (one run, tested in `tests/oncallSync.test.mjs`), `apps/oncall/src/parse.js` (the file's own reader, shared with the roster page).

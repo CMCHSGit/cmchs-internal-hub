@@ -13,7 +13,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const run = (script, args) => spawnSync(process.execPath, [path.join(here, script), ...args], { stdio: 'inherit' }).status ?? 1
 
 const args = process.argv.slice(2)
+// The on-call roster first, so a week it names is set before the import looks at the schedule's own "- OnCall" names.
+// Its failure never stops the import and the copy; it still counts in the exit code.
+const roster = run('oncall-sync.mjs', args.filter(a => a !== '--max-changes' && a !== '--max-cells'))
 const imported = run('excel-import.mjs', args)
 // A failed or refused import means the Excel side isn't known to be in step: don't write back on top of it.
 const exported = imported === 0 ? run('excel-export.mjs', args.filter(a => a !== '--force')) : 0
-process.exit(imported || exported)
+process.exit(imported || exported || roster)
