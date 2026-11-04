@@ -111,3 +111,9 @@ body.busy .ss-host { cursor: progress; }
 .ss-host .danger-zone summary h2 { display: inline; margin: 0; color: var(--status-critical); }
 
 @media (max-width: 759px) { .ss-host { padding: 16px 16px 40px; } }
+
+/* The page shows and hides things with the `hidden` attribute (app.js, mount.js). The display rules above (the progress
+   bar is a grid, buttons and cards are flex) beat the browser's own `[hidden] { display: none }`, so the progress bar
+   stayed on screen after a preview had finished, still showing the last thing it did ("Reading sheet "IT"…") and
+   looking stuck. [hidden] wins inside this page. */
+.ss-host [hidden] { display: none !important; }
