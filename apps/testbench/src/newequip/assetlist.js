@@ -24,11 +24,11 @@ function columns(header) {
   }
 }
 
-/** The units in one sheet's rows (array of arrays, the first being the header): [] with `found: false` when the sheet has no serial number column. */
+/** The units in one sheet's rows (array of arrays, the first being the header), and that header: no units with `found: false` when the sheet has no serial number column. */
 export function unitsOfRows(rows, sheet = '') {
   const { header, recs } = SyncCore.toRecords(rows)
   const c = columns(header)
-  if (!c.serial) return { found: false, units: [] }
+  if (!c.serial) return { found: false, units: [], header }
   const text = (r, k) => (k ? SyncCore.asText(r[k]).trim() : '')
   const units = []
   for (const { rownum, r } of recs) {
@@ -40,10 +40,10 @@ export function unitsOfRows(rows, sheet = '') {
       asset: text(r, c.asset), ward: text(r, c.ward), site: text(r, c.site), job: text(r, c.job),
     })
   }
-  return { found: true, units }
+  return { found: true, units, header }
 }
 
-/** Every sheet of a workbook (the bytes, and its file name): { units, sheets: [{ name, count }], skipped: [names without a serial number column] }. */
+/** Every sheet of a workbook (the bytes, and its file name): { units, sheets: [{ name, count, header }], skipped: [names without a serial number column] }. */
 export async function readAssetList(buffer, name = 'assets.xlsx') {
   const book = await XLSXLite.read({ name, arrayBuffer: async () => buffer })
   const units = [], sheets = [], skipped = []
@@ -52,7 +52,7 @@ export async function readAssetList(buffer, name = 'assets.xlsx') {
     try { rows = await book.rows(i) } catch { skipped.push(book.sheets[i]); continue }
     const got = unitsOfRows(rows, book.sheets[i])
     if (!got.found) { skipped.push(book.sheets[i]); continue }
-    sheets.push({ name: book.sheets[i], count: got.units.length })
+    sheets.push({ name: book.sheets[i], count: got.units.length, header: got.header })
     units.push(...got.units)
   }
   return { units, sheets, skipped }

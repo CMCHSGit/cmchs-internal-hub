@@ -561,6 +561,26 @@ service cloud.firestore {
       return d.keys().hasOnly(['by', 'json']) && d.by is string && d.json is string && d.json.size() < 950000;
     }
 
+    // Assets recorded on the new-equipment page while testing (internal.chsnz.co.nz/new-equipment/),
+    // waiting to be pasted into the customer's asset list workbook. One document per asset: the
+    // customer (the project tracker's customer folder id), the asset's details (the known fields
+    // only, one line each) and who recorded it. The Bench's teams read, add and remove them (anyone
+    // may clear a row once it is in the workbook); a row is never edited, only removed and added
+    // again, and nobody can add one under another person's email.
+    match /pendingAssets/{id} {
+      allow read: if canBench();
+      allow create: if canBench() && isPendingAsset() && request.resource.data.by == myBenchEmail();
+      allow delete: if canBench();
+    }
+    function isPendingAsset() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['customerId', 'row', 'by', 'createdAt'])
+        && d.customerId is string && d.customerId.size() > 0 && d.customerId.size() <= 40
+        && d.row is map && d.row.keys().hasOnly(['site', 'type', 'manufacturer', 'model', 'description', 'serial', 'asset', 'ward', 'installed', 'manufactured', 'warranty', 'ecg', 'co2', 'spo2', 'software', 'service', 'job'])
+        && d.row.get('serial', '') is string && d.row.get('serial', '').size() > 0
+        && d.by is string && d.createdAt == request.time;
+    }
+
     // The demo tracker (internal.chsnz.co.nz/equipment/), from step 5 of
     // INTEGRATION-PLAN.md (STEP-5-PLAN.md 5B): its data moved here from the
     // chs-equipment Realtime Database, one document per item and per loan.

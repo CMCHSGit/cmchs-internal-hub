@@ -37,14 +37,15 @@ test('rows become units: the serial number is the key, blank rows and Excel erro
 })
 
 test('a sheet with no serial number column is not an asset sheet', () => {
-  assert.deepEqual(unitsOfRows([['Name', 'Value'], ['a', 'b']]), { found: false, units: [] })
-  assert.deepEqual(unitsOfRows([]), { found: false, units: [] })
+  assert.deepEqual(unitsOfRows([['Name', 'Value'], ['a', 'b']]), { found: false, units: [], header: ['Name', 'Value'] })
+  assert.deepEqual(unitsOfRows([]), { found: false, units: [], header: [] })
 })
 
 test('a workbook is read sheet by sheet; sheets that are not asset lists are skipped, by name only', async () => {
   const buf = workbook([{ name: 'Site A', rows: rows1 }, { name: 'Reference', rows: [['Term', 'Meaning'], ['x', 'y']] }, { name: 'Site B', rows: [HEAD, ['2351', 'Monitor', 'Mindray', 'TM80', '', 'EX1-000999', '', 'Ward 1', '']] }])
   const got = await readAssetList(buf, 'Example Asset List.xlsx')
-  assert.deepEqual(got.sheets, [{ name: 'Site A', count: 2 }, { name: 'Site B', count: 1 }])
+  assert.deepEqual(got.sheets.map((s) => [s.name, s.count]), [['Site A', 2], ['Site B', 1]])
+  assert.deepEqual(got.sheets[0].header, HEAD)
   assert.deepEqual(got.skipped, ['Reference'])
   assert.equal(got.units.length, 3)
   assert.equal(got.units[2].sheet, 'Site B')

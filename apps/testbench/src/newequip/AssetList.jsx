@@ -2,12 +2,15 @@
    graph.js) or from a file chosen on this PC, then shown as one row per unit with what is known of it: its shared bench test and the
    report saved on this PC. READ ONLY: nothing is written to the workbook, to Simpro or anywhere else. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { FileSpreadsheet, RefreshCw } from 'lucide-react'
+import { Download, FileSpreadsheet, FlaskConical, RefreshCw } from 'lucide-react'
 import { Alert, Badge, Button } from '../../../../shared/ui/index.jsx'
 import { logActivity } from '../../../../shared/activity.js'
-import { groupReports, idbReports } from '../reports.js'
+import { groupReports, idbReports, nzDay, pickFiles, reportsLink } from '../reports.js'
+import { makeZip } from '../zip.js'
 import { watchTests } from '../bench-tests-firebase.js'
-import { benchByUnit, duplicateSerials, filterUnits, readAssetList, reportsByUnit, summary } from './assetlist.js'
+import { benchByUnit, duplicateSerials, filterUnits, readAssetList, reportsByUnit, serialKey, summary } from './assetlist.js'
+import { testLink } from './pending.js'
+import Pending from './Pending.jsx'
 import { fetchWorkbook, GraphError } from './graph.js'
 import { forgetGraphToken, graphToken } from './graph-auth.js'
 
@@ -72,7 +75,18 @@ export default function AssetList({ customer, listHref, user }) {
   const shownRows = all ? rows : rows.slice(0, SHOWN)
   const loading = state === 'loading'
 
+  // The reports saved on this PC for these units: a zip of their PDFs (in this customer's name), or Saved reports to attach them to a Simpro job.
+  const unitGroups = useMemo(() => { const keys = new Set(units.map((u) => u.key)); return groups.filter((g) => keys.has(serialKey(g.serial))) }, [units, groups])
+  const pdfs = useMemo(() => pickFiles(unitGroups, unitGroups.map((g) => g.base), ['pdf']), [unitGroups])
+  const zipReports = () => {
+    const blob = new Blob([makeZip(pdfs.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${customer.name} test reports ${nzDay(Date.now())}.zip`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+    logActivity(null, `Downloaded ${pdfs.length} test report${pdfs.length === 1 ? '' : 's'} as a zip`, { app: 'new-equipment' })
+  }
+
   return (
+    <>
+    <Pending customer={customer} units={units} sheets={book?.sheets || []} />
     <section className="card ne-card" aria-label="Asset list">
       <div className="ne-row">
         <div className="ne-grow">
@@ -117,24 +131,35 @@ export default function AssetList({ customer, listHref, user }) {
             <table className="ne-table">
               <thead><tr>
                 <th scope="col">Serial number</th><th scope="col">Device</th><th scope="col">CHS asset no.</th><th scope="col">Ward</th>
-                {book.sheets.length > 1 && <th scope="col">Sheet</th>}<th scope="col">Bench test</th><th scope="col">Report on this PC</th>
+                {book.sheets.length > 1 && <th scope="col">Sheet</th>}<th scope="col">Bench test</th><th scope="col">Report on this PC</th><th scope="col"><span className="ne-sr">Test</span></th>
               </tr></thead>
               <tbody>
-                {shownRows.map((u, i) => <Row key={`${u.sheet}-${u.row}-${i}`} u={u} b={bench.get(u.key)} r={reports.get(u.key)} benchOk={tests.ok} sheets={book.sheets.length > 1} />)}
-                {rows.length === 0 && <tr><td colSpan={7} className="ne-none-row">No unit matches that search.</td></tr>}
+                {shownRows.map((u, i) => <Row key={`${u.sheet}-${u.row}-${i}`} customerName={customer.name} u={u} b={bench.get(u.key)} r={reports.get(u.key)} benchOk={tests.ok} sheets={book.sheets.length > 1} />)}
+                {rows.length === 0 && <tr><td colSpan={8} className="ne-none-row">No unit matches that search.</td></tr>}
               </tbody>
             </table>
           </div>
           {rows.length > SHOWN && !all && <div><Button variant="secondary" onClick={() => setAll(true)}>Show all {rows.length}</Button></div>}
+
+          <div className="ne-reports">
+            <h3 className="ne-h3">Test reports</h3>
+            <p className="ne-note">{pdfs.length ? `${pdfs.length} report${pdfs.length === 1 ? '' : 's'} saved on this PC for the units on this list.` : 'No reports saved on this PC for the units on this list yet. The Test Bench saves them when a test finishes.'}</p>
+            <div className="ne-links">
+              <Button iconLeft={<Download size={15} aria-hidden="true" />} disabled={!pdfs.length} onClick={zipReports}>Download the reports as a zip</Button>
+              <a className="btn btn-md btn-secondary" href={reportsLink(units.map((u) => u.serial))}>Attach to a Simpro job…</a>
+            </div>
+            <p className="ne-note">Save the zip’s files into the customer’s reports folder. Saving straight into the folder needs write access, which comes later.</p>
+          </div>
         </>
       )}
     </section>
+    </>
   )
 }
 
 const Tile = ({ n, label }) => <div className="ne-tile"><strong>{n}</strong><span>{label}</span></div>
 
-function Row({ u, b, r, benchOk, sheets }) {
+function Row({ u, b, r, benchOk, sheets, customerName }) {
   const bench = b
     ? <Badge tone={b.overall === 'pass' ? 'green' : b.overall === 'fail' ? 'red' : 'orange'}>{b.overall === 'pass' ? 'Pass' : b.overall === 'fail' ? 'Fail' : 'Incomplete'}{nz(b.finished) ? ` ${nz(b.finished)}` : ''}</Badge>
     : <Badge tone="grey">{benchOk === false ? 'Not available' : 'Not tested'}</Badge>
@@ -150,6 +175,7 @@ function Row({ u, b, r, benchOk, sheets }) {
       {sheets && <td>{u.sheet}</td>}
       <td>{bench}</td>
       <td>{report}</td>
+      <td className="ne-actions"><a className="btn btn-sm btn-ghost" href={testLink(u, customerName)}><FlaskConical size={14} aria-hidden="true" /> {b ? 'Test again' : 'Test this device'}</a></td>
     </tr>
   )
 }
