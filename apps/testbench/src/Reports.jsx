@@ -11,6 +11,15 @@ const KINDS = [['pdf', 'Reports (PDF)'], ['json', 'Results files'], ['mtr', 'Ans
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 const timeOf = (g) => new Intl.DateTimeFormat('en-NZ', { hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.testedAt || g.savedAt))
 
+/** Is this file already in the folder with exactly these bytes? */
+async function sameFile(dir, f) {
+  let h; try { h = await dir.getFileHandle(f.name) } catch { return false }
+  const file = await h.getFile(); if (file.size !== f.buffer.byteLength) return false
+  const a = new Uint8Array(await file.arrayBuffer()), b = new Uint8Array(f.buffer)
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+async function writeFile(dir, f) { const w = await (await dir.getFileHandle(f.name, { create: true })).createWritable(); await w.write(new Blob([f.buffer], { type: f.mime })); await w.close() }
 function saveBlob(name, blob) {
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
@@ -62,10 +71,10 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const canPickFolder = typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function'
 
   /** Saves the ticked tests' files (each with its PDF and Ansur record) into a folder chosen each time, one file apiece; where the browser can't choose a folder, as a zip. */
-  async function download() {
+  async function download(asZip = false) {
     if (!count) return
     let dir = null
-    if (canPickFolder) {   // first, while the click still counts
+    if (canPickFolder && !asZip) {   // first, while the click still counts
       try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }) } catch (e) { if (e.name === 'AbortError') return }
     }
     setBusy(true)
@@ -74,19 +83,24 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
       if (!list.length) throw new Error('Nothing to download.' + skippedNote(skipped))
       // Each file on its own: one the browser refuses to write into the folder ("Aborted due to security policy" is its security check on the file)
       // doesn't stop the rest, and whatever could not be written there is downloaded instead.
-      const failed = []
+      const failed = []; let same = 0
       if (dir) {
         for (const f of list) {
-          try { const w = await (await dir.getFileHandle(f.name, { create: true })).createWritable(); await w.write(new Blob([f.buffer], { type: f.mime })); await w.close() }
-          catch (e) { failed.push({ f, why: `${e.name || 'Error'}: ${e.message || e}` }) }
+          try {
+            if (await sameFile(dir, f)) { same++; continue }   // already there, unchanged: left alone (rewriting it only makes OneDrive upload it again)
+            await writeFile(dir, f)
+          } catch (e) {
+            try { await new Promise((r) => setTimeout(r, 1500)); await writeFile(dir, f) }   // a file OneDrive is uploading right now can be refused: once more
+            catch (e2) { failed.push({ f, why: `${e2.name || 'Error'}: ${e2.message || e2}` }) }
+          }
         }
       }
       const toDownload = dir ? failed.map((x) => x.f) : list
       if (toDownload.length === 1) saveBlob(toDownload[0].name, new Blob([toDownload[0].buffer], { type: toDownload[0].mime }))
       else if (toDownload.length > 1) saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(toDownload.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
       logActivity(null, `Saved ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
-      const saved = dir ? list.length - failed.length : 0
-      setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
+      const saved = dir ? list.length - failed.length - same : 0
+      setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name}${same ? `; ${same} already there, unchanged` : ''}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
     } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
@@ -193,7 +207,8 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
           <div className="tb-actionbar">
             <div className="tb-actionbar-row">
               <strong>{count ? `${count} file${count === 1 ? '' : 's'} from ${picked} test${picked === 1 ? '' : 's'}` : 'Tick tests above'}</strong>
-              <Button variant="secondary" disabled={busy || !count} onClick={download}>{canPickFolder ? 'Save to a folder…' : count > 1 ? 'Download as zip' : 'Download'}</Button>
+              <Button variant="secondary" disabled={busy || !count} onClick={() => download()}>{canPickFolder ? 'Save to a folder…' : count > 1 ? 'Download as zip' : 'Download'}</Button>
+              {canPickFolder && <Button variant="ghost" disabled={busy || !count} onClick={() => download(true)} title="All the ticked files in one zip, with nothing written into a synced folder">Download as zip</Button>}
               <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove([...files, ...stale], `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
