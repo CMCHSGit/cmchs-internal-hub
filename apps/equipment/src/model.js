@@ -805,6 +805,20 @@ export function matchLoan(x, q) {
   return words.every((w) => hay.includes(w))
 }
 
+/**
+ * Overview's search: the equipment (searchEquipment: asset no., model, serial and every other field) and the
+ * loans (matchLoan: customer, location, account manager, job number) looked up by the same words at once.
+ * Equipment is best match first; loans newest start first. Nothing typed, nothing found.
+ */
+export function searchAll(q, { equipment = [], loans = [] } = {}) {
+  const t = String(q || '').trim()
+  if (!t) return { equipment: [], loans: [] }
+  return {
+    equipment: searchEquipment(equipment.filter(Boolean), t),
+    loans: loans.filter((g) => matchLoan(g, t)).sort((a, b) => (b.startDate || '0000').localeCompare(a.startDate || '0000')),
+  }
+}
+
 /** Why a new loan can't be made yet, or '' (old: submitBatchLoan's checks, in its order). */
 export function newLoanProblem(f) {
   if (!String(f.loanTo || '').trim() || !String(f.location || '').trim()) return 'Fill in who it’s on loan to and where.'

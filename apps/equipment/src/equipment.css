@@ -72,6 +72,8 @@
 /* Overview (Overview.jsx): yours, then everyone's, side by side on a wide screen */
 .eq-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 24px 32px; align-items: start; }
 .eq-ov-part { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+/* The search box, and what it found, take the whole row above the columns. */
+.eq-overview > .eq-search, .eq-overview > .eq-ov-found { grid-column: 1 / -1; max-width: none; }
 .eq-ov-hello { margin: 0; font: var(--type-h3); color: var(--text-strong); }
 .eq-ov-part .eq-section-title { margin: 0; }
 .eq-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
@@ -104,6 +106,15 @@
 .eq-row-side { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .eq-row-go { color: var(--text-muted); flex-shrink: 0; }
 .eq-ov-n { color: var(--text-muted); }
+/* Overview's search: equipment rows green, loan rows purple, each tagged in its colour (Overview.jsx Found). */
+.eq-hit-equipment { border-left: 4px solid var(--chs-green); background: color-mix(in srgb, var(--chs-green-20) 55%, transparent); }
+.eq-hit-loan { border-left: 4px solid var(--chs-purple); background: color-mix(in srgb, var(--chs-purple-20) 55%, transparent); }
+.eq-hit:hover { background: var(--surface-subtle); }
+.eq-kind { display: inline-block; padding: 4px 9px; border-radius: 999px; font: var(--weight-semibold) 11px/1 var(--font-body); letter-spacing: 0.04em; text-transform: uppercase; }
+.eq-kind-equipment { background: var(--chs-green); color: #1d2b00; }
+.eq-kind-loan { background: var(--chs-purple); color: #fff; }
+.eq-found-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.eq-found-more { padding: 10px 16px; border-top: 1px solid var(--border-subtle); }
 .eq-date-chip { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: var(--radius-md); background: var(--surface-accent-tint); color: var(--accent-fg); font: var(--weight-semibold) 11px/1.1 var(--font-body); text-transform: uppercase; }
 .eq-date-chip span:last-child { font-size: 17px; }
 

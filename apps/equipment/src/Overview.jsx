@@ -5,10 +5,10 @@
    manager. "Everyone" is the Service & Projects overview: how much is out,
    what's waiting on a transfer, overdue, or still to be tested, and each
    account manager's loans. Every row opens that loan in Loans. */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { Badge } from '../../../shared/ui/index.jsx'
-import { daysBetween, fmtDate, linkTarget, loanSections, overviewOf, roleOf, yoursOf } from './model.js'
+import { STATUSES, daysBetween, fmtDate, linkTarget, loanSections, overviewOf, roleOf, searchAll, statusOf, yoursOf } from './model.js'
 
 /** Loans, opened at one loan (Loans.jsx reads ?open=). */
 export const loanLink = (g) => '#/loans?open=' + encodeURIComponent(g.kind + ':' + g.key)
@@ -37,13 +37,67 @@ export default function Overview({ s }) {
   // A true/false, never a count: a bare 0 here would be drawn on the page.
   const showMine = !!mine && (roleOf(me) === 'am' || mine.active.length > 0 || mine.ahead.length > 0 || mine.stuck.length > 0)
 
+  const [q, setQ] = useState('')
+  const searching = q.trim().length > 0
+
   return (
     <div className="eq-overview">
+      <label className="field eq-search"><span className="visually-hidden">Search equipment and loans</span>
+        <input className="input" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search equipment and loans: asset no., model, serial, customer, location, job no." autoComplete="off" />
+      </label>
+      {searching ? <Found q={q} s={s} loans={all} /> : <>
       <Soon ov={ov} today={s.today} />
       {showMine && <Yours me={me} mine={mine} today={s.today} stuckLink={stuckLink} />}
       <Everyone ov={ov} today={s.today} stuckLink={stuckLink} stuckAt={stuckAt} heading={showMine} />
       {!s.extrasReady && !me && <p className="eq-note">Your own loans show here once the team list has loaded.</p>}
+      </>}
     </div>
+  )
+}
+
+const SHOWN = 25 // of each kind, so a one-letter search doesn't draw the whole fleet
+const STATUS_LABEL = Object.fromEntries(STATUSES.map((x) => [x.key, x.label]))
+
+/**
+ * What the search found: equipment (green) and loans (purple) together, each row tinted and tagged
+ * in its colour so you can tell them apart at a glance. An item opens its record; a loan opens in Loans.
+ */
+function Found({ q, s, loans }) {
+  const ctx = { today: s.today, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, testMode: s.testMode }
+  const hits = useMemo(() => searchAll(q, { equipment: s.equipment, loans }), [q, s.equipment, loans])
+  const more = (n) => n > SHOWN && <p className="eq-note eq-found-more">Showing the first {SHOWN} of {n}: add a word to narrow it down.</p>
+  const loanKind = (g) => (g.kind === 'booking' ? 'Booking' : g.longTerm ? 'Long term' : g.startDate && g.startDate > s.today ? 'Upcoming' : 'Active')
+  const nothing = !hits.equipment.length && !hits.loans.length
+  return (
+    <section className="eq-ov-part eq-ov-found" aria-label="Search results" aria-live="polite">
+      <p className="eq-note eq-found-key">
+        <span className="eq-kind eq-kind-equipment">Equipment</span> {hits.equipment.length}
+        <span className="eq-kind eq-kind-loan">Loan</span> {hits.loans.length}
+      </p>
+      {nothing && <p className="eq-note">Nothing matches that.</p>}
+      {!nothing && (
+        <div className="card eq-rows">
+          {hits.equipment.slice(0, SHOWN).map((e) => {
+            const st = statusOf(e, ctx)
+            return (
+              <Row key={'e' + e.id} cls="eq-hit eq-hit-equipment" href={'#/equipment?item=' + encodeURIComponent(e.id)} who={`${e.CHSAssetNo} · ${e.Model || 'No model'}`}
+                what={[STATUS_LABEL[st.key], st.loanTo && 'with ' + st.loanTo, e.SerialNo && 'serial ' + e.SerialNo, e.ShelfLocation && 'shelf ' + e.ShelfLocation].filter(Boolean).join(' · ')}
+                side={<span className="eq-kind eq-kind-equipment">Equipment</span>} />
+            )
+          })}
+          {more(hits.equipment.length)}
+          {hits.loans.slice(0, SHOWN).map((g) => {
+            const n = g.kind === 'booking' ? g.pending.length : g.items.length
+            return (
+              <Row key={'l' + g.kind + g.key} cls="eq-hit eq-hit-loan" href={loanLink(g)} who={g.loanTo}
+                what={[loanKind(g), g.location, g.am, devices(n), g.endDate && !g.longTerm && 'due ' + fmtDate(g.endDate)].filter(Boolean).join(' · ')}
+                side={<span className="eq-kind eq-kind-loan">Loan</span>} />
+            )
+          })}
+          {more(hits.loans.length)}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -183,9 +237,9 @@ function List({ title, empty, children }) {
   )
 }
 
-function Row({ href, who, what, side, date }) {
+function Row({ href, who, what, side, date, cls = '' }) {
   return (
-    <a href={href} className={`eq-row${date ? ' eq-row-dated' : ''}${what && side ? ' eq-row-stack' : ''}`}>
+    <a href={href} className={`eq-row${date ? ' eq-row-dated' : ''}${what && side ? ' eq-row-stack' : ''}${cls ? ' ' + cls : ''}`}>
       {date && <span className="eq-date-chip" aria-hidden="true"><span>{date.toLocaleDateString('en-NZ', { weekday: 'short' })}</span><span>{date.getDate()}</span></span>}
       <span className="eq-row-main"><span className="eq-strong">{who}</span>{what && <span className="eq-small">{what}</span>}</span>
       {side && <span className="eq-row-side">{side}</span>}
