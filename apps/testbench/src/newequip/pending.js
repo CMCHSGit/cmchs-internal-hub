@@ -98,3 +98,6 @@ export function testLink(u, customerName = '') {
   set('site', u.site); set('asset', u.asset); set('ward', u.ward)
   return '/testbench/?' + p.toString()
 }
+
+/** Serial numbers of rows with no Site ID: Simpro Asset Sync matches an asset within its site, so these can't be placed. */
+export const missingSite = (rows) => rows.filter((r) => !String(r.site || '').trim()).map((r) => r.serial)

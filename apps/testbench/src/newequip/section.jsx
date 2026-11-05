@@ -37,6 +37,8 @@ function Page() {
   const [toast, say] = useToast()
   const canEdit = Boolean(profile && (profile.role === 'admin' || TEAMS.includes(profile.team))) // as the tracker's rules say
 
+  const canSimpro = Boolean(profile && (profile.role === 'admin' || profile.simproAccess === true)) // as Simpro Asset Sync and the proxy say
+
   useEffect(() => {
     if (!user) return undefined
     return watchCustomers(setData, (e) => { setData({ customers: [] }); setError(e?.code === 'permission-denied' ? 'The customers can’t be read with this account.' : (e?.message || 'The customers can’t be read.')) })
@@ -78,7 +80,7 @@ function Page() {
         {!current && sorted.length === 0 && !error && <p className="ne-note">There are no customer folders yet. {canEdit ? 'Add one here, or in the project tracker’s Customers tab.' : 'The service and project teams can add them.'}</p>}
       </section>
 
-      {current && <AssetList customer={current} listHref={listHref} user={user} />}
+      {current && <AssetList customer={current} listHref={listHref} user={user} canSimpro={canSimpro} />}
 
       <section className="card ne-card" aria-label="The other tools">
         <h2 className="ne-h2">Until this page does it all</h2>

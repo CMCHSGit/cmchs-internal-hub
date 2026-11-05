@@ -11,6 +11,7 @@ import { watchTests } from '../bench-tests-firebase.js'
 import { benchByUnit, duplicateSerials, filterUnits, readAssetList, reportsByUnit, serialKey, summary } from './assetlist.js'
 import { testLink } from './pending.js'
 import Pending from './Pending.jsx'
+import { sendToSimpro } from './toSimpro.js'
 import { fetchWorkbook, GraphError } from './graph.js'
 import { forgetGraphToken, graphToken } from './graph-auth.js'
 
@@ -18,7 +19,7 @@ const SHOWN = 150
 const nz = (iso) => { const t = Date.parse(iso || ''); return t ? new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', timeZone: 'Pacific/Auckland' }).format(new Date(t)) : '' }
 const nzFull = (iso) => { const t = Date.parse(iso || ''); return t ? new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(t)) : '' }
 
-export default function AssetList({ customer, listHref, user }) {
+export default function AssetList({ customer, listHref, user, canSimpro }) {
   const [state, setState] = useState('idle') // idle | loading | ready
   const [error, setError] = useState('')
   const [book, setBook] = useState(null) // { units, sheets, skipped, name, modified, via }
@@ -46,7 +47,7 @@ export default function AssetList({ customer, listHref, user }) {
   const take = useCallback(async (buffer, name, modified, via) => {
     const got = await readAssetList(buffer, name)
     if (!got.units.length) throw new GraphError('notbook', got.sheets.length || got.skipped.length ? 'No sheet in that workbook has a Serial Number column with devices in it.' : 'That workbook has no sheets.')
-    setBook({ ...got, name, modified, via })
+    setBook({ ...got, name, modified, via, buffer })
     setState('ready'); setError('')
     logActivity(null, `Loaded an asset list (${got.units.length} units, ${got.sheets.length} sheet${got.sheets.length === 1 ? '' : 's'}, ${via})`, { app: 'new-equipment' })
   }, [])
@@ -78,6 +79,7 @@ export default function AssetList({ customer, listHref, user }) {
   // The reports saved on this PC for these units: a zip of their PDFs (in this customer's name), or Saved reports to attach them to a Simpro job.
   const unitGroups = useMemo(() => { const keys = new Set(units.map((u) => u.key)); return groups.filter((g) => keys.has(serialKey(g.serial))) }, [units, groups])
   const pdfs = useMemo(() => pickFiles(unitGroups, unitGroups.map((g) => g.base), ['pdf']), [unitGroups])
+  const toSimpro = () => sendToSimpro({ name: book.name, mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: book.buffer }).catch(() => setError('Couldn’t hand the list to Simpro Asset Sync. Open it from the Service menu and choose the file there.'))
   const zipReports = () => {
     const blob = new Blob([makeZip(pdfs.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${customer.name} test reports ${nzDay(Date.now())}.zip`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000)
@@ -86,7 +88,7 @@ export default function AssetList({ customer, listHref, user }) {
 
   return (
     <>
-    <Pending customer={customer} units={units} sheets={book?.sheets || []} />
+    <Pending customer={customer} units={units} sheets={book?.sheets || []} canSimpro={canSimpro} />
     <section className="card ne-card" aria-label="Asset list">
       <div className="ne-row">
         <div className="ne-grow">
@@ -140,6 +142,14 @@ export default function AssetList({ customer, listHref, user }) {
             </table>
           </div>
           {rows.length > SHOWN && !all && <div><Button variant="secondary" onClick={() => setAll(true)}>Show all {rows.length}</Button></div>}
+
+          {canSimpro && (
+            <div className="ne-reports">
+              <h3 className="ne-h3">Simpro</h3>
+              <p className="ne-note">Opens Simpro Asset Sync with this asset list. It reads Simpro and shows what would be created or changed. Nothing is changed in Simpro until you press Apply there.</p>
+              <div className="ne-links"><Button onClick={toSimpro}>Preview this list in Simpro</Button></div>
+            </div>
+          )}
 
           <div className="ne-reports">
             <h3 className="ne-h3">Test reports</h3>

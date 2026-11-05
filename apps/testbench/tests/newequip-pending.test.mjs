@@ -59,3 +59,31 @@ test('a Test this device link opens the bench on the device, in the form the ben
   const l2 = testLink({ description: 'A9 Anaesthetic', serial: 'S' })
   assert.equal(deviceFromSearch(l2.slice(l2.indexOf('?'))).device.model, 'A9 Anaesthetic')
 })
+
+// ---- the hand-over to Simpro Asset Sync ----
+import { memoryHandoff, putHandoff, takeHandoff, handoffUrl, wantsHandoff, MAX_AGE_MS } from '../src/newequip/handoff.js'
+import { missingSite } from '../src/newequip/pending.js'
+
+test('a file left for Asset Sync is taken once, and never after ten minutes', async () => {
+  const s = memoryHandoff()
+  assert.equal(await takeHandoff(s), null)
+  await putHandoff(s, { name: 'a.xlsx', mime: 'x', buffer: new ArrayBuffer(3) }, 1000)
+  const got = await takeHandoff(s, 1000 + 5000)
+  assert.equal(got.name, 'a.xlsx')
+  assert.equal(got.buffer.byteLength, 3)
+  assert.equal(await takeHandoff(s, 1000 + 5000), null, 'taken once')
+  await putHandoff(s, { name: 'b.xlsx', buffer: new ArrayBuffer(1) }, 1000)
+  assert.equal(await takeHandoff(s, 1000 + MAX_AGE_MS + 1), null, 'too old')
+  assert.equal(await takeHandoff(s, 1000 + MAX_AGE_MS + 1), null, 'and cleared')
+})
+
+test('Asset Sync is opened with the hand-over address, and recognises it', () => {
+  assert.equal(wantsHandoff(handoffUrl().slice(handoffUrl().indexOf('?'))), true)
+  assert.equal(wantsHandoff(''), false)
+  assert.equal(wantsHandoff('?from=elsewhere'), false)
+})
+
+test('pending rows with no Site ID cannot be placed in Simpro: they are named', () => {
+  assert.deepEqual(missingSite([row(), row({ serial: 'B', site: '' }), row({ serial: 'C', site: ' ' })]), ['B', 'C'])
+  assert.deepEqual(missingSite([row()]), [])
+})

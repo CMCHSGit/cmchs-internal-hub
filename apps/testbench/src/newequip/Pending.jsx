@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCopy, Download, FlaskConical, Plus, Trash2 } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Toast, useConfirm, useToast } from '../../../../shared/ui/index.jsx'
 import { logActivity } from '../../../../shared/activity.js'
-import { FIELDS, clashes, cleanPending, testLink, toCsv, toTsv } from './pending.js'
+import { FIELDS, clashes, cleanPending, missingSite, testLink, toCsv, toTsv } from './pending.js'
+import { sendToSimpro } from './toSimpro.js'
 import { addPending, removePending, watchPending } from './pending-firebase.js'
 
 const PLACEHOLDER = { installed: 'd/mm/yyyy', manufactured: 'e.g. 3/2026', warranty: 'd/mm/yyyy', site: 'Simpro site ID' }
@@ -13,7 +14,7 @@ const KEEP = ['site', 'manufacturer', 'ward', 'service', 'job'] // carried to th
 
 const saveBlob = (name, blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }
 
-export default function Pending({ customer, units, sheets }) {
+export default function Pending({ customer, units, sheets, canSimpro }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(null) // null | { start: form }
@@ -33,6 +34,8 @@ export default function Pending({ customer, units, sheets }) {
     try { await navigator.clipboard.writeText(toTsv(list, headers)); say(`${list.length} row${list.length === 1 ? '' : 's'} copied`) } catch { say('Couldn’t copy: use Download instead.') }
   }
   const download = () => saveBlob(`${customer.name} new assets.csv`, new Blob(['﻿' + toCsv(list, headers)], { type: 'text/csv;charset=utf-8' }))
+  const noSite = useMemo(() => missingSite(list), [list])
+  const toSimpro = () => sendToSimpro({ name: `${customer.name} new assets.csv`, mime: 'text/csv', buffer: new TextEncoder().encode(toCsv(list, null)).buffer }).catch(() => say('Couldn’t hand the rows to Simpro Asset Sync.'))
   const remove = async (r) => {
     if (!await confirm({ title: 'Remove this row?', message: `${r.serial} is taken off the pending list. It isn’t in the workbook, so record it again if it should be.`, confirmLabel: 'Remove', danger: true })) return
     try { await removePending(r.id); logActivity(null, 'Removed a pending asset row', { app: 'new-equipment' }) } catch { say('Couldn’t remove it.') }
@@ -86,8 +89,11 @@ export default function Pending({ customer, units, sheets }) {
             )}
             <Button iconLeft={<ClipboardCopy size={15} aria-hidden="true" />} onClick={copy}>Copy rows for the workbook</Button>
             <Button variant="secondary" iconLeft={<Download size={15} aria-hidden="true" />} onClick={download}>Download .csv</Button>
+            {canSimpro && <Button variant="secondary" disabled={noSite.length > 0} onClick={toSimpro}>Preview these in Simpro</Button>}
             <Button variant="ghost" onClick={clearAll}>They’re pasted: clear</Button>
           </div>
+          {canSimpro && noSite.length > 0 && <p className="ne-note">To preview these in Simpro, each needs a Site ID (Simpro matches an asset within its site): {noSite.slice(0, 4).join(', ')}{noSite.length > 4 ? '…' : ''}.</p>}
+          {canSimpro && <p className="ne-note">“Preview these in Simpro” opens Simpro Asset Sync with just these rows. It reads Simpro and shows what would be created; nothing changes until you press Apply there.</p>}
           <p className="ne-note">{headers ? 'Laid out in the columns of the asset list you loaded.' : 'Load the asset list to lay the rows out in its columns; until then they use the new template’s usual order.'} Paste under the sheet’s last row, then clear them.</p>
         </>
       )}

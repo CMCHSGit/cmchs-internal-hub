@@ -6,6 +6,7 @@ import { XLSXLite } from './reader.js';
 import { SyncCore } from './core.js';
 import { fastSiteAssets } from './fast-assets.js';
 import { groupReports, idbReports, reportsLink, reportsToAdd } from '../testbench/src/reports.js';
+import { idbHandoff, takeHandoff, wantsHandoff } from '../testbench/src/newequip/handoff.js';
 
 export function startApp({ transport, who }) {
   const DEFAULT_COMPANY = 3, DEFAULT_TYPE = 114;
@@ -871,4 +872,14 @@ export function startApp({ transport, who }) {
 
   updateButtons();
   loadSetup();
+
+  // An asset list handed over from the new-equipment page (testbench/src/newequip/handoff.js): taken once and loaded as if it had been
+  // chosen here. Nothing is different after that: this still reads Simpro, shows the preview and waits for Apply.
+  if (wantsHandoff(location.search)) {
+    takeHandoff(idbHandoff()).then(async (h) => {
+      try { history.replaceState(null, '', location.pathname + location.hash); } catch { /* the address stays */ }
+      if (!h) { showError('The asset list from the new-equipment page is no longer here (it is kept for 10 minutes). Send it again from there, or choose a file.'); return; }
+      await takeFile(new File([h.buffer], h.name, { type: h.mime }));
+    }).catch(() => showError('Could not receive the asset list from the new-equipment page. Choose the file here instead.'));
+  }
 }
