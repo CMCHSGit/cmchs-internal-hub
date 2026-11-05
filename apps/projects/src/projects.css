@@ -300,6 +300,9 @@ button.pt-ratio { cursor: pointer; width: 100%; }
 .pt-span2 { grid-column: 1 / -1; }
 .pt-sec { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
 .pt-sec-head { display: flex; align-items: center; justify-content: space-between; }
+.pt-links { display: flex; flex-direction: column; gap: 10px; }
+.pt-link-row { display: flex; align-items: flex-start; gap: 8px; }
+.pt-link-open { flex: 0 0 auto; margin-top: 22px; text-decoration: none; } /* level with the input, below its label */
 .pt-waiting { padding: 12px; border-radius: var(--radius-md); background: var(--chs-orange-20); }
 .pt-wk { width: 56px; font-weight: 600; color: var(--text-strong); font-size: 14px; }
 .pt-picker { position: relative; display: block; }

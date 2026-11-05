@@ -10,7 +10,7 @@ import { useUi } from './App.jsx'
 import { StatusPill, Avatar, StaffPicker, Field, Empty, ActivityChip, Priority, Modal } from './ui.jsx'
 import {
   PRIORITIES, LINE_STATUSES, WAITING, availability, fmt, fmtY, fmtRange, todayISO, rid, duplicateOf, templateFrom, dueBack,
-  linkableLoans, entryWho, linesNeedingLoan, isISO,
+  linkableLoans, entryWho, linesNeedingLoan, isISO, JOB_LINKS, linkHref,
 } from './model.js'
 import { loanPlace, matchModel } from './feed.js'
 
@@ -141,6 +141,26 @@ function Details({ job, readOnly }) {
 
   return (
     <div className="pt-stack">
+      <section className="pt-sec">
+        <h3 className="pt-h4">Links</h3>
+        <div className="pt-links">
+          {JOB_LINKS.map(([key, label]) => {
+            const v = job.links?.[key] || ''
+            const href = linkHref(v)
+            // Not shown at all when read-only and nothing is set.
+            if (readOnly && !v) return null
+            return (
+              <div key={key} className="pt-link-row">
+                <Field label={label} className="pt-grow" hint={v && !href ? 'That isn’t a web link: paste the address that starts with https://' : undefined}>
+                  <TextEdit value={v} disabled={readOnly} label={label} placeholder="Paste a link" onSave={(x) => s.updateJob(job.id, { links: { ...(job.links || {}), [key]: x.trim() } }, `${x.trim() ? 'set' : 'cleared'} the ${label} link`)} />
+                </Field>
+                {href && <a className="btn btn-secondary btn-sm pt-link-open" href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open the ${label}`}>Open</a>}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
       {job.status === WAITING && (
         <div className="pt-waiting">
           <Field label="Waiting on" hint={job.waitingSince ? `Since ${fmt(job.waitingSince)}. Clears when the status moves on.` : undefined}>

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   mondayOf, addDays, fmt, fmtY, fmtRange, overlaps, inkOn, availability, bookedInWeek, loadLevel,
   overdueReturns, shortfalls, clashes, searchJobs, highlight, filterJobs, dueForAutoArchive,
-  templateFrom, weeksFrom, withDefaults, initialsOf,
+  templateFrom, weeksFrom, withDefaults, initialsOf, linkHref, duplicateOf,
 } from '../src/model.js'
 import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_STAFF, SAMPLE_POOL, SAMPLE_COMMENTS } from '../src/sample.js'
 
@@ -192,4 +192,18 @@ test("a job's week as the workbook shows it: one colour, the people as MH/TF, a 
   // the defaults are the workbook's legend, in its order
   assert.deepEqual(DEFAULT_SETTINGS.activities.map((a) => a.name), ['Prep week', 'Go-live week', 'Apps support', 'Infrastructure', 'Biomed Training', 'Demo /Trial', 'Conference', 'Apps Training', 'Upgrade', 'EST Testing', 'Change Freeze', 'Workshop'])
   assert.equal(DEFAULT_SETTINGS.activities.find((a) => a.name === 'EST Testing').color, '#FFFF00')
+})
+
+test('a job link opens only if it is a web address', () => {
+  assert.equal(linkHref('https://cass.sharepoint.com/sites/x/Shared%20Documents/Job 1'), '') // spaces: not a pasted link
+  assert.equal(linkHref(' https://cass.sharepoint.com/:f:/s/proj/abc?e=1 '), 'https://cass.sharepoint.com/:f:/s/proj/abc?e=1')
+  assert.equal(linkHref('http://intranet/folder'), 'http://intranet/folder')
+  assert.equal(linkHref('cass.sharepoint.com/sites/x'), 'https://cass.sharepoint.com/sites/x') // pasted without https://
+  for (const bad of ['', '   ', 'javascript:alert(1)', 'JAVASCRIPT:alert(1)', 'data:text/html,hi', 'file:///C:/x', '\\server\share\job', 'just some words', undefined, null]) assert.equal(linkHref(bad), '', String(bad))
+})
+
+test('Duplicate keeps what describes the job but not its links (they point at the first job\u2019s folders)', () => {
+  const j = { ...SAMPLE_JOBS[0], links: { equipment: 'https://a.example/x', reports: 'https://a.example/r', project: 'https://a.example/p' } }
+  assert.equal('links' in duplicateOf(j), false)
+  assert.equal(duplicateOf(j).customer, j.customer)
 })

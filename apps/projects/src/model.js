@@ -605,7 +605,7 @@ export function templateFrom(job) {
 
 /** Duplicate: everything that describes the job, for a repeat at another site. */
 export function duplicateOf(job) {
-  const { id, createdAt, createdBy, updatedAt, updatedBy, archived, archivedAt, completedAt, autoArchiveOn, sample, ...rest } = job
+  const { id, createdAt, createdBy, updatedAt, updatedBy, archived, archivedAt, completedAt, autoArchiveOn, sample, links, ...rest } = job // links point at this job's own folders
   return {
     ...rest,
     name: `${job.name} (copy)`,
@@ -618,6 +618,22 @@ export function duplicateOf(job) {
 }
 
 export const rid = () => Math.random().toString(36).slice(2, 10)
+
+// ── a job's links ───────────────────────────────────────────────────────
+/** The three places a job points at: [key in job.links, label]. */
+export const JOB_LINKS = [['equipment', 'Equipment list'], ['reports', 'Reports folder'], ['project', 'Project folder']]
+
+/**
+ * A pasted link as an address to open, or '' when it isn't a web link. Only
+ * http(s) is ever opened (a pasted "javascript:" does nothing); an address typed
+ * without the https:// (a SharePoint or OneDrive host and path) gets it.
+ */
+export function linkHref(v) {
+  const t = String(v ?? '').trim()
+  if (!t || /\s/.test(t)) return ''
+  const full = /^https?:\/\//i.test(t) ? t : /^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(t) ? 'https://' + t : ''
+  try { return full && /^https?:$/.test(new URL(full).protocol) ? full : '' } catch { return '' }
+}
 
 // ── filters and saved views ─────────────────────────────────────────────
 export const BUILTIN_VIEWS = [
