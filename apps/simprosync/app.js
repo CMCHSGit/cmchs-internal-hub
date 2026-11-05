@@ -21,9 +21,9 @@ export function startApp({ transport, who }) {
   let book = null, fileName = '', plan = null, logLines = [];
   let busy = false;
   let assetTypes = []; // [{ID, Name}] from Simpro, for the selected company
-  let warrantySerials = new Set(); // serials with "Extended Warranty" = Yes, across ticked sheets
-  let warrantyColumnFound = false; // whether the ticked sheets have an Extended Warranty column at all
-  let warrantyValuesSeen = new Set(); // distinct values in that column, to explain a zero match
+  // What the ticked sheets say about Extended Warranty (SyncCore.warrantyScan): whether the column exists,
+  // the serials marked Yes, and every value in the column with its row count.
+  let warranty = SyncCore.warrantyScan([]);
 
   /* ---------- logging & progress ---------- */
   function log(msg) { logLines.push(msg); $('log').textContent = logLines.join('\n'); }
@@ -173,48 +173,30 @@ export function startApp({ transport, who }) {
   // Scans every ticked sheet for an "Extended Warranty" column and collects
   // the Serial Number of every row where it's "Yes". That set decides which
   // group each asset lands in within the job note - nothing is excluded by
-  // it. Stays hidden, and assetListHtml() falls back to one flat list, if no
+  // it. Stays hidden, and the note falls back to one flat list, if no
   // ticked sheet has the column at all.
   async function refreshWarrantyInfo() {
     const row = $('warrantyFilterRow'), countEl = $('warrantyCount');
-    warrantySerials = new Set();
-    warrantyValuesSeen = new Set();
-    warrantyColumnFound = false;
+    warranty = SyncCore.warrantyScan([]);
     if (!book) { row.hidden = true; return; }
-    let anyColumn = false;
+    const sheets = [];
     for (const sr of getCheckedSheets()) {
       // Ticked sheets aren't necessarily asset lists at all (e.g. a
       // "Reference"/"Networking" tab) - read defensively so one odd sheet
       // can't break the scan for the rest, or block the file loading at all.
-      let header, recs;
-      try { ({ header, recs } = SyncCore.toRecords(await book.rows(sr.idx))); }
+      try { sheets.push(SyncCore.toRecords(await book.rows(sr.idx))); }
       catch (e) { continue; }
-      // header can contain holes (a header row with a skipped/blank cell is
-      // a real gap in the array, not an empty string) - Array.find() visits
-      // holes as undefined, unlike the map()/forEach() toRecords() itself
-      // uses, so h must be guarded before calling .trim() on it.
-      const warrantyKey = header.find(h => h && h.trim().toLowerCase() === 'extended warranty');
-      if (!warrantyKey) continue;
-      anyColumn = true;
-      const serialKey = header.find(h => h && h.trim().toLowerCase() === SyncCore.MATCH_FIELD.toLowerCase());
-      if (!serialKey) continue;
-      recs.forEach(({ r }) => {
-        const raw = SyncCore.asText(r[warrantyKey]).trim();
-        if (raw) warrantyValuesSeen.add(raw);
-        if (raw.toLowerCase() !== 'yes') return;
-        const ser = SyncCore.asText(r[serialKey]).trim().toUpperCase();
-        if (ser) warrantySerials.add(ser);
-      });
     }
-    warrantyColumnFound = anyColumn;
-    row.hidden = !anyColumn;
-    if (!anyColumn) return;
+    warranty = SyncCore.warrantyScan(sheets);
+    row.hidden = !warranty.columnFound;
+    if (!warranty.columnFound) return;
     // When nothing is marked Yes, say what the column actually contains -
     // "0 found" on its own gives no way to tell "none are on warranty" apart
     // from "the column says Y, not Yes".
-    countEl.textContent = warrantySerials.size === 0 && warrantyValuesSeen.size
-      ? `- nothing marked Yes (that column contains: ${[...warrantyValuesSeen].slice(0, 6).join(', ')})`
-      : `- ${warrantySerials.size} item${warrantySerials.size === 1 ? '' : 's'} marked Yes`;
+    const n = warranty.serials.size;
+    countEl.textContent = n === 0 && warranty.values.size
+      ? `- nothing marked Yes (that column contains: ${[...warranty.values.keys()].slice(0, 6).join(', ')})`
+      : `- ${n} item${n === 1 ? '' : 's'} marked Yes`;
   }
 
   /* ---------- file ---------- */
@@ -253,48 +235,8 @@ export function startApp({ transport, who }) {
   const CLOSED_STAGES = ['Complete', 'Invoiced', 'Archived'];
   const todayNZ = () => { const d = new Date(); return `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; };
   const noteText = () => `EST and PVT completed - ${todayNZ()}`;
-  const plainNotes = h => String(h || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(div|p)>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').trim();
-  // One line per asset for the job-completion note, covering everything
-  // attached when the job closes (new this run plus already-attached from an
-  // earlier one, possibly spanning more than one sheet - see combinedJobs in
-  // the preview below).
-  //
-  // A defibrillator's battery is a separately tracked serial, so it's named
-  // alongside the device it belongs to rather than left to be looked up.
-  const isDefib = a => String(a.deviceType || '').toLowerCase().includes('defib');
-  const assetLine = a => {
-    const base = a.model ? `${a.model} — SN:${a.ser}` : `SN:${a.ser}`;
-    return esc(isDefib(a) && a.batterySerial ? `${base} (Battery SN:${a.batterySerial})` : base);
-  };
-  // Every asset is listed; Extended Warranty decides which group it lands in
-  // rather than whether it appears at all. Falls back to a flat list when the
-  // sheets have no Extended Warranty column, since the headings would be
-  // claiming a distinction nothing in the file actually supports.
-  //
-  // Built as ONE <div> with <br> between lines, not a <div> per line - Simpro's
-  // notes editor runs adjacent top-level blocks together, which is what made an
-  // earlier per-item-<div> version come out squished.
-  const assetListHtml = jp => {
-    const all = jp.attach.concat(jp.already);
-    if (!all.length) return '';
-    if (!warrantyColumnFound) return `<div>${all.map(assetLine).join('<br>')}</div>`;
-    const onWarranty = a => warrantySerials.has(String(a.ser || '').toUpperCase());
-    const yes = all.filter(onWarranty), no = all.filter(a => !onWarranty(a));
-    // Says so explicitly when nothing is on warranty, rather than just
-    // omitting the section - "no devices require it" and "we didn't check"
-    // shouldn't look identical to whoever reads the job later.
-    const lines = yes.length
-      ? ['Extended Warranty required on these devices:', ...yes.map(assetLine)]
-      : ['No devices require Extended Warranty.'];
-    if (no.length) {
-      lines.push(''); // blank line between the two groups
-      // "Other devices added" only reads correctly as a contrast with a group
-      // above it. With nothing on warranty there is no such group, so these are
-      // simply the devices added.
-      lines.push(yes.length ? 'Other devices added:' : 'Devices added:', ...no.map(assetLine));
-    }
-    return `<div>${lines.join('<br>')}</div>`;
-  };
+  const plainNotes = SyncCore.plainNotes;
+  // The note itself is built in core.js (SyncCore.jobNoteBlock), shared by the preview and Apply.
   const ccPath = (p, jp) => `/companies/${p.cid}/jobs/${jp.jobNo}/sections/${jp.cc.sec}/costCenters/${jp.cc.id}/assets/`;
   async function planJobs(p) {
     p.jobPlans = [];
@@ -364,13 +306,13 @@ export function startApp({ transport, who }) {
     // behaviour). The Extended Warranty checkbox does NOT - every asset in
     // the ticked sheets is still created/updated as normal; it only controls
     // which of a job's attached assets get listed in that job's Notes field
-    // (see assetListHtml() below), since Jonathan wants all assets processed
+    // (see SyncCore.jobNoteBlock), since Jonathan wants all assets processed
     // but only warranty items recorded there.
     const only = $('only').value.trim() ? new Set($('only').value.split(/[\s,;]+/).map(s => s.trim().toUpperCase()).filter(Boolean)) : null;
     const stamp = new Date();
     if (!sheets.length) { showError('Tick at least one sheet to sync.'); progressDone(); setBusy(false); return; }
     try {
-      log(`PREVIEW | ${fileName} | sheets: ${sheets.map(s => `${s.name} (${s.typeName})`).join(', ')} | ${stamp.toLocaleString('en-NZ')} | by ${WHO}` + (only ? ` | only: ${[...only].join(', ')}` : '') + (warrantyColumnFound ? ` | job notes grouped by Extended Warranty (${warrantySerials.size} marked Yes)` : ''));
+      log(`PREVIEW | ${fileName} | sheets: ${sheets.map(s => `${s.name} (${s.typeName})`).join(', ')} | ${stamp.toLocaleString('en-NZ')} | by ${WHO}` + (only ? ` | only: ${[...only].join(', ')}` : '') + (warranty.columnFound ? ` | job notes grouped by Extended Warranty (${warranty.serials.size} marked Yes)` : ''));
 
       const creates = [], changes = [], warnings = [], simproOnly = [], simproErrors = [], dupes = [], unmapped = [];
       let unchanged = 0;
@@ -487,6 +429,10 @@ export function startApp({ transport, who }) {
         log(`Jobs: ${plan.jobPlans.length} (${okJobs(plan).length} will have assets attached and be completed)`);
         plan.jobPlans.forEach(j => log(`  Job ${j.jobNo}: attach ${j.attach.length}, already attached ${j.already.length}` + (j.problems.length ? ' - NOT CHANGED: ' + j.problems.join('; ') : ` - then note "${noteText()}", Stage Complete, Status "Job : Completed"`) + (j.notes.length ? ' (' + j.notes.join('; ') + ')' : '')));
       }
+      if (plan.jobPlans.length) {
+        const ns = SyncCore.summariseNotes(plan.jobPlans.map(j => SyncCore.jobNotePreview(j, warranty, noteText())), warranty);
+        log(`Job notes: ${ns.written} to write (${ns.appended} after existing notes), ${ns.unchanged} already there, ${ns.skipped} skipped` + (ns.mode === 'grouped' ? `; ${ns.devicesWarranty} device(s) under Extended Warranty, ${ns.devicesOther} other` : '; no Extended Warranty column, flat list'));
+      }
       log(`Warnings: ${warnings.length}`);
       warnings.forEach(w => log(`  ${w.sheet ? '[' + w.sheet + '] ' : ''}Row ${w.row} ${w.serial}: ${w.msg}`));
       if (simproErrors.length) { log(`Excel errors already stored in Simpro: ${simproErrors.length}`); simproErrors.forEach(e => log(`  ${e.ser || '(no serial)'} (asset ${e.id}) ${e.field} = ${e.value}`)); }
@@ -516,7 +462,7 @@ export function startApp({ transport, who }) {
       ['create', `Create (${p.creates.length})`], ['update', `Update (${p.changes.length})`], ['warn', `Warnings (${p.warnings.length})`],
       ['only', `In Simpro only (${p.simproOnly.length})`]
     ];
-    if (p.jobPlans.length) tabs.splice(2, 0, ['jobs', `Jobs (${p.jobPlans.length})`]);
+    if (p.jobPlans.length) tabs.splice(2, 0, ['jobs', `Jobs (${p.jobPlans.length})`], ['notes', `Job notes (${p.jobPlans.length})`]);
     if (p.simproErrors.length) tabs.push(['serr', `Errors in Simpro (${p.simproErrors.length})`]);
     if (p.unmapped.length || p.dupes.length) tabs.push(['other', 'Other notes']);
     const first = (tabs.find(t => /\((?!0\))/.test(t[1])) || tabs[0])[0];
@@ -530,11 +476,47 @@ export function startApp({ transport, who }) {
     if (!rows.length) return '<p class="empty">Nothing here.</p>';
     return `<div class="tablewrap"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   }
+  // The "Job notes" tab: the exact text Apply will add to each job's Notes, given the Extended Warranty
+  // column, with counts on top. Built by the same SyncCore.jobNoteBlock Apply uses, so it cannot differ.
+  // Read-only: it only formats what the preview already read.
+  const NOTE_STATE = {
+    write: ['will be written', 'ok'], append: ['will be added after the notes already there', 'ok'],
+    unchanged: ['already in the notes - nothing written', 'muted'], skipped: ['job has a problem - no note written', 'bad']
+  };
+  function notesPreviewHtml(p) {
+    const stamp = noteText();
+    const previews = p.jobPlans.map(j => SyncCore.jobNotePreview(j, warranty, stamp));
+    const s = SyncCore.summariseNotes(previews, warranty);
+    const n = (c, one, many) => `${c} ${c === 1 ? one : many}`;
+    const head = [
+      `<p class="muted">Nothing has been sent to Simpro. This is the note each job below gets when you Apply, added after anything already in its Notes (existing notes are never edited or removed). Each note ends with <b>${esc(stamp)}</b>.</p>`,
+      `<p><b>${n(s.written, 'job gets', 'jobs get')} a note</b>` + (s.appended ? ` (${s.appended} after existing notes)` : '') +
+        (s.unchanged ? ` · ${s.unchanged} already ${s.unchanged === 1 ? 'has' : 'have'} this exact note` : '') +
+        (s.skipped ? ` · <span class="bad">${s.skipped} skipped because of a problem</span>` : '') + '.</p>',
+      s.mode === 'grouped'
+        ? `<p><b>Extended Warranty:</b> ${n(s.devicesWarranty, 'device', 'devices')} listed as required across ${n(s.jobsWithWarranty, 'job', 'jobs')}; ${n(s.devicesOther, 'other device', 'other devices')}` +
+          (s.jobsNoneRequired ? `; ${n(s.jobsNoneRequired, 'job says', 'jobs say')} "No devices require Extended Warranty."` : '') + '.</p>'
+        : '<p><b>Extended Warranty:</b> <span class="muted">no ticked sheet has an Extended Warranty column, so the devices are listed flat with no warranty headings.</span></p>'
+    ];
+    if (s.mode === 'grouped' && s.nearMiss.length)
+      head.push(`<p class="warnline">Only <b>Yes</b> counts as extended warranty. These other values in the column are not, so those devices are listed under "Other devices added": ${s.nearMiss.map(x => `${esc(x.value)} (${x.rows})`).join(', ')}.</p>`);
+    const cards = previews.map(v => {
+      const [label, cls] = NOTE_STATE[v.state];
+      const j = p.jobPlans.find(x => x.jobNo === v.jobNo);
+      const body = v.state === 'skipped'
+        ? `<p class="bad">${j.problems.map(esc).join('<br>')}</p>`
+        : `<div class="notebox">${v.lines.map(l => l.kind === 'blank' ? '<br>' : `<div class="nl nl-${l.kind}">${esc(l.text)}</div>`).join('')}<div class="nl nl-stamp">${esc(v.stampText)}</div></div>` +
+          (v.state === 'append' ? `<p class="muted">The job already has notes (${v.existingChars} characters); they stay as they are.</p>` : '');
+      return `<details class="asset"><summary><b>Job #${esc(v.jobNo)}</b> <span class="muted">${j.job ? esc(j.job.name) + ' · ' : ''}` +
+        (s.mode === 'grouped' && v.state !== 'skipped' ? `${v.yes} warranty, ${v.other} other · ` : '') + `</span><span class="${cls}">${label}</span></summary>${body}</details>`;
+    });
+    return head.join('') + (cards.join('') || '<p class="empty">No jobs.</p>');
+  }
   function renderTab(k) {
     const p = plan; let html = '';
     if (k === 'create') html = p.creates.map(c => `<details class="asset"><summary><b>${esc(c.ser)}</b> <span class="muted">row ${c.rownum} · ${esc(c.sheet)} · site ${esc(c.site)} · ${c.changes.length} fields</span>${c.newId ? ` <span class="pill ok">created ${c.newId}</span>` : ''}${c.error ? ` <span class="pill bad">error</span>` : ''}</summary>${table(['Field', 'Value'], c.changes.map(x => [esc(x.col), esc(x.nv)]))}</details>`).join('') || '<p class="empty">No new assets.</p>';
     if (k === 'update') html = table(['Sheet', 'Serial', 'Row', 'Asset', 'Field', 'Simpro now', 'Spreadsheet', ''], p.changes.flatMap(c => c.changes.map(x => [esc(c.sheet), esc(c.ser), c.rownum, c.id, esc(x.col), `<span class="old">${esc(x.old) || '<i>blank</i>'}</span>`, `<span class="new">${esc(x.nv)}</span>`, x.status === 'ok' ? '<span class="pill ok">done</span>' : x.status ? '<span class="pill bad">failed</span>' : ''])));
-    if (k === 'jobs') html = '<p class="muted">After the assets are imported, each job below gets ALL its assets attached, then every one of them is listed in the job Notes' + (warrantyColumnFound ? ' - grouped into <b>Extended Warranty required</b> and <b>Not required</b>' : '') + ' (model and serial number, plus the battery serial for defibrillators), followed by the note <b>' + esc(noteText()) + '</b>. Its stage is set to <b>Complete</b> and status to <b>Job : Completed</b>. A job is only completed if every one of its assets attached successfully. A job referenced from more than one sheet is only attached-to and closed once, with items from every sheet it appeared in.</p>' +
+    if (k === 'jobs') html = '<p class="muted">After the assets are imported, each job below gets ALL its assets attached, then every one of them is listed in the job Notes' + (warranty.columnFound ? ' - grouped into <b>Extended Warranty required</b> and <b>Other devices added</b>' : '') + ' (model and serial number, plus the battery serial for defibrillators), followed by the note <b>' + esc(noteText()) + '</b>. Its stage is set to <b>Complete</b> and status to <b>Job : Completed</b>. A job is only completed if every one of its assets attached successfully. A job referenced from more than one sheet is only attached-to and closed once, with items from every sheet it appeared in.</p>' +
       table(['Job', 'Name / site', 'Now', 'To attach', 'Already attached', 'Notes', ''], p.jobPlans.map(j => [
         `<b>#${esc(j.jobNo)}</b>`,
         j.job ? `${esc(j.job.name)}<br><span class="muted">${esc(j.job.site.Name || '')}</span>` : '',
@@ -544,6 +526,7 @@ export function startApp({ transport, who }) {
         j.problems.map(x => `<span class="bad">${esc(x)}</span>`).concat(j.notes.map(esc)).join('<br>'),
         j.closed ? '<span class="pill ok">completed</span>' : (j.result ? '<span class="pill bad">left open</span>' : (j.problems.length ? '<span class="pill bad">skipped</span>' : ''))
       ]));
+    if (k === 'notes') html = notesPreviewHtml(p);
     if (k === 'warn') html = table(['Sheet', 'Row', 'Serial', 'Warning'], p.warnings.map(w => [esc(w.sheet || ''), w.row, esc(w.serial), esc(w.msg)]));
     if (k === 'only') html = '<p class="muted">These are in Simpro but not in the sheet. The sync never deletes or archives anything.</p>' + table(['Sheet', 'Serial', 'Site', 'Asset ID'], p.simproOnly.map(s => [esc(s.sheet || ''), esc(s.ser), esc(s.site), s.id]));
     if (k === 'serr') html = '<p class="muted">These values were saved into Simpro as Excel errors by an earlier import. Fix the formula in the sheet and run again to replace them.</p>' + table(['Sheet', 'Serial', 'Asset ID', 'Field', 'Value in Simpro'], p.simproErrors.map(e => [esc(e.sheet || ''), esc(e.ser), e.id, esc(e.field), esc(e.value)]));
@@ -625,13 +608,13 @@ export function startApp({ transport, who }) {
         // appended to; re-running a job that's genuinely unchanged still
         // writes nothing, and the Complete-stage check above stops this
         // repeating unless someone deliberately reopens the job.
-        const block = assetListHtml(jp) + `<div>${note}</div>`;
+        const block = SyncCore.jobNoteBlock(jp, warranty, note).html;
         if (!plainNotes(jp.job.notes).includes(plainNotes(block))) {
           const newNotes = (jp.job.notes ? jp.job.notes + '\n' : '') + block;
           const rn = await call('PATCH', `/companies/${p.cid}/jobs/${jp.jobNo}`, { Notes: newNotes });
           if (!okStatus(rn)) { errors++; jp.closeError = `notes: ${rn.status} ${brief(rn.data)}`; log(`  ERROR job ${jp.jobNo}: could not add the note - job LEFT OPEN: ${rn.status} ${brief(rn.data)}`); progress(`Applying… ${++done} of ${total}`, done, total); continue; }
           jp.noteAdded = note;
-          log(`  Job ${jp.jobNo}: notes updated (${jp.attach.concat(jp.already).length} assets attached, ${plainNotes(assetListHtml(jp)).split('\n').filter(Boolean).length} listed in notes)`);
+          log(`  Job ${jp.jobNo}: notes updated (${jp.attach.concat(jp.already).length} assets attached, ${SyncCore.jobNoteBlock(jp, warranty, note).lines.filter(l => l.text).length} lines listed in notes)`);
         } else {
           log(`  Job ${jp.jobNo}: notes already contain this exact list - left as they are`);
         }

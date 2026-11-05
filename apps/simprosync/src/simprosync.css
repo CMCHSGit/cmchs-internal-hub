@@ -117,3 +117,10 @@ body.busy .ss-host { cursor: progress; }
    stayed on screen after a preview had finished, still showing the last thing it did ("Reading sheet "IT"…") and
    looking stuck. [hidden] wins inside this page. */
 .ss-host [hidden] { display: none !important; }
+
+/* Job notes preview: the note as it will read in Simpro, with the Extended Warranty group picked out */
+.ss-host .notebox { border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); padding: 10px 14px; margin: 8px 0; font: var(--type-body-sm); color: var(--text-strong); }
+.ss-host .notebox .nl-head { font-weight: 600; margin-top: 2px; }
+.ss-host .notebox .nl-warranty { padding-left: 10px; border-left: 3px solid var(--chs-purple); margin: 2px 0; }
+.ss-host .notebox .nl-stamp { margin-top: 8px; color: var(--text-muted); }
+.ss-host .warnline { color: var(--warn); }
