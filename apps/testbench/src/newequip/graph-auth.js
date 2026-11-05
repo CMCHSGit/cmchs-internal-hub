@@ -22,7 +22,7 @@ export async function graphToken({ force = false } = {}) {
   } catch (e) {
     const code = e?.code || ''
     if (code === 'auth/popup-blocked') throw new GraphError('token', 'The browser blocked the Microsoft pop-up. Allow pop-ups for this site and try again.')
-    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') throw new GraphError('token', 'The Microsoft window was closed before access was allowed.')
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') throw new GraphError('token', 'The Microsoft window was closed before access was allowed. If it said an administrator must approve, that approval is still needed: use Choose a file… for now.')
     throw new GraphError('denied', 'Microsoft didn’t give access to your files' + (e?.message ? ` (${String(e.message).split('\n')[0].slice(0, 160)})` : '') + '. If it said an administrator must approve, that approval is the one IT request.')
   }
   const token = OAuthProvider.credentialFromResult(result)?.accessToken

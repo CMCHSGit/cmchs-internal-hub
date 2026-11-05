@@ -14,6 +14,7 @@ import Pending from './Pending.jsx'
 import { sendToSimpro } from './toSimpro.js'
 import { fetchWorkbook, GraphError } from './graph.js'
 import { forgetGraphToken, graphToken } from './graph-auth.js'
+import { canRemember, idbHandles, pickFile, readRemembered } from './filehandle.js'
 
 const SHOWN = 150
 const nz = (iso) => { const t = Date.parse(iso || ''); return t ? new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', timeZone: 'Pacific/Auckland' }).format(new Date(t)) : '' }
@@ -28,10 +29,18 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
   const [all, setAll] = useState(false)
   const [tests, setTests] = useState({ list: [], ok: null }) // shared bench tests; ok null = not heard yet
   const [groups, setGroups] = useState([])
+  const [remembered, setRemembered] = useState(null) // the file chosen for this customer last time (a handle), this PC only
+  const [graphFailed, setGraphFailed] = useState(false)
   const file = useRef(null)
 
   // A different customer: start again.
-  useEffect(() => { setState('idle'); setError(''); setBook(null); setText(''); setSheet(''); setAll(false) }, [customer?.id])
+  useEffect(() => { setState('idle'); setError(''); setBook(null); setText(''); setSheet(''); setAll(false); setGraphFailed(false) }, [customer?.id])
+  useEffect(() => {
+    let live = true
+    setRemembered(null)
+    if (canRemember()) idbHandles().get(customer.id).then((h) => { if (live) setRemembered(h) }).catch(() => {})
+    return () => { live = false }
+  }, [customer?.id])
 
   // What the bench has shared (Firestore) and what this PC has saved (IndexedDB): for the Bench and Report columns.
   useEffect(() => {
@@ -52,7 +61,7 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
     logActivity(null, `Loaded an asset list (${got.units.length} units, ${got.sheets.length} sheet${got.sheets.length === 1 ? '' : 's'}, ${via})`, { app: 'new-equipment' })
   }, [])
 
-  const fail = (e) => { setState(book ? 'ready' : 'idle'); if (e?.code === 'token' || e?.code === 'denied') forgetGraphToken(); setError(e?.message || 'Couldn’t read that file.') }
+  const fail = (e) => { setState(book ? 'ready' : 'idle'); if (e?.code === 'token' || e?.code === 'denied') { forgetGraphToken(); setGraphFailed(true) } setError(e?.message || 'Couldn’t read that file.') }
 
   const loadLink = async () => {
     setState('loading'); setError('')
@@ -65,6 +74,27 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
     if (!f) return
     setState('loading'); setError('')
     try { await take(await f.arrayBuffer(), f.name, f.lastModified ? new Date(f.lastModified).toISOString() : '', 'from a file') } catch (e) { fail(e) } finally { if (file.current) file.current.value = '' }
+  }
+
+  // The file chosen last time for this customer, read as it is now (Chrome and Edge). The browser asks once to allow reading it.
+  const reload = async () => {
+    setState('loading'); setError('')
+    const r = await readRemembered(remembered)
+    if (r.error) {
+      if (r.gone) { idbHandles().remove(customer.id).catch(() => {}); setRemembered(null) }
+      setState(book ? 'ready' : 'idle'); setError(r.error); return
+    }
+    await loadFile(r.file)
+  }
+  // Choose a file: with the browser's picker where it has one, so the choice is remembered for next time.
+  const choose = async () => {
+    if (!canRemember()) { file.current?.click(); return }
+    try {
+      const h = await pickFile()
+      if (!h) return
+      idbHandles().put(customer.id, h).catch(() => {}); setRemembered(h)
+      await loadFile(await h.getFile())
+    } catch (e) { setError('Couldn’t open that file: ' + (e?.message || e)) }
   }
 
   const units = book?.units || []
@@ -95,11 +125,12 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
           <h2 className="ne-h2">Asset list</h2>
           <p className="ne-note">{book
             ? <>{book.name}{book.modified ? `, saved ${nzFull(book.modified)}` : ''}: {units.length} unit{units.length === 1 ? '' : 's'} on {book.sheets.length} sheet{book.sheets.length === 1 ? '' : 's'}, read {book.via}.</>
-            : 'Read from the customer’s stored link, as you. Nothing is written to the workbook.'}</p>
+            : remembered ? 'Reload reads the file you chose before, as it is now. Nothing is written to the workbook.' : 'Read from the customer’s stored link, as you, or from a file you choose. Nothing is written to the workbook.'}</p>
         </div>
         <div className="ne-links">
-          {listHref && <Button iconLeft={book ? <RefreshCw size={15} aria-hidden="true" /> : <FileSpreadsheet size={15} aria-hidden="true" />} disabled={loading} onClick={loadLink}>{loading ? 'Reading…' : book?.via === 'from the stored link' ? 'Reload from the link' : 'Load from the stored link'}</Button>}
-          <Button variant="secondary" disabled={loading} onClick={() => file.current?.click()}>Choose a file…</Button>
+          {remembered && <Button iconLeft={<RefreshCw size={15} aria-hidden="true" />} disabled={loading} onClick={reload}>{loading ? 'Reading…' : `Reload “${remembered.name}”`}</Button>}
+          {listHref && <Button variant={remembered || graphFailed ? 'secondary' : 'primary'} iconLeft={book ? <RefreshCw size={15} aria-hidden="true" /> : <FileSpreadsheet size={15} aria-hidden="true" />} disabled={loading} onClick={loadLink}>{loading ? 'Reading…' : book?.via === 'from the stored link' ? 'Reload from the link' : 'Load from the stored link'}</Button>}
+          <Button variant={remembered ? 'ghost' : graphFailed ? 'primary' : 'secondary'} disabled={loading} onClick={choose}>{remembered ? 'Choose another file…' : 'Choose a file…'}</Button>
           <input ref={file} type="file" accept=".xlsx,.xlsm" hidden onChange={(e) => loadFile(e.target.files?.[0])} />
         </div>
       </div>
