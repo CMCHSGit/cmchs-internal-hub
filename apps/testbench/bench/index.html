@@ -465,7 +465,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         </div>
         <div class="row">
           <button class="btn" id="sumNew" type="button" title="Start the next device with this same template and these details, without the serial number"><svg class="i"><use href="#i-plus"/></svg>Test another device</button>
-          <button class="btn secondary" id="sumRerun" type="button" title="Run this test again on the same device, from the first step. This result stays in Previous tests."><svg class="i"><use href="#i-refresh"/></svg>Rerun test</button>
+          <button class="btn secondary" id="sumRerun" type="button" title="Start a new test on the same device with all of this test's results kept as they were, opened on the first step that did not pass. This test stays in Previous tests."><svg class="i"><use href="#i-refresh"/></svg>Rerun test</button>
           <button class="btn secondary" id="sumResume" type="button" hidden><svg class="i"><use href="#i-play"/></svg>Continue test</button>
           <button class="btn quiet" id="sumSkipRest" type="button" hidden>Skip steps not done</button>
           <button class="btn quiet" id="sumEdit" type="button">Edit details</button>
@@ -4733,14 +4733,21 @@ const App = {
     $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true;
     this.show('run'); this.refreshRunPicker(); window.scrollTo({ top: 0 });
   },
-  /** Run the same test again on the same device, from the first step (a fresh test: the finished one stays in Previous tests). */
+  /** Run the test again on the same device: a new test that starts with every result of the last one kept exactly as it was (statuses, readings,
+      checklist answers), opened on the first step that did not pass, so only what needs redoing is redone. The finished test itself is not touched. */
   rerun() {
-    const run = Runner.run, t = run && Store.get(run.templateId); if (!run) return;
+    const prev = Runner.run, t = prev && Store.get(prev.templateId); if (!prev) return;
     if (!t) { toast('This test’s template is no longer here, so it can’t be run again.', 5000); return; }
     if (Power.on) Power.off(true);
-    log('in', 'RUN', `Rerun of “${t.name}” on the same device`);
-    Runner.start(t, clone(run.dut), run.model, (run.attempt || 1) + 1);
-    toast('Running the test again from the first step. The earlier test’s results and files are kept; this one’s are named (rerun ' + Runner.run.attempt + ').', 6000);
+    log('in', 'RUN', `Rerun of “${t.name}” on the same device, keeping the earlier results`);
+    Runner.start(t, clone(prev.dut), prev.model, (prev.attempt || 1) + 1);
+    const r = Runner.run;
+    r.template = clone(prev.template); r.results = clone(prev.results); r.stdSet = prev.stdSet; r.rerunOf = prev.id;   // the same steps (same ids) and every result as it was
+    if (prev.extra) r.extra = clone(prev.extra);
+    $('#editAp').hidden = !usesAP(r.template);
+    const left = r.template.steps.findIndex((s) => !['pass', 'done', 'info', 'na'].includes((r.results[s.id] || {}).status));
+    Runner.go(left < 0 ? 0 : left); Runner.autosave();
+    toast(left < 0 ? 'Rerun: every result from the last test is kept as it was. Go back to any step to redo it.' : 'Rerun: every result from the last test is kept as it was, and it opens on the first step that did not pass. Redo any step from the list.', 7000);
   },
   nextDevice() {
     const run = Runner.run, t = run && Store.get(run.templateId);

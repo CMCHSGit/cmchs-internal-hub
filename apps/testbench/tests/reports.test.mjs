@@ -185,7 +185,7 @@ test('a rerun the same day keeps the first test: its files have their own names,
   assert.deepEqual(groups.map((g) => [g.rerun, g.files.length]).sort(), [[0, 2], [2, 2]])
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.ok(html.includes("${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}"), 'the bench names a rerun\'s files that way')
-  assert.ok(html.includes('Runner.start(t, clone(run.dut), run.model, (run.attempt || 1) + 1)'))
+  assert.ok(html.includes('Runner.start(t, clone(prev.dut), prev.model, (prev.attempt || 1) + 1)'))
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('rerun ${g.rerun}'), 'Saved reports says which one is the rerun')
 })

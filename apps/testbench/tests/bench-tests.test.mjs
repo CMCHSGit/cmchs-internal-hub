@@ -198,6 +198,7 @@ test('Save and Download make the files you choose: PDF and Ansur record, PDF onl
 test('Rerun test starts the same template on the same device from the first step, as a new test', () => {
   assert.ok(html.includes('id="sumRerun"') && html.includes("$('#sumRerun').addEventListener('click', () => this.rerun())"))
   const fn = html.slice(html.indexOf('  rerun() {'), html.indexOf('  nextDevice() {'))
-  assert.ok(fn.includes('Runner.start(t, clone(run.dut), run.model, (run.attempt || 1) + 1)'), 'the same details and model, a fresh run')
-  assert.ok(fn.includes('Power.off(true)') && fn.includes('results and files are kept'))
+  assert.ok(fn.includes('Runner.start(t, clone(prev.dut), prev.model, (prev.attempt || 1) + 1)'), 'the same details and model, a fresh run')
+  assert.ok(fn.includes('Power.off(true)') && fn.includes('r.results = clone(prev.results)') && fn.includes('r.template = clone(prev.template)'), 'every result and step as it was')
+  assert.ok(fn.includes("['pass', 'done', 'info', 'na'].includes") && fn.includes('Runner.go(left < 0 ? 0 : left)'), 'opens on the first step that did not pass')
 })
