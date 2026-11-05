@@ -74,7 +74,7 @@
     "category": "Service",
     "icon": "stethoscope",
     "opens": "here",
-    "visible": false
+    "visible": true
   },
   {
     "id": "pdf-editor",
