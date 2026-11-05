@@ -30,6 +30,15 @@
      "V700",
      "VMAX"
     ]
+   },
+   "mindray batteryfeed 20 charger station - test bench template.json": {
+    "covers": [
+     "BatteryFeed 20",
+     "BatteryFeed",
+     "battery charger",
+     "D30 battery",
+     "D60 battery"
+    ]
    }
   }
  }

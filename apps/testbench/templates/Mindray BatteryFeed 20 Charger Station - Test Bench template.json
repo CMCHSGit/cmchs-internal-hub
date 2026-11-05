@@ -1,0 +1,205 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray BatteryFeed 20 Charger Station",
+  "desc": "Two-bay charger for BeneHeart D30 / D60 batteries (Class I, no applied parts, AC or DC input). Electrical safety to AS/NZS 3551:2012+A2 Appendix B: earth continuity 0.2 ohm (lead) and 0.1 ohm (inlet), insulation over 1 Mohm, touch current 100/500/500 uA, earth leakage 5000/10000 uA; then power, charging and indicator checks from the BatteryFeed 20 Instructions For Use V1.0.",
+  "category": "Defibrillation",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing engineer"
+  ],
+  "appliedParts": [],
+  "models": [],
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "steps": [
+   {
+    "id": "visual",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Unplug the charger station before inspecting. Do not open it (there are no user-serviceable parts) and do not touch the battery pins.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "AC power cord: plug, cable and connector undamaged; plug pins straight and secure; strain relief intact. DC power cord (if supplied) undamaged.",
+      "Charger station case undamaged: no cracks, missing parts, heat marks or signs of liquid.",
+      "Both charging bays: contact pins straight, clean and undamaged (look, do not touch); no debris in the bays.",
+      "Battery stoppers move freely and can be set for D30 and D60 batteries; bay latches intact.",
+      "Indicators (power, charge, status), AC and DC sockets undamaged; labels legible: model, serial number, ratings and the Class I and IPX1 markings."
+     ]
+    }
+   },
+   {
+    "id": "mains",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply. Nothing needs to be connected to the equipment outlet for this step.",
+    "images": [],
+    "hold": false,
+    "params": {}
+   },
+   {
+    "id": "lead-pe",
+    "type": "esa_pe",
+    "title": "AC power cord: earth continuity",
+    "instructions": "Test the cord on its own, disconnected from the charger station.\n1. Plug the AC power cord into the ESA612 equipment outlet.\n2. Clip the red test lead to the earth contact inside the connector.\nThis checks the cord from the plug earth pin to the connector earth pin (0.2 ohm, AS/NZS 3551 B8.6). Use only the cord supplied with the charger station.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "bond-inlet",
+    "type": "esa_pe",
+    "title": "Earth bond: AC socket",
+    "instructions": "Only if the charger station has an accessible earthed metal part (check in the visual inspection). Mark this step skipped if the case is all plastic with nothing earthed to touch.\nConnect the AC power cord to the charger station and the ESA612 outlet, switched off. Clip the red test lead to the earthed metal part. The limit is 0.1 ohm from the earth pin in the AC socket to that part (B8.6).",
+    "images": [],
+    "hold": false,
+    "params": {
+     "hi": 0.1
+    }
+   },
+   {
+    "id": "ins-mains-pe",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Mains pins (live and neutral linked by the ESA612) to the earth pin, at 500 V. No battery in the bays, DC cord disconnected, and the charger station connected to the ESA612 equipment outlet. Over 1 Mohm (B9.3).",
+    "images": [],
+    "hold": false,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "ins-mains-ne",
+    "type": "esa_ins",
+    "title": "Insulation: mains to accessible non-earthed parts",
+    "instructions": "Mains pins to the accessible parts that are not connected to earth, at 500 V. Clip the red test lead to the metal of the DC power socket (cord disconnected) and to foil wrapped around the case, linked together. Do not touch the battery pins. Over 1 Mohm (B9.3).",
+    "images": [],
+    "hold": false,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "touch",
+    "type": "esa_encl",
+    "title": "Touch current",
+    "instructions": "No battery in the bays, DC cord disconnected, charger station on. Keep the red test lead on the foil around the case (and the DC socket metal). Limits: 100 uA normal, 500 uA neutral open, 500 uA earth open (B10.5).",
+    "images": [],
+    "hold": false,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leak",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Flexible-cord Class I equipment (B11). Use the supplied AC power cord. Charger station on, no battery in the bays. Limits: 5000 uA normal, 10000 uA neutral open (B11.6).",
+    "images": [],
+    "hold": false,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "power-on",
+    "type": "check",
+    "title": "Power-on test and indicators",
+    "instructions": "After the electrical tests the ESA612 outlet stays on (the bench powers it so the device runs), so the charger station is powered from AC. Connect only one power source at a time: never AC and DC together.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "Power indicator green when AC power is connected.",
+      "Power-on self-test runs by itself and ends with both status indicators off (no red) and no battery installed: charge indicators off.",
+      "DC power input: only if a DC supply is available, with the AC cord removed: power indicator green. Mark N/A if not tested."
+     ]
+    }
+   },
+   {
+    "id": "bay-1",
+    "type": "check",
+    "title": "Charging bay 1",
+    "instructions": "Use a known good BeneHeart D30 or D60 battery. Set the battery stopper for the battery type as the manual shows, insert the battery with its pin towards the front panel and push down until it clicks. Do not touch the battery pin.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "Battery locks into the bay with a click and is held by the stopper.",
+      "Charge indicator of bay 1 yellow while the battery charges (green if it is already full).",
+      "Status indicator of bay 1 off.",
+      "Battery releases when the latch is pinched, and comes out cleanly."
+     ]
+    }
+   },
+   {
+    "id": "bay-2",
+    "type": "check",
+    "title": "Charging bay 2",
+    "instructions": "Repeat in bay 2 (the same battery, or a second one). Both bays can be loaded together.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "Battery locks into the bay with a click and is held by the stopper.",
+      "Charge indicator of bay 2 yellow while the battery charges (green if it is already full).",
+      "Status indicator of bay 2 off.",
+      "Battery releases when the latch is pinched, and comes out cleanly."
+     ]
+    }
+   },
+   {
+    "id": "finish",
+    "type": "check",
+    "title": "Finish",
+    "instructions": "Both bays empty and the charger station switched off at the ESA612 outlet.",
+    "images": [],
+    "hold": false,
+    "params": {
+     "items": [
+      "Charger station clean and dry (wipe with a cloth dampened with mild soap and water; never immerse or spray it).",
+      "Test label applied; accessories (AC and DC cords) returned with the unit."
+     ]
+    }
+   }
+  ]
+ }
+}

@@ -10,7 +10,7 @@ const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8
 const files = readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
 
 test('there are templates for the monitors, modules, vital signs monitors and BeneHeart defibrillators', () => {
-  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO']) {
+  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20']) {
     assert.ok(files.some((f) => f.includes(want)), `a template for ${want}`)
   }
 })
@@ -60,4 +60,18 @@ test('modules are in their own group, and the general patient monitors are highl
   assert.match(html, /const CATEGORIES = \['Anaesthesia', 'Monitoring', 'Modules'/)
   assert.match(html, /\.tpl-tile\.hl\{/)
   assert.match(html, /highlight: !!raw\.highlight/, 'the flag survives loading a template from a file')
+})
+
+test('the BatteryFeed 20 charger station template: Class I, no applied parts, earth and insulation then touch and earth leakage, then the charging checks', () => {
+  const t = JSON.parse(readFileSync(new URL('Mindray BatteryFeed 20 Charger Station - Test Bench template.json', dir), 'utf8')).template
+  assert.deepEqual(t.appliedParts, [])
+  const ids = t.steps.map((s) => s.id)
+  assert.deepEqual(ids.slice(0, 8), ['visual', 'mains', 'lead-pe', 'bond-inlet', 'ins-mains-pe', 'ins-mains-ne', 'touch', 'earth-leak'])
+  assert.ok(!t.steps.some((s) => s.type === 'esa_pat' || s.type === 'esa_map'), 'nothing is applied to a patient')
+  const by = (id) => t.steps.find((s) => s.id === id)
+  assert.equal(by('lead-pe').params.hi, 0.2); assert.equal(by('bond-inlet').params.hi, 0.1)
+  assert.equal(by('ins-mains-pe').params.lo, 1); assert.equal(by('ins-mains-ne').params.lo, 1)
+  assert.deepEqual(by('touch').params.conds.map((c) => c.hi), [100, 500, 500])
+  assert.deepEqual(by('earth-leak').params.conds.map((c) => c.hi), [5000, 10000])
+  assert.deepEqual(ids.slice(8), ['power-on', 'bay-1', 'bay-2', 'finish'], 'the checks come after the electrical tests')
 })
