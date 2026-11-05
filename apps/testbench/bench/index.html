@@ -222,6 +222,15 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .c-blue{--hc:#2b6fd1;--hc-b:#9bbbe8;--hc-bg:#eef4fd;--hc-d:#1d4f9a}
 .c-red{--hc:#c93b3b;--hc-b:#e8a0a0;--hc-bg:#fdeeee;--hc-d:#962626}
 .c-grey{--hc:#5b6770;--hc-b:#b8c0c6;--hc-bg:#f1f3f4;--hc-d:#3a444b}
+.c-teal{--hc:#0f8b8d;--hc-b:#86c9ca;--hc-bg:#ebf8f8;--hc-d:#0a6264}
+.c-aqua{--hc:#1da1d6;--hc-b:#93d0ea;--hc-bg:#ecf8fd;--hc-d:#12739b}
+.c-lime{--hc:#7ba62a;--hc-b:#bcd98a;--hc-bg:#f4f9e8;--hc-d:#56751a}
+.c-yellow{--hc:#d4a512;--hc-b:#ecd27f;--hc-bg:#fff9e0;--hc-d:#8f6f08}
+.c-pink{--hc:#e0709a;--hc-b:#f0b4c9;--hc-bg:#fdeff4;--hc-d:#b0436b}
+.c-magenta{--hc:#b2308f;--hc-b:#dc9cca;--hc-bg:#fbedf7;--hc-d:#82206a}
+.c-brown{--hc:#8a5a3b;--hc-b:#c9a88f;--hc-bg:#f6efea;--hc-d:#62402a}
+.c-navy{--hc:#1f3a73;--hc-b:#8d9ec6;--hc-bg:#edf0f8;--hc-d:#152a56}
+.c-indigo{--hc:#4a48c9;--hc-b:#a5a4e8;--hc-bg:#eeeefc;--hc-d:#34329b}
 .tpl-tile .chips .badge{font-size:calc(11px*var(--ts,1));padding:1px 7px}
 .arrange-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 10px}
 .arrange-bar .hint{flex:1;min-width:200px}
@@ -1470,7 +1479,9 @@ function categoryOf(t) {
    A "team layout" (_Run a test layout.json in the shared Templates folder, ignored by the template loader) is the starting point
    for everyone who has not changed something themselves; "Publish as team layout" writes it. */
 const LAYOUT_FILE = '_Run a test layout.json';
-const HL_COLOURS = { purple: 'Purple', green: 'Green', orange: 'Orange', blue: 'Blue', red: 'Red', grey: 'Grey' };
+const HL_COLOURS = { purple: 'Purple', green: 'Green', orange: 'Orange', blue: 'Blue', red: 'Red', grey: 'Grey', teal: 'Teal', aqua: 'Aqua', lime: 'Lime', yellow: 'Yellow', pink: 'Pink', magenta: 'Magenta', brown: 'Brown', navy: 'Navy', indigo: 'Indigo' };
+/* The same colours as hex (the .c-… rules in the css), for the hub's Saved reports, which shows each model in its template's colour. */
+const HL_HEX = {"purple":{"hc":"#554596","b":"#968ac1","bg":"#f6f4fb","d":"#3f3374"},"green":{"hc":"#2f8f4e","b":"#8cc79f","bg":"#eef8f1","d":"#1f6b39"},"orange":{"hc":"#e07a1f","b":"#f0b982","bg":"#fff4e8","d":"#a85410"},"blue":{"hc":"#2b6fd1","b":"#9bbbe8","bg":"#eef4fd","d":"#1d4f9a"},"red":{"hc":"#c93b3b","b":"#e8a0a0","bg":"#fdeeee","d":"#962626"},"grey":{"hc":"#5b6770","b":"#b8c0c6","bg":"#f1f3f4","d":"#3a444b"},"teal":{"hc":"#0f8b8d","b":"#86c9ca","bg":"#ebf8f8","d":"#0a6264"},"aqua":{"hc":"#1da1d6","b":"#93d0ea","bg":"#ecf8fd","d":"#12739b"},"lime":{"hc":"#7ba62a","b":"#bcd98a","bg":"#f4f9e8","d":"#56751a"},"yellow":{"hc":"#d4a512","b":"#ecd27f","bg":"#fff9e0","d":"#8f6f08"},"pink":{"hc":"#e0709a","b":"#f0b4c9","bg":"#fdeff4","d":"#b0436b"},"magenta":{"hc":"#b2308f","b":"#dc9cca","bg":"#fbedf7","d":"#82206a"},"brown":{"hc":"#8a5a3b","b":"#c9a88f","bg":"#f6efea","d":"#62402a"},"navy":{"hc":"#1f3a73","b":"#8d9ec6","bg":"#edf0f8","d":"#152a56"},"indigo":{"hc":"#4a48c9","b":"#a5a4e8","bg":"#eeeefc","d":"#34329b"}};
 const SIZES = { s: 0.85, '': 1, l: 1.2, xl: 1.45 };
 const blankLayout = () => ({ groups: [], order: [], items: {}, scale: 0, saved: 0 });
 const normKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9*]+/g, '');
@@ -4413,6 +4424,15 @@ window.addEventListener('message', async (e) => {
     const bytes = await ReportPdf.build(run);
     reply({ mime: 'application/pdf', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
   } catch (err) { log('er', 'RUN', 'PDF for Saved reports failed: ' + err.message); reply({ error: err.message }); }
+});
+/** Inside the hub: the colour each device model has on the Run a test page (its template's highlight colour, as this engineer set it), so
+    Saved reports can show a model in the same colour. Asked with { models: [...] }; replies { map: { model: { color, template } }, hex }. */
+window.addEventListener('message', (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  const m = e.data; if (!m || m.type !== 'chs-bench:model-colours' || !Array.isArray(m.models)) return;
+  const map = {};
+  try { for (const model of m.models.slice(0, 300)) { const t = Layout.bestFor(Store.templates, String(model)); if (t) map[model] = { color: Layout.color(t), template: t.name }; } } catch (err) { /* no colours */ }
+  window.parent.postMessage({ type: 'chs-bench:model-colours-reply', id: m.id, map, hex: HL_HEX }, location.origin);
 });
 /* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
 const SharedTests = {

@@ -72,6 +72,11 @@ export async function saveReport(store, { name, mime, buffer, meta }, now = Date
   return rec
 }
 
+/** Notes that these files have been downloaded (saved to a folder, or as a zip, or one at a time), so the list can say which tests have been and which not. */
+export async function markDownloaded(store, names, now = Date.now()) {
+  for (const name of names) { const rec = await store.get(name); if (rec) { rec.downloadedAt = now; await store.put(rec) } }
+}
+
 /** Notes that Simpro now has this file, on this job. */
 export async function markSent(store, name, job, now = Date.now()) {
   const rec = await store.get(name)
@@ -135,10 +140,11 @@ export function groupReports(list) {
   const m = new Map()
   for (const r of list) {
     const d = describeFile(r.name), meta = r.meta || {}
-    if (!m.has(d.base)) m.set(d.base, { base: d.base, serial: meta.serial || d.serial, model: meta.model || d.model, date: d.date, rerun: d.rerun, customer: meta.customer || NO_CUSTOMER, template: meta.template || '', files: [], savedAt: 0, testedAt: 0 })
+    if (!m.has(d.base)) m.set(d.base, { base: d.base, serial: meta.serial || d.serial, model: meta.model || d.model, date: d.date, rerun: d.rerun, customer: meta.customer || NO_CUSTOMER, template: meta.template || '', files: [], savedAt: 0, testedAt: 0, downloadedAt: 0 })
     const g = m.get(d.base)
     g.files.push({ ...r, ext: d.ext, kind: d.kind })
     g.savedAt = Math.max(g.savedAt, r.savedAt)
+    g.downloadedAt = Math.max(g.downloadedAt, r.downloadedAt || 0)
     const t = Date.parse(meta.testedAt || '') || 0
     g.testedAt = Math.max(g.testedAt, t)
     if (meta.customer) g.customer = meta.customer
@@ -176,6 +182,7 @@ function mergeSameTest(groups) {
     merged.files = [...byKind.values()]
     merged.files.sort((a, b) => ({ pdf: 0, json: 1, mtr: 2 }[a.ext] ?? 9) - ({ pdf: 0, json: 1, mtr: 2 }[b.ext] ?? 9))
     merged.savedAt = Math.max(...list.map((g) => g.savedAt))
+    merged.downloadedAt = Math.max(0, ...merged.files.map((f) => f.downloadedAt || 0))
     merged.sentTo = [...new Set(merged.files.flatMap((f) => f.sent.map((s) => s.job)))]
     merged.unsent = merged.files.some((f) => !f.sent.length)
     merged.uploaded = merged.files.some((f) => f.meta && f.meta.uploaded)
@@ -209,10 +216,10 @@ export function inPeriod(day, period, now = Date.now()) {
 }
 
 /** Groups matching the search (serial, model, customer, date), the customer and period chosen, and, when asked, only those with something not yet sent. */
-export function filterGroups(groups, { text = '', unsentOnly = false, customer = '', period = 'all', serials = null } = {}, now = Date.now()) {
+export function filterGroups(groups, { text = '', unsentOnly = false, notDownloaded = false, customer = '', period = 'all', serials = null } = {}, now = Date.now()) {
   const q = text.trim().toLowerCase()
   const only = serials && serials.length ? new Set(serials.map((s) => String(s).trim().toUpperCase())) : null   // an asset list's devices
-  return groups.filter((g) => (!unsentOnly || g.unsent) && (!customer || g.customer === customer) && inPeriod(g.day, period, now)
+  return groups.filter((g) => (!unsentOnly || g.unsent) && (!notDownloaded || !g.downloadedAt) && (!customer || g.customer === customer) && inPeriod(g.day, period, now)
     && (!only || only.has(String(g.serial).trim().toUpperCase()))
     && (!q || `${g.serial} ${g.model} ${g.customer} ${g.date} ${g.template}`.toLowerCase().includes(q)))
 }
@@ -225,13 +232,40 @@ export function customersIn(groups) {
 /** "Mon 2 Nov 2026" for "2026-11-02". */
 export const dayTitle = (day) => new Intl.DateTimeFormat('en-NZ', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(day + 'T00:00:00Z'))
 
-/** Sections for the list: by customer (A to Z, each newest first), by day (newest first), or one list. [{ key, title, groups }] */
+export const NO_MODEL = 'No model recorded'
+/** The device model of a test, as the list shows it. */
+export const modelOf = (g) => String(g.model || '').trim() || NO_MODEL
+
+/** Sections for the list: by customer (A to Z, each newest first), by device model (A to Z), by day (newest first), or one list. [{ key, title, groups }] */
 export function categorise(groups, by = 'customer') {
   if (by === 'none') return [{ key: 'all', title: '', groups }]
   const m = new Map()
-  for (const g of groups) { const k = by === 'day' ? g.day : g.customer; if (!m.has(k)) m.set(k, []); m.get(k).push(g) }
-  const keys = [...m.keys()].sort(by === 'day' ? (a, b) => b.localeCompare(a) : (a, b) => (a === NO_CUSTOMER) - (b === NO_CUSTOMER) || a.localeCompare(b))
+  for (const g of groups) { const k = by === 'day' ? g.day : by === 'model' ? modelOf(g) : g.customer; if (!m.has(k)) m.set(k, []); m.get(k).push(g) }
+  const last = by === 'model' ? NO_MODEL : NO_CUSTOMER
+  const keys = [...m.keys()].sort(by === 'day' ? (a, b) => b.localeCompare(a) : (a, b) => (a === last) - (b === last) || a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
   return keys.map((k) => ({ key: k, title: by === 'day' ? dayTitle(k) : k, groups: m.get(k) }))
+}
+
+/**
+ * What has been tested, per customer and model: [{ customer, devices, tests, rows: [{ model, devices (different serial numbers), tests, downloaded, sent }] }].
+ * A device tested twice (a rerun, another day) is one device and two tests. Customers A to Z ("none" last), models A to Z.
+ */
+export function modelTotals(groups) {
+  const byCust = new Map()
+  for (const g of groups) {
+    if (!byCust.has(g.customer)) byCust.set(g.customer, new Map())
+    const models = byCust.get(g.customer), k = modelOf(g)
+    if (!models.has(k)) models.set(k, { model: k, serials: new Set(), tests: 0, downloaded: 0, sent: 0 })
+    const r = models.get(k)
+    r.serials.add(String(g.serial || g.base).trim().toUpperCase()); r.tests++
+    if (g.downloadedAt) r.downloaded++
+    if (g.sentTo && g.sentTo.length) r.sent++
+  }
+  const cmp = (last) => (a, b) => (a === last) - (b === last) || a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+  return [...byCust.keys()].sort(cmp(NO_CUSTOMER)).map((customer) => {
+    const rows = [...byCust.get(customer).values()].sort((a, b) => cmp(NO_MODEL)(a.model, b.model)).map((r) => ({ model: r.model, devices: r.serials.size, tests: r.tests, downloaded: r.downloaded, sent: r.sent }))
+    return { customer, devices: new Set(groups.filter((g) => g.customer === customer).map((g) => String(g.serial || g.base).trim().toUpperCase())).size, tests: rows.reduce((n, r) => n + r.tests, 0), rows }
+  })
 }
 
 /** The files of the chosen groups, of the chosen kinds (extensions). */

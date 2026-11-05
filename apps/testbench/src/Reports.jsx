@@ -4,7 +4,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
-import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, nzDay, pickFiles } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles } from './reports.js'
 import { makeZip } from './zip.js'
 
 const KINDS = [['pdf', 'Reports (PDF)'], ['json', 'Results files'], ['mtr', 'Ansur records']]
@@ -28,12 +28,13 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
   const [period, setPeriod] = useState('all')
   const [unsentOnly, setUnsentOnly] = useState(startUnsent)
+  const [notDownloaded, setNotDownloaded] = useState(false)
   const [exts, setExts] = useState(['pdf', 'mtr']) // not the results file by default: Simpro won't take it, and the Ansur record says the same
   const [chosen, setChosen] = useState(() => new Set())
   const [job, setJob] = useState(null)
@@ -46,8 +47,11 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
 
   const groups = useMemo(() => groupReports(reports), [reports])
   const customers = useMemo(() => customersIn(groups), [groups])
-  const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, customer, period, serials: onlySerials }), [groups, text, unsentOnly, customer, period, onlySerials])
+  const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
+  const totals = useMemo(() => modelTotals(visible), [visible])
+  // The colour a model has on the Run a test page (its template's highlight colour, from the bench), or null.
+  const tint = (model) => { const c = modelColours?.map?.[model]?.color, h = c && modelColours.hex?.[c]; return h ? { name: modelColours.map[model].template, hc: h.hc, bg: h.bg, d: h.d, b: h.b } : null }
   const files = useMemo(() => pickFiles(visible, [...chosen], exts), [visible, chosen, exts])
   // Ticked tests that have a results file but no Ansur record: the bench makes the record when they are downloaded or attached.
   const needMtr = useMemo(() => (exts.includes('mtr') ? visible.filter((g) => chosen.has(g.base) && g.files.some((f) => f.ext === 'json') && !g.files.some((f) => f.ext === 'mtr')) : []), [visible, chosen, exts])
@@ -103,6 +107,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
       if (toDownload.length === 1) saveBlob(toDownload[0].name, new Blob([toDownload[0].buffer], { type: toDownload[0].mime }))
       else if (toDownload.length > 1) saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(toDownload.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
       logActivity(null, `Saved ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
+      if (!dir || list.length > failed.length) await onMarkDownloaded?.(list.map((f) => f.name))   // all of them when downloaded; in a folder, those written (or already there)
       const saved = dir ? list.length - failed.length - same : 0
       setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name}${same ? `; ${same} already there, unchanged` : ''}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
     } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
@@ -119,7 +124,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
     setBusy(true)
     try {
       const rec = g.files.find((f) => f.ext === 'mtr') || await makeMtr(g)
-      saveBlob(rec.name, new Blob([rec.buffer], { type: rec.mime || 'application/xml' }))
+      saveBlob(rec.name, new Blob([rec.buffer], { type: rec.mime || 'application/xml' })); onMarkDownloaded?.([rec.name])
       logActivity(null, 'Downloaded an Ansur record from the Test Bench', { app: 'testbench' })
       setNote({ text: `Downloaded ${rec.name}.`, tone: 'success' })
     } catch (e) { setNote({ text: 'No Ansur record: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
@@ -191,7 +196,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
       <div className="tb-filters">
         <label>Sort by
           <select value={by} onChange={(e) => setBy(e.target.value)}>
-            <option value="customer">Customer</option><option value="day">Day</option><option value="none">No headings</option>
+            <option value="customer">Customer</option><option value="model">Device model</option><option value="day">Day</option><option value="none">No headings</option>
           </select>
         </label>
         <label>Customer
@@ -205,12 +210,35 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
         </label>
         <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search serial, model, customer" aria-label="Search saved reports" />
         <label className="tb-check"><input type="checkbox" checked={unsentOnly} onChange={(e) => setUnsentOnly(e.target.checked)} /> Not yet sent</label>
+        <label className="tb-check"><input type="checkbox" checked={notDownloaded} onChange={(e) => setNotDownloaded(e.target.checked)} /> Not yet downloaded</label>
       </div>
 
       {groups.length === 0 ? (
         <p className="tb-empty">Nothing saved yet. Save a report in the Test Bench, or add your own files above, and it appears here.</p>
       ) : (
         <>
+          {totals.length > 0 && (
+            <details className="tb-totals" open>
+              <summary><strong>Tested totals per customer and model</strong> <span className="tb-muted">{visible.length} test{visible.length === 1 ? '' : 's'} shown</span></summary>
+              <table>
+                <thead><tr><th>Customer</th><th>Model</th><th className="num">Devices</th><th className="num">Tests</th><th className="num">Downloaded</th><th className="num">Sent to Simpro</th></tr></thead>
+                <tbody>
+                  {totals.map((c) => c.rows.map((r, i) => {
+                    const t = tint(r.model)
+                    return (
+                      <tr key={c.customer + '|' + r.model} className={i === 0 ? 'is-first' : ''}>
+                        <td>{i === 0 ? <strong>{c.customer}</strong> : ''}</td>
+                        <td>{t ? <span className="tb-model" style={{ '--hc': t.hc, '--hc-bg': t.bg, '--hc-d': t.d }} title={`Colour of ${t.name}`}>{r.model}</span> : r.model}</td>
+                        <td className="num">{r.devices}</td><td className="num">{r.tests}</td><td className="num">{r.downloaded}</td><td className="num">{r.sent}</td>
+                      </tr>
+                    )
+                  }))}
+                </tbody>
+                <tfoot>{totals.length > 1 && <tr><td colSpan="2"><strong>All customers</strong></td><td className="num" /><td className="num"><strong>{visible.length}</strong></td><td className="num"><strong>{visible.filter((g) => g.downloadedAt).length}</strong></td><td className="num"><strong>{visible.filter((g) => g.sentTo.length).length}</strong></td></tr>}</tfoot>
+              </table>
+            </details>
+          )}
+
           <div className="tb-selbar">
             <label className="tb-check"><input type="checkbox" checked={allOf(visible)} onChange={(e) => toggle(visible.map((g) => g.base), e.target.checked)} /> Tick all shown ({visible.length})</label>
             <span className="tb-muted">{picked} ticked · {count} file{count === 1 ? '' : 's'}</span>
@@ -226,23 +254,24 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
             <section key={sec.key} className="tb-sec">
               {sec.title && (
                 <h3 className="tb-sec-title">
-                  <label className="tb-check"><input type="checkbox" checked={allOf(sec.groups)} onChange={(e) => toggle(sec.groups.map((g) => g.base), e.target.checked)} aria-label={`Tick all for ${sec.title}`} /> {sec.title}</label>
+                  <label className="tb-check"><input type="checkbox" checked={allOf(sec.groups)} onChange={(e) => toggle(sec.groups.map((g) => g.base), e.target.checked)} aria-label={`Tick all for ${sec.title}`} /> {by === 'model' && tint(sec.title) ? <span className="tb-model" style={{ '--hc': tint(sec.title).hc, '--hc-bg': tint(sec.title).bg, '--hc-d': tint(sec.title).d }} title={`Colour of ${tint(sec.title).name}`}>{sec.title}</span> : sec.title}</label>
                   <span className="tb-muted">{sec.groups.length} test{sec.groups.length === 1 ? '' : 's'}</span>
                 </h3>
               )}
               {sec.groups.map((g) => (
-                <div key={g.base} className={`tb-test${chosen.has(g.base) ? ' is-picked' : ''}`}>
+                <div key={g.base} className={`tb-test${chosen.has(g.base) ? ' is-picked' : ''}${tint(modelOf(g)) ? ' has-model' : ''}`} style={tint(modelOf(g)) ? { '--hc': tint(modelOf(g)).hc, '--hc-bg': tint(modelOf(g)).bg } : undefined}>
                   <input type="checkbox" checked={chosen.has(g.base)} onChange={(e) => toggle([g.base], e.target.checked)} aria-label={`Tick ${g.base}`} />
                   <div className="tb-test-main">
                     <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}{g.rerun ? ` · rerun ${g.rerun}` : ''}
                       {g.files.some((f) => fresh.has(f.name)) && <Badge tone="purple">New</Badge>}
                       {g.uploaded && <Badge tone="grey">Added by you</Badge>}
                       {g.sentTo.length ? <Badge tone="green">Sent to {g.sentTo.join(', ')}</Badge> : <Badge tone="grey">Not sent</Badge>}
+                      {g.downloadedAt ? <span title={`Downloaded ${new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.downloadedAt))}`}><Badge tone="green">Downloaded</Badge></span> : <Badge tone="grey">Not downloaded</Badge>}
                     </div>
                     <div className="tb-muted">{[by !== 'customer' && g.customer !== 'No customer recorded' ? g.customer : '', by !== 'day' ? `${g.day} ${timeOf(g)}` : timeOf(g), g.template].filter(Boolean).join(' · ')}</div>
                     <div className="tb-chips">
                       {g.files.map((f) => (
-                        <button key={f.id} type="button" className="tb-chip" title={`Download ${f.name}`} onClick={() => saveBlob(f.name, new Blob([f.buffer], { type: f.mime }))}>{f.kind} · {kb(f.size)}</button>
+                        <button key={f.id} type="button" className="tb-chip" title={`Download ${f.name}`} onClick={() => { saveBlob(f.name, new Blob([f.buffer], { type: f.mime })); onMarkDownloaded?.([f.name]) }}>{f.kind} · {kb(f.size)}</button>
                       ))}
                       {g.files.some((f) => f.ext === 'json') && !g.files.some((f) => f.ext === 'mtr') && (
                         <button type="button" className="tb-chip" disabled={busy} title="Make the Ansur record (.mtr) from this test's results file and download it" onClick={() => downloadMtr(g)}>Ansur record (.mtr) · make</button>

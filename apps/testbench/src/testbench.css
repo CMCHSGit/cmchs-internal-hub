@@ -66,3 +66,13 @@
 .tb-out { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 12px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
 .tb-file-name { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; color: var(--text-strong); }
 .tb-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.tb-model { display: inline-block; padding: 1px 10px; border-radius: 999px; background: var(--hc-bg, transparent); color: var(--hc-d, inherit); border: 1px solid var(--hc); font-weight: 600; }
+.tb-test.has-model { border-left: 5px solid var(--hc); background: linear-gradient(90deg, var(--hc-bg), var(--surface-card) 160px); }
+.tb-totals { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 12px; }
+.tb-totals summary { cursor: pointer; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.tb-totals table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.tb-totals th, .tb-totals td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border-subtle); }
+.tb-totals th { color: var(--text-muted); font: var(--type-caption); font-weight: 600; }
+.tb-totals .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tb-totals tr.is-first td { border-top: 1px solid var(--border-hairline); }

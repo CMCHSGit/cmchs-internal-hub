@@ -18,7 +18,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { groupReports, idbReports, markSent, reportsFromSearch, saveReport, saveUpload } from './reports.js'
+import { groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload } from './reports.js'
 import Reports from './Reports.jsx'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
@@ -74,6 +74,7 @@ function TestBench() {
   const [companyId, setCompanyId] = useState(savedCompany)
   const [access, setAccess] = useState('') // why Simpro can't be used, or ''
   const draining = useRef(false)
+  const [colours, setColours] = useState(null) // { map: model -> { color, template }, hex } from the bench: each model in its template's colour
   const asks = useRef(new Map()) // requests to the bench waiting for an answer
 
   // The frame takes the rest of the window under the hub's header.
@@ -99,6 +100,7 @@ function TestBench() {
   const who = useRef({ email: '', name: '', admin: false })
   who.current = { email: (user?.email || '').toLowerCase(), name: profile?.displayName || user?.displayName || user?.email || '', admin: profile?.role === 'admin' }
   const shared = useRef({ list: [], ok: false })
+  const askColours = useRef(() => {})
   const toBench = useCallback((msg) => frame.current?.contentWindow?.postMessage(msg, location.origin), [])
   // A "Test this device" link (device-link.js): handed to the bench once it says hello, then taken out of the address bar.
   const sendDevice = useCallback(() => { const d = takeDeviceLink(); if (d) { toBench({ type: 'chs-bench:open-device', device: d }); try { history.replaceState(null, '', cleanAddress()) } catch { /* the address stays as it is */ } } }, [toBench])
@@ -118,7 +120,8 @@ function TestBench() {
     const onMessage = async (e) => {
       if (e.origin !== location.origin || e.source !== frame.current?.contentWindow) return
       const m = e.data
-      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); return }
+      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); askColours.current(); return }
+      if (m?.type === 'chs-bench:model-colours-reply' && m.map && m.hex) { setColours({ map: m.map, hex: m.hex }); return }
       if (m?.type === 'chs-bench:run' && typeof m.json === 'string') {   // a test finished or changed on this laptop: share it
         if (!user || (m.sharedBy && m.sharedBy !== who.current.email)) return
         try {
@@ -255,9 +258,19 @@ function TestBench() {
     return { saved, failed }
   }, [reportStore, refreshReports])
 
+  /** Marks files as downloaded, so Saved reports can say which tests have been. */
+  const downloaded = useCallback(async (names) => {
+    try { await markDownloaded(reportStore, names) } catch { /* the list just doesn't show it */ }
+    await refreshReports()
+  }, [reportStore, refreshReports])
+
   const sim = { call, companies, companyId, setCompanyId, access }
   const tests = useMemo(() => groupReports(reports), [reports])
   const unsent = tests.filter((g) => g.unsent).length
+  // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
+  const modelKey = useMemo(() => [...new Set(tests.map(modelOf))].sort().join('\n'), [tests])
+  askColours.current = () => { if (modelKey) toBench({ type: 'chs-bench:model-colours', id: String(Date.now()), models: modelKey.split('\n') }) }
+  useEffect(() => { if (tab === 'reports') { askColours.current(); const t = setTimeout(() => askColours.current(), 2500); return () => clearTimeout(t) } return undefined }, [tab, modelKey])   // again a moment later, in case the bench was still loading
   const waiting = outbox.filter((x) => x.status === 'waiting').length
   const failed = outbox.filter((x) => x.status === 'failed').length
 
@@ -287,7 +300,7 @@ function TestBench() {
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
           onlySerials={onlySerials} onShowAll={() => setOnlySerials([])} startUnsent={link.unsent}
-          onAttach={attach} onAddFiles={addFiles} makeMtr={makeMtr} makePdf={makePdf}
+          onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
           onSendWaiting={() => sendWaiting()}

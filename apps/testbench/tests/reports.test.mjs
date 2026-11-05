@@ -221,3 +221,45 @@ test('adding your own files: an .mtr is filed by what it says, a PDF by its name
   await assert.rejects(() => saveUpload(store, { name: 'x.pdf', buffer: bytes('hello') }), /isn’t a PDF/)
   await assert.rejects(() => saveUpload(store, { name: 'x.pdf', buffer: new ArrayBuffer(0) }), /empty/)
 })
+
+/* ---- by device model, tested totals, downloaded ---- */
+async function modelLibrary() {
+  const store = memoryReports()
+  const put = (name, customer, model, serial, at, t) => saveReport(store, { name, mime: 'application/pdf', buffer: buf(100), meta: { customer, serial, model, template: 'T', testedAt: at } }, t)
+  await put('S1 - D30 02.11.2026.pdf', 'Hutt Hospital', 'D30', 'S1', '2026-11-02T09:00:00+13:00', 1000)
+  await put('S1 - D30 03.11.2026.pdf', 'Hutt Hospital', 'D30', 'S1', '2026-11-03T09:00:00+13:00', 2000)   // the same device tested again
+  await put('S2 - D30 02.11.2026.pdf', 'Hutt Hospital', 'D30', 'S2', '2026-11-02T10:00:00+13:00', 3000)
+  await put('S3 - A9 02.11.2026.pdf', 'Hutt Hospital', 'A9', 'S3', '2026-11-02T11:00:00+13:00', 4000)
+  await put('S4 - D30 02.11.2026.pdf', 'Wellington Hospital', 'D30', 'S4', '2026-11-02T12:00:00+13:00', 5000)
+  await put('S5 02.11.2026.pdf', 'Wellington Hospital', '', 'S5', '2026-11-02T13:00:00+13:00', 6000)
+  return store
+}
+
+test('sort by device model: A to Z, "no model" last', async () => {
+  const { categorise: cat, NO_MODEL } = await import('../src/reports.js')
+  const groups = groupReports(await (await modelLibrary()).all())
+  assert.deepEqual(cat(groups, 'model').map((s) => [s.title, s.groups.length]), [['A9', 1], ['D30', 4], [NO_MODEL, 1]])
+})
+
+test('tested totals per customer and model: devices (different serials) and tests, downloaded and sent', async () => {
+  const { modelTotals, markDownloaded, markSent } = await import('../src/reports.js')
+  const store = await modelLibrary()
+  await markDownloaded(store, ['S1 - D30 02.11.2026.pdf', 'S3 - A9 02.11.2026.pdf'], 9000)
+  await markSent(store, 'S2 - D30 02.11.2026.pdf', '1234')
+  const t = modelTotals(groupReports(await store.all()))
+  assert.deepEqual(t.map((c) => [c.customer, c.devices, c.tests]), [['Hutt Hospital', 3, 4], ['Wellington Hospital', 2, 2]])
+  assert.deepEqual(t[0].rows, [{ model: 'A9', devices: 1, tests: 1, downloaded: 1, sent: 0 }, { model: 'D30', devices: 2, tests: 3, downloaded: 1, sent: 1 }])
+  assert.deepEqual(t[1].rows.map((r) => [r.model, r.devices]), [['D30', 1], ['No model recorded', 1]])
+})
+
+test('downloaded is remembered per test, a new copy of a file is not downloaded, and "not yet downloaded" filters', async () => {
+  const { markDownloaded } = await import('../src/reports.js')
+  const store = await modelLibrary()
+  await markDownloaded(store, ['S3 - A9 02.11.2026.pdf'], 5000)
+  let groups = groupReports(await store.all())
+  assert.equal(groups.find((g) => g.serial === 'S3').downloadedAt, 5000)
+  assert.deepEqual(filterGroups(groups, { notDownloaded: true }).map((g) => g.serial).sort(), ['S1', 'S1', 'S2', 'S4', 'S5'])
+  await saveReport(store, { name: 'S3 - A9 02.11.2026.pdf', mime: 'application/pdf', buffer: buf(100), meta: { customer: 'Hutt Hospital', serial: 'S3', model: 'A9', template: 'T', testedAt: '2026-11-02T11:00:00+13:00' } }, 6000)
+  groups = groupReports(await store.all())
+  assert.equal(groups.find((g) => g.serial === 'S3').downloadedAt, 0, 'saved again: not downloaded')
+})
