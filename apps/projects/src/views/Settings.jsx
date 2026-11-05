@@ -100,6 +100,22 @@ export default function Settings() {
           </Field>
         </section>
 
+        <section className="card pt-card">
+          <div className="pt-col"><h2 className="pt-h3">Customer folders</h2><span className="text-sm text-muted">The sub folders a new folder on the Customers tab starts with (their links are added there). A folder’s own list can be changed after.</span></div>
+          {st.customerDefaults.map((n, i) => (
+            <div key={i} className="pt-swrow">
+              <Cell value={n} disabled={ro} aria-label="Sub folder name" onSave={(v) => save({ customerDefaults: st.customerDefaults.map((x, j) => (j === i ? v.trim() : x)).filter(Boolean) })} />
+              {!ro && <>
+                <button type="button" className="icon-btn icon-btn-sm" disabled={i === 0} aria-label="Move up" onClick={() => save({ customerDefaults: move(st.customerDefaults, i, -1) })}><ArrowUp size={15} /></button>
+                <button type="button" className="icon-btn icon-btn-sm" disabled={i === st.customerDefaults.length - 1} aria-label="Move down" onClick={() => save({ customerDefaults: move(st.customerDefaults, i, 1) })}><ArrowDown size={15} /></button>
+                <button type="button" className="icon-btn icon-btn-sm" aria-label="Remove" onClick={() => save({ customerDefaults: st.customerDefaults.filter((_, j) => j !== i) })}><Trash2 size={15} /></button>
+              </>}
+            </div>
+          ))}
+          {st.customerDefaults.length === 0 && <Empty>New folders start with no sub folders.</Empty>}
+          {!ro && <div><Button size="sm" variant="ghost" iconLeft={<Plus size={15} />} onClick={() => save({ customerDefaults: [...st.customerDefaults, 'New sub folder'] })}>Add sub folder</Button></div>}
+        </section>
+
         <ColourList title="Statuses" hint="Waiting asks what the job is waiting on. Complete offers to archive." list={st.statuses} keyName="statuses" field="status" ro={ro} save={save} core={['Waiting', 'Complete']} used={used} />
         <ColourList title="Week colours" hint="The colour a job's week is shown in on the Timeline, as in the planning workbook's legend (Prep week, Go-live week, EST Testing…). Pick it from the week's popover." list={st.activities} keyName="activities" ro={ro} save={save}
           used={(_, name) => s.assignments.some((a) => a.activity === name) || s.jobs.some((j) => Object.values(j.weekColours || {}).includes(name))} />

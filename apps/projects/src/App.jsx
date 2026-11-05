@@ -5,7 +5,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { LayoutDashboard, Table, CalendarRange, Presentation, Monitor, Archive as ArchiveIcon, Settings as SettingsIcon, Search, Plus, ChevronDown, Lock } from 'lucide-react'
+import { LayoutDashboard, Table, CalendarRange, Presentation, Monitor, FolderOpen, Archive as ArchiveIcon, Settings as SettingsIcon, Search, Plus, ChevronDown, Lock } from 'lucide-react'
 import { Alert, Button, Loading } from '../../schedule/src/components/ui'
 import Toast, { useToast } from '../../schedule/src/components/Toast'
 import { useStore } from './store.jsx'
@@ -15,6 +15,7 @@ import TableView from './views/Table.jsx'
 import Timeline from './views/Timeline.jsx'
 import Conferences from './views/Conferences.jsx'
 import Equipment from './views/Equipment.jsx'
+import Customers from './views/Customers.jsx'
 import Archive from './views/Archive.jsx'
 import { navigate } from '../../hub/src/router.js'
 import JobPanel from './JobPanel.jsx'
@@ -28,7 +29,8 @@ const NAV = [
   ['table', 'Table', Table],
   ['timeline', 'Timeline', CalendarRange],
   ['conferences', 'Conferences', Presentation],
-  ['equipment', 'Equipment', Monitor],
+  ['equipment', 'Demo Equipment', Monitor],
+  ['customers', 'Customers', FolderOpen],
   ['archive', 'Archive', ArchiveIcon],
   ['settings', 'Settings', SettingsIcon],
 ]
@@ -122,7 +124,7 @@ function Shell() {
   // The tracker's settings are a page of the one app's Settings now
   // (settings-page.jsx); an old #/settings link goes on there.
   useEffect(() => { if (route.view === 'settings') navigate('/settings/projects', { replace: true }) }, [route.view])
-  const View = { home: Home, table: TableView, timeline: Timeline, conferences: Conferences, equipment: Equipment, archive: Archive, settings: Loading }[route.view]
+  const View = { home: Home, table: TableView, timeline: Timeline, conferences: Conferences, equipment: Equipment, customers: Customers, archive: Archive, settings: Loading }[route.view]
 
   return (
     <Ui.Provider value={ui}>

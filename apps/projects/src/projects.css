@@ -466,3 +466,59 @@ button.pt-ratio { cursor: pointer; width: 100%; }
 }
 .pt-plandiff { max-height: 340px; }
 .pt-plandiff section { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+
+/* Customers (views/Customers.jsx): folder cards, a customer's sub folders, and the folder settings. --fc is the folder's colour. */
+.pt-searchfield { position: relative; display: inline-flex; align-items: center; min-width: min(320px, 100%); }
+.pt-searchfield > svg { position: absolute; left: 10px; color: var(--text-muted); pointer-events: none; }
+.pt-searchfield .input { padding-left: 34px; width: 100%; }
+.pt-folders { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); }
+.pt-folder { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 18px; border-top: 4px solid var(--fc); }
+.pt-folder:hover { box-shadow: var(--shadow-raised, 0 6px 18px rgba(0,0,0,.14)); }
+.pt-folder-top { position: relative; width: max-content; }
+.pt-folder-ico { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 14px; color: var(--fc); background: color-mix(in srgb, var(--fc) 16%, transparent); }
+.pt-folder-ico-lg { width: 72px; height: 72px; border-radius: 18px; }
+/* The settings cog sits on the icon's top right corner, above the card's click area. */
+.pt-gear { position: absolute; top: -8px; right: -10px; z-index: 2; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border-subtle, rgba(128,128,128,.35)); background: var(--surface-card); color: var(--text-muted); cursor: pointer; }
+.pt-gear:hover, .pt-gear:focus-visible { color: var(--text-strong); border-color: var(--fc, var(--chs-purple)); }
+.pt-pin { position: absolute; bottom: -6px; right: -8px; color: var(--chs-orange); fill: currentColor; }
+.pt-folder-open { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; width: 100%; }
+.pt-folder-open::after { content: ''; position: absolute; inset: 0; border-radius: inherit; } /* the whole card opens it, below the cog */
+.pt-folder-open:focus-visible::after { outline: 2px solid var(--fc); outline-offset: 2px; }
+.pt-folder-name { font: 600 17px/1.25 var(--font-display); color: var(--text-strong); overflow-wrap: anywhere; }
+.pt-folder-meta { font: var(--type-body-sm); color: var(--text-muted); }
+.pt-folder-note { font: var(--type-body-sm); color: var(--text-body); overflow-wrap: anywhere; }
+.pt-folders-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 16px; text-align: center; color: var(--text-muted); border: 2px dashed var(--border-subtle, rgba(128,128,128,.35)); border-radius: var(--radius-lg); }
+.pt-folders-empty p { max-width: 460px; margin: 0; }
+.pt-back { display: inline-flex; align-items: center; gap: 6px; }
+.pt-folder-hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.pt-subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); }
+.pt-sub { all: unset; box-sizing: border-box; width: 100%; display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; border-left: 4px solid var(--fc);
+  background: var(--surface-card); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.pt-sub:hover:not(:disabled) { box-shadow: var(--shadow-raised, 0 6px 18px rgba(0,0,0,.14)); }
+.pt-sub:focus-visible { outline: 2px solid var(--fc); outline-offset: 2px; }
+.pt-sub:disabled { cursor: default; }
+.pt-sub-off { opacity: .7; border-left-style: dashed; }
+.pt-sub-ico { display: grid; place-items: center; flex: 0 0 auto; width: 40px; height: 40px; border-radius: 10px; color: var(--fc); background: color-mix(in srgb, var(--fc) 16%, transparent); }
+.pt-sub-text { display: flex; flex-direction: column; min-width: 0; }
+.pt-sub-name { font: 600 15px/1.3 var(--font-display); color: var(--text-strong); overflow-wrap: anywhere; }
+.pt-sub-note { font: var(--type-body-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+.pt-looks { display: flex; flex-wrap: wrap; gap: 16px 28px; }
+.pt-swatches, .pt-icons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pt-swatch { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.pt-swatch.on { outline: 2px solid var(--text-strong); outline-offset: 2px; }
+.pt-iconpick { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border-subtle, rgba(128,128,128,.35)); background: transparent; color: var(--text-body); cursor: pointer; }
+.pt-iconpick.on { color: var(--fc); border-color: var(--fc); background: color-mix(in srgb, var(--fc) 16%, transparent); }
+.pt-check { display: inline-flex; align-items: center; gap: 8px; font: var(--type-body-sm); color: var(--text-body); }
+.pt-subedit { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.pt-subrow { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: var(--radius-md); background: var(--surface-subtle); }
+.pt-subrow-main { display: flex; align-items: center; gap: 8px; }
+.pt-subicon { flex: 0 0 auto; width: 150px; }
+.pt-subname { flex: 1 1 auto; min-width: 0; }
+.pt-subbtns { display: inline-flex; flex: 0 0 auto; }
+.pt-sure { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--status-critical); font: var(--type-body-sm); }
+@media (max-width: 560px) {
+  .pt-subrow-main { flex-wrap: wrap; }
+  .pt-subicon { width: 100%; }
+  .pt-folder-hero { gap: 12px; }
+}

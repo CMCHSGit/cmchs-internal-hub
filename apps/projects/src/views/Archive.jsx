@@ -58,7 +58,7 @@ export default function Archive({ params }) {
       <div className="pt-pagehead">
         <div className="pt-col">
           <h1 className="pt-h2">Archive</h1>
-          <span className="text-sm text-muted">Completed jobs, kept in full. They don't show on Home, Table, Timeline or Equipment.</span>
+          <span className="text-sm text-muted">Completed jobs, kept in full. They don't show on Home, Table, Timeline or Demo Equipment.</span>
         </div>
       </div>
       <div className="pt-filters">

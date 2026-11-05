@@ -73,12 +73,15 @@ export const DEFAULT_SETTINGS = {
   autoArchive: false,
   autoArchiveDays: 14,
   feed: { url: '', syncedAt: null },
+  // The Customers tab (customers.js): the folders, and the sub folders a new one starts with
+  customers: [],
+  customerDefaults: ['Equipment list', 'Projects folder', 'Test reports'],
 }
 
 /** Settings as stored, with anything missing filled from the defaults. */
 export function withDefaults(stored) {
   const s = { ...DEFAULT_SETTINGS, ...(stored || {}) }
-  for (const k of ['categories', 'statuses', 'activities', 'pool', 'staff']) {
+  for (const k of ['categories', 'statuses', 'activities', 'pool', 'staff', 'customers', 'customerDefaults']) {
     if (!Array.isArray(s[k])) s[k] = DEFAULT_SETTINGS[k]
   }
   s.feed = { ...DEFAULT_SETTINGS.feed, ...(s.feed || {}) }

@@ -13,6 +13,7 @@ import {
   matchStaff, scheduleDays, awayInWeek,
 } from './model.js'
 import { summarise, effectivePool } from './feed.js'
+import { customersOf, tidyCustomer, withCustomer } from './customers.js'
 import { readBackup, restorePlan } from './backup.js'
 import { SAMPLE_JOBS, SAMPLE_ASSIGNMENTS, SAMPLE_COMMENTS, SAMPLE_STAFF, SAMPLE_POOL } from './sample.js'
 import { TEAMS } from '../../schedule/src/utils/teams.js'
@@ -325,6 +326,18 @@ export function StoreProvider({ children }) {
 
       saveSettings: async (patch) => { const r = await be.saveSettings(patch); note(`Changed the project settings (${Object.keys(patch || {}).join(', ') || 'settings'})`); return r },
 
+      /** A customer folder, new or changed (customers.js): replaces the one with its id, leaving everyone else's. Names only in the log: never the links. */
+      async saveCustomer(draft, isNew) {
+        const c = tidyCustomer(draft)
+        await be.mutateSettings((cur) => ({ customers: withCustomer(Array.isArray(cur.customers) ? cur.customers : [], c.id, c) }))
+        note(`${isNew ? 'Added' : 'Changed'} the customer folder "${c.name}"`)
+        return c
+      },
+      async deleteCustomer(c) {
+        await be.mutateSettings((cur) => ({ customers: withCustomer(Array.isArray(cur.customers) ? cur.customers : [], c.id, null) }))
+        note(`Deleted the customer folder "${c.name}"`)
+      },
+
       async loadSample() {
         const ops = []
         const now = Date.now()
@@ -480,6 +493,7 @@ export function StoreProvider({ children }) {
       history: data.history,
       online,
       settings,
+      customers: customersOf(settings),
       // The settings document as stored (no defaults filled in): what a backup holds
       settingsStored: settingsRaw || null,
       // The demo pool with the feed's unit counts, and the feed's loans (null

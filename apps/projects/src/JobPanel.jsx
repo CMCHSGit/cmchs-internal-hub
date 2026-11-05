@@ -13,6 +13,7 @@ import {
   linkableLoans, entryWho, linesNeedingLoan, isISO, JOB_LINKS, linkHref,
 } from './model.js'
 import { loanPlace, matchModel } from './feed.js'
+import { customerFor } from './customers.js'
 
 const TABS = [['details', 'Details'], ['equipment', 'Equipment'], ['notes', 'Notes & actions'], ['comments', 'Comments'], ['history', 'History']]
 
@@ -133,6 +134,7 @@ function Details({ job, readOnly }) {
   const save = (field, label) => (v) => s.updateJob(job.id, { [field]: v }, `changed ${label} to ${v ? `"${v}"` : 'blank'}`)
   const saveDate = (field, label) => (v) => s.updateJob(job.id, { [field]: v }, `changed ${label} to ${v ? fmt(v) : 'blank'}`)
   const f = job.freight || {}
+  const folder = customerFor(s.customers, job.customer) // the Customers tab folder with this customer's name, if any
 
   async function status(v) {
     const ask = await s.setStatus(job, v)
@@ -158,6 +160,7 @@ function Details({ job, readOnly }) {
               </div>
             )
           })}
+          {folder && <a className="link-btn" href={`#/customers?c=${encodeURIComponent(folder.id)}`}>Open {folder.name} on the Customers tab</a>}
         </div>
       </section>
 

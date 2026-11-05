@@ -103,6 +103,11 @@ export default {
     save()
   },
   async saveSettings(patch) { db.settings = { ...(db.settings || {}), ...clean(patch) }; save() },
+  async mutateSettings(fn) {
+    const patch = fn(db.settings || {})
+    if (patch) { db.settings = { ...(db.settings || {}), ...clean(patch) }; save() }
+    return patch
+  },
 
   /** The sample demo tracker. Set localStorage projects_dev_feed_fail to 1 to see the feed down. */
   async demoFeed() {

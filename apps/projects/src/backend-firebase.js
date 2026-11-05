@@ -103,6 +103,17 @@ export default {
 
   saveSettings: (patch) => setDoc(doc(db, C.settings, 'main'), clean(patch), { merge: true }),
 
+  /** Changes the settings from what they are right now, as a transaction (the customer folders: two people editing at once keep each other's). */
+  mutateSettings(fn) {
+    return runTransaction(db, async (t) => {
+      const ref = doc(db, C.settings, 'main')
+      const s = await t.get(ref)
+      const patch = fn(s.exists() ? s.data() : {})
+      if (patch) t.set(ref, clean(patch), { merge: true })
+      return patch
+    })
+  },
+
   /** The demo tracker's assets and booked-ahead loans, read-only, trimmed (feed.js). */
   async demoFeed() {
     const [equipment, upcoming] = await Promise.all([readTracker('data/equipment'), readTracker('upcomingLoans')])
