@@ -21,6 +21,11 @@
         <div style="font-size:14px;color:var(--ink)"><b>Extended Warranty</b> <span class="muted" id="warrantyCount"></span></div>
         <p class="help" style="margin:2px 0 0">Job notes list every attached asset, grouped - the ones marked Yes under "Extended Warranty required on these devices", the rest under "Other devices added". Defibrillators also show their battery serial number.</p>
       </div>
+      <a id="reportsRow" class="reports-row" href="/testbench/?tab=reports" hidden>
+        <span><b>Reports to add</b> <span class="muted" id="reportsCount"></span>
+          <span class="help" id="reportsHelp" style="display:block;margin-top:2px">Test reports saved on this computer for the devices in this list. Open them to attach to the Simpro job.</span></span>
+        <span class="reports-go" aria-hidden="true">Open Saved reports →</span>
+      </a>
       <div style="margin-top:10px">
         <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Sheets to sync — tick which ones, and check each one's Simpro asset type</div>
         <div id="sheetPicker" style="display:grid;gap:6px"></div>

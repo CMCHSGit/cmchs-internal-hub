@@ -124,3 +124,11 @@ body.busy .ss-host { cursor: progress; }
 .ss-host .notebox .nl-warranty { padding-left: 10px; border-left: 3px solid var(--chs-purple); margin: 2px 0; }
 .ss-host .notebox .nl-stamp { margin-top: 8px; color: var(--text-muted); }
 .ss-host .warnline { color: var(--warn); }
+
+/* "Reports to add": a row that opens the Test Bench's Saved reports for this list's devices */
+.ss-host .reports-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; padding: 10px 14px;
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-subtle); color: var(--text-strong); text-decoration: none; transition: var(--transition-control); }
+.ss-host .reports-row[hidden] { display: none; }
+.ss-host .reports-row:hover { border-color: var(--accent-fg); background: var(--surface-brand-tint); }
+.ss-host .reports-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ss-host .reports-go { color: var(--accent-fg); font: var(--type-body-strong); white-space: nowrap; }

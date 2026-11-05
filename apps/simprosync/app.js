@@ -5,6 +5,7 @@
 import { XLSXLite } from './reader.js';
 import { SyncCore } from './core.js';
 import { fastSiteAssets } from './fast-assets.js';
+import { groupReports, idbReports, reportsLink, reportsToAdd } from '../testbench/src/reports.js';
 
 export function startApp({ transport, who }) {
   const DEFAULT_COMPANY = 3, DEFAULT_TYPE = 114;
@@ -175,10 +176,30 @@ export function startApp({ transport, who }) {
   // group each asset lands in within the job note - nothing is excluded by
   // it. Stays hidden, and the note falls back to one flat list, if no
   // ticked sheet has the column at all.
+  // "Reports to add": which of the asset list's devices have a test report saved on this computer (the Test Bench's
+  // Saved reports), and how many of those are still to be attached to a Simpro job. Reads this computer's own store
+  // only - nothing goes to Simpro. The link opens Saved reports on exactly those devices.
+  let sheetSerials = [];
+  async function updateReportsRow() {
+    const rowEl = $('reportsRow');
+    const serials = [...new Set(sheetSerials)];
+    rowEl.hidden = !book || !serials.length;
+    if (rowEl.hidden) return;
+    rowEl.href = reportsLink(serials);
+    let groups = [];
+    try { groups = groupReports(await idbReports().all()); } catch (e) { /* storage blocked: shown as none saved */ }
+    const r = reportsToAdd(groups, serials);
+    const n = (c, one, many) => `${c} ${c === 1 ? one : many}`;
+    $('reportsCount').textContent = !r.withReport
+      ? `- none of the ${n(r.devices, 'device', 'devices')} here has a saved test report yet`
+      : `- ${r.toAdd} of ${n(r.devices, 'device', 'devices')} ${r.toAdd === 1 ? 'has' : 'have'} a test report to add` + (r.withReport > r.toAdd ? ` (${r.withReport - r.toAdd} already sent)` : '') + (r.missing.length ? `, ${r.missing.length} with no saved report` : '');
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) updateReportsRow(); });
+
   async function refreshWarrantyInfo() {
     const row = $('warrantyFilterRow'), countEl = $('warrantyCount');
     warranty = SyncCore.warrantyScan([]);
-    if (!book) { row.hidden = true; return; }
+    if (!book) { row.hidden = true; sheetSerials = []; updateReportsRow(); return; }
     const sheets = [];
     for (const sr of getCheckedSheets()) {
       // Ticked sheets aren't necessarily asset lists at all (e.g. a
@@ -188,6 +209,8 @@ export function startApp({ transport, who }) {
       catch (e) { continue; }
     }
     warranty = SyncCore.warrantyScan(sheets);
+    sheetSerials = sheets.flatMap(({ header, recs }) => { const k = (header || []).find(h => h && h.trim().toLowerCase() === SyncCore.MATCH_FIELD.toLowerCase()); return k ? recs.map(({ r }) => SyncCore.asText(r[k]).trim().toUpperCase()).filter(Boolean) : []; });
+    updateReportsRow();
     row.hidden = !warranty.columnFound;
     if (!warranty.columnFound) return;
     // When nothing is marked Yes, say what the column actually contains -
@@ -635,6 +658,7 @@ export function startApp({ transport, who }) {
     renderResults();
     $('tiles').insertAdjacentHTML('afterbegin', `<div class="banner ${errors ? 'bad' : 'ok'}">${errors ? '⚠' : '✓'} Applied: ${added} added, ${updated} updated${jl.length ? `, ${closedJobs} of ${jl.length} job${jl.length === 1 ? '' : 's'} completed` : ''}, ${errors} error${errors === 1 ? '' : 's'}. Run the preview again to confirm everything matches.</div>`);
     downloadReport(true);
+    updateReportsRow();
   };
 
   /* ---------- report download ---------- */

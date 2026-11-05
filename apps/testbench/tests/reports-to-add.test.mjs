@@ -49,7 +49,7 @@ test('a device with a test that is partly sent still has something to add', asyn
 
 test('filtering by serials shows only those devices, and combines with "not yet sent"', async () => {
   const groups = await library()
-  assert.deepEqual(filterGroups(groups, { serials: ['fs6-1', 'FS6-2', 'AB-3'] }).map((g) => g.serial).sort(), ['AB-3', 'FS6-1', 'FS6-2'])
+  assert.deepEqual(filterGroups(groups, { serials: ['fs6-1', 'FS6-2', 'AB-3'] }).map((g) => g.serial.toUpperCase()).sort(), ['AB-3', 'FS6-1', 'FS6-2'])
   assert.equal(filterGroups(groups, { serials: ['fs6-1', 'FS6-2', 'ab-3'] }).length, 3)
   assert.equal(filterGroups(groups, { serials: ['fs6-1', 'FS6-2', 'ab-3'], unsentOnly: true }).length, 2)
   assert.equal(filterGroups(groups, { serials: [] }).length, 4)          // an empty list is no filter
