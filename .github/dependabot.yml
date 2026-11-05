@@ -1,0 +1,43 @@
+# Weekly checks for newer versions of what the hub is built from. Each check opens
+# a pull request; nothing changes on the live site until someone merges it and the
+# deploy runs, and the build and tests must pass first. Minor and patch updates
+# come as one pull request per area, to keep the number small.
+# Firebase major versions are skipped: they change how the sites talk to the
+# database, so they are done on purpose, not by a bot.
+version: 2
+updates:
+  # The hub and every app in it (one lockfile at the root).
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      hub-minor-patch: { update-types: [minor, patch] }
+    ignore:
+      - { dependency-name: firebase, update-types: [version-update:semver-major] }
+
+  # The tools that run the database rules tests.
+  - package-ecosystem: npm
+    directory: /rules
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 3
+    groups:
+      rules-tests-minor-patch: { update-types: [minor, patch] }
+    ignore:
+      - { dependency-name: firebase, update-types: [version-update:semver-major] }
+
+  # The one-off tracker migration script.
+  - package-ecosystem: npm
+    directory: /backend/tracker-migration
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 2
+    groups:
+      migration-minor-patch: { update-types: [minor, patch] }
+
+  # GitHub Actions: keeps the pinned commit versions in .github/workflows current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 3
+    groups:
+      actions: { patterns: ['*'] }
