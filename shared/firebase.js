@@ -39,6 +39,7 @@ if (emulators && auth && !auth.emulatorConfig) connectAuthEmulator(auth, 'http:/
 
 // Microsoft (Entra ID). Only Cass Medical accounts, and always the account
 // picker, so nobody gets stuck signed in as the wrong person.
+export const azureTenant = env('VITE_AZURE_TENANT_ID') // for a second provider that asks for more (new-equipment page: read access to OneDrive files)
 export const microsoftProvider = new OAuthProvider('microsoft.com')
 microsoftProvider.setCustomParameters({
   tenant: env('VITE_AZURE_TENANT_ID'),

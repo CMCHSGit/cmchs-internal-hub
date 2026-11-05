@@ -13,6 +13,7 @@ import { Alert, Button, Dialog, Loading, Toast, useToast } from '../../../../sha
 import { logActivity } from '../../../../shared/activity.js'
 import { assetListHref, customerProblems, draftFrom, formOf, reportsHref, searchCustomers } from './customers.js'
 import { saveCustomer, watchCustomers } from './customers-firebase.js'
+import AssetList from './AssetList.jsx'
 import './newequip.css'
 
 const PICK_KEY = 'newEquip.customer'
@@ -76,6 +77,8 @@ function Page() {
         {!current && sorted.length > 0 && <p className="ne-note">The customers are the project tracker’s customer folders. A customer’s asset list is its “Equipment list” link and its reports folder is its “Test reports” link.</p>}
         {!current && sorted.length === 0 && !error && <p className="ne-note">There are no customer folders yet. {canEdit ? 'Add one here, or in the project tracker’s Customers tab.' : 'The service and project teams can add them.'}</p>}
       </section>
+
+      {current && <AssetList customer={current} listHref={listHref} user={user} />}
 
       <section className="card ne-card" aria-label="The other tools">
         <h2 className="ne-h2">Until this page does it all</h2>

@@ -16,3 +16,17 @@
 .ne-links .btn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
 .ne-missing, .ne-note { color: var(--text-muted); font: var(--type-body-sm); margin: 0; }
 .ne-form { display: flex; flex-direction: column; gap: 14px; }
+
+/* The asset list (AssetList.jsx) */
+.ne-grow { flex: 1 1 280px; min-width: 0; }
+.ne-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.ne-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; background: var(--surface-subtle); border-radius: var(--radius-md); }
+.ne-tile strong { font: var(--type-h3); color: var(--text-strong); }
+.ne-tile span { color: var(--text-muted); font: var(--type-caption); }
+.ne-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.ne-table-wrap { overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.ne-table { width: 100%; min-width: 720px; border-collapse: collapse; font: var(--type-body-sm); }
+.ne-table th { text-align: left; padding: 10px 12px; background: var(--surface-subtle); color: var(--text-strong); font-weight: 600; white-space: nowrap; }
+.ne-table td { padding: 9px 12px; border-top: 1px solid var(--border-subtle); vertical-align: middle; }
+.ne-mono { font-family: var(--font-mono); font-size: 13px; color: var(--text-strong); white-space: nowrap; }
+.ne-none-row { text-align: center; color: var(--text-muted); padding: 20px; }
