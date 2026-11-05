@@ -196,6 +196,8 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .sheet-top .hint{margin-right:auto}
 .sheet-find{display:grid;grid-template-columns:minmax(0,420px)}
 @media (max-width:640px){.sheet-find{grid-template-columns:1fr}}
+.sum-kinds{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--text-muted)}
+.sum-kinds select{height:40px;min-width:0;font-size:14px}
 .sheet-gaps{margin:16px 0 0;display:flex;flex-direction:column;gap:8px}
 .sheet-gaps[hidden]{display:none}
 .sheet-alert{padding:10px 14px;border:1px solid;border-radius:var(--radius-md);font-size:14.5px;line-height:1.4}
@@ -467,6 +469,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <button class="btn quiet" id="sumSkipRest" type="button" hidden>Skip steps not done</button>
           <button class="btn quiet" id="sumEdit" type="button">Edit details</button>
           <button class="btn quiet" id="sumReload" type="button" title="Load the latest version of this template, keeping the results already recorded"><svg class="i"><use href="#i-refresh"/></svg>Reload template</button>
+          <label class="sum-kinds" title="Which files Save and Download make">Files <select class="select" id="sumKinds" aria-label="Which files Save and Download make"><option value="both">PDF and Ansur record</option><option value="pdf">PDF only</option><option value="mtr">Ansur record (.mtr) only</option></select></label>
           <button class="btn" id="sumSave" type="button" title="Keeps the PDF report and the Ansur record (.mtr) in Saved reports, ready to send to a Simpro job or download later."><svg class="i"><use href="#i-check"/></svg>Save</button>
           <button class="btn secondary" id="sumDownload" type="button" title="Downloads the PDF report and the Ansur record (.mtr) into a folder you choose."><svg class="i"><use href="#i-download"/></svg>Download</button>
           <button class="btn quiet" id="sumPrint" type="button"><svg class="i"><use href="#i-printer"/></svg>Print</button>
@@ -704,7 +707,7 @@ function enterToNext(inputs, onLast) {
 }
 /** Bench settings, kept in this browser. */
 const Prefs = {
-  d: { zeroLead: false, confirmPower: false, chargeAfter: true },
+  d: { zeroLead: false, confirmPower: false, chargeAfter: true, saveKinds: 'both' },
   load() { try { Object.assign(this.d, JSON.parse(localStorage.getItem('chsBench.prefs') || '{}')); } catch {} },
   get(k) { return this.d[k]; },
   set(k, v) { this.d[k] = v; try { localStorage.setItem('chsBench.prefs', JSON.stringify(this.d)); } catch {} log('in', 'APP', `Setting changed: ${k} = ${typeof v === 'object' ? JSON.stringify(v) : v}`); },
@@ -4037,10 +4040,12 @@ async function saveReportFiles(run, mode = 'download') {
   }
   const btns = ['#sumSave', '#sumDownload'].map((s) => $(s)).filter(Boolean); btns.forEach((b) => { b.disabled = true; }); let fell = 0;
   try {
-    const files = [[ReportPdf.fileName(run), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' })]];
-    if (!run.imported) files.push([outName(run, 'mtr'), new Blob([buildMtr(run)], { type: 'application/xml' })]);
+    const kinds = Prefs.get('saveKinds') || 'both', files = [];   // both, the PDF only, or the Ansur record only
+    if (kinds !== 'mtr') files.push([ReportPdf.fileName(run), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' })]);
+    if (kinds !== 'pdf' && !run.imported) files.push([outName(run, 'mtr'), new Blob([buildMtr(run)], { type: 'application/xml' })]);
+    if (!files.length) { toast('This test was opened from an Ansur record, so that file already exists. Choose PDF to make a report.', 5000); btns.forEach((b) => { b.disabled = false; }); return; }
     for (const [name, blob] of files) {
-      if (keep) { offerToHub(name, blob); continue; }
+      if (keep) { offerToHub(name, blob, true); continue; }
       if (dir) {
         try { const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(blob); await w.close(); }
         catch (e) { log('er', 'RUN', `${name} couldn’t be written to ${dir.name} (${e.name || 'Error'}: ${e.message}); downloaded instead`); download(name, blob); fell++; }   // e.g. the browser's security check on the file
@@ -4326,7 +4331,7 @@ const ReportPdf = {
 /** Reports, results files and Ansur records are written to CHS Test Bench\Results when the browser can
     (Chrome/Edge, folder chosen once), otherwise downloaded as before. */
 /** Inside the hub (this page is its Test Bench frame), hands each saved file up to it, to be sent to Simpro. Alone, does nothing. */
-function offerToHub(name, blob) {
+function offerToHub(name, blob, only) {   // only: just this file (the summary's Save makes its own choice of files)
   if (window.parent === window) return;
   // Who and when, from the test on screen, so the hub can sort saved reports by customer and by day.
   let meta = {};
@@ -4341,7 +4346,7 @@ function offerToHub(name, blob) {
   try {
     const run = Runner.run;
     const mtrName = name.replace(/\.(pdf|json)$/i, '.mtr');
-    if (mtrName !== name && run && !run.imported && !offerToHub.sentMtr.has(mtrName + run.started)) {   // once per test: a second copy would forget what was sent
+    if (!only && mtrName !== name && run && !run.imported && !offerToHub.sentMtr.has(mtrName + run.started)) {   // once per test: a second copy would forget what was sent
       offerToHub.sentMtr.add(mtrName + run.started);
       const bytes = buildMtr(run);
       window.parent.postMessage({ type: 'chs-bench:file', name: mtrName, mime: 'application/xml', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), meta }, location.origin);
@@ -4583,6 +4588,7 @@ const App = {
     });
     Devices.onChange(() => { if (!Devices.esa) Power.lost(); else Power.render(); });
     $('#sumPrint').addEventListener('click', () => Runner.printReport());
+    $('#sumKinds').value = Prefs.get('saveKinds') || 'both'; $('#sumKinds').addEventListener('change', (e) => Prefs.set('saveKinds', e.target.value));
     $('#sumSave').addEventListener('click', () => saveReportFiles(null, 'save'));
     $('#sumDownload').addEventListener('click', () => saveReportFiles(null, 'download'));
 

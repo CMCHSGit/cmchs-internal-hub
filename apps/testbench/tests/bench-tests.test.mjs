@@ -61,7 +61,7 @@ test('an ESA612 still in remote mode (REMOTE refused with error 02) is reset wit
 test('Save keeps the PDF and Ansur record in Saved reports, Download writes both after asking where; Saved reports saves PDF and Ansur record for every test, making whichever is missing', () => {
   assert.match(html, /async function saveReportFiles\(run, mode = 'download'\)/)
   assert.match(html, /showDirectoryPicker\(\{ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' \}\)/, 'asks where, opening where it was last')
-  assert.match(html, /if \(!run\.imported\) files\.push\(\[outName\(run, 'mtr'\)/, 'the Ansur record is made too (not for one opened from an Ansur record)')
+  assert.ok(html.includes("if (kinds !== 'pdf' && !run.imported) files.push([outName(run, 'mtr')"), 'the Ansur record is made too (not for one opened from an Ansur record)')
   assert.match(html, /\$\('#sumSave'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'save'\)\)/, 'Save keeps both in Saved reports')
   assert.match(html, /\$\('#sumDownload'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'download'\)\)/, 'Download writes both to a folder')
   assert.match(html, /if \(keep\) \{ offerToHub\(name, blob\); continue; \}/, 'Save asks for no folder and writes no file')
@@ -184,4 +184,13 @@ test('the logo, "Test Bench" and the hub\'s Test Bench tab take a finished test 
   assert.ok(home.includes("$('#runSummary').hidden = true; $('#runSetup').hidden = false") && home.includes("$('#tplSearch').value = ''") && home.includes('this.refreshRunPicker()'))
   const sec = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.ok(sec.includes("if (tab === 'bench') toBench({ type: 'chs-bench:home' })"), 'the open Test Bench tab, clicked again')
+})
+
+test('Save and Download make the files you choose: PDF and Ansur record, PDF only, or Ansur record only', () => {
+  assert.ok(html.includes('id="sumKinds"') && html.includes('<option value="pdf">PDF only</option>') && html.includes('<option value="mtr">Ansur record (.mtr) only</option>') && html.includes('<option value="both">PDF and Ansur record</option>'))
+  assert.ok(html.includes("saveKinds: 'both'"), 'both by default')
+  assert.ok(html.includes("Prefs.set('saveKinds', e.target.value)"), 'remembered')
+  assert.ok(html.includes("if (kinds !== 'mtr') files.push([ReportPdf.fileName(run)") && html.includes("if (kinds !== 'pdf' && !run.imported) files.push([outName(run, 'mtr')"))
+  assert.ok(html.includes('offerToHub(name, blob, true)') && html.includes('if (!only && mtrName !== name'), 'a PDF-only Save does not add the Ansur record on its own')
+  assert.ok(html.includes('so that file already exists'), 'a test opened from an Ansur record has no .mtr to make')
 })

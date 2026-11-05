@@ -151,3 +151,6 @@ Saved reports → Save to a folder… showed "Not saved: Aborted due to security
 
 ## Save to a folder: skip what is there, retry, zip button (05/11/2026)
 Of 30 files, 3 were refused ("Aborted due to security policy") and came down as a zip: the three that OneDrive was uploading at that moment (blue sync arrows in the folder), because the bench was rewriting files that were already there. Now a file already in the folder with exactly the same bytes is left alone (no rewrite, no new upload; the note says "N already there, unchanged"), a refused file is tried once more after 1.5 s, and only then downloaded. **Download as zip** is a separate button beside Save to a folder…, for all the ticked files in one zip with nothing written into a synced folder.
+
+## Choose the files: both, PDF only, Ansur record only (05/11/2026)
+On a finished test's summary a **Files** list beside Save and Download chooses what they make: PDF and Ansur record (the default), PDF only, or Ansur record (.mtr) only. It is remembered on that PC. A PDF-only Save no longer adds the Ansur record by itself. In Saved reports the same choice is the "Include" ticks (Reports (PDF), Ansur records, and Results files for older saved tests) used by Save to a folder, Download as zip and Attach to a Simpro job.
