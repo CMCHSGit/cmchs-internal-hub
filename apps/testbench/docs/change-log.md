@@ -142,3 +142,6 @@ The bench's own "Add test links" buttons are gone: they put the column last, and
 
 ## Logo and Test Bench go back to Choose a template (05/11/2026)
 On a finished test's summary, clicking the bench's logo or "Test Bench" (or the hub's Test Bench tab, when it is already the open tab) goes to Choose a template with nothing picked and the search cleared. A test in progress is never left (it just shows it); a finished one is already saved. The device is switched off first, as for "Test another device".
+
+## Serial number looks the device up by itself; no Find box, nothing to fill in (05/11/2026)
+With an asset list chosen, the start screen no longer has "Find a device". When the serial number (or CHS or customer asset number) is typed or scanned (on leaving the box, or after a short pause), the list is searched by itself and the details are filled in; a box under the details says **Found in the asset list** (sheet and row), or in red **Not found**, or in red that a number belongs to several devices. Any red (mandatory) columns that device is missing are listed in red. The boxes for filling those in, the "add as a new device" step, the gate on Start test and the write-back to the workbook (with its backup) are gone: it was not syncing, so the bench only reads the asset list now (`XlsxLite.write` stays in the file, unused).

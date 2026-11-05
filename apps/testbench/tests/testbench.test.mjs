@@ -268,14 +268,14 @@ async function makeXlsx(sheets, extra = {}) {   // [{ name, rows, xml? }]; `extr
   const out = Buffer.concat([...parts, cd, end]); return out.buffer.slice(out.byteOffset, out.byteOffset + out.length)
 }
 
-test('a customer spreadsheet: the equipment sheet is found, rows read, and a device fills the start screen\'s details', async () => {
+test('a customer spreadsheet: the serial number is looked up by itself, the details are filled in, and it says whether the device was found', async () => {
   const { default: vm } = await import('node:vm')
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   const a = html.indexOf('const XlsxLite = '), b = html.indexOf('const Runner = {')
   const inputs = ['Serial number', 'Manufacturer', 'Model', 'Customer', 'CHS asset #', 'Customer asset #', 'Testing engineer'].map((k) => ({ dataset: { k }, value: k === 'Testing engineer' ? 'Jonathan Nasrun' : '', focus() {} }))
-  const toasts = []
+  const box = { hidden: true, innerHTML: '' }
   const ctx = { Blob, Response, DecompressionStream, TextDecoder, Uint8Array, DataView, Math, Date, Set, Object, Number, String, Array, Error, RegExp, JSON, Promise,
-    $$: (s) => (s === '#dutFields input' ? inputs : []), $: () => null, toast: (m) => toasts.push(m), log: () => {}, esc: String, DB: {}, Shared: {} }
+    $$: (s) => (s === '#dutFields input' ? inputs : []), $: (s) => (s === '#sheetGaps' ? box : null), toast() {}, log: () => {}, esc: String, DB: {}, Shared: {} }
   const { XlsxLite, Sheet } = vm.runInNewContext(html.slice(a, b) + '; ({ XlsxLite, Sheet })', ctx)
   const head = ['Site ID', 'Device Type', 'Manufacturer', 'Device Model', 'Description', 'Serial Number', 'CHS Asset Number', 'Ward/Location', 'Room', 'Bed', 'Customer Asset Number']
   const buf = await makeXlsx([
@@ -283,34 +283,40 @@ test('a customer spreadsheet: the equipment sheet is found, rows read, and a dev
     { name: 'NSH', rows: [['Equipment list'], head,
       ['WDH', 'Patient monitor', 'Mindray', 'BeneVision N17', 'Monitor', 'SN-1001', 'CHS-500', 'ICU', '2', '4', 'WDH-77'],
       ['WDH', 'Patient monitor', 'Mindray', 'BeneVision N12', 'Monitor', 4002, 'CHS-501', 'ED', '1', '', ''],
+      ['WDH', 'Patient monitor', 'Mindray', 'BeneVision N12', 'Monitor', 'DUP-1', 'CHS-502', 'ED', '1', '', ''],
+      ['WDH', 'Patient monitor', 'Mindray', 'BeneVision N12', 'Monitor', 'DUP-1', 'CHS-503', 'ED', '1', '', ''],
       [null, null, null, null, null, null, null, null, null, null, null]] },
     { name: 'NSH IT', rows: [head, ['WDH', 'Computer', null, null, 'Laptop', null, 'CHS-900', 'Records', null, null, null]] },   // an asset with no serial number yet
     { name: 'Retired Assets', rows: [head, ['WDH', 'Monitor', 'Mindray', 'Old', 'Monitor', 'SN-OLD', 'CHS-1', 'Store', null, null, null]] }])
   const sheets = await XlsxLite.read(buf)
   assert.deepEqual(JSON.parse(JSON.stringify(sheets.map((s) => s.name))), ['Notes', 'NSH', 'NSH IT', 'Retired Assets'])
   const rows = Sheet.parse(sheets)
-  assert.equal(rows.length, 3, 'every sheet of devices is read; the title row, the empty row, Notes and Retired Assets are not devices')
-  assert.deepEqual(JSON.parse(JSON.stringify(rows.map((r) => r._sheet))), ['NSH', 'NSH', 'NSH IT'], 'each row knows its sheet (the site)')
+  assert.equal(rows.length, 5, 'every sheet of devices is read; the title row, the empty row, Notes and Retired Assets are not devices')
   assert.equal(rows[1]['Serial Number'], '4002', 'a numeric serial number comes back as text')
   Object.assign(Sheet, { rows, state: 'ready', file: 'Waitemata.xlsx', customer: 'Waitemata' })
-  assert.equal(Sheet.search('icu sn-1001').length, 1)
-  assert.equal(Sheet.search('mindray').length, 2)
-  assert.equal(Sheet.search('records').length, 1)
-  assert.equal(Sheet.search('nsh it laptop').length, 1, 'the sheet name finds its devices too')
-  assert.equal(Sheet.search('retired').length, 0, 'retired assets are not read')
+  // found: the rest is filled in and the box says so
   Sheet.onTyped({ value: ' sn-1001 ', dataset: { k: 'Serial number' } })
-  const got = Object.fromEntries(inputs.map((i) => [i.dataset.k, i.value]))
-  assert.deepEqual(got, { 'Serial number': 'SN-1001', Manufacturer: 'Mindray', Model: 'BeneVision N17', Customer: 'Waitemata', 'CHS asset #': 'CHS-500', 'Customer asset #': 'WDH-77', 'Testing engineer': 'Jonathan Nasrun' }, 'every detail the sheet has, the engineer left alone')
-  assert.match(toasts.at(-1), /Filled 6 details/)
-  // an asset with no serial number yet: found by its asset number, and the serial field is left empty to be filled from the device
+  assert.deepEqual(Object.fromEntries(inputs.map((i) => [i.dataset.k, i.value])), { 'Serial number': 'SN-1001', Manufacturer: 'Mindray', Model: 'BeneVision N17', Customer: 'Waitemata', 'CHS asset #': 'CHS-500', 'Customer asset #': 'WDH-77', 'Testing engineer': 'Jonathan Nasrun' }, 'every detail the sheet has, the engineer left alone')
+  assert.ok(box.hidden === false && box.innerHTML.includes('sheet-alert ok') && box.innerHTML.includes('Found in the asset list') && box.innerHTML.includes('NSH, row 3'))
+  // not found: said in red, nothing filled in
+  inputs[0].value = 'NOPE-1'; Sheet.onTyped({ value: 'NOPE-1', dataset: { k: 'Serial number' } })
+  assert.ok(box.innerHTML.includes('sheet-alert bad') && box.innerHTML.includes('Not found') && box.innerHTML.includes('NOPE-1'))
+  // a number two devices have: said in red
+  Sheet.onTyped({ value: 'dup-1', dataset: { k: 'Serial number' } })
+  assert.ok(box.innerHTML.includes('sheet-alert bad') && box.innerHTML.includes('2 devices'))
+  // an asset with no serial number yet: found by its asset number, the serial field is left empty to be filled from the device, and a serial typed then belongs to it
   inputs[0].value = 'chs-900'; Sheet.onTyped({ value: 'chs-900', dataset: { k: 'Serial number' } })
   assert.equal(inputs[0].value, '', 'the asset number typed to find it is not left as the serial number')
   assert.equal(inputs[4].value, 'CHS-900')
+  inputs[0].value = 'NEW-SN'; Sheet.onTyped({ value: 'NEW-SN', dataset: { k: 'Serial number' } })
+  assert.ok(box.innerHTML.includes('Found in the asset list'), 'not looked up as a different device')
   assert.match(html, /Sheet\.init\(\)/, 'read at start-up when the browser still has access')
-  assert.match(html, /Sheet\.onTyped\(i\)/, 'typing or scanning a serial number fills the rest')
+  assert.ok(html.includes("i.addEventListener('input'") && html.includes('Sheet.onTyped(i)'), 'typing or scanning a serial number looks it up, after a pause or when the box is left')
+  // the old way is gone: no Find box, no new device, no details to fill in here, nothing written to the list
+  for (const gone of ['Find a device', 'id="sheetFind"', 'Add it as a new device', 'Sheet.beforeStart', 'renderGaps', 'Skip these for now']) assert.ok(!html.includes(gone), gone)
 })
 
-test('the asset list: red columns are the mandatory ones; missing details are saved into the right row (or a new one) and nothing else in the file changes', async () => {
+test('the asset list: the red (mandatory) columns it is missing for a device are said in red, with nothing to type in', async () => {
   const { default: vm } = await import('node:vm')
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   const a = html.indexOf('const XlsxLite = '), b = html.indexOf('const Runner = {')
@@ -319,61 +325,31 @@ test('the asset list: red columns are the mandatory ones; missing details are sa
     <row r="1" spans="1:5">${tx('A1', 'Serial Number', 1)}${tx('B1', 'Device Model', 1)}${tx('C1', 'Date Installed', 1)}${tx('D1', 'CHS Asset Number', 1)}${tx('E1', 'Notes')}</row>
     <row r="2" spans="1:5">${tx('A2', 'SN1')}${tx('B2', 'N17')}<c r="C2" s="2"><v>45000</v></c>${tx('D2', 'CHS-1')}${tx('E2', 'x')}</row>
     <row r="3" spans="1:5">${tx('A3', 'SN2')}${tx('B3', 'N12')}<c r="C3" s="2"/></row>
-    <row r="4">${tx('E4', 'spare, no serial yet')}</row>
-    <row r="500">${tx('E500', 'a stray value far below')}</row>
     </sheetData></worksheet>`
-  const wth = `<worksheet><sheetData><row r="1">${tx('A1', 'Serial Number', 1)}</row><row r="2">${tx('A2', 'W1')}</row></sheetData></worksheet>`
   const extra = {
     'xl/styles.xml': '<styleSheet><fonts count="2"><font><sz val="11"/></font><font><color rgb="FFFF0000"/></font></fonts><cellXfs count="3"><xf numFmtId="0" fontId="0"/><xf numFmtId="0" fontId="1"/><xf numFmtId="14" fontId="0"/></cellXfs></styleSheet>',
-    'xl/worksheets/_rels/sheet1.xml.rels': '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/table" Target="../tables/table1.xml"/></Relationships>',
-    'xl/tables/table1.xml': '<table id="1" name="T" ref="A1:E3"><autoFilter ref="A1:E3"/></table>',
     'docProps/untouched.txt': 'left exactly as it was' }
-  const buf = await makeXlsx([{ name: 'NSH', xml: nsh }, { name: 'WTH', xml: wth }], extra)
-  const inputs = ['Serial number', 'Model', 'CHS asset #'].map((k) => ({ dataset: { k }, value: '', focus() {}, classList: { add() {}, remove() {} } }))
-  const extras = {}, box = { hidden: true, innerHTML: '', querySelector: (q) => extras[/data-col="(.*)"/.exec(q)[1]] }
-  let written = null, backups = 0
-  const handle = { requestPermission: async () => 'granted', getFile: async () => ({ lastModified: 1, arrayBuffer: async () => written ?? buf }), createWritable: async () => ({ write: async (d) => { written = d }, close: async () => {} }) }
+  const buf = await makeXlsx([{ name: 'NSH', xml: nsh }], extra)
+  const inputs = ['Serial number', 'Model', 'CHS asset #'].map((k) => ({ dataset: { k }, value: '', focus() {} }))
+  const box = { hidden: true, innerHTML: '' }
   const ctx = { Blob, Response, DecompressionStream, CompressionStream, TextDecoder, TextEncoder, Uint8Array, Uint32Array, DataView, Math, Date, Set, Map, Object, Number, String, Array, Error, RegExp, JSON, Promise,
-    $$: (s) => (s === '#dutFields input' ? inputs : []), $: (s) => (s === '#sheetGaps' ? box : s === '#gapSkip' ? { checked: false } : null), toast() {}, log() {}, esc: String,
-    DB: { putKV: async () => {} }, Shared: {}, Results: { folder: async () => null }, download: () => { backups++ }, dialog: async () => false }
+    $$: (s) => (s === '#dutFields input' ? inputs : []), $: (s) => (s === '#sheetGaps' ? box : null), toast() {}, log() {}, esc: String, DB: {}, Shared: {} }
   const { XlsxLite, Sheet } = vm.runInNewContext(html.slice(a, b) + '; ({ XlsxLite, Sheet })', ctx)
   const plain = (x) => JSON.parse(JSON.stringify(x))
-
   const sheets = await XlsxLite.read(buf)
   assert.deepEqual(plain(sheets[0].red[0]), [true, true, true, true, false], 'the header cells with a red font')
   const rows = Sheet.parse(sheets)
   assert.deepEqual(plain(Sheet.info.NSH.red), ['Serial Number', 'Device Model', 'Date Installed', 'CHS Asset Number'])
-  assert.equal(Sheet.info.NSH.last, 4, 'the last row of the list counts a spare with no serial; a stray value far below does not')
-  Object.assign(Sheet, { rows, state: 'ready', file: 'List.xlsx', customer: 'C', handle })
-
-  // an existing device with blanks: its date (not asked by the template) and its asset number (asked above)
-  const sn2 = rows.find((r) => r['Serial Number'] === 'SN2')
-  Sheet.fill(sn2)
-  assert.deepEqual(plain(Sheet.gaps().map((g) => [g.col, !!g.input])), [['Date Installed', false], ['CHS Asset Number', true]])
-  assert.equal(await Sheet.beforeStart(), false, 'Start waits until the red details are in')
-  inputs[2].value = 'CHS-2'; extras['Date Installed'] = { value: '2026-11-03' }
-  assert.equal(await Sheet.beforeStart(), true)
-  assert.equal(backups, 1, 'a backup copy of the file is made first')
-  const after = await XlsxLite.read(written)
-  assert.equal(after[0].rows[2][3], 'CHS-2')
-  assert.deepEqual(plain(after[0].rows[2][2]), { date: { y: 2026, m: 11, d: 3 } }, 'a date is written as a date, in the cell\'s own date style')
-  assert.deepEqual(plain(after[0].rows[1]), plain(sheets[0].rows[1]), 'the other rows are as they were')
-  assert.deepEqual(plain(after[1].rows), plain(sheets[1].rows), 'the other sheets are as they were')
-  assert.equal(await XlsxLite.text(written, 'docProps/untouched.txt'), 'left exactly as it was')
-
-  // a device that isn't in the list: added under the last one, and the table and sheet size grow with it
-  inputs[0].value = 'SN3'; inputs[1].value = 'N20'; inputs[2].value = 'CHS-3'
-  Sheet.cur = { isNew: true, sheet: 'NSH' }; Sheet.renderGaps()
-  assert.deepEqual(plain(Sheet.gaps().map((g) => g.col)), ['Serial Number', 'Device Model', 'Date Installed', 'CHS Asset Number'])
-  extras['Date Installed'] = { value: '2026-11-04' }
-  assert.equal(await Sheet.beforeStart(), true)
-  const added = await XlsxLite.read(written)
-  assert.deepEqual(plain(added[0].rows[4].slice(0, 4).map((c) => (c && c.date ? 'date' : c))), ['SN3', 'N20', 'date', 'CHS-3'], 'under the spare row, not over it')
-  assert.equal(added[0].rows[3][4], 'spare, no serial yet', 'the spare row is untouched')
-  assert.match(await XlsxLite.text(written, 'xl/tables/table1.xml'), /ref="A1:E5"[\s\S]*<autoFilter ref="A1:E5"/)
-  assert.match(await XlsxLite.text(written, 'xl/worksheets/sheet1.xml'), /<dimension ref="A1:E5"\/>/)
-
-  // a read-back that doesn't match is caught before anything is written
-  await assert.rejects(Sheet.verify(written, 'NSH', [{ row: 5, col: 0, value: 'other' }], 3), /did not read back/)
-  assert.match(html, /Sheet\.beforeStart\(\)/, 'Start test goes through it')
+  Object.assign(Sheet, { rows, state: 'ready', file: 'List.xlsx', customer: 'C' })
+  Sheet.onTyped({ value: 'sn2', dataset: { k: 'Serial number' } })
+  assert.deepEqual(plain(Sheet.missing(Sheet.cur)), ['Date Installed', 'CHS Asset Number'])
+  assert.ok(box.innerHTML.includes('Found in the asset list') && box.innerHTML.includes('sheet-alert bad') && box.innerHTML.includes('Missing in the asset list:') && box.innerHTML.includes('Date Installed, CHS Asset Number'), 'what is missing, in red')
+  assert.ok(!box.innerHTML.includes('<input'), 'nothing to type in here: the details are kept in the asset list itself')
+  Sheet.onTyped({ value: 'sn1', dataset: { k: 'Serial number' } })
+  assert.ok(box.innerHTML.includes('sheet-alert ok') && !box.innerHTML.includes('Missing in the asset list'), 'a complete device has nothing in red')
+  // the zip writer is still there for other uses: one cell changed, everything else byte for byte
+  const out = await XlsxLite.write(buf, [{ sheet: 'NSH', cells: [{ row: 3, col: 3, value: 'CHS-2' }] }])
+  const after = await XlsxLite.read(out)
+  assert.equal(after[0].rows[2][3], 'CHS-2'); assert.deepEqual(plain(after[0].rows[1]), plain(sheets[0].rows[1]))
+  assert.equal(await XlsxLite.text(out, 'docProps/untouched.txt'), 'left exactly as it was')
 })

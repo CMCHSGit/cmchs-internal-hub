@@ -185,15 +185,13 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   of each other, or a small fixed step near zero. The standard sets no minimum time; the settle time is the longest it waits.
 - **Details from a customer spreadsheet.** On the start screen, **Choose spreadsheet…** opens a customer's equipment spreadsheet from the
   synced SharePoint folder (an .xlsx with one row per device and headers such as Serial Number, Device Model, CHS Asset Number,
-  Ward/Location; every sheet with a "Serial Number" header is read, one per site or IT list, and Retired Assets is skipped). **Find a device** (serial or asset number, ward, room,
-  bed, name), or typing a serial or asset number, fills the template's details from that row. The customer is the file name, changeable on
-  the bar; the browser remembers the file and **Read again** picks up edits. The mapping is `Sheet.colForField` in `apps/testbench/bench/index.html`.
-  **The red (mandatory) columns** (a header in red text, per sheet) that are blank for the device show under the details; Start test waits until
-  they are filled in (or "Skip these for now" is ticked), then saves them into the asset list: the device's row, or for a serial number that
-  isn't in the list ("Add it as a new device", on a sheet you pick) the first row under the last one. Before saving the file is read again, a
-  copy is kept (once a day) in the Results folder's **Asset list backups** folder (downloaded if no Results folder is set up), and the result is
-  read back and checked before it replaces the file. If it can't save (open in Excel, no permission) it says so and the test can start anyway.
-  Only the cells filled in are changed; every other part of the workbook is copied across as it was, and Excel tables grow to take a new row.
+  Ward/Location; every sheet with a "Serial Number" header is read, one per site or IT list, and Retired Assets is skipped). When the serial
+  number (or an asset number) is typed or scanned it is looked up by itself (when the box is left, or after a pause), the template's details are
+  filled from that row, and a box under them says **Found in the asset list** (sheet and row), or in red **Not found**, or in red that a number
+  belongs to several devices. If the device is found but the list lacks details in its **red (mandatory) columns** (a header in red text, per
+  sheet) they are listed in red; nothing is typed in or written back here (the bench only reads the workbook; `XlsxLite.write` is kept but
+  unused). The customer is the file name, changeable on the bar; the browser remembers the file and **Read again** picks up edits. The mapping
+  is `Sheet.colForField` in `apps/testbench/bench/index.html`.
 - **Saving gives both files, and asks where.** The summary's **Save PDF + Ansur file** saves the PDF report and the Ansur record (.mtr)
   together (a test opened from an Ansur record gets the PDF only), in a folder chosen each time (the picker opens where it was last; browsers
   that can't choose a folder download both). Saved reports' **Save to a folder…** does the same for the ticked tests: each gets its PDF and

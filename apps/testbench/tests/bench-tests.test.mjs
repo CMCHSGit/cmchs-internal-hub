@@ -162,7 +162,6 @@ test('the Excel script puts a button-looking link first, replaces an older one, 
   assert.ok(!ps.split('\n').filter((l) => !/^\s*(#|\.)/.test(l)).join('\n').includes('ENCODEURL(['), 'no ENCODEURL in the formula (not in every Excel)')
   assert.ok(ps.includes('-Pick'))
   assert.ok(!html.includes('addLinkColumn') && !html.includes('data-sheet="addLinks"'), 'the bench does not write the column itself')
-  assert.ok(html.includes('Backup in the Results folder failed'), 'a Results folder that cannot be written falls back to a download')
 })
 
 test('a browser with no folder picker (Firefox) loads the templates published with the site, read-only, and the build publishes them', () => {
