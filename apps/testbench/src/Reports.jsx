@@ -7,6 +7,9 @@ import JobPicker from './JobPicker.jsx'
 import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles } from './reports.js'
 import { makeZip } from './zip.js'
 
+/** Downloaded PDFs go in a folder of their own (inside the folder chosen, or in the zip); the Ansur records stay beside it. */
+export const PDF_FOLDER = 'PDF reports'
+const isPdf = (f) => f.ext === 'pdf' || /\.pdf$/i.test(f.name)
 const KINDS = [['pdf', 'Reports (PDF)'], ['json', 'Results files'], ['mtr', 'Ansur records']]
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 const timeOf = (g) => new Intl.DateTimeFormat('en-NZ', { hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.testedAt || g.savedAt))
@@ -60,6 +63,10 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   // Older copies of the same test saved under another name: removed along with it.
   const stale = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.stale || []), [visible, chosen])
   const count = files.length + needMtr.length + needPdf.length
+  // What goes to a Simpro job is the PDF of each ticked test and nothing else (a PDF is made for a test that has only its results file or Ansur record).
+  const attachPdfs = useMemo(() => pickFiles(visible, [...chosen], ['pdf']), [visible, chosen])
+  const attachMake = useMemo(() => visible.filter((g) => chosen.has(g.base) && !g.files.some((f) => f.ext === 'pdf') && g.files.some((f) => f.ext === 'json' || f.ext === 'mtr')), [visible, chosen])
+  const attachCount = attachPdfs.length + attachMake.length
   const picked = visible.filter((g) => chosen.has(g.base)).length
   const total = reports.reduce((n, r) => n + (r.size || 0), 0)
   const waiting = outbox.filter((x) => x.status === 'waiting').length
@@ -92,31 +99,40 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
       // Each file on its own: one the browser refuses to write into the folder ("Aborted due to security policy" is its security check on the file)
       // doesn't stop the rest, and whatever could not be written there is downloaded instead.
       const failed = []; let same = 0
+      let pdfDir = null
+      const where = async (f) => (isPdf(f) ? (pdfDir ||= await dir.getDirectoryHandle(PDF_FOLDER, { create: true })) : dir)   // the PDFs in a folder of their own
       if (dir) {
         for (const f of list) {
           try {
-            if (await sameFile(dir, f)) { same++; continue }   // already there, unchanged: left alone (rewriting it only makes OneDrive upload it again)
-            await writeFile(dir, f)
+            const to = await where(f)
+            if (await sameFile(to, f)) { same++; continue }   // already there, unchanged: left alone (rewriting it only makes OneDrive upload it again)
+            await writeFile(to, f)
           } catch (e) {
-            try { await new Promise((r) => setTimeout(r, 1500)); await writeFile(dir, f) }   // a file OneDrive is uploading right now can be refused: once more
+            try { await new Promise((r) => setTimeout(r, 1500)); await writeFile(await where(f), f) }   // a file OneDrive is uploading right now can be refused: once more
             catch (e2) { failed.push({ f, why: `${e2.name || 'Error'}: ${e2.message || e2}` }) }
           }
         }
       }
       const toDownload = dir ? failed.map((x) => x.f) : list
       if (toDownload.length === 1) saveBlob(toDownload[0].name, new Blob([toDownload[0].buffer], { type: toDownload[0].mime }))
-      else if (toDownload.length > 1) saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(toDownload.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
+      else if (toDownload.length > 1) saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(toDownload.map((f) => ({ name: isPdf(f) ? `${PDF_FOLDER}/${f.name}` : f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
       logActivity(null, `Saved ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
       if (!dir || list.length > failed.length) await onMarkDownloaded?.(list.map((f) => f.name))   // all of them when downloaded; in a folder, those written (or already there)
       const saved = dir ? list.length - failed.length - same : 0
-      setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name}${same ? `; ${same} already there, unchanged` : ''}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
+      setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name} (the PDFs in its “${PDF_FOLDER}” folder)${same ? `; ${same} already there, unchanged` : ''}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
     } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
   async function attach() {
-    if (!job || !count) return
+    if (!job || !attachCount) return
     setBusy(true)
-    try { const { list, skipped } = await withMtr(); const n = await onAttach(list, job); setNote(skipped ? { ...n, text: n.text + skippedNote(skipped) } : n) } catch (e) { setNote({ text: 'Not queued: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+    try {
+      const made = []; let skipped = 0
+      for (const g of attachMake) { try { made.push(await makePdf(g)) } catch { skipped++ } }
+      const list = [...attachPdfs, ...made]
+      if (!list.length) throw new Error('There is no PDF to attach.' + skippedNote(skipped))
+      const n = await onAttach(list, job); setNote(skipped ? { ...n, text: n.text + skippedNote(skipped) } : n)
+    } catch (e) { setNote({ text: 'Not queued: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
   /** One test's Ansur record, made on the spot if it has only a results file. */
@@ -291,9 +307,9 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
               <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove([...files, ...stale], `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
-              <span>Attach to Simpro job:</span>
+              <span>Attach the PDFs to Simpro job:</span>
               <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} job={job} onJob={setJob} disabled={!!sim.access} />
-              <Button disabled={busy || !job || !count} onClick={attach}>{online_ok ? `Attach ${count || ''} to ${job ? job.label.split(' ')[0] : 'job'}` : `Queue ${count || ''} for ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
+              <Button disabled={busy || !job || !attachCount} onClick={attach} title="Only the PDF reports go to the job">{online_ok ? `Attach ${attachCount ? attachCount + ' PDF' + (attachCount === 1 ? '' : 's') : 'PDFs'} to ${job ? job.label.split(' ')[0] : 'job'}` : `Queue ${attachCount ? attachCount + ' PDF' + (attachCount === 1 ? '' : 's') : 'PDFs'} for ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
             </div>
             {note.text && <p className={`tb-note tb-note-${note.tone}`} role="status">{note.text}</p>}
             {sim.access && <Alert tone="warning" title="Simpro isn’t switched on for you">{sim.access} Ask an admin to turn on Simpro access for you in Settings → People and access. Files you queue wait in the outbox.</Alert>}

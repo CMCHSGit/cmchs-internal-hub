@@ -212,3 +212,25 @@ test('connecting again after a device dropped out lets go of the old connection 
   assert.ok(/async ensure\(key = 'esa'\) \{\s*await this\.resetBroken\(\)/.test(html) && /async reconnect\(\) \{\s*await this\.resetBroken\(\)/.test(html), 'ensure and the Reconnect button reset a link that stopped answering')
   assert.ok(html.includes("if (goodbye === 'dead')"), 'no goodbye commands to a device that is gone')
 })
+
+test('the PDF report is laid out like the Ansur PVT Report Builder\'s: Performance Verification Test Report, banner, device under test, test equipment, signatures, results', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const a = html.indexOf('const ReportPdf = {'), b = html.indexOf('/* ======================= results folder')
+  const pdf = html.slice(a, b)
+  assert.ok(pdf.includes("'Performance Verification Test Report'") && pdf.includes("'AS/NZS 3551'"), 'the title is not the template\'s name')
+  assert.ok(!pdf.includes('TEST RECORD') && !pdf.includes('run.template.name, FB, 16'), 'no template name as the title')
+  for (const part of ["'Device under test'", "'Test equipment'", "'Signatures'", "'Results'", "Standards performed:", "['Item', 'Result', 'Limits', 'Status']", 'Page ${i + 1} of ${pages.length}'])
+    assert.ok(pdf.includes(part), 'has ' + part)
+  assert.ok(pdf.includes('StandardFonts.Symbol'), 'Ω and ≤ in the Symbol font, as the builder does')
+  assert.ok(pdf.includes('ansurPvt.signatures') && pdf.includes('Segoe Script'), 'the signature saved in the builder, else the name in handwriting')
+})
+
+test('only the PDFs are attached to a Simpro job, and downloaded PDFs go in a folder of their own', () => {
+  const jsx = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  const attach = jsx.slice(jsx.indexOf('async function attach()'), jsx.indexOf('/** One test\'s Ansur record'))
+  assert.ok(attach.includes('attachPdfs') && !attach.includes('withMtr()'), 'attach sends the PDFs, not the Ansur records')
+  assert.ok(jsx.includes("pickFiles(visible, [...chosen], ['pdf'])"))
+  assert.ok(jsx.includes("export const PDF_FOLDER = 'PDF reports'") && jsx.includes('getDirectoryHandle(PDF_FOLDER') && jsx.includes('`${PDF_FOLDER}/${f.name}`'), 'in the chosen folder, and in the zip')
+  const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(bench.includes("getDirectoryHandle('PDF reports', { create: true })"), 'the bench\'s Download does the same')
+})

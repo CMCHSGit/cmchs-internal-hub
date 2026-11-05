@@ -168,8 +168,8 @@ test('a file the browser refuses to write into the chosen folder ("Aborted due t
 
 test('saving to a folder leaves a file that is already there unchanged alone, tries a refused one again, and a zip is always on offer', () => {
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
-  assert.ok(ui.includes('async function sameFile(dir, f)') && ui.includes('if (await sameFile(dir, f)) { same++; continue }'), 'identical files are not rewritten (it only makes OneDrive upload them again)')
-  assert.ok(ui.includes('setTimeout(r, 1500)') && ui.includes('await writeFile(dir, f)'), 'a refused file is tried once more')
+  assert.ok(ui.includes('async function sameFile(dir, f)') && ui.includes('if (await sameFile(to, f)) { same++; continue }'), 'identical files are not rewritten (it only makes OneDrive upload them again)')
+  assert.ok(ui.includes('setTimeout(r, 1500)') && ui.includes('await writeFile(await where(f), f)'), 'a refused file is tried once more')
   assert.ok(ui.includes('download(true)') && ui.includes('Download as zip') && ui.includes('onClick={() => download()}'), 'a zip button beside Save to a folder')
 })
 
