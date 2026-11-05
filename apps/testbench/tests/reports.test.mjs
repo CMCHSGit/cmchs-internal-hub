@@ -189,3 +189,35 @@ test('a rerun the same day keeps the first test: its files have their own names,
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('rerun ${g.rerun}'), 'Saved reports says which one is the rerun')
 })
+
+/* ---- files someone adds themselves ---- */
+const MTR = (customer, serial, when = 'Year="2026" Month="11" Day="03" Hour="9" Min="30" Sec="0"') => `<?xml version="1.0" encoding="utf-8"?>
+<FLUKEFile><Template Name="Mindray A9.mtt"></Template><Setup><DUT>
+<Item Name="Serial number" Caption="Serial number">${serial}</Item><Item Name="Model" Caption="Model">A9 &amp; co</Item><Item Name="Customer" Caption="Customer">${customer}</Item><Item Name="Location" Caption="Location"/>
+</DUT></Setup><Record><TestData><Status>Passed</Status><Date ${when}/></TestData></Record></FLUKEFile>`
+const bytes = (s) => new TextEncoder().encode(s).buffer
+
+test('an Ansur record is read for its serial, model, customer, template and date', async () => {
+  const { mtrMeta } = await import('../src/reports.js')
+  const m = mtrMeta(MTR('Hutt Hospital', 'FS6-9'))
+  assert.deepEqual([m.customer, m.serial, m.model, m.template], ['Hutt Hospital', 'FS6-9', 'A9 & co', 'Mindray A9'])
+  assert.equal(new Date(m.testedAt).getFullYear(), 2026)
+  assert.equal(mtrMeta('<html></html>'), null, 'not an Ansur record')
+})
+
+test('adding your own files: an .mtr is filed by what it says, a PDF by its name, and it never deletes what the bench saved', async () => {
+  const { saveUpload } = await import('../src/reports.js')
+  const store = memoryReports()
+  await saveReport(store, { name: 'FS6-9 - A9 03.11.2026.mtr', mime: 'application/xml', buffer: bytes(MTR('Hutt Hospital', 'FS6-9')), meta: { customer: 'Hutt Hospital', serial: 'FS6-9', model: 'A9', template: 'Mindray A9', testedAt: new Date(2026, 10, 3, 9, 30, 0).toISOString() } }, 1000)
+  const up = await saveUpload(store, { name: 'copy of record.mtr', buffer: bytes(MTR('Hutt Hospital', 'FS6-9')) }, 2000)
+  assert.equal(up.meta.uploaded, true); assert.equal(up.meta.serial, 'FS6-9'); assert.equal(up.meta.customer, 'Hutt Hospital')
+  assert.equal((await store.all()).length, 2, 'the bench’s own copy is still there')
+  await saveUpload(store, { name: 'AB12 - D30 01.11.2026.pdf', buffer: bytes('%PDF-1.4 x') }, 3000)
+  const g = groupReports(await store.all()).find((x) => x.serial === 'AB12')
+  assert.deepEqual([g.model, g.uploaded, g.files[0].mime], ['D30', true, 'application/pdf'])
+  assert.equal(groupReports(await store.all()).find((x) => x.serial === 'FS6-9').uploaded, true)
+  await assert.rejects(() => saveUpload(store, { name: 'notes.txt', buffer: bytes('hi') }), /only Ansur records/)
+  await assert.rejects(() => saveUpload(store, { name: 'x.mtr', buffer: bytes('<html/>') }), /isn’t an Ansur record/)
+  await assert.rejects(() => saveUpload(store, { name: 'x.pdf', buffer: bytes('hello') }), /isn’t a PDF/)
+  await assert.rejects(() => saveUpload(store, { name: 'x.pdf', buffer: new ArrayBuffer(0) }), /empty/)
+})

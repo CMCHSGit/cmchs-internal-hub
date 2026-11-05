@@ -1,10 +1,10 @@
 /* Saved reports: every PDF, results file and Ansur record the bench has saved on this laptop, sorted by customer or by
    day, to download together (one zip) or attach together to a Simpro job. Plus the outbox of files waiting to go. */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
-import { PERIODS, categorise, customersIn, filterGroups, groupReports, nzDay, pickFiles } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, nzDay, pickFiles } from './reports.js'
 import { makeZip } from './zip.js'
 
 const KINDS = [['pdf', 'Reports (PDF)'], ['json', 'Results files'], ['mtr', 'Ansur records']]
@@ -28,7 +28,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -39,6 +39,10 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const [job, setJob] = useState(null)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState({ text: '', tone: 'info' })
+  const [over, setOver] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [addNote, setAddNote] = useState({ text: '', tone: 'info' })
+  const pick = useRef(null)
 
   const groups = useMemo(() => groupReports(reports), [reports])
   const customers = useMemo(() => customersIn(groups), [groups])
@@ -128,6 +132,33 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   }
   const sentFiles = () => groups.flatMap((g) => g.files).filter((f) => f.sent.length)
 
+  /** Files someone adds themselves (chosen, dropped or from a folder): kept with the bench's own, ticked ready to download or attach. */
+  async function addFiles(list) {
+    const files = [...list]
+    if (!files.length) return
+    setAdding(true)
+    try {
+      const items = []; const skipped = []
+      for (const f of files) {
+        if (!UPLOAD_EXTS.includes(describeFile(f.name).ext)) { skipped.push(f.name); continue }
+        try { items.push({ name: f.name, buffer: await f.arrayBuffer() }) } catch (e) { skipped.push(f.name) }
+      }
+      const r = items.length ? await onAddFiles(items) : { saved: [], failed: [] }
+      toggle(r.saved.map((n) => describeFile(n).base), true)
+      const bad = [...r.failed.map((x) => `${x.name} (${x.why})`), ...skipped.map((n) => `${n} (not an Ansur record, PDF or results file)`)]
+      setAddNote({ text: (r.saved.length ? `Added ${r.saved.length} file${r.saved.length === 1 ? '' : 's'}, ticked below.` : 'Nothing added.') + (bad.length ? ` Not added: ${bad.slice(0, 3).join('; ')}${bad.length > 3 ? ` and ${bad.length - 3} more` : ''}.` : ''), tone: bad.length ? 'warning' : 'success' })
+    } catch (e) { setAddNote({ text: 'Not added: ' + (e.message || e), tone: 'warning' }) } finally { setAdding(false) }
+  }
+  /** The Ansur records, PDFs and results files in a folder chosen on this laptop (and one level of folders inside it). */
+  async function addFolder() {
+    let dir; try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-add', mode: 'read', startIn: 'documents' }) } catch (e) { if (e.name === 'AbortError') return; setAddNote({ text: 'Couldn’t open that folder: ' + (e.message || e), tone: 'warning' }); return }
+    const found = []
+    const walk = async (d, depth) => { for await (const [name, h] of d.entries()) { if (h.kind === 'file' && UPLOAD_EXTS.includes(describeFile(name).ext)) found.push(await h.getFile()); else if (h.kind === 'directory' && depth < 1) await walk(h, depth + 1) } }
+    try { await walk(dir, 0) } catch (e) { setAddNote({ text: 'Couldn’t read that folder: ' + (e.message || e), tone: 'warning' }); return }
+    if (!found.length) { setAddNote({ text: `No Ansur records, PDFs or results files in ${dir.name}.`, tone: 'warning' }); return }
+    await addFiles(found)
+  }
+
   const online_ok = online && user
   return (
     <div className="tb-reports">
@@ -137,6 +168,19 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
           <p className="tb-muted">Every report the bench saves is also kept here on this laptop. Tick the tests you want, then download them together or attach them to a Simpro job.
             {reports.length > 0 && <> {groups.length} test{groups.length === 1 ? '' : 's'} · {kb(total)} kept.</>}</p>
         </div>
+      </div>
+
+      <div className={`tb-drop${over ? ' is-over' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
+        onDrop={(e) => { e.preventDefault(); setOver(false); addFiles(e.dataTransfer.files) }}>
+        <strong>Add your own files</strong>
+        <span className="tb-muted">Drop Ansur records (.mtr), PDFs or results files here, or choose them. They are kept here with the bench’s own, ticked, so you can attach them to a Simpro job or download them with the rest. A PDF is made for an Ansur record that has none.</span>
+        <div className="tb-actionbar-row">
+          <Button disabled={adding} onClick={() => pick.current?.click()}>Choose files</Button>
+          {canPickFolder && <Button variant="secondary" disabled={adding} onClick={addFolder}>Open a folder…</Button>}
+          <input ref={pick} type="file" multiple accept={UPLOAD_EXTS.map((x) => '.' + x).join(',')} hidden onChange={(e) => { addFiles(e.target.files); e.target.value = '' }} />
+        </div>
+        {addNote.text && <p className={`tb-note tb-note-${addNote.tone}`} role="status">{addNote.text}</p>}
       </div>
 
       {onlySerials.length > 0 && (
@@ -164,7 +208,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
       </div>
 
       {groups.length === 0 ? (
-        <p className="tb-empty">Nothing saved yet. Save a report in the Test Bench (Save PDF, Save results file or Ansur file) and it appears here.</p>
+        <p className="tb-empty">Nothing saved yet. Save a report in the Test Bench, or add your own files above, and it appears here.</p>
       ) : (
         <>
           <div className="tb-selbar">
@@ -192,6 +236,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
                   <div className="tb-test-main">
                     <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}{g.rerun ? ` · rerun ${g.rerun}` : ''}
                       {g.files.some((f) => fresh.has(f.name)) && <Badge tone="purple">New</Badge>}
+                      {g.uploaded && <Badge tone="grey">Added by you</Badge>}
                       {g.sentTo.length ? <Badge tone="green">Sent to {g.sentTo.join(', ')}</Badge> : <Badge tone="grey">Not sent</Badge>}
                     </div>
                     <div className="tb-muted">{[by !== 'customer' && g.customer !== 'No customer recorded' ? g.customer : '', by !== 'day' ? `${g.day} ${timeOf(g)}` : timeOf(g), g.template].filter(Boolean).join(' · ')}</div>

@@ -18,7 +18,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { groupReports, idbReports, markSent, reportsFromSearch, saveReport } from './reports.js'
+import { groupReports, idbReports, markSent, reportsFromSearch, saveReport, saveUpload } from './reports.js'
 import Reports from './Reports.jsx'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
@@ -244,6 +244,17 @@ function TestBench() {
     return { text: `${files.length} file${files.length === 1 ? '' : 's'} kept in the outbox. They go to Simpro by themselves when this laptop is online and signed in to the hub.`, tone: 'info' }
   }, [outboxStore, companyId, user, online, refreshOutbox, sendWaiting])
 
+  /** Files someone adds in Saved reports: kept like the bench's own (an Ansur record is read for its serial, model, customer and date). */
+  const addFiles = useCallback(async (items) => {
+    const saved = [], failed = []
+    for (const it of items) {
+      try { const r = await saveUpload(reportStore, it); saved.push(r.name) } catch (e) { failed.push({ name: it.name, why: e?.message || 'could not be read' }) }
+    }
+    if (saved.length) { setFresh((s) => { const n = new Set(s); saved.forEach((x) => n.add(x)); return n }); logActivity(null, `Added ${saved.length} file${saved.length === 1 ? '' : 's'} to the Test Bench's saved reports`, { app: 'testbench' }) }
+    await refreshReports()
+    return { saved, failed }
+  }, [reportStore, refreshReports])
+
   const sim = { call, companies, companyId, setCompanyId, access }
   const tests = useMemo(() => groupReports(reports), [reports])
   const unsent = tests.filter((g) => g.unsent).length
@@ -276,7 +287,7 @@ function TestBench() {
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
           onlySerials={onlySerials} onShowAll={() => setOnlySerials([])} startUnsent={link.unsent}
-          onAttach={attach} makeMtr={makeMtr} makePdf={makePdf}
+          onAttach={attach} onAddFiles={addFiles} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
           onSendWaiting={() => sendWaiting()}

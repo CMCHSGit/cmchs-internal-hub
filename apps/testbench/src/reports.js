@@ -61,10 +61,11 @@ export async function saveReport(store, { name, mime, buffer, meta }, now = Date
   const m = meta && typeof meta === 'object' ? meta : {}
   const text = (v) => String(v ?? '').trim().slice(0, 200)
   const rec = { id: name, name, mime: mime || '', buffer, size: buffer.byteLength, savedAt: now, sent: [],
-    meta: { customer: text(m.customer), serial: text(m.serial), model: text(m.model), template: text(m.template), testedAt: text(m.testedAt) } }
+    meta: { customer: text(m.customer), serial: text(m.serial), model: text(m.model), template: text(m.template), testedAt: text(m.testedAt), ...(m.uploaded ? { uploaded: true } : {}) } }
   await store.put(rec)
   // The same test saved again under another name (a serial or model corrected, a copy kept) is that test, not a second one: its older copy of this kind goes.
-  if (rec.meta.testedAt) {
+  // (Not for a file someone added themselves: that never deletes what the bench saved.)
+  if (rec.meta.testedAt && !rec.meta.uploaded) {
     const ext = describeFile(name).ext
     for (const o of await store.all()) if (o.id !== rec.id && o.meta && o.meta.testedAt === rec.meta.testedAt && describeFile(o.name).ext === ext) await store.remove(o.id)
   }
@@ -77,6 +78,51 @@ export async function markSent(store, name, job, now = Date.now()) {
   if (!rec) return
   if (!rec.sent.some((s) => s.job === job)) rec.sent = [...rec.sent, { job, at: now }]
   await store.put(rec)
+}
+
+/* ---- Files someone adds themselves (an Ansur record, a PDF or a results file from anywhere), to pick from beside the bench's own ---- */
+
+export const UPLOAD_EXTS = ['mtr', 'pdf', 'json']
+export const UPLOAD_MAX = 30 * 1048576
+const MIME = { pdf: 'application/pdf', mtr: 'application/xml', json: 'application/json' }
+const unxml = (v) => String(v).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
+
+/** What an Ansur record says about the test: { customer, serial, model, template, testedAt } (the same picks the bench makes), or null if it isn't one. */
+export function mtrMeta(text) {
+  if (!/<FLUKEFile[\s>]/.test(text)) return null
+  const dut = {}
+  const block = (text.match(/<DUT>([\s\S]*?)<\/DUT>/) || [])[1] || ''
+  for (const m of block.matchAll(/<Item\b([^>]*?)(?:\/>|>([\s\S]*?)<\/Item>)/g)) {
+    const cap = (m[1].match(/\bCaption="([^"]*)"/) || m[1].match(/\bName="([^"]*)"/) || [])[1]
+    if (cap) dut[unxml(cap)] = unxml(m[2] || '')
+  }
+  const pick = (re) => { const k = Object.keys(dut).find((x) => re.test(x) && dut[x]); return k ? dut[k] : '' }
+  const rec = (text.match(/<Record\b[\s\S]*?<TestData>([\s\S]*?)<\/TestData>/) || [])[1] || ''
+  const d = (rec.match(/<Date\b([^>]*)\/?>/) || [])[1] || ''
+  const num = (k) => +((d.match(new RegExp(k + '="(\\d+)"')) || [])[1] || 0)
+  const when = num('Year') ? new Date(num('Year'), num('Month') - 1, num('Day'), num('Hour'), num('Min'), num('Sec')) : null
+  return {
+    customer: pick(/^(customer|client|hospital|site|owner)/i), serial: pick(/^serial/i), model: pick(/^model$/i),
+    template: unxml(((text.match(/<Template\b[^>]*\bName="([^"]*)"/) || [])[1] || '').replace(/\.mt[tr]$/i, '')),
+    testedAt: when && !isNaN(when) ? when.toISOString() : '',
+  }
+}
+
+/** Keeps a file someone added: an Ansur record is read for its serial, model, customer and date; others are told apart by their name. Returns the record, or throws why not. */
+export async function saveUpload(store, { name, buffer }, now = Date.now()) {
+  const d = describeFile(name)
+  if (!UPLOAD_EXTS.includes(d.ext)) throw new Error('only Ansur records (.mtr), PDFs and results files (.json) can be added')
+  if (!buffer.byteLength) throw new Error('the file is empty')
+  if (buffer.byteLength > UPLOAD_MAX) throw new Error('the file is over 30 MB')
+  let meta = { serial: d.serial === d.base ? '' : d.serial, model: d.model }
+  if (d.ext === 'mtr') {
+    const head = new TextDecoder('ascii').decode(new Uint8Array(buffer).slice(0, 200))
+    const text = new TextDecoder(/encoding="(iso-?8859-1|windows-1252)"/i.test(head) ? 'windows-1252' : 'utf-8').decode(buffer)
+    const m = mtrMeta(text)
+    if (!m) throw new Error('this isn’t an Ansur record')
+    meta = { ...meta, ...Object.fromEntries(Object.entries(m).filter(([, v]) => v)) }
+  } else if (d.ext === 'pdf' && new TextDecoder('ascii').decode(new Uint8Array(buffer).slice(0, 5)) !== '%PDF-') throw new Error('this isn’t a PDF')
+  return saveReport(store, { name, mime: MIME[d.ext], buffer, meta: { ...meta, uploaded: true } }, now)
 }
 
 export const NO_CUSTOMER = 'No customer recorded'
@@ -103,6 +149,7 @@ export function groupReports(list) {
     g.day = nzDay(g.testedAt || g.savedAt)
     g.sentTo = [...new Set(g.files.flatMap((f) => f.sent.map((s) => s.job)))]
     g.unsent = g.files.some((f) => !f.sent.length)
+    g.uploaded = g.files.some((f) => f.meta && f.meta.uploaded)
   }
   return oneCustomerPerDevice(mergeSameTest([...m.values()])).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt))
 }
@@ -131,6 +178,7 @@ function mergeSameTest(groups) {
     merged.savedAt = Math.max(...list.map((g) => g.savedAt))
     merged.sentTo = [...new Set(merged.files.flatMap((f) => f.sent.map((s) => s.job)))]
     merged.unsent = merged.files.some((f) => !f.sent.length)
+    merged.uploaded = merged.files.some((f) => f.meta && f.meta.uploaded)
     for (const g of rest) { if (!merged.serial) merged.serial = g.serial; if (!merged.model) merged.model = g.model; if (merged.customer === NO_CUSTOMER) merged.customer = g.customer; if (!merged.template) merged.template = g.template }
     out.push(merged)
   }
