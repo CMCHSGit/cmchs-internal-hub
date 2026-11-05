@@ -1792,6 +1792,114 @@ const SIMPRO_SYNC_ALLOWLIST = [
 // covers reading and syncing, never deleting.
 const SIMPRO_SYNC_ADMIN_ONLY = ['delete'];
 const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes'];
+// Simpro's four job stages (the Ansur and SimproSync pickers offer exactly these).
+const SIMPRO_SYNC_STAGES = ['Pending', 'Progress', 'Complete', 'Archived'];
+// A job's notes are replaced whole by a PATCH (Ansur appends to a fresh copy first), so
+// this is a ceiling on one job's whole notes field, far above any real one.
+const SIMPRO_SYNC_MAX_NOTES = 50000;
+
+// What a job PATCH may carry. Returns '' when fine, else why not. The fields are
+// already limited to Stage/Status/Notes; this limits their values, so a call made
+// from a browser console can't set anything the tools themselves wouldn't.
+function simproSyncJobPatchError_(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return 'has no fields to update';
+  const keys = Object.keys(body);
+  if (!keys.length) return 'has no fields to update';
+  if (keys.some(function (k) { return SIMPRO_SYNC_JOB_PATCH_FIELDS.indexOf(k) === -1; })) return 'updates a field that is not allowed';
+  if ('Stage' in body && SIMPRO_SYNC_STAGES.indexOf(body.Stage) === -1) return 'sets a stage that is not one of Simpro’s four';
+  if ('Status' in body) {
+    // SimproSync sends the number, or {ID: n} as a retry; anything else is not a status code.
+    const s = body.Status && typeof body.Status === 'object' ? body.Status.ID : body.Status;
+    if (typeof s !== 'number' || !isFinite(s) || Math.floor(s) !== s || s < 0) return 'sets a status that is not a status code';
+  }
+  if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_SYNC_MAX_NOTES)) return 'sets notes that are not text or are too long';
+  return '';
+}
+
+// Attachments may be saved on the job but never published: Public:true would make a
+// file visible outside the company. Both tools send false.
+function simproSyncAttachmentPublicOk_(body) {
+  return body.Public === undefined || body.Public === false;
+}
+
+// One line, in words and with no private content, for the hub activity log: what the
+// writes in this call did. Job and site numbers and field names only, never note text,
+// file names or customer details. '' when the call only read.
+function simproSyncWriteSummary_(requests, results) {
+  const groups = [];
+  const find = function (text) {
+    for (var g = 0; g < groups.length; g++) if (groups[g].text === text) return groups[g];
+    const created = { text: text, n: 0, refused: 0 };
+    groups.push(created);
+    return created;
+  };
+  for (var i = 0; i < requests.length; i++) {
+    const r = requests[i] || {};
+    const method = String(r.method || 'get').toLowerCase();
+    if (method === 'get') continue;
+    const path = String(r.path || '').split('?')[0];
+    var m, text;
+    if (method === 'patch' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)$/))) {
+      const body = r.body || {};
+      text = 'changed job ' + m[1] + ': ' + Object.keys(body).map(function (k) { return k === 'Stage' ? 'Stage to ' + body.Stage : k; }).join(', ');
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/attachments\/files\/$/))) {
+      text = 'attached a file to job ' + m[1];
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/\d+\/costCenters\/\d+\/assets\/$/))) {
+      text = 'attached an asset to job ' + m[1];
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/sites\/(\d+)\/assets\/$/))) {
+      text = 'added an asset to site ' + m[1];
+    } else if (method === 'patch' && (m = path.match(/^\/companies\/\d+\/sites\/(\d+)\/assets\/\d+\/customFields\/\d+$/))) {
+      text = 'updated an asset custom field on site ' + m[1];
+    } else if (method === 'delete' && (m = path.match(/^\/companies\/\d+\/sites\/(\d+)\/assets\/\d+$/))) {
+      text = 'deleted an asset on site ' + m[1];
+    } else {
+      text = 'made a ' + method.toUpperCase() + ' change';
+    }
+    const grp = find(text);
+    grp.n++;
+    const st = results && results[i] ? results[i].status : 0;
+    if (!(st >= 200 && st < 300)) grp.refused++;
+  }
+  if (!groups.length) return '';
+  const line = 'Simpro: ' + groups.map(function (g) {
+    return g.text + (g.n > 1 ? ' (×' + g.n + ')' : '') + (g.refused ? ' — ' + (g.refused === g.n ? 'refused' : g.refused + ' refused') + ' by Simpro' : '');
+  }).join('; ');
+  return line.length > 450 ? line.slice(0, 449) + '…' : line;
+}
+
+// Adds that line to the hub activity log (Firestore `activity`, same shape as
+// shared/activity.js) using the caller's own token, so the firestore.rules for
+// that collection decide it exactly as they would for the browser: it can only be
+// about themselves, with the server's time. Done here, not left to the pages, so a
+// call made straight to this proxy is recorded too. A logging failure never fails
+// the Simpro work it describes; it is noted in this script's own log.
+function simproSyncAudit_(idToken, who, summary) {
+  if (!summary) return;
+  try {
+    const parent = 'projects/' + scheduleFirebaseProjectId_() + '/databases/(default)/documents';
+    const fields = {
+      uid:     { stringValue: String(who.uid) },
+      name:    { stringValue: String(who.name || who.email || 'Someone') },
+      summary: { stringValue: summary },
+      app:     { stringValue: 'simprosync' }
+    };
+    if (who.email) fields.email = { stringValue: String(who.email) };
+    const resp = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/' + parent + ':commit', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + idToken },
+      payload: JSON.stringify({ writes: [{
+        update: { name: parent + '/activity/' + Utilities.getUuid().replace(/-/g, ''), fields: fields },
+        updateTransforms: [{ fieldPath: 'at', setToServerValue: 'REQUEST_TIME' }],
+        currentDocument: { exists: false }
+      }] }),
+      muteHttpExceptions: true
+    });
+    if (resp.getResponseCode() !== 200) Logger.log('simproSync: activity line not written (' + resp.getResponseCode() + ')');
+  } catch (err) {
+    Logger.log('simproSync: activity line not written — ' + err);
+  }
+}
 const SIMPRO_SYNC_ATTACHMENT_FIELDS = ['Filename', 'Public', 'Base64Data', 'Folder'];
 // One attachment per batch, and a ceiling on each. Base64 is ~4/3 of the file,
 // so this is roughly a 15 MB PDF — far above a PVT report, far below the point
@@ -1992,7 +2100,8 @@ function simproSyncVerifyAdmin_(idToken) {
     throw new Error((decoded.email || decoded.uid) + ' does not have Simpro access');
   }
 
-  const result = { uid: decoded.uid, email: decoded.email, admin: role === 'admin' };
+  const name = fields.displayName && fields.displayName.stringValue;
+  const result = { uid: decoded.uid, email: decoded.email, name: name || '', admin: role === 'admin' };
   const ttlSeconds = Math.max(1, Math.min(600, decoded.exp - Math.floor(Date.now() / 1000)));
   cache.put(cacheKey, JSON.stringify(result), ttlSeconds);
   return result;
@@ -2024,15 +2133,16 @@ function simproSyncProxy_(payload) {
       return respond({ success: false, error: 'Request ' + i + ' (' + method.toUpperCase() + ') needs the admin role' });
     }
     if (method === 'patch' && /^\/companies\/\d+\/jobs\/\d+$/.test(path.split('?')[0])) {
-      const keys = Object.keys(r.body || {});
-      if (keys.some(function (k) { return SIMPRO_SYNC_JOB_PATCH_FIELDS.indexOf(k) === -1; })) {
-        return respond({ success: false, error: 'Request ' + i + ' updates a field that is not allowed' });
-      }
+      const why = simproSyncJobPatchError_(r.body);
+      if (why) return respond({ success: false, error: 'Request ' + i + ' ' + why });
     }
     if (/^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {
       const body = r.body || {};
       if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {
         return respond({ success: false, error: 'Request ' + i + ' sets an attachment field that is not allowed' });
+      }
+      if (!simproSyncAttachmentPublicOk_(body)) {
+        return respond({ success: false, error: 'Request ' + i + ' tries to make an attachment public, which is not allowed' });
       }
       if (!simproSyncFilenameOk_(body.Filename)) {
         return respond({ success: false, error: 'Request ' + i + ' has an unusable attachment filename: ' + String(body.Filename).slice(0, 120) });
@@ -2061,6 +2171,8 @@ function simproSyncProxy_(payload) {
     try { data = text ? JSON.parse(text) : null; } catch (e) {}
     return { status: resp.getResponseCode(), data: data };
   });
+  // After the work, so the line says what happened. Reads add nothing.
+  simproSyncAudit_(payload.idToken, who, simproSyncWriteSummary_(requests, results));
   return respond({ success: true, results: results });
 }
 

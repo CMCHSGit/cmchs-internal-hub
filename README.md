@@ -134,6 +134,12 @@ logActivity(null, 'Added a PM for Hutt (First PM)') // ...then say what happened
   never its title; project comments log "Commented on <job>", never the words. No pay, health, emergency contacts, keys or passwords.
 - Log once per action, not per keystroke or tick (a checklist logs "Imported 40 devices", not every tick: each device keeps who ticked it and when).
 - It never blocks the action: a failure (offline, rules not published) only means that line is lost. Call it after the write succeeds.
+- **Simpro changes are logged by the proxy, not the pages** (`simproSyncAudit_` in `backend/apps-script/proxy/Code.js`), so a call made
+  straight to it is recorded too: one line per call that wrote ("Simpro: changed job 7: Stage to Complete", "attached a file to
+  job 7", "refused by Simpro" when it was). Job and site numbers and field names only. Shown under the tool SimproSync, whichever
+  tool made the call. Tested in `apps/hub/tests/simpro-access.test.mjs` and, against the real rules, `rules/tests/simpro-audit-rules.test.mjs`.
+  The proxy also refuses a job update whose Stage isn't one of Simpro's four, whose Status isn't a number, or whose Notes aren't text
+  (50,000 characters at most), and an attachment marked public.
 
 ## CHS Test Bench (`/testbench/`)
 
