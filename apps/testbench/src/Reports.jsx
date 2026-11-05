@@ -72,12 +72,21 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
     try {
       const { list, skipped } = await withMtr()
       if (!list.length) throw new Error('Nothing to download.' + skippedNote(skipped))
+      // Each file on its own: one the browser refuses to write into the folder ("Aborted due to security policy" is its security check on the file)
+      // doesn't stop the rest, and whatever could not be written there is downloaded instead.
+      const failed = []
       if (dir) {
-        for (const f of list) { const w = await (await dir.getFileHandle(f.name, { create: true })).createWritable(); await w.write(new Blob([f.buffer], { type: f.mime })); await w.close() }
-      } else if (list.length === 1) saveBlob(list[0].name, new Blob([list[0].buffer], { type: list[0].mime }))
-      else saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(list.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
+        for (const f of list) {
+          try { const w = await (await dir.getFileHandle(f.name, { create: true })).createWritable(); await w.write(new Blob([f.buffer], { type: f.mime })); await w.close() }
+          catch (e) { failed.push({ f, why: `${e.name || 'Error'}: ${e.message || e}` }) }
+        }
+      }
+      const toDownload = dir ? failed.map((x) => x.f) : list
+      if (toDownload.length === 1) saveBlob(toDownload[0].name, new Blob([toDownload[0].buffer], { type: toDownload[0].mime }))
+      else if (toDownload.length > 1) saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(toDownload.map((f) => ({ name: f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
       logActivity(null, `Saved ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
-      setNote({ text: (dir ? `Saved ${list.length} file${list.length === 1 ? '' : 's'} to ${dir.name}.` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: 'success' })
+      const saved = dir ? list.length - failed.length : 0
+      setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
     } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 

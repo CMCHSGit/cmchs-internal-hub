@@ -4035,18 +4035,20 @@ async function saveReportFiles(run, mode = 'download') {
     try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }); }   // first, while the click still counts
     catch (e) { if (e.name === 'AbortError') return; log('er', 'RUN', 'Folder not chosen, downloading instead: ' + e.message); }
   }
-  const btns = ['#sumSave', '#sumDownload'].map((s) => $(s)).filter(Boolean); btns.forEach((b) => { b.disabled = true; });
+  const btns = ['#sumSave', '#sumDownload'].map((s) => $(s)).filter(Boolean); btns.forEach((b) => { b.disabled = true; }); let fell = 0;
   try {
     const files = [[ReportPdf.fileName(run), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' })]];
     if (!run.imported) files.push([outName(run, 'mtr'), new Blob([buildMtr(run)], { type: 'application/xml' })]);
     for (const [name, blob] of files) {
       if (keep) { offerToHub(name, blob); continue; }
-      if (dir) { const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(blob); await w.close(); }
-      else download(name, blob);
+      if (dir) {
+        try { const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(blob); await w.close(); }
+        catch (e) { log('er', 'RUN', `${name} couldn’t be written to ${dir.name} (${e.name || 'Error'}: ${e.message}); downloaded instead`); download(name, blob); fell++; }   // e.g. the browser's security check on the file
+      } else download(name, blob);
     }
     const names = files.map((f) => f[0]).join(' and ');
     log('in', 'RUN', keep ? `Saved to Saved reports: ${names}` : `${dir ? 'Saved' : 'Downloaded'} ${names}${dir ? ` to ${dir.name}` : ''}`);
-    toast(keep ? `Saved to Saved reports: ${names}` : `${dir ? 'Saved to ' + dir.name : 'Downloaded'}: ${names}`, 5000);
+    toast(keep ? `Saved to Saved reports: ${names}` : fell ? `${fell} of ${files.length} couldn’t be written to ${dir.name} (the browser refused) and were downloaded instead.` : `${dir ? 'Saved to ' + dir.name : 'Downloaded'}: ${names}`, 6000);
   } catch (e) { log('er', 'RUN', 'Saving the report files failed: ' + e.message); dialog({ title: keep ? 'Couldn’t save the report' : 'Couldn’t download the report', body: `<p>${esc(e.message)}</p><p class="muted">Use Print instead and choose Save as PDF.</p>` }); }
   btns.forEach((b) => { b.disabled = false; });
 }

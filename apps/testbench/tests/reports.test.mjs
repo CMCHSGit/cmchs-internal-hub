@@ -156,3 +156,12 @@ test('legacy duplicates of one run (same start time, saved under two names) show
   assert.equal(groups[0].savedAt, 20)
   assert.equal(groups[0].unsent, true)
 })
+
+test('a file the browser refuses to write into the chosen folder ("Aborted due to security policy") does not stop the rest: it is downloaded instead and the reason is shown', () => {
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('failed.push({ f, why:') && ui.includes('couldn’t be written there'), 'Saved reports: per file, with the reason')
+  assert.ok(ui.includes('const toDownload = dir ? failed.map((x) => x.f) : list'), 'what failed is downloaded (one file, or one zip)')
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(html.includes('downloaded instead'), 'the bench does the same for Download')
+  assert.ok(html.includes('download(name, blob); fell++'))
+})
