@@ -465,6 +465,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         </div>
         <div class="row">
           <button class="btn" id="sumNew" type="button" title="Start the next device with this same template and these details, without the serial number"><svg class="i"><use href="#i-plus"/></svg>Test another device</button>
+          <button class="btn secondary" id="sumRerun" type="button" title="Run this test again on the same device, from the first step. This result stays in Previous tests."><svg class="i"><use href="#i-refresh"/></svg>Rerun test</button>
           <button class="btn secondary" id="sumResume" type="button" hidden><svg class="i"><use href="#i-play"/></svg>Continue test</button>
           <button class="btn quiet" id="sumSkipRest" type="button" hidden>Skip steps not done</button>
           <button class="btn quiet" id="sumEdit" type="button">Edit details</button>
@@ -4549,6 +4550,7 @@ const App = {
     $('#editDut').addEventListener('click', () => Runner.editDetails());
     $('#sumEdit').addEventListener('click', () => Runner.editDetails());
     $('#sumNew').addEventListener('click', () => this.nextDevice());
+    $('#sumRerun').addEventListener('click', () => this.rerun());
     $('.brand').addEventListener('click', (e) => this.home(e));
     window.addEventListener('message', (e) => { if (e.origin === location.origin && e.source === window.parent && e.data && e.data.type === 'chs-bench:home') this.home(); });   // the hub's Test Bench tab, clicked again
     $('#nextOther').addEventListener('click', () => { $('#runSetup').classList.remove('next-device'); this.refreshRunPicker(); window.scrollTo({ top: 0 }); });
@@ -4729,6 +4731,15 @@ const App = {
     if (!$('#runSummary').hidden) { if (Power.on) Power.off(true); $('#runSummary').hidden = true; $('#runSetup').hidden = false; }
     $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true;
     this.show('run'); this.refreshRunPicker(); window.scrollTo({ top: 0 });
+  },
+  /** Run the same test again on the same device, from the first step (a fresh test: the finished one stays in Previous tests). */
+  rerun() {
+    const run = Runner.run, t = run && Store.get(run.templateId); if (!run) return;
+    if (!t) { toast('This test’s template is no longer here, so it can’t be run again.', 5000); return; }
+    if (Power.on) Power.off(true);
+    log('in', 'RUN', `Rerun of “${t.name}” on the same device`);
+    Runner.start(t, clone(run.dut), run.model);
+    toast('Running the test again from the first step. The earlier result stays in Previous tests.', 5000);
   },
   nextDevice() {
     const run = Runner.run, t = run && Store.get(run.templateId);

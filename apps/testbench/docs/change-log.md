@@ -154,3 +154,6 @@ Of 30 files, 3 were refused ("Aborted due to security policy") and came down as 
 
 ## Choose the files: both, PDF only, Ansur record only (05/11/2026)
 On a finished test's summary a **Files** list beside Save and Download chooses what they make: PDF and Ansur record (the default), PDF only, or Ansur record (.mtr) only. It is remembered on that PC. A PDF-only Save no longer adds the Ansur record by itself. In Saved reports the same choice is the "Include" ticks (Reports (PDF), Ansur records, and Results files for older saved tests) used by Save to a folder, Download as zip and Attach to a Simpro job.
+
+## Rerun test (05/11/2026)
+The summary has a **Rerun test** button: the same template (its latest version) on the same device with the same details, from the first step. It is a new test (the finished one stays in Previous tests and in Saved reports, so saving the rerun gives a second set of files for the same serial number), unlike Test another device, which clears the serial number, and Continue test, which carries on an unfinished one.

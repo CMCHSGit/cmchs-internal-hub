@@ -194,3 +194,10 @@ test('Save and Download make the files you choose: PDF and Ansur record, PDF onl
   assert.ok(html.includes('offerToHub(name, blob, true)') && html.includes('if (!only && mtrName !== name'), 'a PDF-only Save does not add the Ansur record on its own')
   assert.ok(html.includes('so that file already exists'), 'a test opened from an Ansur record has no .mtr to make')
 })
+
+test('Rerun test starts the same template on the same device from the first step, as a new test', () => {
+  assert.ok(html.includes('id="sumRerun"') && html.includes("$('#sumRerun').addEventListener('click', () => this.rerun())"))
+  const fn = html.slice(html.indexOf('  rerun() {'), html.indexOf('  nextDevice() {'))
+  assert.ok(fn.includes('Runner.start(t, clone(run.dut), run.model)'), 'the same details and model, a fresh run')
+  assert.ok(fn.includes('Power.off(true)') && fn.includes('stays in Previous tests'))
+})
