@@ -251,7 +251,17 @@ export function startApp({ transport, who }) {
     $('apply').disabled = busy || !plan || plan.applied || actionCount(plan) === 0;
     $('delFind').disabled = busy || !$('delType').value;
     $('delRun').disabled = busy || !delPlan || delPlan.ran || !delChosen().length;
+    holdUpdates();
   }
+  // A new version of the hub must never reload this page out from under work: not while a run is going, and not while a
+  // loaded file or a preview (minutes of reading Simpro) is waiting to be applied - both are lost by a reload. data-working
+  // is what the shell's update guard (shared/updateGuard.js) holds off for; the update then waits for "Update now" and for
+  // this to finish. beforeunload is the last net: any other reload asks first.
+  function unsavedWork() {
+    return busy || (!!book && !(plan && plan.applied)) || (!!delPlan && !delPlan.ran);
+  }
+  function holdUpdates() { $('drop').toggleAttribute('data-working', unsavedWork()); }
+  window.addEventListener('beforeunload', e => { if (busy || (plan && !plan.applied) || (delPlan && !delPlan.ran)) { e.preventDefault(); e.returnValue = ''; } });
   function resetResults() { plan = null; $('results').hidden = true; updateButtons(); }
 
   /* ---------- jobs ---------- */
@@ -275,6 +285,8 @@ export function startApp({ transport, who }) {
       if (status === 404) { jp.problems.push('Job not found in Simpro'); continue; }
       if (status !== 200) { jp.problems.push(`Could not read the job (${status}): ${brief(data)}`); continue; }
       jp.job = { name: data.Name || '', site: data.Site || {}, stage: data.Stage || '', status: (data.Status || {}).Name || '', customer: (data.Customer || {}).CompanyName || '', notes: data.Notes || '' };
+      const elsewhere = items.filter(x => p.movedKeys && p.movedKeys.has(`${x.site}|${x.ser}`));
+      if (elsewhere.length) jp.problems.push(`${elsewhere.length} asset(s) are in Simpro on a different site than the sheet says - job left alone until the Site ID is corrected`);
       const wrong = items.filter(x => String(x.site) !== String(jp.job.site.ID));
       if (wrong.length) jp.problems.push(`Job is for site ${jp.job.site.ID} (${jp.job.site.Name}) but ${wrong.length} asset(s) are on site ${[...new Set(wrong.map(x => x.site))].join(', ')} - job left alone`);
       if (CLOSED_STAGES.includes(jp.job.stage)) jp.problems.push(`Job is already at stage "${jp.job.stage}" - left alone`);
@@ -337,7 +349,7 @@ export function startApp({ transport, who }) {
     try {
       log(`PREVIEW | ${fileName} | sheets: ${sheets.map(s => `${s.name} (${s.typeName})`).join(', ')} | ${stamp.toLocaleString('en-NZ')} | by ${WHO}` + (only ? ` | only: ${[...only].join(', ')}` : '') + (warranty.columnFound ? ` | job notes grouped by Extended Warranty (${warranty.serials.size} marked Yes)` : ''));
 
-      const creates = [], changes = [], warnings = [], simproOnly = [], simproErrors = [], dupes = [], unmapped = [];
+      const creates = [], changes = [], warnings = [], simproOnly = [], simproErrors = [], dupes = [], unmapped = [], moved = [];
       let unchanged = 0;
       const combinedExisting = new Map(); // site|serial -> {id, values} - for job-attach lookups, across all sheets
       const combinedJobs = new Map();     // jobNo -> items[] - merged across sheets
@@ -428,6 +440,14 @@ export function startApp({ transport, who }) {
         const res = SyncCore.compare(recs, mapped, sheetExisting, only);
         res.creates.forEach(c => Object.assign(c, { sheet: sr.name, cid, tid: sr.tid, typeName: sr.typeName }));
         res.changes.forEach(c => Object.assign(c, { sheet: sr.name, cid, tid: sr.tid, typeName: sr.typeName }));
+        // A serial the sheet puts on one site but Simpro already has on another is not a new asset (see SyncCore.splitMoved).
+        const sp = SyncCore.splitMoved(res.creates, res.simproOnly);
+        res.creates = sp.creates; res.simproOnly = sp.simproOnly;
+        sp.moved.forEach(m => {
+          Object.assign(m, { sheet: sr.name });
+          moved.push(m);
+          res.warnings.push({ row: m.rownum, serial: m.ser, msg: `Already in Simpro on site ${m.found.map(f => f.site).join(', ')} (asset ${m.found.map(f => f.id).join(', ')}), but the sheet says site ${m.site} - not created. Correct the Site ID in the sheet.` });
+        });
         res.warnings.forEach(w => w.sheet = sr.name);
         res.simproOnly.forEach(s => Object.assign(s, { sheet: sr.name }));
         creates.push(...res.creates);
@@ -435,6 +455,7 @@ export function startApp({ transport, who }) {
         warnings.push(...res.warnings);
         simproOnly.push(...res.simproOnly);
         unchanged += res.unchanged;
+        if (sp.moved.length) log(`  Already in Simpro on a different site than the sheet says (not created): ${sp.moved.length}`);
         log(`  To create: ${res.creates.length}   To update: ${res.changes.length} (${res.changes.reduce((n, c) => n + c.changes.length, 0)} field changes)   Unchanged: ${res.unchanged}`);
 
         for (const [jobNo, items] of res.jobs) {
@@ -444,7 +465,7 @@ export function startApp({ transport, who }) {
         }
       }
 
-      plan = { creates, changes, warnings, unchanged, simproOnly, dupes, simproErrors, unmapped, cid, stamp, fileName, applied: false, existing: combinedExisting, jobs: combinedJobs };
+      plan = { moved, movedKeys: new Set(moved.map(m => `${m.site}|${m.ser}`)), creates, changes, warnings, unchanged, simproOnly, dupes, simproErrors, unmapped, cid, stamp, fileName, applied: false, existing: combinedExisting, jobs: combinedJobs };
       await planJobs(plan);
       log(`\nTOTAL  To create: ${creates.length}   To update: ${changes.length} (${changes.reduce((n, c) => n + c.changes.length, 0)} field changes)   Unchanged: ${unchanged}`);
       log(`In Simpro but not in sheet (left alone): ${simproOnly.length}`);
@@ -475,6 +496,7 @@ export function startApp({ transport, who }) {
       tile(p.changes.length, `to update<small>${fieldChanges} field change${fieldChanges === 1 ? '' : 's'}</small>`, p.changes.length ? 'accent' : '') +
       tile(p.unchanged, 'unchanged') +
       tile(p.warnings.length, 'warnings', p.warnings.length ? 'warn' : '') +
+      (p.moved.length ? tile(p.moved.length, 'already in Simpro<small>on another site: not created</small>', 'warn') : '') +
       tile(p.simproOnly.length, 'in Simpro only<small>left alone</small>') +
       (p.simproErrors.length ? tile(p.simproErrors.length, 'Excel errors<small>already in Simpro</small>', 'warn') : '') +
       (p.jobPlans.length ? tile(okJobs(p).length, `job${okJobs(p).length === 1 ? '' : 's'} to complete<small>${okJobs(p).reduce((n, j) => n + j.attach.length, 0)} assets to attach${p.jobPlans.length - okJobs(p).length ? ` · ${p.jobPlans.length - okJobs(p).length} with problems` : ''}</small>`, p.jobPlans.length - okJobs(p).length ? 'warn' : (okJobs(p).length ? 'accent' : '')) : '');

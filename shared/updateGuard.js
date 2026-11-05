@@ -16,6 +16,9 @@ export const IDLE_MS = 10 * 60_000   // no touch, key or scroll for this long = 
 export const QUIET_MS = 4_000        // never reload within this long of the last touch
 export const DRAFT_MS = 2 * 60 * 60_000 // a typed-into field older than this is treated as abandoned
 
+/** A screen says it is working: a run in progress, a loaded file or preview not yet applied, unsaved edits. */
+export const workInProgress = (doc = document) => doc.body.classList.contains('busy') || !!doc.querySelector('[data-working]')
+
 /** Reload now? Pure, so it can be tested without a page. */
 export function shouldReload({ ready, busy, sinceActiveMs }) {
   return !!ready && !busy && sinceActiveMs >= QUIET_MS
@@ -66,7 +69,7 @@ export function startGuard(doc = document, win = window) {
   doc.addEventListener('reset', done, true)
 
   /** A screen that says it is working (a run in progress, unsaved PDF edits). */
-  const running = () => doc.body.classList.contains('busy') || !!doc.querySelector('[data-working]')
+  const running = () => workInProgress(doc)
 
   const dialogOpen = () => [...doc.querySelectorAll('dialog[open],[role="dialog"],[role="alertdialog"],[aria-modal="true"]')].some(visible)
 

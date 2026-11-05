@@ -128,6 +128,23 @@ const SyncCore = (() => {
     const simproOnly = only ? [] : [...existing.keys()].filter(k => !seen.has(k)).map(k => ({ site: k.split('|')[0], ser: k.split('|')[1], id: existing.get(k).id }));
     return { changes, creates, warnings, unchanged, simproOnly, jobs };
   }
+  /* A row the sheet says is on site A, whose serial is already in Simpro on site B (a wrong Site ID in the sheet),
+     matches nothing by site and used to come up as "to create": the create then failed (no such site) or, on a real
+     site, made a duplicate. Called with compare()'s creates and simproOnly (the assets read from the sheet's sites
+     that no row matched): a create whose serial is among those is not a create. Returns the creates that remain,
+     the moved ones (each with where Simpro has it: found [{site, id}]) and simproOnly without the ones claimed. */
+  function splitMoved(creates, simproOnly) {
+    const bySerial = new Map();
+    for (const s of simproOnly) { if (!bySerial.has(s.ser)) bySerial.set(s.ser, []); bySerial.get(s.ser).push(s); }
+    const keep = [], moved = [], claimed = new Set();
+    for (const c of creates) {
+      const hit = bySerial.get(c.ser);
+      if (hit && hit.length) { moved.push({ rownum: c.rownum, site: c.site, ser: c.ser, found: hit.map(h => ({ site: h.site, id: h.id })) }); hit.forEach(h => claimed.add(h)); }
+      else keep.push(c);
+    }
+    return { creates: keep, moved, simproOnly: simproOnly.filter(s => !claimed.has(s)) };
+  }
+
   /* ---------- Job notes ----------
      Everything that decides what a job's Notes will say lives here, so the
      preview (which shows the text) and Apply (which writes it) cannot drift
@@ -225,6 +242,6 @@ const SyncCore = (() => {
     return s;
   }
   return { MATCH_FIELD, SITE_COL, JOB_COL, XL_ERRORS, asText, asDateIso, isErr, toRecords, mapColumns, compare,
-    plainNotes, assetText, warrantyScan, jobNoteLines, jobNoteBlock, jobNotePreview, summariseNotes };
+    splitMoved, plainNotes, assetText, warrantyScan, jobNoteLines, jobNoteBlock, jobNotePreview, summariseNotes };
 })();
 export { SyncCore };

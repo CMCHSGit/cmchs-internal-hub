@@ -6,6 +6,7 @@
 import { Component, lazy, Suspense, useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
 import { reloadOntoLatest } from '../../../shared/register-sw.js'
+import { workInProgress } from '../../../shared/updateGuard.js'
 import { sectionOf, useAddress } from './router.js'
 import Header from './Header.jsx'
 import Home from './Home.jsx'
@@ -59,11 +60,13 @@ class SectionBoundary extends Component {
       if (PHONE) document.addEventListener('visibilitychange', this.reloadIfHidden)
       return
     }
+    // Never from under a run in progress (a Simpro sync keeps going while its page is replaced by this message): the person reloads when it is done.
+    if (workInProgress()) { this.setState({ updating: false }); return }
     try { sessionStorage.setItem('hub:chunkReload', String(Date.now())) } catch { /* private mode */ }
     reloadOntoLatest()
   }
   componentWillUnmount() { document.removeEventListener('visibilitychange', this.reloadIfHidden) }
-  reloadIfHidden = () => { if (document.visibilityState === 'hidden') reloadOntoLatest() }
+  reloadIfHidden = () => { if (document.visibilityState === 'hidden' && !workInProgress()) reloadOntoLatest() }
   reload = () => { this.setState({ updating: true }); reloadOntoLatest() }
   render() {
     if (!this.state.failed) return this.props.children

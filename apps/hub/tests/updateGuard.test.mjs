@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { shouldCheck, shouldReload, IDLE_MS, QUIET_MS } from '../../../shared/updateGuard.js'
+import { shouldCheck, shouldReload, workInProgress, IDLE_MS, QUIET_MS } from '../../../shared/updateGuard.js'
 
 test('reloads onto a new version when it is ready, nothing is in progress and they have paused', () => {
   assert.equal(shouldReload({ ready: true, busy: false, sinceActiveMs: IDLE_MS }), true)
@@ -27,4 +27,11 @@ test('checks for a new version on coming back (not more than every 15 s) and aft
   assert.equal(shouldCheck({ resumed: false, sinceActiveMs: IDLE_MS, sinceCheckMs: IDLE_MS }), true)
   assert.equal(shouldCheck({ resumed: false, sinceActiveMs: IDLE_MS - 1, sinceCheckMs: IDLE_MS }), false)
   assert.equal(shouldCheck({ resumed: false, sinceActiveMs: IDLE_MS, sinceCheckMs: 60_000 }), false)
+})
+
+test('a run, or a loaded file / preview not yet applied (data-working), counts as work in progress', () => {
+  const page = (busy, marked) => ({ body: { classList: { contains: (c) => busy && c === 'busy' } }, querySelector: (sel) => (marked && sel === '[data-working]' ? {} : null) })
+  assert.equal(workInProgress(page(false, false)), false)
+  assert.equal(workInProgress(page(true, false)), true)    // body.busy: a run in progress
+  assert.equal(workInProgress(page(false, true)), true)    // data-working: Simpro Asset Sync with a file or preview waiting
 })
