@@ -5,13 +5,13 @@
 
    So far: pick a customer (the project tracker's customer folders, where each customer's links are kept), open its asset list and
    reports folder, and add a customer or set its two links from here. Admins and the tracker's teams may add and change them. */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ExternalLink, Pencil, Plus } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../../schedule/src/contexts/AuthContext'
 import { TEAMS } from '../../../schedule/src/utils/teams.js'
 import { Alert, Button, Dialog, Loading, Toast, useToast } from '../../../../shared/ui/index.jsx'
 import { logActivity } from '../../../../shared/activity.js'
-import { assetListHref, customerProblems, draftFrom, formOf, reportsHref } from './customers.js'
+import { assetListHref, customerProblems, draftFrom, formOf, reportsHref, searchCustomers } from './customers.js'
 import { saveCustomer, watchCustomers } from './customers-firebase.js'
 import './newequip.css'
 
@@ -61,12 +61,7 @@ function Page() {
 
       <section className="card ne-card" aria-label="Customer">
         <div className="ne-row">
-          <label className="field ne-pick"><span className="field-label">Customer</span>
-            <select className="input" value={current?.id || ''} onChange={(e) => choose(e.target.value)}>
-              <option value="">{sorted.length ? 'Choose a customer…' : 'No customers yet'}</option>
-              {sorted.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </label>
+          <CustomerPicker list={sorted} current={current} onChoose={choose} />
           {canEdit && <Button variant="secondary" iconLeft={<Plus size={16} aria-hidden="true" />} onClick={() => setEditing({})}>Add a customer</Button>}
         </div>
 
@@ -97,6 +92,53 @@ function Page() {
           onSaved={(c, isNew) => { setEditing(null); choose(c.id); say(isNew ? 'Customer added' : 'Saved') }} />
       )}
       <Toast message={toast} />
+    </div>
+  )
+}
+
+const SHOWN = 8
+
+/** Type to find a customer: the matches are listed under the box (arrow keys and Enter, or a click), the first few at a time. */
+function CustomerPicker({ list, current, onChoose }) {
+  const [text, setText] = useState('')
+  const [open, setOpen] = useState(false)
+  const [at, setAt] = useState(0)
+  const box = useRef(null)
+  const matches = useMemo(() => searchCustomers(list, text), [list, text])
+  const shown = matches.slice(0, SHOWN)
+
+  // The box shows the chosen customer's name; typing replaces it with a search.
+  useEffect(() => { setText(current?.name || '') }, [current?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const away = (e) => { if (box.current && !box.current.contains(e.target)) { setOpen(false); setText(current?.name || '') } }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [current?.name])
+
+  const pickOne = (c) => { onChoose(c.id); setText(c.name); setOpen(false) }
+  const onKey = (e) => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setAt((i) => Math.min(i + 1, shown.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setAt((i) => Math.max(i - 1, 0)) }
+    else if (e.key === 'Enter' && open && shown[at]) { e.preventDefault(); pickOne(shown[at]) }
+    else if (e.key === 'Escape') { setOpen(false); setText(current?.name || '') }
+  }
+
+  return (
+    <div className="field ne-pick" ref={box}>
+      <label className="field-label" htmlFor="ne-customer">Customer</label>
+      <input id="ne-customer" className="input" type="search" role="combobox" aria-expanded={open} aria-controls="ne-customer-list" aria-autocomplete="list"
+        value={text} placeholder={list.length ? `Search ${list.length} customer${list.length === 1 ? '' : 's'}…` : 'No customers yet'} autoComplete="off" disabled={!list.length}
+        onChange={(e) => { setText(e.target.value); setAt(0); setOpen(true) }}
+        onFocus={(e) => { e.target.select(); setOpen(true) }} onKeyDown={onKey} />
+      {open && list.length > 0 && (
+        <ul id="ne-customer-list" className="ne-results" role="listbox" aria-label="Customers">
+          {shown.map((c, i) => (
+            <li key={c.id} role="option" aria-selected={c.id === current?.id} className={i === at ? 'is-on' : ''} onPointerDown={(e) => { e.preventDefault(); pickOne(c) }} onMouseEnter={() => setAt(i)}>{c.name}</li>
+          ))}
+          {shown.length === 0 && <li className="ne-none" role="presentation">No customer matches “{text.trim()}”.</li>}
+          {matches.length > SHOWN && <li className="ne-none" role="presentation">{matches.length - SHOWN} more: keep typing to narrow it.</li>}
+        </ul>
+      )}
     </div>
   )
 }

@@ -35,5 +35,13 @@ export function draftFrom(existing, { name, assetList, reports }, defaults) {
   return withLinks({ ...base, name: String(name || '').trim() }, { assetList, reports })
 }
 
+/** The customers whose name has every word typed (any order, any case), by name. A blank search gives them all. */
+export function searchCustomers(list, q = '') {
+  const words = String(q).toLowerCase().split(/\s+/).filter(Boolean)
+  return list
+    .filter((c) => words.every((w) => c.name.toLowerCase().includes(w)))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+}
+
 /** What the form starts with for a customer (or blank for a new one). */
 export const formOf = (c) => ({ name: c?.name || '', assetList: subOf(c, ASSET_LIST)?.link || '', reports: subOf(c, REPORTS)?.link || '' })

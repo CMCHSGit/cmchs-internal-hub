@@ -1,7 +1,7 @@
 // npm test --prefix apps/testbench — the new-equipment page's customers (src/newequip/customers.js). Invented names and links only.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { ASSET_LIST, REPORTS, subOf, assetListHref, reportsHref, withLinks, draftFrom, formOf, customerProblems } from '../src/newequip/customers.js'
+import { ASSET_LIST, REPORTS, subOf, assetListHref, reportsHref, withLinks, draftFrom, formOf, customerProblems, searchCustomers } from '../src/newequip/customers.js'
 
 const LIST = 'https://example.sharepoint.com/:x:/s/example/EaAssetList'
 const FOLDER = 'https://example.sharepoint.com/:f:/s/example/Reports'
@@ -42,6 +42,14 @@ test('a new customer starts with the usual sub folders and the two links', () =>
   assert.ok(d.subs.some((s) => s.name === 'Projects folder'), "the tracker's usual sub folders come too")
   assert.deepEqual(customerProblems(d, []), [])
   assert.deepEqual(formOf(d), { name: 'Kauri Hospital', assetList: LIST, reports: FOLDER })
+})
+
+test('searching customers: every word must be in the name, any order and case; blank gives all, by name', () => {
+  const list = [{ name: 'Waikato Hospital' }, { name: 'Hutt Valley Hospital' }, { name: 'Kauri Aged Care' }]
+  assert.deepEqual(searchCustomers(list, '').map((c) => c.name), ['Hutt Valley Hospital', 'Kauri Aged Care', 'Waikato Hospital'])
+  assert.deepEqual(searchCustomers(list, 'hospital').map((c) => c.name), ['Hutt Valley Hospital', 'Waikato Hospital'])
+  assert.deepEqual(searchCustomers(list, 'HOSP valley').map((c) => c.name), ['Hutt Valley Hospital'])
+  assert.deepEqual(searchCustomers(list, 'zzz'), [])
 })
 
 test('the form says what is wrong: no name, a name already used, a link that is not a web address', () => {

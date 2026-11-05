@@ -6,7 +6,12 @@
 .ne-card { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
 .ne-h2 { margin: 0; font: var(--type-h3); color: var(--text-strong); }
 .ne-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
-.ne-pick { flex: 1 1 320px; min-width: 0; }
+.ne-pick { flex: 1 1 320px; min-width: 0; position: relative; }
+.ne-results { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 4px 0 0; padding: 4px; list-style: none; max-height: 320px; overflow-y: auto; background: var(--surface-card); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); box-shadow: var(--shadow-overlay); }
+.ne-results li { padding: 9px 12px; border-radius: var(--radius-sm); cursor: pointer; color: var(--text-strong); }
+.ne-results li.is-on { background: var(--chs-purple-20); }
+.ne-results li[aria-selected="true"] { font-weight: 600; }
+.ne-results li.ne-none { cursor: default; color: var(--text-muted); }
 .ne-links { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center; }
 .ne-links .btn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; }
 .ne-missing, .ne-note { color: var(--text-muted); font: var(--type-body-sm); margin: 0; }
