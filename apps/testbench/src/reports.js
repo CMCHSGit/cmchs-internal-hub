@@ -48,11 +48,11 @@ export function idbReports(dbName = 'chs-bench-reports') {
 export function describeFile(name) {
   const m = String(name).match(/^(.*?)(?:\.([A-Za-z0-9]{1,8}))?$/)
   const base = m[1], ext = (m[2] || '').toLowerCase()
-  const parts = base.match(/^(.*?)(?: - (.*?))? (\d{2}\.\d{2}\.\d{4})$/)
+  const parts = base.match(/^(.*?)(?: - (.*?))? (\d{2}\.\d{2}\.\d{4})(?: \(rerun (\d+)\))?$/)   // a test run again the same day is "… dd.mm.yyyy (rerun 2)", so it keeps the first one's files
   return {
     base, ext,
     kind: ext === 'pdf' ? 'Report' : ext === 'json' ? 'Results file' : ext === 'mtr' ? 'Ansur record' : ext.toUpperCase() || 'File',
-    serial: parts ? parts[1] : base, model: parts?.[2] || '', date: parts?.[3] || '',
+    serial: parts ? parts[1] : base, model: parts?.[2] || '', date: parts?.[3] || '', rerun: +(parts?.[4] || 0),
   }
 }
 
@@ -89,7 +89,7 @@ export function groupReports(list) {
   const m = new Map()
   for (const r of list) {
     const d = describeFile(r.name), meta = r.meta || {}
-    if (!m.has(d.base)) m.set(d.base, { base: d.base, serial: meta.serial || d.serial, model: meta.model || d.model, date: d.date, customer: meta.customer || NO_CUSTOMER, template: meta.template || '', files: [], savedAt: 0, testedAt: 0 })
+    if (!m.has(d.base)) m.set(d.base, { base: d.base, serial: meta.serial || d.serial, model: meta.model || d.model, date: d.date, rerun: d.rerun, customer: meta.customer || NO_CUSTOMER, template: meta.template || '', files: [], savedAt: 0, testedAt: 0 })
     const g = m.get(d.base)
     g.files.push({ ...r, ext: d.ext, kind: d.kind })
     g.savedAt = Math.max(g.savedAt, r.savedAt)

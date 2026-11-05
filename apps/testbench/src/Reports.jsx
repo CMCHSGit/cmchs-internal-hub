@@ -190,7 +190,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
                 <div key={g.base} className={`tb-test${chosen.has(g.base) ? ' is-picked' : ''}`}>
                   <input type="checkbox" checked={chosen.has(g.base)} onChange={(e) => toggle([g.base], e.target.checked)} aria-label={`Tick ${g.base}`} />
                   <div className="tb-test-main">
-                    <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}
+                    <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}{g.rerun ? ` · rerun ${g.rerun}` : ''}
                       {g.files.some((f) => fresh.has(f.name)) && <Badge tone="purple">New</Badge>}
                       {g.sentTo.length ? <Badge tone="green">Sent to {g.sentTo.join(', ')}</Badge> : <Badge tone="grey">Not sent</Badge>}
                     </div>

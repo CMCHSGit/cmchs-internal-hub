@@ -20,7 +20,7 @@ async function library() {
 }
 
 test('saved files are told apart by name: serial, model, date and what kind', () => {
-  assert.deepEqual(describeFile('FS6-47000856 - A9 02.11.2026.pdf'), { base: 'FS6-47000856 - A9 02.11.2026', ext: 'pdf', kind: 'Report', serial: 'FS6-47000856', model: 'A9', date: '02.11.2026' })
+  assert.deepEqual(describeFile('FS6-47000856 - A9 02.11.2026.pdf'), { base: 'FS6-47000856 - A9 02.11.2026', ext: 'pdf', kind: 'Report', serial: 'FS6-47000856', model: 'A9', date: '02.11.2026', rerun: 0 })
   assert.equal(describeFile('X 02.11.2026.mtr').kind, 'Ansur record')
   assert.equal(describeFile('weird.json').serial, 'weird')
 })
@@ -171,4 +171,21 @@ test('saving to a folder leaves a file that is already there unchanged alone, tr
   assert.ok(ui.includes('async function sameFile(dir, f)') && ui.includes('if (await sameFile(dir, f)) { same++; continue }'), 'identical files are not rewritten (it only makes OneDrive upload them again)')
   assert.ok(ui.includes('setTimeout(r, 1500)') && ui.includes('await writeFile(dir, f)'), 'a refused file is tried once more')
   assert.ok(ui.includes('download(true)') && ui.includes('Download as zip') && ui.includes('onClick={() => download()}'), 'a zip button beside Save to a folder')
+})
+
+test('a rerun the same day keeps the first test: its files have their own names, and both tests are listed', async () => {
+  const { describeFile, groupReports } = await import('../src/reports.js')
+  const d = describeFile('FP5-6A036789 - BeneHeart D30 05.11.2026 (rerun 2).pdf')
+  assert.deepEqual([d.serial, d.model, d.date, d.rerun, d.ext], ['FP5-6A036789', 'BeneHeart D30', '05.11.2026', 2, 'pdf'])
+  assert.equal(describeFile('FP5-6A036789 - BeneHeart D30 05.11.2026.pdf').rerun, 0)
+  const rec = (name, testedAt) => ({ id: name, name, mime: '', buffer: new ArrayBuffer(3), size: 3, savedAt: Date.parse(testedAt) + 1000, sent: [], meta: { serial: 'FP5-6A036789', model: 'BeneHeart D30', customer: 'Waitemata', testedAt, template: 'T' } })
+  const groups = groupReports([rec('FP5-6A036789 - BeneHeart D30 05.11.2026.pdf', '2026-11-04T20:00:00Z'), rec('FP5-6A036789 - BeneHeart D30 05.11.2026.mtr', '2026-11-04T20:00:00Z'),
+    rec('FP5-6A036789 - BeneHeart D30 05.11.2026 (rerun 2).pdf', '2026-11-04T21:00:00Z'), rec('FP5-6A036789 - BeneHeart D30 05.11.2026 (rerun 2).mtr', '2026-11-04T21:00:00Z')])
+  assert.equal(groups.length, 2, 'two tests, neither replaced')
+  assert.deepEqual(groups.map((g) => [g.rerun, g.files.length]).sort(), [[0, 2], [2, 2]])
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(html.includes("${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}"), 'the bench names a rerun\'s files that way')
+  assert.ok(html.includes('Runner.start(t, clone(run.dut), run.model, (run.attempt || 1) + 1)'))
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('rerun ${g.rerun}'), 'Saved reports says which one is the rerun')
 })

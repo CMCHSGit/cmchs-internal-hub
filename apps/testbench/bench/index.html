@@ -1181,10 +1181,10 @@ function judge(value, lo, hi, over) {
 /**
  * True once the recent readings (`{t, v, over}`, oldest first) have stopped moving: at least 3 of them
  * spanning a full window, every one within 2 % of the others (or a small fixed step, so a reading near zero
- * isn't held to an impossible tolerance). Insulation is given a longer window because it charges slowly.
+ * isn't held to an impossible tolerance). Insulation is given a slightly longer window because it charges slowly.
  */
 function isSteady(history, unit, now = Date.now()) {
-  const windowMs = unit === 'MΩ' ? 1500 : 1000;
+  const windowMs = unit === 'MΩ' ? 1200 : 1000;
   const floor = { 'Ω': 0.01, 'MΩ': 0.05, 'µA': 1, 'V': 1 }[unit] ?? 0;
   const recent = history.filter(h => now - h.t <= windowMs + 400);
   if (recent.length < 3 || recent[recent.length - 1].t - recent[0].t < windowMs) return false;
@@ -2535,8 +2535,9 @@ const Sheet = {
 const Runner = {
   run: null, busy: false, abortFlag: false, recordNow: false, holdTimer: null, holdPaused: false,
 
-  start(tpl, dut, model) {
+  start(tpl, dut, model, attempt) {
     this.run = { id: uid(), templateId: tpl.id, template: clone(tpl), dut, started: new Date().toISOString(), idx: 0, results: {}, stdSet: false };
+    if (attempt > 1) this.run.attempt = attempt;   // a rerun: its report files are named "(rerun N)", so the earlier test's are kept
     if (model) {
       const out = this.run.template.steps.filter(s => !stepForModel(s, model));
       this.run.template.steps = this.run.template.steps.filter(s => stepForModel(s, model));
@@ -3481,13 +3482,13 @@ function buildEsaRows(s, tpl) {
     case 'esa_mains': return [['Live – neutral', 'L1-L2', p.lo, p.hi], ['Live – earth', 'L1-GND', '', ''], ['Neutral – earth', 'L2-GND', '', '']].map(([label, m, lo, hi]) => ({ label, setup: [`MAINS=${m}`], unit: 'V', lo, hi, settle: 2 }));
     case 'esa_pe': return [{ label: 'Protective earth resistance', setup: ['IDLE', 'ERES'], unit: 'Ω', lo: '', hi: p.hi, settle: 3 }];
     // Targets without a named command are resolved to INSB / INSD / INSE on the analyser (see Runner.insCmd).
-    case 'esa_ins': { const t = INS_TARGETS[p.target] || INS_TARGETS.MINS; return [{ label: t.label, setup: ['IDLE', t.cmd || `@INS:${p.target}`, `INS=${p.volts}`], unit: 'MΩ', lo: p.lo, hi: '', settle: 5 }]; }
+    case 'esa_ins': { const t = INS_TARGETS[p.target] || INS_TARGETS.MINS; return [{ label: t.label, setup: ['IDLE', t.cmd || `@INS:${p.target}`, `INS=${p.volts}`], unit: 'MΩ', lo: p.lo, hi: '', settle: 3 }]; }
     // Earth leakage measures the current in the earth conductor, so the ESA612 has no earth switch for it (EARTH= is refused).
-    case 'esa_earthl': return p.conds.map(c => ({ label: CONDS[c.c].label, setup: ['EARTHL', ...CONDS[c.c].cmds.filter(x => !/^EARTH=/.test(x))], unit: 'µA', lo: '', hi: c.hi, settle: 4 }));
-    case 'esa_encl': return p.conds.map(c => ({ label: CONDS[c.c].label, setup: ['ENCL', ...CONDS[c.c].cmds], unit: 'µA', lo: '', hi: c.hi, settle: 4 }));
+    case 'esa_earthl': return p.conds.map(c => ({ label: CONDS[c.c].label, setup: ['EARTHL', ...CONDS[c.c].cmds.filter(x => !/^EARTH=/.test(x))], unit: 'µA', lo: '', hi: c.hi, settle: 3 }));
+    case 'esa_encl': return p.conds.map(c => ({ label: CONDS[c.c].label, setup: ['ENCL', ...CONDS[c.c].cmds], unit: 'µA', lo: '', hi: c.hi, settle: 3 }));
     case 'esa_pat': return sets().flatMap(({ g, leads, name }) => p.conds.map(c => {
       const ap = `AP=${apArg(leads)}//OPEN`;
-      return { label: `${name} (${g.apclass}) – ${CONDS[c.c].label}`, unit: 'µA', lo: '', hi: condLimitFor(g.apclass, c.c), settle: 4,
+      return { label: `${name} (${g.apclass}) – ${CONDS[c.c].label}`, unit: 'µA', lo: '', hi: condLimitFor(g.apclass, c.c), settle: 3,
         setup: ['PAT', ap, ...CONDS[c.c].cmds], alts: [['IDLE', ap, 'PAT', ...CONDS[c.c].cmds]] };
     }));
     // Mains on applied parts doesn't apply to type B. Our ESA612 refuses AP= once MAP is selected, so the leads are set under PAT first.
@@ -3495,7 +3496,7 @@ function buildEsaRows(s, tpl) {
     // MAP=NORM (23/10/2026), so the posts are chosen straight after selecting the test. Remaining orders are fallbacks.
     case 'esa_map': return sets().filter(({ g }) => g.apclass !== 'B').flatMap(({ g, leads, name }) => (p.pols.length ? p.pols : ['NORM']).map(pol => {
       const a = apArg(leads), ap = `AP=${a}//OPEN`, mp = `MAP=${pol}`;
-      return { label: `${name} (${g.apclass}) – ${pol === 'REV' ? 'reversed' : 'normal'} MAP`, unit: 'µA', lo: '', hi: AP_LIMITS[g.apclass].map, settle: 4,
+      return { label: `${name} (${g.apclass}) – ${pol === 'REV' ? 'reversed' : 'normal'} MAP`, unit: 'µA', lo: '', hi: AP_LIMITS[g.apclass].map, settle: 3,
         setup: ['IDLE', 'MAP', ap, mp, 'POL=N'],
         alts: [['IDLE', 'MAP', mp, ap, 'POL=N'], ['IDLE', 'MAP', `AP=${a}`, mp, 'POL=N'], ['IDLE', 'MAP=', ap, mp, 'POL=N'], ['PAT', ap, 'MAP', mp, 'POL=N']] };
     }));
@@ -4479,7 +4480,7 @@ function outName(run, ext) {
   const dut = run.dut || {}, pick = (re) => { const k = Object.keys(dut).find(k => re.test(k.trim())); return k ? String(dut[k] || '').trim() : ''; };
   const sn = pick(/^serial/i) || String(dut[Object.keys(dut)[0]] || '').trim() || 'Device', model = pick(/^model$/i);
   const d = new Date(), dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-  return `${safeName(sn)}${model ? ` - ${safeName(model)}` : ''} ${dd}.${ext}`;
+  return `${safeName(sn)}${model ? ` - ${safeName(model)}` : ''} ${dd}${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}`;   // a rerun has its own files, so the first test's are not replaced
 }
 
 /* ======================= app ======================= */
@@ -4738,8 +4739,8 @@ const App = {
     if (!t) { toast('This test’s template is no longer here, so it can’t be run again.', 5000); return; }
     if (Power.on) Power.off(true);
     log('in', 'RUN', `Rerun of “${t.name}” on the same device`);
-    Runner.start(t, clone(run.dut), run.model);
-    toast('Running the test again from the first step. The earlier result stays in Previous tests.', 5000);
+    Runner.start(t, clone(run.dut), run.model, (run.attempt || 1) + 1);
+    toast('Running the test again from the first step. The earlier test’s results and files are kept; this one’s are named (rerun ' + Runner.run.attempt + ').', 6000);
   },
   nextDevice() {
     const run = Runner.run, t = run && Store.get(run.templateId);

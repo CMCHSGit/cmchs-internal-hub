@@ -160,3 +160,9 @@ The summary has a **Rerun test** button: the same template (its latest version) 
 
 ## D30/D60 template order (05/11/2026)
 Mindray BeneHeart D30 / D60 Defibrillator: after the visual and power-on checks and the electrical safety block (unchanged), the monitoring tests now come first (ECG, paced signals, respiration, temperature, IBP, SpO2, NIBP, sidestream and mainstream CO2, the D60 options), then the defibrillation tests (manual, disarming, synchronised, pacing, RT impedance), then Network and battery, and the **AED test last**. Only the order changed: step text, limits and the D30/D60 model settings are as they were, and the ESA612 steps are still one block. The earlier file is in SharePoint TemplatesOld ("before monitoring first, AED last 05.11.2026"); a test already started keeps its old order (Reload template picks up the new one).
+
+## Shorter waits again (05/11/2026)
+The longest an electrical measurement waits for a reading to settle is now 3 s for insulation (was 5), earth and enclosure leakage, patient leakage and mains on applied parts (was 4); protective earth stays 3 s, mains voltage 2 s. A reading that has stopped moving is still recorded as soon as it does: insulation needs 3 readings over 1.2 s within 2 % (was 1.5 s), the others 1 s. So an insulation step now takes about 3 s plus the ESA612's own switching, instead of 5 to 6. The standard sets no minimum time.
+
+## A rerun keeps the first test's results and files (05/11/2026)
+A rerun the same day has the same serial number, model and date, so its PDF and Ansur record would have had the same names as the first test's and replaced them in Saved reports (and in a folder). Now the rerun's files end "(rerun 2)" (3, 4… for more): `FP5-6A036789 - BeneHeart D30 05.11.2026 (rerun 2).pdf`. Saved reports lists the two as separate tests (the second shows "· rerun 2"); Previous tests already kept each run on its own.
