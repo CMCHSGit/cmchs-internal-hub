@@ -66,6 +66,17 @@
     "visible": true
   },
   {
+    "id": "new-equipment",
+    "name": "New equipment testing",
+    "short": "New equipment",
+    "description": "One page for a customer's new equipment: asset list, Simpro, bench tests and filed reports (being built)",
+    "link": "/new-equipment/",
+    "category": "Service",
+    "icon": "stethoscope",
+    "opens": "here",
+    "visible": false
+  },
+  {
     "id": "pdf-editor",
     "name": "PDF Editor",
     "short": "PDF Editor",

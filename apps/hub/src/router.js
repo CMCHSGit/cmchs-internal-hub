@@ -22,6 +22,7 @@ export const SECTIONS = [
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
   { id: 'testbench', prefix: '/testbench/' },
+  { id: 'new-equipment', prefix: '/new-equipment/' },
   { id: 'pdf-editor', prefix: '/pdf-editor/' },
   // The rebuilt demo tracker while it's built (INTEGRATION-PLAN.md step 4).
   { id: 'equipment', prefix: '/equipment/' },

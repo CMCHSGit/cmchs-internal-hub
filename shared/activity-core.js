@@ -19,6 +19,7 @@ export const APP_LABELS = {
   simprosync: 'SimproSync',
   ansurtopdf: 'Ansur',
   testbench: 'Test Bench',
+  'new-equipment': 'New equipment testing',
 }
 export const appLabel = (app) => APP_LABELS[app] || app || 'Hub'
 

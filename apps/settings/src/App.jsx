@@ -17,7 +17,7 @@
    /settings/appearance. */
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, Bell, CalendarDays, ChevronLeft, ChevronRight, ClipboardCheck, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { Activity, Bell, CalendarDays, ChevronLeft, ChevronRight, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import AdminLock, { isUnlocked } from '../../schedule/src/components/AdminLock'
 import { Loading } from '../../../shared/ui/index.jsx'
@@ -30,7 +30,6 @@ const ScheduleSettings = lazy(() => import('../../schedule/src/pages/Settings.js
 const TrackerSettings = lazy(() => import('../../projects/src/settings-page.jsx'))
 const Jobs = lazy(() => import('./Jobs.jsx'))
 const PmTypes = lazy(() => import('../../maintenance/src/PmTypes.jsx'))
-const Registry = lazy(() => import('./Registry.jsx'))
 
 const PAGES = [
   { group: 'You', to: '/', label: 'Appearance', Icon: Palette, title: 'Appearance', sub: 'Light or dark, and where the hub opens. For this device.' },
@@ -41,7 +40,6 @@ const PAGES = [
   { group: 'Sections', admin: true, to: '/schedule', label: 'Staff schedule', Icon: CalendarDays, title: 'Staff schedule', sub: 'Location suggestions, the Excel import and the activity log.' },
   { group: 'Sections', to: '/projects', label: 'Project tracker', Icon: FolderKanban, title: 'Project tracker', sub: 'Staff, categories, statuses, demo equipment and backups.' },
   { group: 'Sections', to: '/maintenance', label: 'Maintenance', Icon: Wrench, title: 'Maintenance', sub: 'The PM types a site can be scheduled for.' },
-  { group: 'Sections', admin: true, to: '/new-equipment', label: 'New equipment testing', Icon: ClipboardCheck, title: 'New equipment testing', sub: 'The customer registry: each large customer’s asset list and reports folder links, and its Simpro customer and sites.' },
 ]
 
 export default function App() {
@@ -122,7 +120,6 @@ function Layout() {
             <Route path="/schedule" element={<Page p={PAGES[5]}><ScheduleSettings /></Page>} />
             <Route path="/projects" element={<Page p={PAGES[6]}><TrackerSettings /></Page>} />
             <Route path="/maintenance" element={<Page p={PAGES[7]}><PmTypes /></Page>} />
-            <Route path="/new-equipment" element={<Page p={PAGES[8]}><AdminOnly><Registry /></AdminOnly></Page>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
