@@ -64,7 +64,7 @@ test('Save keeps the PDF and Ansur record in Saved reports, Download writes both
   assert.ok(html.includes("if (kinds !== 'pdf' && !run.imported) files.push([outName(run, 'mtr')"), 'the Ansur record is made too (not for one opened from an Ansur record)')
   assert.match(html, /\$\('#sumSave'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'save'\)\)/, 'Save keeps both in Saved reports')
   assert.match(html, /\$\('#sumDownload'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'download'\)\)/, 'Download writes both to a folder')
-  assert.match(html, /if \(keep\) \{ offerToHub\(name, blob\); continue; \}/, 'Save asks for no folder and writes no file')
+  assert.ok(html.includes('if (keep) { offerToHub(name, blob, true); continue; }'), 'Save asks for no folder and writes no file')
   assert.match(html, /if \(!keep && typeof window\.showDirectoryPicker === 'function'\)/, 'only Download asks where')
   assert.doesNotMatch(html, /id="sumExport"|id="sumMtr"/, 'no results-file or Ansur-only button')
   assert.match(html, /m\.type !== 'chs-bench:build-pdf'/, 'the bench can build a PDF from a results file or an Ansur record')
