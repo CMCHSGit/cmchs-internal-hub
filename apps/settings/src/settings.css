@@ -82,3 +82,19 @@
   .jobs-row { grid-template-columns: minmax(0, 1fr); }
   .jobs-msg { grid-column: 1; }
 }
+
+/* Customer registry (Registry.jsx) */
+.reg { display: flex; flex-direction: column; gap: 14px; }
+.reg-bar { display: flex; justify-content: flex-end; }
+.reg-empty { padding: 20px; color: var(--text-body); }
+.reg-list { padding: 0; overflow: hidden; }
+.reg-row { display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; padding: 14px 16px; border-top: 1px solid var(--border-hairline); }
+.reg-row:first-child { border-top: 0; }
+.reg-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 320px; }
+.reg-name { color: var(--text-strong); }
+.reg-links { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 14px; }
+.reg-links a { display: inline-flex; align-items: center; gap: 4px; }
+.reg-side { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.reg-form { display: flex; flex-direction: column; gap: 14px; }
+.reg-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 759px) { .reg-two { grid-template-columns: minmax(0, 1fr); } }

@@ -561,6 +561,31 @@ service cloud.firestore {
       return d.keys().hasOnly(['by', 'json']) && d.by is string && d.json is string && d.json.size() < 950000;
     }
 
+    // Customer registry (Settings → New equipment testing): for each large
+    // customer, the links to its asset list and its reports folder (online
+    // OneDrive or SharePoint) and which Simpro customer and sites it is. Links,
+    // names and Simpro numbers only: no workbook and no report is stored here.
+    // The Bench's teams read it (the new-equipment page opens a customer's links
+    // from it); only admins change it. A link must be https, so the page can
+    // never be handed a javascript: address to open.
+    match /customerRegistry/{id} {
+      allow read: if canBench();
+      allow create, update: if isAdmin() && isRegistryEntry();
+      allow delete: if isAdmin();
+    }
+    function isRegistryLink(v) {
+      return v is string && (v == '' || (v.matches('https://[^ ]+') && v.size() <= 1500));
+    }
+    function isRegistryEntry() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['name', 'assetListUrl', 'reportsUrl', 'simproCustomerId', 'siteIds', 'updatedBy', 'updatedAt'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 120
+        && isRegistryLink(d.assetListUrl) && isRegistryLink(d.reportsUrl)
+        && d.simproCustomerId is string && d.simproCustomerId.size() <= 20
+        && d.siteIds is list && d.siteIds.size() <= 30
+        && d.updatedBy == myBenchEmail() && d.updatedAt == request.time;
+    }
+
     // The demo tracker (internal.chsnz.co.nz/equipment/), from step 5 of
     // INTEGRATION-PLAN.md (STEP-5-PLAN.md 5B): its data moved here from the
     // chs-equipment Realtime Database, one document per item and per loan.
