@@ -355,9 +355,6 @@ export function jobOf(doc) {
 /* ── Overview: the phone's two home screens in one (old: mpRenderToday for
    account managers, mpRenderOverview for Service & Projects) ── */
 
-// Service & Projects when the team list gives no role (old: SERVICE_TEAM_OPERATORS).
-const SERVICE_TEAM = ['Peter Lin', 'Jonathan Nasrun']
-
 /** The signed-in person's tracker team record: by name, else by email (old: matchStaffOperator). */
 export function memberFor(user, managers = []) {
   if (!user) return null
@@ -367,7 +364,7 @@ export function memberFor(user, managers = []) {
 }
 
 /** 'am' (account manager) or 'service' (Service & Projects) (old: amEffectiveRole). */
-export const roleOf = (m) => (m && (m.role || (SERVICE_TEAM.includes(m.name) ? 'service' : 'am'))) || ''
+export const roleOf = (m) => (m ? (m.role === 'service' ? 'service' : 'am') : '')
 
 /**
  * Everyone's loans at a glance, from loanSections' groups:
@@ -1209,7 +1206,7 @@ export const AUDIT_LABELS = {
   orphan_recovered: 'Orphan recovered', orphan_deleted: 'Orphan deleted', items_transferred: 'Transferred', loan_reassigned: 'Moved',
   simpro_created: 'Simpro created', simpro_updated: 'Simpro updated', simpro_closed: 'Simpro closed',
   asset_added: 'Asset added', asset_edited: 'Asset edited', asset_deleted: 'Asset deleted', asset_retired: 'Asset retired',
-  upcoming_loan_deleted: 'Booking cancelled', upcoming_item_removed: 'Item removed', am_removed: 'AM removed', retired_asset_deleted: 'Retired asset deleted',
+  upcoming_loan_deleted: 'Booking cancelled', upcoming_item_removed: 'Item removed', am_removed: 'AM removed', am_added: 'AM added', am_role: 'AM role changed',retired_asset_deleted: 'Retired asset deleted',
   kit_deleted: 'Kit deleted', kit_accessory_removed: 'Kit accessory removed', test_report_uploaded: 'Test report uploaded', test_report_deleted: 'Test report deleted', history_deleted: 'History deleted',
 }
 export const AUDIT_KINDS = {
@@ -1545,19 +1542,19 @@ export function linkTarget(search, sections, upcoming = [], equipment = []) {
 }
 
 /**
- * The tracker's team (step 5A): the old list (accountManagers), with each
- * person's role from their hub record (users.trackerRole) where it's set, and
- * anyone with a hub tracker role who isn't on the old list added. Matched by
- * email, else name. Once every role is on the hub records, the old list goes.
+ * The tracker's team (step 5A): the hub's people who have a tracker role
+ * (users.trackerRole, 'am' or 'service', set in Settings, People and access),
+ * signed in or not. A person is { uid, name, email, role, notify? }; the name
+ * is their hub display name (else email), which is what a loan's account
+ * manager holds. `notify: false` when they switched demo reminders off.
  */
-export function teamFrom(old = [], users = []) {
-  const out = old.filter(Boolean).map((a) => ({ ...a }))
-  for (const u of users) {
-    if (!u || u.pending || !u.trackerRole) continue
-    const name = String(u.displayName || u.email || '').trim(), email = String(u.email || '').toLowerCase()
-    const m = out.find((a) => (email && String(a.email || '').toLowerCase() === email) || (name && String(a.name || '').trim().toLowerCase() === name.toLowerCase()))
-    if (m) { m.role = u.trackerRole; if (!m.email && u.email) m.email = u.email }
-    else out.push({ name, email: u.email || '', role: u.trackerRole })
-  }
-  return out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')))
+export function teamFrom(users = []) {
+  return users
+    .filter((u) => u && !u.pending && (u.trackerRole === 'am' || u.trackerRole === 'service'))
+    .map((u) => {
+      const m = { uid: u.uid, name: String(u.displayName || u.email || '').trim(), email: u.email || '', role: u.trackerRole }
+      if (u.notifications?.demoReminders === false) m.notify = false
+      return m
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
 }

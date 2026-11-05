@@ -385,8 +385,7 @@ function sendDemoRemindersRun_() {
   // written. Fixed 2026-08-14.
   const raw = fetchFirebaseJson('/data/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const ams = trackerTeam_();
   const serviceTeam = ams.filter(function(a) { return a && amEffectiveRole_(a) === 'service'; });
 
   // NOTE: the notice window now depends on shipping island (see
@@ -446,14 +445,23 @@ function sendDemoRemindersRun_() {
   });
 }
 
-// Mirrors index.html's SERVICE_TEAM_OPERATORS/amEffectiveRole() so "who
-// counts as Service & Projects" is the same list on both sides — a
-// person's role is an explicit field on their accountManagers record (set
-// via the mobile app's "Manage team roles" sheet), falling back to this
-// hardcoded list for anyone who hasn't had a role set yet.
-const SERVICE_TEAM_OPERATORS = ['Peter Lin', 'Jonathan Nasrun'];
+// The demo tracker's team (step 5A): the hub's people with a tracker role
+// (users/{uid}.trackerRole, set in Settings → People and access), not the old
+// accountManagers list. Read once per run. A person is { name, email, role }; the
+// name is the hub display name, which is what a loan's account manager holds.
+// Throws if Firestore can't be read, so the job shows as failed in Settings,
+// Background jobs rather than quietly sending nothing.
+let trackerTeam__ = null;
+function trackerTeam_() {
+  if (trackerTeam__ === null) {
+    trackerTeam__ = fsList_('users', ['displayName', 'email', 'pending', 'trackerRole'])
+      .filter(function(u) { return u.pending !== true && (u.trackerRole === 'am' || u.trackerRole === 'service'); })
+      .map(function(u) { return { name: String(u.displayName || u.email || '').trim(), email: String(u.email || '').trim(), role: u.trackerRole }; });
+  }
+  return trackerTeam__;
+}
 function amEffectiveRole_(am) {
-  return am.role || (SERVICE_TEAM_OPERATORS.includes(am.name) ? 'service' : 'am');
+  return am.role === 'service' ? 'service' : 'am';
 }
 
 // Push notification for a demo loan entering its notice window — to the
@@ -512,8 +520,7 @@ function sendStuckLoanRemindersRun_() {
   });
   const equipRaw = fetchFirebaseJson('/data/equipment.json') || [];
   const equipment = Array.isArray(equipRaw) ? equipRaw : Object.values(equipRaw);
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const ams = trackerTeam_();
 
   upcoming.filter(function(u) {
     return u && u.startDate && u.startDate <= todayStr && u.items && u.items.length;
@@ -594,8 +601,7 @@ function sendReturnRemindersRun_() {
   const todayStr = today();
   const raw = fetchFirebaseJson('/data/equipment.json') || {};
   const items = Array.isArray(raw) ? raw : Object.values(raw);
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const ams = trackerTeam_();
   const serviceTeam = ams.filter(function(a) { return a && amEffectiveRole_(a) === 'service'; });
 
   // Test loans (BatchID prefixed "testbatch_" — see index.html's
@@ -674,11 +680,9 @@ function loanReturnToken_(loanTo, endDate) {
 // The sole notification channel for the three reminder types above (demo,
 // stuck-loan, return due-soon) since the matching emails were removed
 // 2026-10-05 — see the note at the top of this file under DEMO REMINDER
-// SETUP. Only reaches a device registered via the mobile app's "Enable push
-// notifications" toggle (see index.html's mpEnablePush(), which stores
-// tokens under accountManagers[].fcmTokens) — an AM who has never tapped
-// that toggle gets nothing from any of these three, with no email fallback
-// any more.
+// SETUP. Only reaches a device the person turned notifications on for at
+// internal.chsnz.co.nz (users/{uid}.fcmTokens, see HUB PUSH below): someone
+// who hasn't gets nothing from any of these three, with no email fallback.
 //
 // Raw Web Push needs VAPID (ES256/ECDSA) JWT signing, which Apps Script
 // has no native support for. A Google service-account JWT (RS256/RSA,
@@ -789,7 +793,6 @@ function checkDatabaseAuth() {
     : 'NOT READY — the service account cannot read the database. Do not lock it.');
 }
 
-// am.fcmTokens is an array (one person can have more than one device).
 // url is delivered via the FCM message's "data" field, not
 // webpush.fcm_options.link — the latter is only honoured by Firebase's own
 // default background-message handler, which this app doesn't use (sw.js
@@ -800,61 +803,19 @@ function checkDatabaseAuth() {
 // exactly which of a person's devices actually accepted the push, without
 // needing Cloud Logging wired up to read the alternative (Logger.log).
 //
-// am.notify === false: an admin switched this person off demo reminders on
-// the Internal Hub's Admin settings → Notifications, so every reminder skips
-// them. Missing means on. `force` is for the test sends only, which an admin
-// uses to check someone's phone works whatever their reminders are set to.
+// users/{uid}.notifications.demoReminders === false: the person (Settings → Your
+// notifications) or an admin (Settings → Notifications) switched demo reminders
+// off, so every reminder skips them. Missing means on. `force` is for the test
+// sends only, which an admin uses to check someone's phone works whatever their
+// reminders are set to.
 function sendPushToPerson_(am, title, body, url, force) {
   if (!am) return [];
-  if (am.notify === false && !force) { Logger.log('Push skipped for ' + am.name + ': reminders switched off in Admin'); return []; }
   if (!force && hubDemoOff_(am)) { Logger.log('Push skipped: someone switched their demo reminders off in Settings'); return []; }
-  const auth = getFcmAccessToken_();
-  if (!auth) return [];
-
-  // Phones turned on at internal.chsnz.co.nz come first: that is where demo
-  // reminders now live (see HUB PUSH below). Only if the person has none
-  // there, or every one failed, do the phones registered on
-  // demo.chsnz.co.nz get it — so nobody misses one during the switch-over,
-  // and nobody gets the same reminder twice.
+  // Phones turned on at internal.chsnz.co.nz (see HUB PUSH below). The phones that
+  // were registered on demo.chsnz.co.nz (the old accountManagers list) are no longer used (step 5A).
   const hubTokens = hubTokensFor_(am);
-  if (hubTokens.length) {
-    const hubResults = sendHubPush_(hubTokens, title, body, hubDemoUrl_(url));
-    if (hubResults.some(function(r) { return r.ok; })) return hubResults;
-    Logger.log('Hub push failed on all ' + hubTokens.length + ' device(s) — falling back to demo.chsnz.co.nz devices.');
-  }
-
-  if (!Array.isArray(am.fcmTokens) || !am.fcmTokens.length) return [];
-  const deadTokens = [];
-  const results = am.fcmTokens.map(function(token) {
-    try {
-      const resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + auth.projectId + '/messages:send', {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { Authorization: 'Bearer ' + auth.accessToken },
-        payload: JSON.stringify({ message: { token: token, notification: { title: title, body: body }, data: { url: url } } }),
-        muteHttpExceptions: true
-      });
-      const ok = resp.getResponseCode() < 300;
-      const detail = ok ? null : resp.getContentText();
-      if (ok) {
-        Logger.log('FCM send OK for token ' + token.slice(0, 12) + '...');
-      } else {
-        Logger.log('FCM send failed for token ' + token.slice(0, 12) + '...: ' + detail);
-        // FCM reports this for a token whose push subscription no longer
-        // exists at all (uninstalled, site data cleared, or — the common
-        // case here — a token registered under an origin that no longer
-        // exists, e.g. the pre-HTTPS http:// tokens). It will never
-        // succeed again, so prune it rather than retrying it forever.
-        if (detail.indexOf('UNREGISTERED') !== -1 || detail.indexOf('NotRegistered') !== -1) deadTokens.push(token);
-      }
-      return { token: token.slice(0, 12) + '...', ok: ok, detail: detail };
-    } catch (err) {
-      Logger.log('FCM send error: ' + err);
-      return { token: token.slice(0, 12) + '...', ok: false, detail: String(err) };
-    }
-  });
-  if (deadTokens.length) pruneDeadTokens_(am.name, deadTokens);
-  return results;
+  if (!hubTokens.length) return [];
+  return sendHubPush_(hubTokens, title, body, hubDemoUrl_(url));
 }
 
 // ── HUB PUSH ──────────────────────────────────────────────────────────────
@@ -1654,8 +1615,7 @@ function checkHubPush() {
     return;
   }
   hubUsers_ = users;
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = (Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw)).filter(Boolean);
+  const ams = trackerTeam_();
   const matched = ams.filter(function(a) { return hubTokensFor_(a).length; }).length;
   const resp = UrlFetchApp.fetch('https://fcm.googleapis.com/v1/projects/' + scheduleFirebaseProjectId_() + '/messages:send', {
     method: 'post', contentType: 'application/json',
@@ -1669,26 +1629,7 @@ function checkHubPush() {
     return;
   }
   Logger.log('READY — ' + users.length + ' hub user(s) with phones; ' + matched + ' of ' + ams.length +
-    ' demo tracker people will get reminders on their hub phones (the rest stay on demo.chsnz.co.nz devices).');
-}
-
-// fcmTokens only ever grows client-side (mpEnablePush() appends, never
-// removes — see index.html), so a dead token would otherwise sit there
-// forever, retried on every future reminder. Re-fetches accountManagers
-// fresh rather than trusting whatever the caller already had in memory
-// (which may be minutes stale inside a long-running trigger run), and
-// writes back only this person's fcmTokens path so a concurrent edit
-// elsewhere in accountManagers.json isn't clobbered.
-function pruneDeadTokens_(amName, deadTokens) {
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
-  const idx = ams.findIndex(function(a) { return a && a.name === amName; });
-  if (idx === -1) return;
-  const current = Array.isArray(ams[idx].fcmTokens) ? ams[idx].fcmTokens : [];
-  const pruned = current.filter(function(t) { return deadTokens.indexOf(t) === -1; });
-  if (pruned.length === current.length) return;
-  putFirebaseJson('/accountManagers/' + idx + '/fcmTokens.json', pruned);
-  Logger.log('Pruned ' + (current.length - pruned.length) + ' dead FCM token(s) for ' + amName);
+    ' demo tracker people (those with a tracker role in Settings → People and access) have a phone turned on at the hub and will get reminders.');
 }
 
 // ── Manual test push ─────────────────────────────────────────────────────
@@ -1709,8 +1650,7 @@ function pruneDeadTokens_(amName, deadTokens) {
 // to their account manager record by email, then name — never a name the
 // request supplies, which anyone could set to someone in Service.
 function sendTestPush_(payload, caller) {
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
+  const ams = trackerTeam_();
   const lower = function(s) { return String(s || '').trim().toLowerCase(); };
   const requester = (caller && caller.email && ams.find(function(a) { return a && lower(a.email) === lower(caller.email); }))
     || (caller && ams.find(function(a) { return a && lower(a.name) === lower(caller.name); }));
@@ -1720,7 +1660,7 @@ function sendTestPush_(payload, caller) {
   }
   const am = ams.find(function(a) { return a && a.name === payload.amName; });
   if (!am) return respond({ success: false, error: 'Account manager not found: ' + payload.amName });
-  const deviceCount = hubTokensFor_(am).length || (Array.isArray(am.fcmTokens) ? am.fcmTokens.length : 0);
+  const deviceCount = hubTokensFor_(am).length;
   if (!deviceCount) {
     return respond({ success: false, error: am.name + ' has no registered device — they need to turn notifications on at internal.chsnz.co.nz on their phone first.' });
   }
@@ -1731,26 +1671,6 @@ function sendTestPush_(payload, caller) {
   return respond({ success: true, sentTo: am.name, deviceCount: deviceCount, results: results });
 }
 
-// TEMPORARY TEST HELPER — run manually from the Apps Script editor (select
-// this function in the dropdown next to Run, then Run) to verify push
-// delivery in isolation, without sendStuckLoanReminders()'s full pipeline:
-// no email, no Simpro job, no fake loan data needed — sendPushToPerson_()
-// is the only thing this calls. Prerequisite: open the mobile app on your
-// phone and tap "Enable push notifications" (More screen) first, so some
-// accountManagers record actually has a token for this to find. Check the
-// Apps Script execution log (View → Logs, or the Executions panel) for
-// the outcome. Safe to delete once push notifications are confirmed working.
-function testSendPushOnly() {
-  const amsRaw = fetchFirebaseJson('/accountManagers.json') || [];
-  const ams = Array.isArray(amsRaw) ? amsRaw : Object.values(amsRaw);
-  const am = ams.find(function(a) { return a && Array.isArray(a.fcmTokens) && a.fcmTokens.length; });
-  if (!am) {
-    Logger.log('No account manager has a registered push token yet. Open the mobile app, sign in, and tap "Enable push notifications" on the More screen first, then run this again.');
-    return;
-  }
-  Logger.log('Sending test push to ' + am.name + ' (' + am.fcmTokens.length + ' registered device(s))...');
-  sendPushToPerson_(am, 'Test notification', 'This is a test push from the CHS Equipment Tracker — no email or Simpro job was touched.', TRACKER_URL + '?mobile=1', true);
-}
 
 // Mirrors the tracker's client-side isStartingSoon(): counts weekdays
 // between today and startDate (inclusive of startDate) so a Monday start
@@ -2216,9 +2136,9 @@ function today() {
 // answer the same paths from the hub's Firestore (the shapes are
 // apps/equipment/src/fs-shape.js's): equipment, the bookings, a loan's form
 // and Simpro settings are read there; a job number is written to the loan's
-// document; the "already sent" records go in equipmentReminders. The team
-// list (accountManagers) stays in the old database, still readable, until
-// step 5A moves it. Writing to Firestore needs this script's service account
+// document; the "already sent" records go in equipmentReminders. The team is
+// the hub's users with a trackerRole (trackerTeam_), whichever side the switch
+// is on. Writing to Firestore needs this script's service account
 // given write access in the staff schedule's project (Cloud Datastore User).
 
 let trackerSource_ = null; // once per run

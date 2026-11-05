@@ -18,7 +18,6 @@ test('old database paths map to their Firestore places', () => {
   assert.deepEqual(p('/loanDocs/batch_1/simproJobId.json'), { kind: 'jobId', key: 'batch_1' })
   assert.deepEqual(p('/simproConfig.json'), { kind: 'simproConfig' })
   assert.deepEqual(p('/returnDueSoonReminders/' + encodeURIComponent('Hutt|||2026-10-30') + '.json'), { kind: 'marker', mark: 'returnDueSoonReminders', key: 'Hutt|||2026-10-30' })
-  assert.deepEqual(p('/accountManagers.json'), { kind: 'old' }, 'the team stays in the old database until 5A moves it')
   assert.equal(ctx.trackerMarkerId_('stuckLoanReminders', 'a/b c'), 'stuckLoanReminders__a%2Fb%20c')
 })
 
@@ -26,4 +25,23 @@ test('values: arrays in arrays unpacked as fs-shape.js packs them; plain values 
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.fsUnpack_({ savedRows: [{ _a: ['A1', 'M'] }, { _a: ['A2'] }], n: 1 }))), { savedRows: [['A1', 'M'], ['A2']], n: 1 })
   assert.deepEqual(JSON.parse(JSON.stringify(ctx.fsValue_({ id: 209677, x: null, ok: true, f: 1.5, a: ['s'] }))), { mapValue: { fields: {
     id: { integerValue: '209677' }, x: { nullValue: null }, ok: { booleanValue: true }, f: { doubleValue: 1.5 }, a: { arrayValue: { values: [{ stringValue: 's' }] } } } } })
+})
+
+test('the team (step 5A): hub people with a tracker role, signed in only; a role other than service counts as account manager', () => {
+  const c = vm.createContext({ fsList_: () => [
+    { __id: 'a', displayName: 'Kiri Moana', email: 'kiri@x.nz', trackerRole: 'service' },
+    { __id: 'b', displayName: 'Tama Brown', email: 'tama@x.nz', trackerRole: 'am' },
+    { __id: 'c', displayName: 'Waiting', email: 'w@x.nz', trackerRole: 'am', pending: true },
+    { __id: 'd', displayName: 'No Role', email: 'n@x.nz' },
+    { email: 'nameless@x.nz', trackerRole: 'am' },
+  ] })
+  vm.runInContext('let trackerTeam__ = null;\n' + ['trackerTeam_', 'amEffectiveRole_'].map(grab).join('\n'), c)
+  const team = JSON.parse(JSON.stringify(c.trackerTeam_()))
+  assert.deepEqual(team, [
+    { name: 'Kiri Moana', email: 'kiri@x.nz', role: 'service' },
+    { name: 'Tama Brown', email: 'tama@x.nz', role: 'am' },
+    { name: 'nameless@x.nz', email: 'nameless@x.nz', role: 'am' },
+  ])
+  assert.equal(c.amEffectiveRole_(team[0]), 'service')
+  assert.equal(c.amEffectiveRole_({ name: 'Peter Lin' }), 'am', 'no hard-coded service names any more')
 })

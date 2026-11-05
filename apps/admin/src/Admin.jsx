@@ -7,7 +7,7 @@ import Toast from '../../schedule/src/components/Toast'
 import { TEAMS, teamLabel } from '../../schedule/src/utils/teams'
 import { logActivity } from '../../schedule/src/utils/activityLog'
 import { Badge, Button, Loading, Switch } from '../../schedule/src/components/ui'
-import { TRACKER_ROLES, findMember, loadTeam, setMemberRole, trackerRoleLabel, updateTeam } from './tracker'
+import { TRACKER_ROLES, setMemberRole, trackerRoleLabel } from './tracker'
 
 /*
  * People and access, and everyone's notifications: two pages of the one
@@ -24,7 +24,6 @@ export function UsersTab() {
   const [toast,      setToast]      = useState(null)
   const [newName,    setNewName]    = useState('')
   const [newTeam,    setNewTeam]    = useState('')
-  const tracker = useTrackerTeam()
 
   useEffect(() => { load() }, [])
 
@@ -35,17 +34,15 @@ export function UsersTab() {
   }
 
   /**
-   * Their role in the demo tracker. On their hub record (users.trackerRole,
-   * step 5A: what the tracker reads), and, while the old database still takes
-   * writes, on the tracker's old team list too (adding them if they're not on it).
+   * Their role in the demo tracker, on their hub record (users.trackerRole): setting
+   * one puts them on the tracker's team. The same change as the tracker's Manage,
+   * Team (tracker.js), so the two places never disagree.
    */
   async function setTrackerRole(person, role) {
     const name = person.displayName || person.email
-    // The same change as the tracker's Manage, Team (tracker.js), so the two places never disagree.
     try {
-      const list = await setMemberRole({ uid: person.uid, name, email: person.email || '' }, role)
+      await setMemberRole({ uid: person.uid, name, email: person.email || '' }, role)
       setUsers(all => all.map(u => (u.uid === person.uid ? { ...u, trackerRole: role } : u)))
-      if (list) tracker.set(list)
     } catch (e) {
       console.error(e)
       return showToast(e.message || 'Could not save the role — try again.')
@@ -134,8 +131,9 @@ export function UsersTab() {
       <h2 className="admin-side-title">Demo tracker role</h2>
       <p className="text-sm text-muted">
         Account managers get reminders for their own loans; Service &amp; Projects get the ones they handle.
-        Picking a role adds them to the tracker’s team. Who gets which notifications is on the Notifications tab.
-        The same roles, and names, emails and removing someone, are also in the demo tracker: <a href="/equipment/#/manage?part=team">Manage, Team</a>.
+        Picking a role adds them to the tracker’s team; their name and email are the ones on their sign-in. Who gets which
+        notifications is on the Notifications tab. The same roles, and taking someone off the team, are also in the demo
+        tracker: <a href="/equipment/#/manage?part=team">Manage, Team</a>.
       </p>
 
       <h2 className="admin-side-title">Add a person</h2>
@@ -167,9 +165,6 @@ export function UsersTab() {
           <div className="admin-item admin-people-head" aria-hidden="true">
             <span>Name</span><span>Team</span><span>Role</span><span>Simpro</span><span>Demo tracker</span>
           </div>
-          {tracker.error && (
-            <div className="admin-item"><span className="text-sm text-muted">Couldn’t load the demo tracker’s team ({tracker.error}), so its roles aren’t shown.</span></div>
-          )}
           {users.map(u => (
             <div key={u.uid} className="admin-item">
               <div style={{ flex: 1, minWidth: 180 }}>
@@ -203,7 +198,7 @@ export function UsersTab() {
                   <option value="admin">Admin</option>
                 </select>
                 <SimproAccess person={u} onChange={on => updateUser(u.uid, 'simproAccess', on)} />
-                <TrackerRole person={u} tracker={tracker} onChange={role => setTrackerRole(u, role)} />
+                <TrackerRole person={u} onChange={role => setTrackerRole(u, role)} />
                 {u.pending && (
                   <Button variant="ghost" size="sm" className="admin-remove" style={{ color: 'var(--status-critical)' }} onClick={() => removePerson(u)}>Remove</Button>
                 )}
@@ -237,44 +232,26 @@ function SimproAccess({ person, onChange }) {
   return <Switch className="admin-simpro" checked={person.simproAccess === true} onChange={onChange} label="Simpro access" />
 }
 
-/** The demo tracker's team list (tracker.js), loaded once per tab. */
-function useTrackerTeam() {
-  const [team, setTeam] = useState(null) // null = loading
-  const [error, setError] = useState(null)
-  useEffect(() => {
-    loadTeam().then(setTeam).catch(e => { console.error(e); setError(e.message || 'unavailable'); setTeam([]) })
-  }, [])
-  return {
-    team,
-    error,
-    loading: team === null,
-    async update(change) { setTeam(await updateTeam(change)) },
-    set: (list) => setTeam([...list].sort((a, b) => (a.name || '').localeCompare(b.name || ''))),
-  }
-}
-
 /**
- * accountManagers[].role in the demo tracker. "Not in the tracker" only shows
- * while they aren't on its team: removing someone, and names and emails, are in
- * the tracker's Manage, Team (the same tracker.js changes as here), where their loans are.
+ * users/{uid}.trackerRole, the demo tracker role. "Not in the tracker" only shows
+ * while they have none: taking someone off the team is in the tracker's Manage,
+ * Team (the same tracker.js changes as here), where their loans are.
  */
-function TrackerRole({ person, tracker, onChange }) {
-  if (tracker.loading) return <span className="admin-tracker text-sm text-muted">Loading…</span>
-  if (tracker.error) return <span className="admin-tracker text-sm text-muted">—</span>
+function TrackerRole({ person, onChange }) {
   if (person.pending) {
     return <span className="admin-tracker text-sm text-muted"><span className="admin-simpro-key">Demo tracker: </span>After they sign in</span>
   }
-  const m = findMember(tracker.team, person)
+  const role = person.trackerRole === 'service' || person.trackerRole === 'am' ? person.trackerRole : ''
   // "Demo tracker:" is for phones, where there is no column heading to say so.
   return (
     <label className="admin-tracker">
       <span className="admin-simpro-key">Demo tracker: </span>
       <select
-        value={m ? (m.role === 'service' ? 'service' : 'am') : ''}
+        value={role}
         onChange={e => e.target.value && onChange(e.target.value)}
         aria-label="Demo tracker role"
       >
-        {!m && <option value="">Not in the tracker</option>}
+        {!role && <option value="">Not in the tracker</option>}
         {TRACKER_ROLES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
       </select>
     </label>
@@ -288,7 +265,7 @@ function TrackerRole({ person, tracker, onChange }) {
  *    users/{uid}.notifications.scheduleReminder; scripts/remind.mjs (in the
  *    cmchs-staff-schedule repo) skips anyone with it false.
  *  - Demo tracker: loan reminders (starting soon, due back, overdue, action
- *    needed). accountManagers[].notify in the tracker's database; the Apps
+ *    needed). users/{uid}.notifications.demoReminders (the person's own switch too); the Apps
  *    Script senders (backend/apps-script/proxy) skip anyone with it false.
  *  - Asks: the 8:30am weekday "you have N open asks" summary.
  *    users/{uid}.notifications.asksSummary; apps/asks/scripts/summary.mjs
@@ -303,7 +280,6 @@ export function NotificationsTab() {
   const { user } = useAuth()
   const [users, setUsers] = useState(null)
   const [toast, setToast] = useState(null)
-  const tracker = useTrackerTeam()
 
   useEffect(() => {
     getDocs(collection(db, 'users'))
@@ -332,33 +308,11 @@ export function NotificationsTab() {
   const setScheduleReminder = (person, on) => setUserNotification(person, 'scheduleReminder', 'staff schedule reminder', on)
   const setAsksSummary = (person, on) => setUserNotification(person, 'asksSummary', 'Asks morning summary', on)
 
-  async function setDemoReminders(member, on) {
-    try {
-      await tracker.update(list => {
-        const m = list.find(x => x.name === member.name && (x.email || '') === (member.email || ''))
-        if (!m) throw new Error(`${member.name} is no longer on the demo tracker's team.`)
-        if (on) delete m.notify
-        else m.notify = false
-      })
-    } catch (e) {
-      console.error(e)
-      return showToast(e.message || 'Could not save to the demo tracker — try again.')
-    }
-    showToast('Saved.')
-    logActivity(user, `${on ? 'Turned on' : 'Turned off'} ${member.name}'s demo tracker reminders in Settings.`)
-  }
+  const setDemoReminders = (person, on) => setUserNotification(person, 'demoReminders', 'demo tracker reminders', on)
 
   // Devices, not phones: a PC browser that turned notifications on counts too.
   // Ones that no longer exist are removed weekly (apps/schedule/scripts/prune-devices.mjs).
   const devices = n => (n ? `${n} device${n === 1 ? '' : 's'}` : 'No device yet')
-  // Demo reminders go to the devices turned on here at the hub; only someone
-  // with none here still gets them on devices set up at demo.chsnz.co.nz.
-  const demoDevices = (u, m) => {
-    const hub = u.fcmTokens?.length || 0
-    const old = m.fcmTokens?.length || 0
-    return hub || !old ? devices(hub) : `${devices(old)} (old demo app)`
-  }
-  const trackerOnly = (tracker.team || []).filter(m => !(users || []).some(u => !u.pending && findMember([m], u)))
 
   return (
     <div className="admin-layout">
@@ -380,8 +334,7 @@ export function NotificationsTab() {
         <p className="text-sm text-muted">
           A switch can only stop notifications. To get them at all, the person opens the Internal Hub on their phone
           and taps “Turn on” when it asks — once covers every tool. The count is every phone or browser they’ve turned
-          notifications on for; ones deleted or cleared since are removed each Monday. “Old demo app” means they’re
-          still on a device set up at demo.chsnz.co.nz.
+          notifications on for; ones deleted or cleared since are removed each Monday.
         </p>
       </div>
 
@@ -391,11 +344,8 @@ export function NotificationsTab() {
             <div className="admin-item admin-notify-head" aria-hidden="true">
               <span>Name</span><span>Staff schedule reminder</span><span>Demo tracker reminders</span><span>Asks summary</span>
             </div>
-            {tracker.error && (
-              <div className="admin-item"><span className="text-sm text-muted">Couldn’t load the demo tracker’s team ({tracker.error}), so its reminders aren’t shown.</span></div>
-            )}
             {users.map(u => {
-              const m = !u.pending && tracker.team ? findMember(tracker.team, u) : null
+              const onTeam = !u.pending && (u.trackerRole === 'am' || u.trackerRole === 'service')
               return (
                 <div key={u.uid} className="admin-item">
                   <div className="admin-notify-who">
@@ -413,11 +363,9 @@ export function NotificationsTab() {
                   </div>
                   <div className="admin-notify-cell">
                     <span className="admin-notify-key">Demo tracker</span>
-                    {tracker.loading ? <span className="text-sm text-muted">Loading…</span>
-                      : tracker.error ? <span className="text-sm text-muted">—</span>
-                      : m ? <>
-                          <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
-                          <span className="text-sm text-muted">{demoDevices(u, m)}</span>
+                    {onTeam ? <>
+                          <Switch checked={u.notifications?.demoReminders !== false} onChange={on => setDemoReminders(u, on)} label="Demo tracker reminders" />
+                          <span className="text-sm text-muted">{devices(u.fcmTokens?.length || 0)}</span>
                         </>
                       : <span className="text-sm text-muted">{u.pending ? 'After they sign in' : 'Not on its team'}</span>}
                   </div>
@@ -430,25 +378,6 @@ export function NotificationsTab() {
                 </div>
               )
             })}
-            {trackerOnly.length > 0 && <>
-              <div className="admin-item admin-notify-sub">
-                <span className="text-sm text-muted">On the demo tracker’s team but not in the staff list (matched by email, then name)</span>
-              </div>
-              {trackerOnly.map(m => (
-                <div key={m.name + (m.email || '')} className="admin-item">
-                  <div className="admin-notify-who">
-                    <div className="admin-item-name">{m.name}</div>
-                    <div className="text-sm text-muted admin-ellipsis">{m.email || 'No email'} · {trackerRoleLabel(m.role)}</div>
-                  </div>
-                  <div className="admin-notify-cell"><span className="admin-notify-key">Staff schedule</span><span className="text-sm text-muted">—</span></div>
-                  <div className="admin-notify-cell">
-                    <span className="admin-notify-key">Demo tracker</span>
-                    <Switch checked={m.notify !== false} onChange={on => setDemoReminders(m, on)} label="Demo tracker reminders" />
-                    <span className="text-sm text-muted">{demoDevices({}, m)}</span>
-                  </div>
-                </div>
-              ))}
-            </>}
           </div>
         )}
       </div>

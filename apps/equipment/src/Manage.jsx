@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { AdminDialog } from './Items.jsx'
 import { setCutover } from './db.js'
-import { TRACKER_ROLES, addMember, removeMember, saveMember, setMemberRole } from '../../admin/src/tracker.js'
+import { TRACKER_ROLES, removeMember, setMemberRole } from '../../admin/src/tracker.js'
 import {
   EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, toCsv,
 } from './model.js'
@@ -402,23 +402,25 @@ function Simpro({ s, onDone }) {
 
 /**
  * The tracker's team (old: the Account Managers list, behind the admin password; now hub admins):
- * each person's role, name and email, adding someone (with or without a sign-in) and taking
- * them off. The same changes as Settings, People and access (apps/admin/src/tracker.js), so
- * whichever place is used, the other shows it.
+ * each person's role, adding someone who has a hub sign-in and taking them off. The team is
+ * the hub's people with a tracker role (users.trackerRole); names and emails are the ones on
+ * their sign-in. The same changes as Settings, People and access (apps/admin/src/tracker.js),
+ * so whichever place is used, the other shows it.
  */
 function Team({ s, onDone }) {
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
-  const [editing, setEditing] = useState(null) // { was, name, email }
-  const [adding, setAdding] = useState({ name: '', email: '', role: 'am' })
+  const [adding, setAdding] = useState({ uid: '', role: 'am' })
   const [confirmDialog, confirm] = useConfirm()
   const norm = (v) => String(v || '').trim().toLowerCase()
-  const hubFor = (m) => (s.hubUsers || []).find((u) => !u.pending && ((m.email && norm(u.email) === norm(m.email)) || (norm(u.displayName) && norm(u.displayName) === norm(m.name))))
   const people = [...(s.managers || [])].filter((m) => m && m.name)
     .filter((m) => !q.trim() || norm(m.name).includes(norm(q)) || norm(m.email).includes(norm(q)))
     .sort((a, b) => a.name.localeCompare(b.name))
-  const person = (m) => { const u = hubFor(m); return { uid: u?.uid, name: m.name, email: m.email || u?.email || '' } }
+  const person = (m) => ({ uid: m.uid, name: m.name, email: m.email || '' })
+  // Signed-in hub people not on the team yet.
+  const addable = (s.hubUsers || []).filter((u) => !u.pending && u.trackerRole !== 'am' && u.trackerRole !== 'service')
+    .sort((a, b) => String(a.displayName || a.email).localeCompare(String(b.displayName || b.email)))
   async function run(key, fn, msg) {
     setBusy(key); setError('')
     try { await fn(); await s.reloadTeam(); onDone(msg); return true } catch (e) { setError(e.message || String(e)); return false } finally { setBusy('') }
@@ -432,16 +434,15 @@ function Team({ s, onDone }) {
         {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
         <ul className="eq-picklist">
           {people.map((m) => {
-            const u = hubFor(m), key = norm(m.name)
+            const key = m.uid || norm(m.name)
             return (
               <li key={key} className="eq-picked eq-team-row">
                 <span className="eq-picked-main"><span className="eq-strong">{m.name}</span>
-                  <span className="eq-small">{m.email || 'No email'}{u ? ' · signs in to the hub' : ' · no hub sign-in'}</span></span>
+                  <span className="eq-small">{m.email || 'No email'}</span></span>
                 <select value={m.role === 'service' ? 'service' : 'am'} disabled={!!busy} aria-label={`${m.name}’s role`}
-                  onChange={(e) => { const role = e.target.value; run(key, () => setMemberRole(person(m), role), `${m.name} is now ${TRACKER_ROLES.find((r) => r.id === role)?.label}.`) }}>
+                  onChange={(e) => { const role = e.target.value; run(key, async () => { await setMemberRole(person(m), role); await s.audit('am_role', `${m.name} set to ${TRACKER_ROLES.find((r) => r.id === role)?.label}`, { name: m.name, role }) }, `${m.name} is now ${TRACKER_ROLES.find((r) => r.id === role)?.label}.`) }}>
                   {TRACKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>
-                <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => setEditing({ was: { name: m.name, email: m.email || '' }, name: m.name, email: m.email || '' })}>Edit</Button>
                 <Button size="sm" variant="ghost" className="eq-danger" disabled={!!busy} onClick={async () => {
                   if (!(await confirm({ title: `Take ${m.name} off the team?`, message: 'They stop getting demo reminders and aren’t offered as an account manager. Their loans keep their name.', confirmLabel: 'Take them off', danger: true }))) return
                   run(key, async () => { await removeMember(person(m)); await s.audit('am_removed', `${m.name} removed from account managers`, { name: m.name, email: m.email || '' }) }, `${m.name} taken off the team.`)
@@ -454,27 +455,26 @@ function Team({ s, onDone }) {
       </section>
       <section className="card eq-kit">
         <h3 className="eq-h3">Add someone</h3>
-        <p className="eq-note">For someone who should be offered as an account manager, even before they sign in to the hub.</p>
-        <form className="eq-actions-row" onSubmit={(e) => { e.preventDefault(); run('add', () => addMember(adding), `${adding.name.trim()} added to the team.`).then((ok) => ok && setAdding({ name: '', email: '', role: 'am' })) }}>
-          <label className="field eq-grow"><span className="field-label">Name</span><input className="input" value={adding.name} onChange={(e) => setAdding((x) => ({ ...x, name: e.target.value }))} /></label>
-          <label className="field eq-grow"><span className="field-label">Email</span><input className="input" type="email" value={adding.email} onChange={(e) => setAdding((x) => ({ ...x, email: e.target.value }))} /></label>
+        <p className="eq-note">For someone who signs in to the hub. Someone who hasn’t yet is added in <a href="/settings/people">Settings, People and access</a> first, and can be given a role after their first sign-in.</p>
+        <form className="eq-actions-row" onSubmit={(e) => {
+          e.preventDefault()
+          const u = addable.find((x) => x.uid === adding.uid)
+          if (!u) return
+          const name = u.displayName || u.email
+          run('add', async () => { await setMemberRole({ uid: u.uid, name, email: u.email || '' }, adding.role); await s.audit('am_added', `${name} added to the team`, { name, role: adding.role }) }, `${name} added to the team.`).then((ok) => ok && setAdding({ uid: '', role: 'am' }))
+        }}>
+          <label className="field eq-grow"><span className="field-label">Person</span>
+            <select value={adding.uid} onChange={(e) => setAdding((x) => ({ ...x, uid: e.target.value }))}>
+              <option value="">Choose someone…</option>
+              {addable.map((u) => <option key={u.uid} value={u.uid}>{u.displayName || u.email}</option>)}
+            </select>
+          </label>
           <label className="field"><span className="field-label">Role</span>
             <select value={adding.role} onChange={(e) => setAdding((x) => ({ ...x, role: e.target.value }))}>{TRACKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}</select>
           </label>
-          <Button type="submit" disabled={!!busy || !adding.name.trim()}>{busy === 'add' ? 'Adding…' : 'Add'}</Button>
+          <Button type="submit" disabled={!!busy || !adding.uid}>{busy === 'add' ? 'Adding…' : 'Add'}</Button>
         </form>
       </section>
-      {editing && (
-        <Dialog title={`Edit ${editing.was.name}`} description="Their phones and reminder settings stay with them." onClose={() => setEditing(null)} width={480}>
-          <form className="eq-form" onSubmit={(e) => { e.preventDefault(); const ed = editing; run('edit', () => saveMember(ed.was, ed), `${ed.name.trim()} saved.`).then((ok) => ok && setEditing(null)) }}>
-            <label className="field"><span className="field-label">Name</span><input className="input" value={editing.name} onChange={(e) => setEditing((x) => ({ ...x, name: e.target.value }))} autoFocus /></label>
-            <label className="field"><span className="field-label">Email</span><input className="input" type="email" value={editing.email} onChange={(e) => setEditing((x) => ({ ...x, email: e.target.value }))} /></label>
-            <p className="eq-note">Loans already made keep the old name as their account manager.</p>
-            {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
-            <div className="dialog-actions"><Button variant="ghost" onClick={() => setEditing(null)}>Cancel</Button><Button type="submit" disabled={!!busy}>{busy === 'edit' ? 'Saving…' : 'Save'}</Button></div>
-          </form>
-        </Dialog>
-      )}
       {confirmDialog}
     </>
   )

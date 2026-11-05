@@ -167,7 +167,12 @@ Everything sits on the old database until the switch is moved. What's left, in o
       Rules (staff read, nobody writes from a browser) tested in `equipment-rules.test.mjs`.
       **Needs publishing:** `rules/firestore.rules` (the `tileLocations` block; until then Firestore reads of it are
       denied and the tracker falls back to the old copy). Not yet run against the live Tile account or Firestore.
-- [ ] **5A, the team out of `accountManagers`:** the tracker (`store.jsx`'s team via `teamFrom`,
+- [x] **5A, the team out of `accountManagers` (5 Nov 2026; code pushed, proxy needs `clasp deploy`):** the tracker
+      (`teamFrom(users)`, `model.js`), Settings (`tracker.js` sets/clears `users.trackerRole`; the Notifications tab's
+      demo switch is `notifications.demoReminders`), Manage → Team (add = pick a signed-in person; no Edit: names are
+      from sign-in) and the proxy (`trackerTeam_`; no `SERVICE_TEAM` fallback, no old-phone fallback, no dead-token
+      pruning) read `users` only. Jonathan confirmed no tracker-only people and no one on old demo-app phones. Still to
+      do by hand: the proxy deploy, then the old `accountManagers` node and key (5C). Original notes: the tracker (`store.jsx`'s team via `teamFrom`,
       `memberFor`), the proxy (`Code.js` reminders, `sendTestPush_`, `pruneDeadTokens_`,
       `SERVICE_TEAM_OPERATORS` ~410) and `apps/admin/src/tracker.js` read `users` only. Then
       `Admin.jsx`'s `setTrackerRole` stops writing the old list, `model.js`'s `SERVICE_TEAM` fallback

@@ -6,9 +6,9 @@ import { loanSections, memberFor, overviewOf, roleOf, yoursOf } from '../src/mod
 
 const today = '2026-10-16'
 const out = (id, o) => ({ id, CHSAssetNo: id, Returned: 'No', OnLoanTo: 'Waikato', Location: 'ICU', LoanStartDate: '2026-10-01', LoanEndDate: '2026-10-30', BatchID: 'b1', ...o })
-const team = [{ name: 'Sam Lee', email: 'sam@x.nz', role: 'am' }, { name: 'Peter Lin', email: 'peter@x.nz' }, { name: 'Tama Brown', email: 'tama@x.nz' }]
+const team = [{ name: 'Sam Lee', email: 'sam@x.nz', role: 'am' }, { name: 'Peter Lin', email: 'peter@x.nz', role: 'service' }, { name: 'Tama Brown', email: 'tama@x.nz' }]
 
-test('who you are: by name, else by email; role from the record, else the service team list', () => {
+test('who you are: by name, else by email; role from the record, account manager if it has none', () => {
   assert.equal(memberFor({ displayName: ' sam lee ', email: '' }, team).name, 'Sam Lee')
   assert.equal(memberFor({ displayName: 'Samuel Lee', email: 'SAM@x.nz' }, team).name, 'Sam Lee')
   assert.equal(memberFor({ displayName: 'Someone', email: 'no@x.nz' }, team), null)

@@ -1,27 +1,17 @@
-/* The demo tracker's team list, read and changed from Admin.
+/* The demo tracker's team, read and changed from Settings and from the tracker's Manage, Team.
 
-   The tracker keeps its own list of who's on the team (accountManagers in its
-   Realtime Database, in the chs-equipment Firebase project): each person's
-   tracker role ('am' = account manager, 'service' = Service & Projects), the
-   phones they've turned notifications on for (fcmTokens), and, new here,
-   `notify: false` for someone switched off demo reminders. The Apps Script
-   reminder senders skip anyone with notify false.
-
-   That database doesn't accept the hub's sign-in, so this does exactly what
-   the tracker does: trade the sign-in for a database pass from the Simpro
-   proxy (apps/equipment/src/db.js), then use the pass on its REST API.
-
-   Writes are read-modify-write of the whole list, because that's how the
-   tracker itself saves it — guarded by Firebase's ETag, so a change made in
-   the tracker at the same moment is never silently overwritten (same fix as
-   the tracker's saveBin()). */
+   The team is the hub's own people records (step 5A): a person is on it when their
+   users/{uid} record has a `trackerRole` ('am' = account manager, 'service' =
+   Service & Projects), and their demo reminders switch is
+   users/{uid}.notifications.demoReminders (the same one they set for themselves in
+   Settings, Your notifications). The tracker's old list (accountManagers in the
+   chs-equipment Realtime Database) is no longer read or written. Only an admin may
+   set trackerRole (rules/firestore.rules). */
 // The pass and the database address are the rebuilt tracker's (one pass for
 // the whole app): apps/equipment/src/db.js.
-import { DB_URL, dbToken, loadCutover, read } from '../../equipment/src/db.js'
+import { loadCutover, read } from '../../equipment/src/db.js'
 import { deleteField, doc, updateDoc } from 'firebase/firestore'
 import { db } from '../../schedule/src/firebase'
-
-const TEAM = DB_URL + '/accountManagers.json'
 
 export const TRACKER_ROLES = [
   { id: 'am', label: 'Account manager' },
@@ -39,111 +29,21 @@ export async function readTracker(path) {
   return (await read(path)).data
 }
 
-async function readTeam() {
-  const res = await fetch(TEAM + '?auth=' + encodeURIComponent(await dbToken()), { headers: { 'X-Firebase-ETag': 'true' } })
-  if (!res.ok) throw new Error('Could not read the demo tracker team (' + res.status + ')')
-  const list = await res.json()
-  return { list: Array.isArray(list) ? list.filter(Boolean) : [], etag: res.headers.get('ETag') }
-}
-
-/** The tracker's team list, sorted by name. */
-export async function loadTeam() {
-  return (await readTeam()).list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-}
-
-/**
- * Changes the list: `change` gets a fresh copy and edits it in place. Retried
- * on a clash with a save from the tracker, so the other edit is kept too.
- * Resolves to the saved list.
- */
-export async function updateTeam(change) {
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const { list, etag } = await readTeam()
-    change(list)
-    list.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-    const res = await fetch(TEAM + '?auth=' + encodeURIComponent(await dbToken()), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...(etag ? { 'if-match': etag } : {}) },
-      body: JSON.stringify(list),
-    })
-    if (res.ok) return list
-    if (res.status !== 412) throw new Error('Could not save to the demo tracker (' + res.status + ')')
-  }
-  throw new Error('The demo tracker team kept changing while saving — try again.')
-}
-
-const norm = s => (s || '').trim().toLowerCase()
-
-/** This person's entry in the tracker's list: by email, else by exact name. */
-export function findMember(list, person) {
-  const email = norm(person.email)
-  return (email && list.find(m => norm(m.email) === email))
-    || list.find(m => norm(m.name) && norm(m.name) === norm(person.displayName ?? person.name))
-    || null
-}
-
 /*
  * Changing the team, the same way from Settings (People and access) and the
- * tracker's Manage (Team), so the two never disagree. A person is { uid?,
- * name, email }: uid when they have a hub sign-in. Their hub record's
- * trackerRole is what the tracker reads first (step 5A); the old list is kept
- * in step while the old database takes writes. Each resolves to the saved old
- * list, or null if only the hub record could be changed (after the cutover).
+ * tracker's Manage (Team), so the two never disagree. A person is { uid, name,
+ * email }: they need a hub record (uid); someone who hasn't signed in yet is added
+ * in Settings, People and access, and gets a role after their first sign-in.
  */
 
-/** Their tracker role: on their hub record, and on the old list (added there if they're not on it). */
+/** Their tracker role, on their hub record: this is what puts them on the team. */
 export async function setMemberRole(person, role) {
-  if (person.uid && db) await updateDoc(doc(db, 'users', person.uid), { trackerRole: role })
-  try {
-    return await updateTeam(list => {
-      const m = findMember(list, person)
-      if (m) m.role = role
-      else list.push({ name: person.name || person.email || '', email: person.email || '', role })
-    })
-  } catch (e) {
-    if (!person.uid) throw e
-    console.warn('[tracker] old demo tracker team list not updated', e) // the hub record is what counts
-    return null
-  }
+  if (!person.uid || !db) throw new Error('They need a hub sign-in before they can be on the team.')
+  await updateDoc(doc(db, 'users', person.uid), { trackerRole: role })
 }
 
-/** Someone added to the team who may not have a sign-in (old: addAccountManager). */
-export async function addMember({ name, email = '', role = 'am' }) {
-  const n = String(name || '').trim().replace(/\s+/g, ' ')
-  if (!n) throw new Error('Type their name.')
-  return updateTeam(list => {
-    if (findMember(list, { name: n, email })) throw new Error(`${n} is already on the team.`)
-    list.push({ name: n, email: String(email || '').trim(), role })
-  })
-}
-
-/** A team member's name or email put right (old: updateAMField). Their phones and settings stay with them. */
-export async function saveMember(was, { name, email }) {
-  const n = String(name || '').trim().replace(/\s+/g, ' ')
-  if (!n) throw new Error('A name is needed.')
-  return updateTeam(list => {
-    const m = findMember(list, was)
-    if (!m) throw new Error(`${was.name} isn’t on the old team list, so there’s nothing here to change: their name and email come from their sign-in.`)
-    m.name = n
-    m.email = String(email || '').trim()
-  })
-}
-
-/**
- * Off the team (old: removeAccountManager): off the old list, and their hub record's tracker role
- * cleared, or they'd still count. Their loans keep their name as the account manager.
- */
+/** Off the team: their tracker role cleared. Their loans keep their name as the account manager. */
 export async function removeMember(person) {
-  if (person.uid && db) await updateDoc(doc(db, 'users', person.uid), { trackerRole: deleteField() })
-  try {
-    return await updateTeam(list => {
-      const m = findMember(list, person)
-      if (m) list.splice(list.indexOf(m), 1)
-    })
-  } catch (e) {
-    if (!person.uid) throw e
-    console.warn('[tracker] old demo tracker team list not updated', e)
-    return null
-  }
+  if (!person.uid || !db) throw new Error('They aren’t on the team.')
+  await updateDoc(doc(db, 'users', person.uid), { trackerRole: deleteField() })
 }
-

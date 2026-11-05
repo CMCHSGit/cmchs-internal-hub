@@ -16,7 +16,7 @@ import { auth } from '../../schedule/src/firebase.js'
 import { collection, doc as fsDoc, getDoc, getDocs } from 'firebase/firestore'
 import { db as hubDb } from '../../schedule/src/firebase.js'
 import { can } from '../../../shared/can.js'
-import { cutover, isLocal, loadCutover, onFirestore, read, readOld, watch, watchCutover, write } from './db.js'
+import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, write } from './db.js'
 import { commit as fsCommit } from './db-firestore.js'
 import {
   activateBookings, applyImport, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
@@ -46,7 +46,14 @@ export function StoreProvider({ children }) {
   const [people, setPeople] = useState({ profile: null, users: [] })
   useEffect(() => {
     if (!user) return
-    if (!hubDb) { setPeople({ profile: { role: 'admin', trackerTester: true }, users: [] }); return }
+    if (!hubDb) {
+      setPeople({ profile: { role: 'admin', trackerTester: true }, users: [
+        { uid: 'dev1', displayName: 'Sam Lee', email: 'dev.user@cass.co.nz', trackerRole: 'am' },
+        { uid: 'dev2', displayName: 'Tama Brown', email: 'tama.brown@example.com', trackerRole: 'am' },
+        { uid: 'dev3', displayName: 'Kiri Moana', email: 'kiri.moana@example.com', trackerRole: 'service' },
+      ] })
+      return
+    }
     let live = true
     Promise.all([getDoc(fsDoc(hubDb, 'users', user.uid)), getDocs(collection(hubDb, 'users'))])
       .then(([me, all]) => { if (live) setPeople({ profile: me.exists() ? me.data() : null, users: all.docs.map((d) => ({ uid: d.id, ...d.data() })) }) })
@@ -63,7 +70,7 @@ export function StoreProvider({ children }) {
   // lays /loanMeta over /data's copy, one loan at a time; so does this.
   const load = useCallback(async () => {
     await loadCutover() // where the data is (db.js): the old database, or Firestore after the cutover
-    const extras = Promise.all([read('loanDocs'), readOld('accountManagers').catch(() => ({ data: [] })), read('kitGroups'), read('retired'), read('customDemoTypes'),
+    const extras = Promise.all([read('loanDocs'), read('kitGroups'), read('retired'), read('customDemoTypes'),
       read('testReports').catch(() => ({ data: {} }))]) // which loans have test reports (old: _testReportsKeys): their button shows it
     extras.catch(() => {}) // reported below, once the first part is showing
     try {
@@ -71,7 +78,7 @@ export function StoreProvider({ children }) {
       const d = data.data || {}
       version.current = d._v || null
       setState((s) => ({
-        loanDocs: {}, managers: [], kits: {}, retired: [], extrasReady: false, ...s,
+        loanDocs: {}, kits: {}, retired: [], extrasReady: false, ...s,
         ready: true, error: '',
         equipment: list(d.equipment), history: list(d.history), loanMeta: { ...(d.loanMeta || {}), ...(meta.data || {}) },
         upcoming: list(upcoming.data), loadedAt: Date.now(), cutover: cutover(),
@@ -80,8 +87,8 @@ export function StoreProvider({ children }) {
       return setState((s) => ({ ...s, error: e.message || String(e) }))
     }
     try {
-      const [loanDocs, managers, kits, retired, demoTypes, reports] = await extras
-      setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, managers: list(managers.data), kits: kits.data || {}, retired: list(retired.data),
+      const [loanDocs, kits, retired, demoTypes, reports] = await extras
+      setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, kits: kits.data || {}, retired: list(retired.data),
         demoTypes: Array.isArray(demoTypes.data) ? demoTypes.data.filter(Boolean) : [], reportKeys: Object.keys(reports.data || {}), extrasReady: true }))
     } catch (e) {
       setState((s) => ({ ...s, error: 'The loan forms didn’t load: ' + (e.message || e) }))
@@ -147,7 +154,7 @@ export function StoreProvider({ children }) {
   }, [])
 
   // Who's making changes: their name on the tracker's team, else their sign-in name.
-  const team = useMemo(() => teamFrom(state.managers || [], people.users), [state.managers, people.users])
+  const team = useMemo(() => teamFrom(people.users), [people.users])
   const me = memberFor(user, team)
   const operator = me?.name || user?.displayName || user?.email || ''
 
@@ -895,10 +902,9 @@ export function StoreProvider({ children }) {
     return { added: items.length, kit: label }
   }, [audit, changeKits, touch, updateData])
 
-  /** The team read again after a change in Manage, Team (old list and hub records), so every screen sees it. */
+  /** The team (hub records) read again after a change in Manage, Team, so every screen sees it. */
   const reloadTeam = useCallback(async () => {
-    const [m, all] = await Promise.all([readOld('accountManagers').catch(() => ({ data: null })), hubDb ? getDocs(collection(hubDb, 'users')).catch(() => null) : null])
-    if (m.data) setState((s) => ({ ...s, managers: list(m.data) }))
+    const all = hubDb ? await getDocs(collection(hubDb, 'users')).catch(() => null) : null
     if (all) setPeople((p) => ({ ...p, users: all.docs.map((d) => ({ uid: d.id, ...d.data() })) }))
   }, [])
 

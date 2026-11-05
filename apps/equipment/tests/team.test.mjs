@@ -3,16 +3,25 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { teamFrom } from '../src/model.js'
 
-test('hub roles win, matched by email then name; people with a hub role only are added; placeholders skipped', () => {
-  const old = [{ name: 'Sam Lee', email: 'sam@x.nz', role: 'am', fcmTokens: ['t'] }, { name: 'Tama Brown', email: '', role: 'am' }]
+test('the team is the hub people with a tracker role: signed in only, by display name, sorted', () => {
   const users = [
-    { displayName: 'Samuel Lee', email: 'SAM@x.nz', trackerRole: 'service' },
-    { displayName: 'Tama Brown', email: 'tama@x.nz', trackerRole: 'am' },
-    { displayName: 'Kiri Moana', email: 'kiri@x.nz', trackerRole: 'service' },
-    { displayName: 'New Person', email: 'new@x.nz', trackerRole: 'am', pending: true },
-    { displayName: 'No Role', email: 'n@x.nz' },
+    { uid: 'a', displayName: 'Tama Brown', email: 'tama@x.nz', trackerRole: 'am' },
+    { uid: 'b', displayName: 'Kiri Moana', email: 'kiri@x.nz', trackerRole: 'service' },
+    { uid: 'c', displayName: 'New Person', email: 'new@x.nz', trackerRole: 'am', pending: true },
+    { uid: 'd', displayName: 'No Role', email: 'n@x.nz' },
+    { uid: 'e', displayName: 'Odd Role', email: 'o@x.nz', trackerRole: 'boss' },
+    { uid: 'f', email: 'nameless@x.nz', trackerRole: 'am' },
   ]
-  const t = teamFrom(old, users)
-  assert.deepEqual(t.map((m) => [m.name, m.role, m.email]), [['Kiri Moana', 'service', 'kiri@x.nz'], ['Sam Lee', 'service', 'sam@x.nz'], ['Tama Brown', 'am', 'tama@x.nz']])
-  assert.deepEqual(t.find((m) => m.name === 'Sam Lee').fcmTokens, ['t'], 'the old record kept, only its role changed')
+  assert.deepEqual(teamFrom(users).map((m) => [m.uid, m.name, m.role, m.email]),
+    [['b', 'Kiri Moana', 'service', 'kiri@x.nz'], ['f', 'nameless@x.nz', 'am', 'nameless@x.nz'], ['a', 'Tama Brown', 'am', 'tama@x.nz']])
+  assert.deepEqual(teamFrom(), [])
+})
+
+test('someone who switched demo reminders off is marked notify: false; missing means on', () => {
+  const t = teamFrom([
+    { uid: 'a', displayName: 'Off', trackerRole: 'am', notifications: { demoReminders: false } },
+    { uid: 'b', displayName: 'On', trackerRole: 'am', notifications: { scheduleReminder: false } },
+  ])
+  assert.equal(t.find((m) => m.name === 'Off').notify, false)
+  assert.equal('notify' in t.find((m) => m.name === 'On'), false)
 })
