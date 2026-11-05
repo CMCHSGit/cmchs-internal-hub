@@ -838,9 +838,11 @@ function expectFor(tag, cmd) {
 }
 
 class Link {
+  static byPort = new WeakMap();   // port -> the link that has it open, so a stale one can be closed before the port is opened again
   constructor(port, simulated) {
     this.port = port; this.sim = simulated; this.tag = 'USB'; this.buf = ''; this.waiter = null; this.stream = null;
     this.busy = Promise.resolve(); this.errs = {}; this.dec = new TextDecoder(); this.lastRx = 0; this.flow = 'hardware'; this.lastReplyAt = 0; this.gap = 150;
+    this.closed = false; this.stale = false;
   }
   async open(flow = 'hardware') {
     this.flow = flow;
@@ -851,6 +853,7 @@ class Link {
       try { await this.port.setSignals(flow === 'hardware' ? { dataTerminalReady: true } : { dataTerminalReady: true, requestToSend: true }); } catch (e) { log('in', this.tag, 'Couldn’t set DTR/RTS: ' + e.message); }
     }
     this.reader = this.port.readable.getReader(); this.writer = this.port.writable.getWriter(); this.loop = this.readLoop();
+    this.closed = false; Link.byPort.set(this.port, this);
   }
   async readLoop() {
     try { while (true) { const { value, done } = await this.reader.read(); if (done) break; if (value) { this.lastRx = Date.now(); this.feed(this.dec.decode(value, { stream: true })); } } }
@@ -905,12 +908,13 @@ class Link {
         const p = this.expectLine(expect, timeout);
         await this.write(cmd + '\r\n');
         try {
-          const line = await p; this.lastReplyAt = Date.now();
+          const line = await p; this.lastReplyAt = Date.now(); this.stale = false;
           const err = this.error(line);
           if (err) { const e = new Error(`${cmd}: ${err.text}`); e.code = err.code; e.reply = line; throw e; }
           return line;
         } catch (e) { lastErr = e; if (!e.timeout) throw e; }
       }
+      if (lastErr && lastErr.timeout) this.stale = true;   // it stopped answering: the next connect resets it (disconnect, then connect)
       throw new Error(`${cmd}: ${lastErr.message}`);
     };
     const p = this.busy.then(run, run); this.busy = p.catch(() => {}); return p;
@@ -930,8 +934,13 @@ class Link {
     await this.drain(150, 800); // readings already in flight
   }
   async close(goodbye) {
+    if (this.closed) return;
+    this.closed = true;
+    // A device that has gone away can't be told anything: skip the goodbye, just let go of the port.
+    if (goodbye === 'dead') { goodbye = null; this.stream = null; }
     try { if (this.stream) await this.stopStream(); if (goodbye) for (const c of goodbye) await this.send(c, { timeout: 1500, retries: 0 }).catch(() => {}); }
     finally {
+      if (Link.byPort.get(this.port) === this) Link.byPort.delete(this.port);
       const r = this.reader, w = this.writer; this.writer = null; this.waiter = null;
       try { r && await r.cancel(); } catch {} try { r && r.releaseLock(); } catch {} try { w && w.releaseLock(); } catch {}
       try { await this.port.close(); } catch {}
@@ -1036,8 +1045,16 @@ const Devices = {
     }
     return null;
   },
+  /** Close whatever link still holds this port (one that was dropped, or stopped answering), as Disconnect would. */
+  async release(port) { const old = Link.byPort.get(port); if (old) { Link.byPort.delete(port); await old.close('dead').catch(() => {}); } },
+  /** A device that dropped out or stopped answering: disconnect it, so connecting again starts clean (no need to press Disconnect first). */
+  async resetBroken() {
+    for (const k of ['esa', 'ps']) { const l = this[k]; if (l && !l.sim && (l.state === 'error' || l.stale)) { log('in', l.tag, 'Not answering: disconnecting it before connecting again'); await this.disconnect(k); } }
+  },
   async connect(port, simulated) {
+    await this.resetBroken();
     if ([this.esa, this.ps].some(l => l && l.port === port)) { toast('That device is already connected.'); return; }
+    if (!simulated) await this.release(port);
     let link = null, ident = null;
     // Try hardware flow control first (what Fluke specifies), then without it: some FTDI cables on Windows don't pass CTS.
     // Try the setting that worked last time first.
@@ -1045,7 +1062,16 @@ const Devices = {
     const order = pref === 'none' ? ['none', 'hardware'] : ['hardware', 'none'];
     for (const flow of order) {
       link = new Link(port, simulated);
-      try { await link.open(flow); }
+      try {
+        try { await link.open(flow); }
+        catch (e) {
+          // A device that dropped out on its own can leave its port open: close it properly (what Disconnect does), then open it again.
+          if (simulated || !/already open|InvalidState/i.test(`${e.name} ${e.message}`)) throw e;
+          log('in', 'USB', 'The port was still open from before; closing it and connecting again');
+          await this.release(port); try { await port.close(); } catch {} await wait(600);
+          link = new Link(port, simulated); await link.open(flow);
+        }
+      }
       catch (e) {
         await dialog({ title: 'Couldn’t open the port', body: `<p>${/already open|busy|access|failed to open|in use/i.test(e.message) ? 'The port is in use. Close Ansur, and any other program or browser tab using this device, then try again. If it still says this, unplug the USB cable for a few seconds.' : esc(e.message)}</p>` });
         return;
@@ -1095,10 +1121,11 @@ const Devices = {
   async disconnect(key) {
     const link = this[key]; if (!link) return;
     this[key] = null; this.emit();
-    await link.close(key === 'esa' ? ['IDLE', 'LOCAL'] : ['LOCAL']);
+    await link.close(link.state === 'error' || link.stale ? 'dead' : key === 'esa' ? ['IDLE', 'LOCAL'] : ['LOCAL']);
   },
   lost(link, why) {
     for (const k of ['esa', 'ps']) if (this[k] === link) { this[k] = null; toast(`${k === 'esa' ? 'ESA612' : 'ProSim 8'} disconnected: ${why}`, 4000); }
+    link.close('dead').catch(() => {});   // let go of the port now, so connecting again doesn't meet a port still held open
     this.emit();
   },
   async choose(filtered) {
@@ -1121,6 +1148,7 @@ const Devices = {
    * Returns the link, or null if nothing connected.
    */
   async ensure(key = 'esa') {
+    await this.resetBroken();
     if (this[key]) return this[key];
     if (!('serial' in navigator)) { toast('This browser can’t use USB devices. Use Chrome or Edge.', 4500); return null; }
     if (this.ensuring) return this.ensuring;
@@ -1142,6 +1170,7 @@ const Devices = {
     return this.ensuring;
   },
   async reconnect() {
+    await this.resetBroken();
     const inUse = [this.esa, this.ps].filter(Boolean).map(l => l.port);
     for (const p of (await navigator.serial.getPorts()).filter(p => !inUse.includes(p))) await this.connect(p, false);
   },

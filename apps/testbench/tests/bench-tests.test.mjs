@@ -202,3 +202,13 @@ test('Rerun test starts the same template on the same device from the first step
   assert.ok(fn.includes('Power.off(true)') && fn.includes('r.results = clone(prev.results)') && fn.includes('r.template = clone(prev.template)'), 'every result and step as it was')
   assert.ok(fn.includes("['pass', 'done', 'info', 'na'].includes") && fn.includes('Runner.go(left < 0 ? 0 : left)'), 'opens on the first step that did not pass')
 })
+
+test('connecting again after a device dropped out lets go of the old connection first (Disconnect, then connect), by itself', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(html.includes('static byPort = new WeakMap()') && html.includes('Link.byPort.set(this.port, this)'), 'knows which link holds a port')
+  assert.ok(/lost\(link, why\) \{[\s\S]*?link\.close\('dead'\)/.test(html), 'a dropped device\'s port is closed straight away')
+  assert.ok(/async connect\(port, simulated\) \{\s*await this\.resetBroken\(\);[\s\S]*?await this\.release\(port\)/.test(html), 'connect resets a broken link and releases the port first')
+  assert.ok(html.includes("/already open|InvalidState/i") && html.includes('closing it and connecting again'), 'a port still open is closed and opened once more')
+  assert.ok(/async ensure\(key = 'esa'\) \{\s*await this\.resetBroken\(\)/.test(html) && /async reconnect\(\) \{\s*await this\.resetBroken\(\)/.test(html), 'ensure and the Reconnect button reset a link that stopped answering')
+  assert.ok(html.includes("if (goodbye === 'dead')"), 'no goodbye commands to a device that is gone')
+})
