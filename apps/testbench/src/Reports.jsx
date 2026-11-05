@@ -28,12 +28,12 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
   const [period, setPeriod] = useState('all')
-  const [unsentOnly, setUnsentOnly] = useState(false)
+  const [unsentOnly, setUnsentOnly] = useState(startUnsent)
   const [exts, setExts] = useState(['pdf', 'mtr']) // not the results file by default: Simpro won't take it, and the Ansur record says the same
   const [chosen, setChosen] = useState(() => new Set())
   const [job, setJob] = useState(null)
@@ -42,7 +42,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
 
   const groups = useMemo(() => groupReports(reports), [reports])
   const customers = useMemo(() => customersIn(groups), [groups])
-  const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, customer, period }), [groups, text, unsentOnly, customer, period])
+  const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, customer, period, serials: onlySerials }), [groups, text, unsentOnly, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
   const files = useMemo(() => pickFiles(visible, [...chosen], exts), [visible, chosen, exts])
   // Ticked tests that have a results file but no Ansur record: the bench makes the record when they are downloaded or attached.
@@ -138,6 +138,11 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
             {reports.length > 0 && <> {groups.length} test{groups.length === 1 ? '' : 's'} · {kb(total)} kept.</>}</p>
         </div>
       </div>
+
+      {onlySerials.length > 0 && (
+        <p className="tb-note tb-note-success" role="status">Showing the tests for the {onlySerials.length} device{onlySerials.length === 1 ? '' : 's'} in the asset list you were syncing{unsentOnly ? ', the ones not yet sent to Simpro' : ''}. Tick them, pick the Simpro job beside Attach, and attach.{' '}
+          <button type="button" className="tb-link" onClick={onShowAll}>Show all saved reports</button></p>
+      )}
 
       <div className="tb-filters">
         <label>Sort by

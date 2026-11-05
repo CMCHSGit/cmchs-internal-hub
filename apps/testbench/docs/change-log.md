@@ -157,3 +157,6 @@ On a finished test's summary a **Files** list beside Save and Download chooses w
 
 ## Rerun test (05/11/2026)
 The summary has a **Rerun test** button: the same template (its latest version) on the same device with the same details, from the first step. It is a new test (the finished one stays in Previous tests and in Saved reports, so saving the rerun gives a second set of files for the same serial number), unlike Test another device, which clears the serial number, and Continue test, which carries on an unfinished one.
+
+## D30/D60 template order (05/11/2026)
+Mindray BeneHeart D30 / D60 Defibrillator: after the visual and power-on checks and the electrical safety block (unchanged), the monitoring tests now come first (ECG, paced signals, respiration, temperature, IBP, SpO2, NIBP, sidestream and mainstream CO2, the D60 options), then the defibrillation tests (manual, disarming, synchronised, pacing, RT impedance), then Network and battery, and the **AED test last**. Only the order changed: step text, limits and the D30/D60 model settings are as they were, and the ESA612 steps are still one block. The earlier file is in SharePoint TemplatesOld ("before monitoring first, AED last 05.11.2026"); a test already started keeps its old order (Reload template picks up the new one).

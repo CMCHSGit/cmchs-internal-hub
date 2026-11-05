@@ -246,109 +246,6 @@
     }
    },
    {
-    "id": "orqxlbwj7xe7",
-    "type": "check",
-    "title": "Manual defibrillation: charge and discharge",
-    "instructions": "Service Manual 4.5.2. Test tool: defibrillator/pacer analyser.\n1. Remove the battery and run on AC mains. Turn the Mode Select knob to Manual Defib.\n2. Connect the external paddles and place them on the analyser.\n3. Configuration – Main > Record Setup: set Shock Event to On.\n4. Set the analyser to Energy Measurement (it should read 0 or blank).\n5. Select 1 J, charge and discharge, and enter the energy the analyser measures. Repeat at 100 J and 360 J.\n6. Repeat on a fully charged battery, then with pads.\n7. Check the shock events are recorded.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "items": [
-      "Repeated on a fully charged battery: energies within the same limits.",
-      "Repeated with pads: energies within the same limits.",
-      "Shock events are recorded automatically and correctly.",
-      "Delivered energy at 1 J (paddles, AC) is no more than 3 J",
-      "Delivered energy at 100 J (paddles, AC) is between 90 and 110 J",
-      "Delivered energy at 360 J (paddles, AC) is between 324 and 396 J"
-     ],
-     "readings": []
-    }
-   },
-   {
-    "id": "h0g0bjyx7xe7",
-    "type": "check",
-    "title": "Energy disarming",
-    "instructions": "Service Manual 4.5.2.\n1. Disconnect AC; run on a fully charged battery. Press the Defib mode key.\n2. Connect the pads/paddles to the analyser in Energy Measurement mode (reads 0 or blank).\n3. Select 360 J and charge: the charge tone sounds.\n4. When charged, click Disarm.\n5. Configuration Main > Manual Defib Setup: set Time to Auto Disarm to 60 s. Select 360 J and charge, then wait 60 s without shocking.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "items": [
-      "The charge tone sounds while charging.",
-      "\"Charge Removed\" appears and the charge done tone stops when disarmed.",
-      "The analyser reads 0 J or blank after disarming.",
-      "After 60 s with Auto Disarm set to 60 s, \"Shock Removed\" appears and the analyser reads 0 J or blank."
-     ],
-     "readings": []
-    }
-   },
-   {
-    "id": "a5rsq7d67xe7",
-    "type": "check",
-    "title": "Synchronised cardioversion",
-    "instructions": "Service Manual 4.5.2.\n1. Connect the pads/paddles and the ECG leads to the analyser. Set the analyser to Synchronized Cardioversion with normal sinus rhythm (1 mV, 60 bpm).\n2. Configuration Main > Therapy Setup > Manual Defib Setup: set Sync After Shock to On.\n3. Select 10 J and press Enter Sync (choose Local if Remote Sync is On).\n4. Select Pads or Paddles as the ECG source, charge, and hold the Shock key.\n5. Repeat with lead II as the ECG source.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "items": [
-      "Synchronous discharge succeeds.",
-      "The sync mark appears on the R wave.",
-      "Prompt messages are correct during the test.",
-      "Repeated with lead II as the ECG source: passes.",
-      "Delivered energy at 10 J (sync) is between 8 and 12 J",
-      "Synchronisation delay is no more than 60 ms"
-     ],
-     "readings": []
-    }
-   },
-   {
-    "id": "a73al7gk7xe7",
-    "type": "check",
-    "title": "AED",
-    "instructions": "Service Manual 4.5.3.\n1. Connect the pads cable and pads to the analyser; set the analyser to output V-Fib.\n2. Config. Edit > AED Setup: set the shock energy to 200 J, 300 J and 360 J in turn.\n3. Power off and on, enter AED mode, and let it analyse, charge and discharge. Enter the energy the analyser measures for each setting.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "items": [
-      "AED performs rhythm analysis, charging and discharging.",
-      "AED delivered energy at 200 J is between 180 and 220 J",
-      "AED delivered energy at 300 J is between 270 and 330 J",
-      "AED delivered energy at 360 J is between 324 and 396 J"
-     ],
-     "readings": []
-    }
-   },
-   {
-    "id": "3mcqqhec7xe7",
-    "type": "check",
-    "title": "Pacing",
-    "instructions": "Service Manual 4.5.4.\n1. Disconnect AC; run on a fully charged battery. Press the Pacing mode key and set Pacer Mode to Fixed.\n2. Connect the pads to the analyser in Pacing Measurement mode with the 50 Ω test load.\n3. Set 70 PPM and 30 mA, press Start Pacing, and enter the analyser readings.\n4. Stop Pacing, set 170 PPM and 200 mA, start again and enter the readings.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "items": [
-      "Pacer rate at 70 PPM is between 69 and 71 PPM",
-      "Pacer output at 30 mA is between 25 and 35 mA",
-      "Pacer rate at 170 PPM is between 168 and 172 PPM",
-      "Pacer output at 200 mA is between 190 and 210 mA"
-     ],
-     "readings": []
-    }
-   },
-   {
-    "id": "t3m7weqa7xe7",
-    "type": "check",
-    "title": "RT impedance",
-    "instructions": "Service Manual 4.5.10 (D30) / 4.5.16 (D60).\n1. Paddles on the analyser, or the pads cable on the 50 Ω test load.\n2. In Monitor mode press −, + and Discharge in turn to open the Debug page.\n3. Enter the RT Imped value. If adult paddles fail, check the paediatric paddles, then the pads cable and test load.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "items": [
-      "RT impedance reads between 425 and 575 Ω (500 Ω ±75)"
-     ],
-     "readings": []
-    }
-   },
-   {
     "id": "mcloibel7xe7",
     "type": "ps_nsr",
     "title": "ECG: heart rate, lead off and calibration",
@@ -599,6 +496,92 @@
     ]
    },
    {
+    "id": "orqxlbwj7xe7",
+    "type": "check",
+    "title": "Manual defibrillation: charge and discharge",
+    "instructions": "Service Manual 4.5.2. Test tool: defibrillator/pacer analyser.\n1. Remove the battery and run on AC mains. Turn the Mode Select knob to Manual Defib.\n2. Connect the external paddles and place them on the analyser.\n3. Configuration – Main > Record Setup: set Shock Event to On.\n4. Set the analyser to Energy Measurement (it should read 0 or blank).\n5. Select 1 J, charge and discharge, and enter the energy the analyser measures. Repeat at 100 J and 360 J.\n6. Repeat on a fully charged battery, then with pads.\n7. Check the shock events are recorded.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Repeated on a fully charged battery: energies within the same limits.",
+      "Repeated with pads: energies within the same limits.",
+      "Shock events are recorded automatically and correctly.",
+      "Delivered energy at 1 J (paddles, AC) is no more than 3 J",
+      "Delivered energy at 100 J (paddles, AC) is between 90 and 110 J",
+      "Delivered energy at 360 J (paddles, AC) is between 324 and 396 J"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "h0g0bjyx7xe7",
+    "type": "check",
+    "title": "Energy disarming",
+    "instructions": "Service Manual 4.5.2.\n1. Disconnect AC; run on a fully charged battery. Press the Defib mode key.\n2. Connect the pads/paddles to the analyser in Energy Measurement mode (reads 0 or blank).\n3. Select 360 J and charge: the charge tone sounds.\n4. When charged, click Disarm.\n5. Configuration Main > Manual Defib Setup: set Time to Auto Disarm to 60 s. Select 360 J and charge, then wait 60 s without shocking.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The charge tone sounds while charging.",
+      "\"Charge Removed\" appears and the charge done tone stops when disarmed.",
+      "The analyser reads 0 J or blank after disarming.",
+      "After 60 s with Auto Disarm set to 60 s, \"Shock Removed\" appears and the analyser reads 0 J or blank."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "a5rsq7d67xe7",
+    "type": "check",
+    "title": "Synchronised cardioversion",
+    "instructions": "Service Manual 4.5.2.\n1. Connect the pads/paddles and the ECG leads to the analyser. Set the analyser to Synchronized Cardioversion with normal sinus rhythm (1 mV, 60 bpm).\n2. Configuration Main > Therapy Setup > Manual Defib Setup: set Sync After Shock to On.\n3. Select 10 J and press Enter Sync (choose Local if Remote Sync is On).\n4. Select Pads or Paddles as the ECG source, charge, and hold the Shock key.\n5. Repeat with lead II as the ECG source.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Synchronous discharge succeeds.",
+      "The sync mark appears on the R wave.",
+      "Prompt messages are correct during the test.",
+      "Repeated with lead II as the ECG source: passes.",
+      "Delivered energy at 10 J (sync) is between 8 and 12 J",
+      "Synchronisation delay is no more than 60 ms"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "3mcqqhec7xe7",
+    "type": "check",
+    "title": "Pacing",
+    "instructions": "Service Manual 4.5.4.\n1. Disconnect AC; run on a fully charged battery. Press the Pacing mode key and set Pacer Mode to Fixed.\n2. Connect the pads to the analyser in Pacing Measurement mode with the 50 Ω test load.\n3. Set 70 PPM and 30 mA, press Start Pacing, and enter the analyser readings.\n4. Stop Pacing, set 170 PPM and 200 mA, start again and enter the readings.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Pacer rate at 70 PPM is between 69 and 71 PPM",
+      "Pacer output at 30 mA is between 25 and 35 mA",
+      "Pacer rate at 170 PPM is between 168 and 172 PPM",
+      "Pacer output at 200 mA is between 190 and 210 mA"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "t3m7weqa7xe7",
+    "type": "check",
+    "title": "RT impedance",
+    "instructions": "Service Manual 4.5.10 (D30) / 4.5.16 (D60).\n1. Paddles on the analyser, or the pads cable on the 50 Ω test load.\n2. In Monitor mode press −, + and Discharge in turn to open the Debug page.\n3. Enter the RT Imped value. If adult paddles fail, check the paediatric paddles, then the pads cable and test load.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "RT impedance reads between 425 and 575 Ω (500 Ω ±75)"
+     ],
+     "readings": []
+    }
+   },
+   {
     "id": "i1y74itj7xe7",
     "type": "check",
     "title": "Network and battery",
@@ -611,6 +594,23 @@
       "Network: the network printer correctly prints ECG reports.",
       "Battery: the device operates correctly from battery when AC power fails.",
       "Battery: the operating time of the battery meets the product specification."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "a73al7gk7xe7",
+    "type": "check",
+    "title": "AED",
+    "instructions": "Service Manual 4.5.3.\n1. Connect the pads cable and pads to the analyser; set the analyser to output V-Fib.\n2. Config. Edit > AED Setup: set the shock energy to 200 J, 300 J and 360 J in turn.\n3. Power off and on, enter AED mode, and let it analyse, charge and discharge. Enter the energy the analyser measures for each setting.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "AED performs rhythm analysis, charging and discharging.",
+      "AED delivered energy at 200 J is between 180 and 220 J",
+      "AED delivered energy at 300 J is between 270 and 330 J",
+      "AED delivered energy at 360 J is between 324 and 396 J"
      ],
      "readings": []
     }

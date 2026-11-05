@@ -18,7 +18,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { groupReports, idbReports, markSent, saveReport } from './reports.js'
+import { groupReports, idbReports, markSent, reportsFromSearch, saveReport } from './reports.js'
 import Reports from './Reports.jsx'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
@@ -61,7 +61,10 @@ function TestBench() {
     },
   }), [])
 
-  const [tab, setTab] = useState('bench') // 'bench' | 'reports'
+  // Opened from Simpro Asset Sync's "Reports to add" (reports.js, reportsLink): straight onto Saved reports, showing that asset list's devices.
+  const link = useMemo(() => reportsFromSearch(location.search), [])
+  const [tab, setTab] = useState(link.open ? 'reports' : 'bench') // 'bench' | 'reports'
+  const [onlySerials, setOnlySerials] = useState(link.serials)
   const [top, setTop] = useState(0)
   const [reports, setReports] = useState([])
   const [fresh, setFresh] = useState(() => new Set()) // names saved since the hub was opened
@@ -272,6 +275,7 @@ function TestBench() {
       {tab === 'reports' && (
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
+          onlySerials={onlySerials} onShowAll={() => setOnlySerials([])} startUnsent={link.unsent}
           onAttach={attach} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}

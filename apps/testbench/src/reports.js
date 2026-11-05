@@ -161,9 +161,11 @@ export function inPeriod(day, period, now = Date.now()) {
 }
 
 /** Groups matching the search (serial, model, customer, date), the customer and period chosen, and, when asked, only those with something not yet sent. */
-export function filterGroups(groups, { text = '', unsentOnly = false, customer = '', period = 'all' } = {}, now = Date.now()) {
+export function filterGroups(groups, { text = '', unsentOnly = false, customer = '', period = 'all', serials = null } = {}, now = Date.now()) {
   const q = text.trim().toLowerCase()
+  const only = serials && serials.length ? new Set(serials.map((s) => String(s).trim().toUpperCase())) : null   // an asset list's devices
   return groups.filter((g) => (!unsentOnly || g.unsent) && (!customer || g.customer === customer) && inPeriod(g.day, period, now)
+    && (!only || only.has(String(g.serial).trim().toUpperCase()))
     && (!q || `${g.serial} ${g.model} ${g.customer} ${g.date} ${g.template}`.toLowerCase().includes(q)))
 }
 
@@ -188,4 +190,42 @@ export function categorise(groups, by = 'customer') {
 export function pickFiles(groups, chosenBases, exts) {
   const want = new Set(chosenBases), kinds = new Set(exts)
   return groups.filter((g) => want.has(g.base)).flatMap((g) => g.files).filter((f) => kinds.has(f.ext))
+}
+
+/* ---- "Reports to add": the link from Simpro Asset Sync to the saved reports of the devices in its asset list ---- */
+
+const serialKey = (s) => String(s ?? '').trim().toUpperCase()
+/** Most serials that go in the address; a longer list opens Saved reports on everything not yet sent instead. */
+export const LINK_SERIALS_MAX = 200
+
+/**
+ * Of the devices in an asset list (their serial numbers), what the saved reports cover: how many devices have a saved test, how many
+ * of those still have something not sent to Simpro, and which have none. Counts and serials only.
+ */
+export function reportsToAdd(groups, serials) {
+  const want = [...new Set([...serials].map(serialKey).filter(Boolean))]
+  const have = new Map()
+  for (const g of groups) { const k = serialKey(g.serial); if (!have.has(k)) have.set(k, []); have.get(k).push(g) }
+  const withReport = want.filter((s) => have.has(s))
+  const toAdd = withReport.filter((s) => have.get(s).some((g) => g.unsent))
+  return { devices: want.length, withReport: withReport.length, toAdd: toAdd.length, toAddSerials: toAdd, missing: want.filter((s) => !have.has(s)) }
+}
+
+/** The address of Saved reports for these devices: only their tests, only what is not yet sent. */
+export function reportsLink(serials) {
+  const list = [...new Set([...serials].map(serialKey).filter(Boolean))]
+  const q = new URLSearchParams({ tab: 'reports' })
+  if (list.length && list.length <= LINK_SERIALS_MAX) q.set('serials', list.join(','))
+  q.set('unsent', '1')
+  return '/testbench/?' + q.toString()
+}
+
+/** What an address asks Saved reports to show: { open, serials (array, empty for no filter), unsent }. */
+export function reportsFromSearch(search) {
+  const p = new URLSearchParams(search || '')
+  return {
+    open: p.get('tab') === 'reports',
+    serials: (p.get('serials') || '').split(',').map(serialKey).filter(Boolean).slice(0, LINK_SERIALS_MAX),
+    unsent: p.get('unsent') === '1',
+  }
 }
