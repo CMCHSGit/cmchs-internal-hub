@@ -169,7 +169,7 @@ test('a file the browser refuses to write into the chosen folder ("Aborted due t
 test('saving to a folder leaves a file that is already there unchanged alone, tries a refused one again, and a zip is always on offer', () => {
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('async function sameFile(dir, f)') && ui.includes('if (await sameFile(to, f)) { same++; continue }'), 'identical files are not rewritten (it only makes OneDrive upload them again)')
-  assert.ok(ui.includes('setTimeout(r, 1500)') && ui.includes('await writeFile(await where(f), f)'), 'a refused file is tried once more')
+  assert.ok(ui.includes('1200 * attempt') && ui.includes('await writeFile(to, f)') && ui.includes('where(f, attempt > 0)'), 'a refused file is tried once more')
   assert.ok(ui.includes('download(true)') && ui.includes('Download as zip') && ui.includes('onClick={() => download()}'), 'a zip button beside Save to a folder')
 })
 
@@ -262,4 +262,10 @@ test('downloaded is remembered per test, a new copy of a file is not downloaded,
   await saveReport(store, { name: 'S3 - A9 02.11.2026.pdf', mime: 'application/pdf', buffer: buf(100), meta: { customer: 'Hutt Hospital', serial: 'S3', model: 'A9', template: 'T', testedAt: '2026-11-02T11:00:00+13:00' } }, 6000)
   groups = groupReports(await store.all())
   assert.equal(groups.find((g) => g.serial === 'S3').downloadedAt, 0, 'saved again: not downloaded')
+})
+
+test('saving shows how many are done and how many are left', () => {
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('<progress max={progress.total || 1} value={progress.done} />') && ui.includes('{progress.done} of {progress.total}') && ui.includes('left'))
+  assert.ok(ui.includes('setProgress({ done: ++n, total: list.length'), 'advances after every file')
 })

@@ -76,3 +76,5 @@
 .tb-totals th { color: var(--text-muted); font: var(--type-caption); font-weight: 600; }
 .tb-totals .num { text-align: right; font-variant-numeric: tabular-nums; }
 .tb-totals tr.is-first td { border-top: 1px solid var(--border-hairline); }
+.tb-progress { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tb-progress progress { flex: 1 1 220px; height: 14px; accent-color: var(--chs-purple); }

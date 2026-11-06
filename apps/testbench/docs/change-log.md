@@ -202,3 +202,6 @@ Delete on a template in the shared folder now asks which: **Delete from this bro
 
 ## Saved reports: no "rerun" label; a device with parts takes its device type's colour (06/11/2026)
 A test's title no longer says "· rerun N" (the files keep their "(rerun N)" names). A model recorded with parts, such as "D30, MR6502 Internal Defib Paddles", is coloured by whichever comma-separated part is a device type (the whole name is tried first, then each part), so it takes the colour of the D30/D60 template.
+
+## Saved reports: progress bar while saving (06/11/2026)
+Saving or downloading shows a bar with "N of M done, K left". Each file also gets three tries, with the "PDF reports" folder looked up again each time (a failure on one file, such as a file name that is too long, still doesn't stop the rest).

@@ -1,6 +1,6 @@
 /* Saved reports: every PDF, results file and Ansur record the bench has saved on this laptop, sorted by customer or by
    day, to download together (one zip) or attach together to a Simpro job. Plus the outbox of files waiting to go. */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
@@ -10,6 +10,30 @@ import { makeZip } from './zip.js'
 /** Downloaded PDFs go in a folder of their own (inside the folder chosen, or in the zip); the Ansur records stay beside it. */
 export const PDF_FOLDER = 'PDF reports'
 const isPdf = (f) => f.ext === 'pdf' || /\.pdf$/i.test(f.name)
+/* The folder chosen for saving is remembered (a small store of its own), so the next Save goes straight to it: the browser's folder window
+   can take a long time to open (a synced OneDrive folder in particular), and it is only needed the first time or to change folder. */
+const FOLDER_DB = 'chs-bench-folder'
+function folderIdb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const o = indexedDB.open(FOLDER_DB, 1)
+    o.onupgradeneeded = () => o.result.createObjectStore('kv')
+    o.onerror = () => reject(o.error)
+    o.onsuccess = () => { const db = o.result; const tx = db.transaction('kv', mode); const r = fn(tx.objectStore('kv')); tx.oncomplete = () => { db.close(); resolve(r.result) }; tx.onerror = () => { db.close(); reject(tx.error) } }
+  })
+}
+const getFolder = () => folderIdb('readonly', (st) => st.get('saveDir')).catch(() => null)
+const putFolder = (h) => folderIdb('readwrite', (st) => st.put(h, 'saveDir')).catch(() => {})
+/** The remembered folder if the browser still lets us write to it (a quick prompt at most), else the folder window, once. */
+async function chooseFolder(change) {
+  let h = change ? null : await getFolder()
+  if (h) {
+    let p = 'denied'
+    try { p = await h.queryPermission({ mode: 'readwrite' }); if (p !== 'granted') p = await h.requestPermission({ mode: 'readwrite' }) } catch { p = 'denied' }
+    if (p !== 'granted') h = null
+  }
+  if (!h) { h = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }); putFolder(h) }
+  return h
+}
 const KINDS = [['pdf', 'Reports (PDF)'], ['json', 'Results files'], ['mtr', 'Ansur records']]
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 const timeOf = (g) => new Intl.DateTimeFormat('en-NZ', { hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.testedAt || g.savedAt))
@@ -42,11 +66,14 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const [chosen, setChosen] = useState(() => new Set())
   const [job, setJob] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(null) // { done, total, label } while files are being saved
   const [note, setNote] = useState({ text: '', tone: 'info' })
   const [over, setOver] = useState(false)
   const [adding, setAdding] = useState(false)
   const [addNote, setAddNote] = useState({ text: '', tone: 'info' })
   const pick = useRef(null)
+  const [folderName, setFolderName] = useState('')
+  useEffect(() => { let live = true; getFolder().then((h) => { if (live && h) setFolderName(h.name) }); return () => { live = false } }, [])
 
   const groups = useMemo(() => groupReports(reports), [reports])
   const customers = useMemo(() => customersIn(groups), [groups])
@@ -86,41 +113,48 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const canPickFolder = typeof window !== 'undefined' && typeof window.showDirectoryPicker === 'function'
 
   /** Saves the ticked tests' files (each with its PDF and Ansur record) into a folder chosen each time, one file apiece; where the browser can't choose a folder, as a zip. */
-  async function download(asZip = false) {
+  async function download(asZip = false, change = false) {
     if (!count) return
     let dir = null
     if (canPickFolder && !asZip) {   // first, while the click still counts
-      try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }) } catch (e) { if (e.name === 'AbortError') return }
+      try { dir = await chooseFolder(change); setFolderName(dir.name) } catch (e) { if (e.name === 'AbortError') return }
     }
-    setBusy(true)
+    setBusy(true); setProgress({ done: 0, total: count, label: 'Getting the files ready' })
     try {
       const { list, skipped } = await withMtr()
       if (!list.length) throw new Error('Nothing to download.' + skippedNote(skipped))
+      setProgress({ done: 0, total: list.length, label: dir ? 'Saving' : 'Making the zip' })
       // Each file on its own: one the browser refuses to write into the folder ("Aborted due to security policy" is its security check on the file)
       // doesn't stop the rest, and whatever could not be written there is downloaded instead.
       const failed = []; let same = 0
       let pdfDir = null
-      const where = async (f) => (isPdf(f) ? (pdfDir ||= await dir.getDirectoryHandle(PDF_FOLDER, { create: true })) : dir)   // the PDFs in a folder of their own
+      const where = async (f, fresh) => { if (!isPdf(f)) return dir; if (fresh) pdfDir = null; return (pdfDir ||= await dir.getDirectoryHandle(PDF_FOLDER, { create: true })) }   // the PDFs in a folder of their own; a fresh handle after a failure (OneDrive can recreate the folder under us)
       if (dir) {
+        let n = 0
         for (const f of list) {
-          try {
-            const to = await where(f)
-            if (await sameFile(to, f)) { same++; continue }   // already there, unchanged: left alone (rewriting it only makes OneDrive upload it again)
-            await writeFile(to, f)
-          } catch (e) {
-            try { await new Promise((r) => setTimeout(r, 1500)); await writeFile(await where(f), f) }   // a file OneDrive is uploading right now can be refused: once more
-            catch (e2) { failed.push({ f, why: `${e2.name || 'Error'}: ${e2.message || e2}` }) }
+          // Up to three tries, each with the folder looked up again and a pause between: a file or folder OneDrive is syncing can be refused or briefly missing.
+          let why = ''
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              if (attempt) await new Promise((r) => setTimeout(r, 1200 * attempt))
+              const to = await where(f, attempt > 0)
+              if (await sameFile(to, f)) { same++; why = ''; break }   // already there, unchanged: left alone (rewriting it only makes OneDrive upload it again)
+              await writeFile(to, f); why = ''; break
+            } catch (e) { why = `${e.name || 'Error'}: ${e.message || e}` }
           }
+          if (why) failed.push({ f, why })
+          setProgress({ done: ++n, total: list.length, label: 'Saving' })
         }
       }
       const toDownload = dir ? failed.map((x) => x.f) : list
+      if (toDownload.length) setProgress({ done: list.length, total: list.length, label: 'Making the zip of the files that couldn’t be saved there' })
       if (toDownload.length === 1) saveBlob(toDownload[0].name, new Blob([toDownload[0].buffer], { type: toDownload[0].mime }))
       else if (toDownload.length > 1) saveBlob(`CHS Test Bench reports ${nzDay(Date.now())}.zip`, new Blob([makeZip(toDownload.map((f) => ({ name: isPdf(f) ? `${PDF_FOLDER}/${f.name}` : f.name, bytes: new Uint8Array(f.buffer) })))], { type: 'application/zip' }))
       logActivity(null, `Saved ${list.length} test file${list.length === 1 ? '' : 's'} from the Test Bench`, { app: 'testbench' })
       if (!dir || list.length > failed.length) await onMarkDownloaded?.(list.map((f) => f.name))   // all of them when downloaded; in a folder, those written (or already there)
       const saved = dir ? list.length - failed.length - same : 0
       setNote({ text: (dir ? `Saved ${saved} file${saved === 1 ? '' : 's'} to ${dir.name} (the PDFs in its “${PDF_FOLDER}” folder)${same ? `; ${same} already there, unchanged` : ''}.${failed.length ? ` ${failed.length} couldn’t be written there (${failed[0].why}) and ${failed.length === 1 ? 'was' : 'were'} downloaded instead.` : ''}` : list.length === 1 ? `Downloaded ${list[0].name}.` : `Downloaded ${list.length} files as one zip.`) + skippedNote(skipped), tone: failed.length ? 'warning' : 'success' })
-    } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+    } catch (e) { setNote({ text: 'Not saved: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false); setProgress(null) }
   }
 
   async function attach() {
@@ -302,7 +336,8 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
           <div className="tb-actionbar">
             <div className="tb-actionbar-row">
               <strong>{count ? `${count} file${count === 1 ? '' : 's'} from ${picked} test${picked === 1 ? '' : 's'}` : 'Tick tests above'}</strong>
-              <Button variant="secondary" disabled={busy || !count} onClick={() => download()}>{canPickFolder ? 'Save to a folder…' : count > 1 ? 'Download as zip' : 'Download'}</Button>
+              <Button variant="secondary" disabled={busy || !count} onClick={() => download()} title={folderName ? 'Saves straight to the folder used last time' : 'Choose the folder to save into'}>{canPickFolder ? (folderName ? `Save to “${folderName}”` : 'Save to a folder…') : count > 1 ? 'Download as zip' : 'Download'}</Button>
+              {canPickFolder && folderName && <Button variant="ghost" disabled={busy || !count} onClick={() => download(false, true)} title="Choose a different folder to save into">Other folder…</Button>}
               {canPickFolder && <Button variant="ghost" disabled={busy || !count} onClick={() => download(true)} title="All the ticked files in one zip, with nothing written into a synced folder">Download as zip</Button>}
               <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove([...files, ...stale], `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
             </div>
@@ -311,6 +346,12 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
               <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} job={job} onJob={setJob} disabled={!!sim.access} />
               <Button disabled={busy || !job || !attachCount} onClick={attach} title="Only the PDF reports go to the job">{online_ok ? `Attach ${attachCount ? attachCount + ' PDF' + (attachCount === 1 ? '' : 's') : 'PDFs'} to ${job ? job.label.split(' ')[0] : 'job'}` : `Queue ${attachCount ? attachCount + ' PDF' + (attachCount === 1 ? '' : 's') : 'PDFs'} for ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
             </div>
+            {progress && (
+              <div className="tb-progress" role="status" aria-live="polite">
+                <progress max={progress.total || 1} value={progress.done} />
+                <span><strong>{progress.done} of {progress.total}</strong> done{progress.total - progress.done > 0 ? `, ${progress.total - progress.done} left` : ''} · {progress.label}</span>
+              </div>
+            )}
             {note.text && <p className={`tb-note tb-note-${note.tone}`} role="status">{note.text}</p>}
             {sim.access && <Alert tone="warning" title="Simpro isn’t switched on for you">{sim.access} Ask an admin to turn on Simpro access for you in Settings → People and access. Files you queue wait in the outbox.</Alert>}
             {!user && <Alert tone="warning" title="Sign in to send">Sign in to the hub (while online) to send files to Simpro.</Alert>}
