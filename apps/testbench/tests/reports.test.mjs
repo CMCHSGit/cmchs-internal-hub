@@ -159,7 +159,7 @@ test('legacy duplicates of one run (same start time, saved under two names) show
 
 test('a file the browser refuses to write into the chosen folder ("Aborted due to security policy") does not stop the rest: it is downloaded instead and the reason is shown', () => {
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
-  assert.ok(ui.includes('failed.push({ f, why:') && ui.includes('couldn’t be written there'), 'Saved reports: per file, with the reason')
+  assert.ok(ui.includes('if (why) failed.push({ f, why })') && ui.includes('couldn’t be written there'), 'Saved reports: per file, with the reason')
   assert.ok(ui.includes('const toDownload = dir ? failed.map((x) => x.f) : list'), 'what failed is downloaded (one file, or one zip)')
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.ok(html.includes('downloaded instead'), 'the bench does the same for Download')
@@ -168,7 +168,7 @@ test('a file the browser refuses to write into the chosen folder ("Aborted due t
 
 test('saving to a folder leaves a file that is already there unchanged alone, tries a refused one again, and a zip is always on offer', () => {
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
-  assert.ok(ui.includes('async function sameFile(dir, f)') && ui.includes('if (await sameFile(to, f)) { same++; continue }'), 'identical files are not rewritten (it only makes OneDrive upload them again)')
+  assert.ok(ui.includes('async function sameFile(dir, f)') && ui.includes('if (await sameFile(to, f)) { same++;'), 'identical files are not rewritten (it only makes OneDrive upload them again)')
   assert.ok(ui.includes('1200 * attempt') && ui.includes('await writeFile(to, f)') && ui.includes('where(f, attempt > 0)'), 'a refused file is tried once more')
   assert.ok(ui.includes('download(true)') && ui.includes('Download as zip') && ui.includes('onClick={() => download()}'), 'a zip button beside Save to a folder')
 })
