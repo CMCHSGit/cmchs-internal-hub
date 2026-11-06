@@ -18,7 +18,13 @@ export async function saveTest(run, who) {
   const s = summaryOf(run, who), db = firestore(), b = writeBatch(db)
   b.set(doc(db, 'benchTests', s.id), { ...s, size: json.length })
   b.set(doc(db, 'benchTestData', s.id), { by: s.by, json })
-  await b.commit()
+  try { await b.commit() } catch (e) {
+    // The rules that allow an `order` on a summary may not be published yet: share the test without it (it still counts for its customer's order).
+    if (!s.order || e?.code !== 'permission-denied') throw e
+    const { order, ...plain } = s, b2 = writeBatch(db)
+    b2.set(doc(db, 'benchTests', s.id), { ...plain, size: json.length }); b2.set(doc(db, 'benchTestData', s.id), { by: s.by, json })
+    await b2.commit()
+  }
   return s
 }
 

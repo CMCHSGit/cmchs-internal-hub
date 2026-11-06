@@ -26,6 +26,7 @@ export function summaryOf(run, who, now = Date.now()) {
     serial: pick(dut, /^serial/i),
     model: pick(dut, /^model$/i),
     customer: pick(dut, /^(customer|client|hospital|site|owner)\b/i, /^customer asset/i),
+    ...(run.order ? { order: String(run.order).slice(0, 40) } : {}),   // the order (job number) it was tested for, when one was chosen
     overall: ['pass', 'fail'].includes(run.overall) ? run.overall : 'incomplete',
     finished: String(run.finished || run.started || ''),
     started: String(run.started || ''),
@@ -42,5 +43,5 @@ export function packRun(run) {
 
 /** What the bench shows in its list for each summary (the bench has no Firestore, so it gets plain objects). */
 export function forBench(docs) {
-  return docs.map((d) => ({ id: d.id, by: d.by, byName: d.byName, template: d.template, serial: d.serial, model: d.model, customer: d.customer, overall: d.overall, finished: d.finished, started: d.started, steps: d.steps }))
+  return docs.map((d) => ({ id: d.id, by: d.by, byName: d.byName, template: d.template, serial: d.serial, model: d.model, customer: d.customer, order: d.order || '', overall: d.overall, finished: d.finished, started: d.started, steps: d.steps }))
 }

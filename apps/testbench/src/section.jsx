@@ -20,6 +20,9 @@ import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, mak
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
 import { groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload } from './reports.js'
 import Reports from './Reports.jsx'
+import Orders from './Orders.jsx'
+import { watchOrders } from './orders-firebase.js'
+import { summaryLine } from './orders.js'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
 import './testbench.css'
@@ -63,7 +66,11 @@ function TestBench() {
 
   // Opened from Simpro Asset Sync's "Reports to add" (reports.js, reportsLink): straight onto Saved reports, showing that asset list's devices.
   const link = useMemo(() => reportsFromSearch(location.search), [])
-  const [tab, setTab] = useState(link.open ? 'reports' : 'bench') // 'bench' | 'reports'
+  const [tab, setTab] = useState(link.open ? 'reports' : 'bench') // 'bench' | 'reports' | 'orders'
+  const [orders, setOrders] = useState([])
+  const [ordersError, setOrdersError] = useState('')
+  const [testsList, setTestsList] = useState([]) // the shared finished tests (what the orders count)
+  const [startJob, setStartJob] = useState(null) // the Simpro job Saved reports opens with (from an order)
   const [onlySerials, setOnlySerials] = useState(link.serials)
   const [top, setTop] = useState(0)
   const [reports, setReports] = useState([])
@@ -105,22 +112,37 @@ function TestBench() {
   // A "Test this device" link (device-link.js): handed to the bench once it says hello, then taken out of the address bar.
   const sendDevice = useCallback(() => { const d = takeDeviceLink(); if (d) { toBench({ type: 'chs-bench:open-device', device: d }); try { history.replaceState(null, '', cleanAddress()) } catch { /* the address stays as it is */ } } }, [toBench])
   useEffect(() => { if (!peekDeviceLink()) return undefined; const t = setTimeout(sendDevice, 4000); return () => clearTimeout(t) }, [sendDevice])   // in case the hello was missed
+  // The open orders go to the bench, which offers them when a test is started and says how far each one is.
+  const ordersRef = useRef({ orders: [], tests: [] })
+  const sendOrders = useCallback(() => {
+    const { orders: os, tests } = ordersRef.current
+    toBench({ type: 'chs-bench:orders', list: os.filter((o) => o.status !== 'closed').map((o) => ({ number: o.number, customer: o.customer, label: `#${o.number} · ${o.customer}`, summary: summaryLine(o, tests) })) })
+  }, [toBench])
   const sendShared = useCallback(() => toBench({ type: 'chs-bench:shared-list', me: who.current.email, admin: who.current.admin, ok: shared.current.ok, list: shared.current.list }), [toBench])
   useEffect(() => {
     if (!user) { shared.current = { list: [], ok: false }; sendShared(); return undefined }
     return watchTests(
-      (list) => { shared.current = { list, ok: true }; sendShared() },
-      () => { shared.current = { list: [], ok: false }; sendShared() },
+      (list) => { shared.current = { list, ok: true }; setTestsList(list); sendShared() },
+      () => { shared.current = { list: [], ok: false }; setTestsList([]); sendShared() },
     )
   }, [user, sendShared])
   useEffect(() => { sendShared() }, [profile, sendShared])
+  // Orders: watched while signed in. Until their rules are published Firestore refuses; the tab says so rather than failing quietly.
+  useEffect(() => {
+    if (!user) { setOrders([]); setOrdersError(''); return undefined }
+    return watchOrders(
+      (list) => { setOrders(list); setOrdersError('') },
+      (e) => { setOrders([]); setOrdersError(e?.code === 'permission-denied' ? 'The database rules for orders haven’t been published yet (rules/README.md), or you aren’t on a team that can use the Test Bench.' : (e?.message || 'Orders couldn’t be loaded.')) },
+    )
+  }, [user])
+  useEffect(() => { ordersRef.current = { orders, tests: testsList }; sendOrders() }, [orders, testsList, sendOrders])
 
   // What the bench saves arrives here and is kept.
   useEffect(() => {
     const onMessage = async (e) => {
       if (e.origin !== location.origin || e.source !== frame.current?.contentWindow) return
       const m = e.data
-      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); askColours.current(); return }
+      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); sendOrders(); askColours.current(); return }
       if (m?.type === 'chs-bench:model-colours-reply' && m.map && m.hex) { setColours({ map: m.map, hex: m.hex }); return }
       if (m?.type === 'chs-bench:run' && typeof m.json === 'string') {   // a test finished or changed on this laptop: share it
         if (!user || (m.sharedBy && m.sharedBy !== who.current.email)) return
@@ -158,7 +180,7 @@ function TestBench() {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [reportStore, refreshReports, user, sendShared, sendDevice, toBench])
+  }, [reportStore, refreshReports, user, sendShared, sendDevice, sendOrders, toBench])
 
   /** Asks the bench (still loaded behind this tab) to build a file from a saved one: an Ansur record (.mtr) from a results file, or a PDF from a results file or an Ansur record. */
   const askBench = useCallback((type, buffer, name) => new Promise((resolve, reject) => {
@@ -285,6 +307,10 @@ function TestBench() {
           {failed > 0 && <Badge tone="red">{failed} failed</Badge>}
           {!online && <Badge tone="grey">Offline</Badge>}
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'orders'} className={tab === 'orders' ? 'is-on' : ''} onClick={() => setTab('orders')}>
+          Orders
+          {orders.some((o) => o.status !== 'closed') && <Badge tone="purple">{orders.filter((o) => o.status !== 'closed').length} open</Badge>}
+        </button>
       </div>
 
       {/* Kept loaded while Saved reports is showing: a test in progress and the USB connection stay as they are. */}
@@ -296,10 +322,16 @@ function TestBench() {
           <Button variant="ghost" size="sm" onClick={() => setJustSaved([])}>Dismiss</Button>
         </div>
       )}
+      {tab === 'orders' && (
+        <Orders
+          orders={orders} ordersError={ordersError} tests={testsList} who={who.current} user={user} online={online} sim={sim}
+          onReview={(order, p) => { setOnlySerials(p.devices.map((d) => d.serial).filter(Boolean)); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); setTab('reports') }}
+        />
+      )}
       {tab === 'reports' && (
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
-          onlySerials={onlySerials} onShowAll={() => setOnlySerials([])} startUnsent={link.unsent}
+          onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
           onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}

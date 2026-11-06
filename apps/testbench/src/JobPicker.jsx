@@ -21,7 +21,7 @@ export default function JobPicker({ call, online, user, companies, companyId, on
       setNote(jobs.length ? `${jobs.length} job${jobs.length === 1 ? '' : 's'} found.` : `Nothing matched “${text}”. Check the company, or try the job number.`)
     } catch (e) { setNote(e.message || String(e)) } finally { setBusy(false) }
   }
-  const pick = (j) => { onJob({ id: String(j.ID), label: jobLabel(j) }); setHits([]); setNote(''); setQ('') }
+  const pick = (j) => { onJob({ id: String(j.ID), label: jobLabel(j), customer: j.Customer?.CompanyName || [j.Customer?.GivenName, j.Customer?.FamilyName].filter(Boolean).join(' ') }); setHits([]); setNote(''); setQ('') }
   const useNumber = () => { onJob({ id: q.trim(), label: `#${q.trim()}` }); setHits([]); setNote(''); setQ('') }
 
   if (job) {

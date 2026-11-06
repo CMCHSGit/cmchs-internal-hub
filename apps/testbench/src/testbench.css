@@ -78,3 +78,23 @@
 .tb-totals tr.is-first td { border-top: 1px solid var(--border-hairline); }
 .tb-progress { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tb-progress progress { flex: 1 1 220px; height: 14px; accent-color: var(--chs-purple); }
+
+.tb-orderform { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); max-width: 760px; }
+.tb-orderform h3 { margin: 0; font: var(--type-h3); color: var(--text-strong); }
+.tb-orderform label, .tb-orderq { display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); font: var(--type-caption); }
+.tb-orderrow { display: flex; gap: 12px; flex-wrap: wrap; }
+.tb-orderrow label { flex: 1 1 240px; }
+.tb-orderform input { min-height: 38px; }
+.tb-order { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); }
+.tb-order.is-closed { opacity: .8; }
+.tb-order-head { display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap; }
+.tb-order-head h3 { margin: 0; font: var(--type-body-strong); color: var(--text-strong); }
+.tb-order-head p { margin: 2px 0 0; }
+.tb-order-badges { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+.tb-ordertable { width: 100%; border-collapse: collapse; }
+.tb-ordertable th, .tb-ordertable td { padding: 5px 10px; text-align: left; border-bottom: 1px solid var(--border-subtle); }
+.tb-ordertable th { color: var(--text-muted); font: var(--type-caption); font-weight: 600; }
+.tb-ordertable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tb-ordertable tr.is-short td { background: var(--chs-orange-20); }
+.tb-ordertable tr.is-extra td { background: var(--chs-purple-20); }
+.tb-order details summary { cursor: pointer; color: var(--text-muted); }

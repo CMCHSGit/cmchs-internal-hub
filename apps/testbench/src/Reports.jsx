@@ -55,7 +55,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -64,7 +64,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const [notDownloaded, setNotDownloaded] = useState(false)
   const [exts, setExts] = useState(['pdf', 'mtr']) // not the results file by default: Simpro won't take it, and the Ansur record says the same
   const [chosen, setChosen] = useState(() => new Set())
-  const [job, setJob] = useState(null)
+  const [job, setJob] = useState(startJob)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(null) // { done, total, label } while files are being saved
   const [note, setNote] = useState({ text: '', tone: 'info' })

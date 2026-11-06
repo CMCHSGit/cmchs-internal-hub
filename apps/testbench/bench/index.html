@@ -436,6 +436,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         <div class="section-title"><h2>Device under test</h2><span class="badge info" id="pickedName"></span></div>
         <div class="sheet-bar" id="sheetBar" hidden></div>
         <div class="grid2" id="dutFields"></div>
+        <div class="field" id="orderField" hidden style="margin-top:12px;max-width:560px"><label for="dutOrder">Order</label><select class="select" id="dutOrder" aria-label="Order this test counts toward"></select><span class="hint" id="orderHint"></span></div>
         <div class="sheet-gaps" id="sheetGaps" hidden></div>
         <div class="row" style="margin-top:16px">
           <button class="btn lg" id="startRun" type="button"><svg class="i"><use href="#i-play"/></svg>Start test</button>
@@ -4518,6 +4519,34 @@ window.addEventListener('message', (e) => {
   } catch (err) { /* no colours */ }
   window.parent.postMessage({ type: 'chs-bench:model-colours-reply', id: m.id, map, hex: HL_HEX }, location.origin);
 });
+/* ----- orders (set up on the hub's Orders tab): which order a finished test counts toward ----- */
+/** The open orders arrive from the hub ({ number, customer, label, summary }). A test started with an order chosen is for that order wherever
+    it was done; with none chosen it still counts for the open order whose customer matches (the hub works that out, orders.js). */
+const BenchOrders = {
+  list: [],
+  norm: (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(),
+  same(a, b) { const x = this.norm(a), y = this.norm(b); return !!x && !!y && (x === y || (Math.min(x.length, y.length) >= 4 && (x.includes(y) || y.includes(x)))); },
+  customer() { const i = $$('#dutFields input').find(i => /^(customer|client|hospital|site|owner)\b/i.test(i.dataset.k.trim()) && !/^customer asset/i.test(i.dataset.k.trim())); return i ? i.value.trim() : ''; },
+  set(list) { this.list = Array.isArray(list) ? list.filter(o => o && o.number) : []; this.render(); },
+  /** Offers the orders; one that fits the customer typed is chosen for you unless you have chosen. */
+  render() {
+    const f = $('#orderField'), sel = $('#dutOrder'); if (!f || !sel) return;
+    f.hidden = !this.list.length;
+    const keep = sel.value, touched = sel.dataset.touched === '1', fit = this.list.filter(o => this.same(o.customer, this.customer()));
+    sel.innerHTML = '<option value="">Automatic: by the customer</option>' + this.list.map(o => `<option value="${esc(o.number)}">${esc(o.label)} · ${esc(o.summary || '')}</option>`).join('');
+    sel.value = touched && this.list.some(o => o.number === keep) ? keep : (touched && keep === '' ? '' : (fit.length === 1 ? fit[0].number : ''));
+    this.hint();
+  },
+  hint() {
+    const sel = $('#dutOrder'), o = this.list.find(x => x.number === sel.value);
+    $('#orderHint').textContent = o ? `This test counts toward job #${o.number} (${o.summary}).` : 'Counts toward an open order for this customer, if there is one.';
+  },
+  chosen() { this.render(); return $('#orderField').hidden ? '' : $('#dutOrder').value || ''; },
+};
+window.addEventListener('message', (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  if (e.data && e.data.type === 'chs-bench:orders') BenchOrders.set(e.data.list);
+});
 /* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
 const SharedTests = {
   list: [], me: '', admin: false, ok: false, asks: new Map(), timers: {},
@@ -4728,6 +4757,8 @@ const App = {
     $('#sumSave').addEventListener('click', () => saveReportFiles(null, 'save'));
     $('#sumDownload').addEventListener('click', () => saveReportFiles(null, 'download'));
     $('#sumFolder').addEventListener('click', () => saveReportFiles(null, 'download', true));
+    $('#dutFields').addEventListener('input', () => BenchOrders.render());
+    $('#dutOrder').addEventListener('change', (e) => { e.target.dataset.touched = '1'; BenchOrders.hint(); });
     $('#tplCollapse').addEventListener('click', () => { Collapsed.all('run', groupTemplates(Store.templates).map(g => g[0]), true); this.refreshRunPicker(); });
     $('#tplExpand').addEventListener('click', () => { Collapsed.all('run', [], false); this.refreshRunPicker(); });
 
@@ -4859,7 +4890,7 @@ const App = {
     $('#pickedName').textContent = t.name;
     const prev = {}; $$('#dutFields input').forEach(i => prev[i.dataset.k] = i.value);
     $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || (/^testing engineer$/i.test(k) ? 'Jonathan Nasrun' : ''))}" ${i === 0 ? 'required' : ''}></div>`).join('');
-    $('#dutCard').hidden = false; this.updateStartHint();
+    $('#dutCard').hidden = false; delete $('#dutOrder').dataset.touched; BenchOrders.render(); this.updateStartHint();
     enterToNext($$('#dutFields input'), () => this.startRun());
     $$('#dutFields input').filter(i => /^(serial|chs asset|customer asset)/i.test(i.dataset.k.trim())).forEach(i => { let tm; i.addEventListener('change', () => { clearTimeout(tm); Sheet.onTyped(i); }); i.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { if (i.value.trim().length >= 4) Sheet.onTyped(i); }, 800); }); });   // in the customer's spreadsheet: fill the rest
     $('#dutFields input')?.focus();
@@ -4885,7 +4916,7 @@ const App = {
     log('in', 'RUN', `Rerun of “${t.name}” on the same device, keeping the earlier results`);
     Runner.start(t, clone(prev.dut), prev.model, (prev.attempt || 1) + 1);
     const r = Runner.run;
-    r.template = clone(prev.template); r.results = clone(prev.results); r.stdSet = prev.stdSet; r.rerunOf = prev.id;   // the same steps (same ids) and every result as it was
+    r.template = clone(prev.template); r.results = clone(prev.results); r.stdSet = prev.stdSet; r.rerunOf = prev.id; if (prev.order) r.order = prev.order;   // the same steps (same ids) and every result as it was
     if (prev.extra) r.extra = clone(prev.extra);
     $('#editAp').hidden = !usesAP(r.template);
     const left = r.template.steps.findIndex((s) => !['pass', 'done', 'info', 'na'].includes((r.results[s.id] || {}).status));
@@ -4919,6 +4950,8 @@ const App = {
     if (!t.steps.length) { toast('This template has no steps yet.'); return; }
     Sheet.cur = null; Sheet.result = null; Sheet.renderAlert();
     const dut = {}; inputs.forEach(i => dut[i.dataset.k] = i.value.trim());
+    const order = BenchOrders.chosen();   // the order this test counts toward, or '' for automatic
+    const go = (...a) => { Runner.start(...a); if (Runner.run && order) Runner.run.order = order; };
     const models = tplModels(t);
     if (models.length > 1) {
       const mk = Object.keys(dut).find(k => /^model$/i.test(k.trim()));
@@ -4930,9 +4963,9 @@ const App = {
         if (!model) return;
         if (mk && !dut[mk]) { dut[mk] = model; const inp = inputs.find(i => i.dataset.k === mk); if (inp) inp.value = model; }
       }
-      Runner.start(t, dut, model); return;
+      go(t, dut, model); return;
     }
-    Runner.start(t, dut);
+    go(t, dut);
   },
 
   /* ----- devices ----- */
