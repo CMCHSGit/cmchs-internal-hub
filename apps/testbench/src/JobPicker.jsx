@@ -18,7 +18,7 @@ export default function JobPicker({ call, online, user, companies, companyId, on
     try {
       const jobs = await findJobs(call, companyId, text)
       setHits(jobs)
-      setNote(jobs.length ? `${jobs.length} job${jobs.length === 1 ? '' : 's'} found.` : `Nothing matched “${text}”. Check the company, or try the job number.`)
+      setNote(jobs.length ? `${jobs.length} job${jobs.length === 1 ? '' : 's'} found (name, description, notes, site or customer).` : `Nothing matched “${text}” in the name, description${jobs.notesSearched ? ', notes' : ' (Simpro wouldn’t search the notes)'}, site or customer. Check the company, or try the job number.`)
     } catch (e) { setNote(e.message || String(e)) } finally { setBusy(false) }
   }
   const pick = (j) => { onJob({ id: String(j.ID), label: jobLabel(j), customer: j.Customer?.CompanyName || [j.Customer?.GivenName, j.Customer?.FamilyName].filter(Boolean).join(' ') }); setHits([]); setNote(''); setQ('') }
@@ -40,7 +40,7 @@ export default function JobPicker({ call, online, user, companies, companyId, on
             {companies.map((c) => <option key={c.ID} value={c.ID}>{c.Name}</option>)}
           </select>
         )}
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={online ? 'Job number, customer or description' : 'Job number'} aria-label="Simpro job"
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={online ? 'Job number, serial number, customer or words from the description or notes' : 'Job number'} aria-label="Simpro job"
           onKeyDown={(e) => { if (e.key === 'Enter') { if (online && user && !disabled) find(); else if (isNumber) useNumber() } }} />
         <Button variant="secondary" disabled={busy || !online || !user || disabled} onClick={find}>Find</Button>
         {isNumber && <Button variant="ghost" onClick={useNumber}>Use job #{q.trim()}</Button>}

@@ -32,6 +32,20 @@ export function parseExpected(text) {
   return { expected: out, bad }
 }
 
+/** The form's rows ([{ model, qty }], as typed) -> { expected: { D30: 15 }, bad: [models with no usable quantity] }. A blank row is ignored; a model twice adds up. */
+export function rowsToExpected(rows) {
+  const expected = {}, bad = []
+  for (const r of rows || []) {
+    const model = String(r.model ?? '').trim(), raw = String(r.qty ?? '').trim()
+    if (!model && !raw) continue
+    const n = Number(raw)
+    if (!model) { bad.push('a row with no model'); continue }
+    if (!raw || !Number.isInteger(n) || n < 1 || n > 5000) { bad.push(model); continue }
+    expected[model] = (expected[model] || 0) + n
+  }
+  return { expected, bad }
+}
+
 /** { D30: 15, D60: 2 } -> "15 × D30, 2 × D60" */
 export const expectedText = (expected) => Object.entries(expected || {}).map(([m, n]) => `${n} × ${m}`).join(', ')
 export const expectedTotal = (expected) => Object.values(expected || {}).reduce((a, n) => a + (+n || 0), 0)

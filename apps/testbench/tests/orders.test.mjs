@@ -81,3 +81,12 @@ test('a shared test carries the order it was started against, and the bench, hub
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.ok(section.includes("type: 'chs-bench:orders'") && section.includes('<Orders') && section.includes('startJob={startJob}'))
 })
+
+test('the order form takes one row per model, each with a quantity', async () => {
+  const { rowsToExpected } = await import('../src/orders.js')
+  assert.deepEqual(rowsToExpected([{ model: 'D30', qty: '15' }, { model: ' D60 ', qty: '2' }, { model: '', qty: '' }]), { expected: { D30: 15, D60: 2 }, bad: [] }, 'a blank row is left out')
+  assert.deepEqual(rowsToExpected([{ model: 'D30', qty: '5' }, { model: 'D30', qty: '3' }]).expected, { D30: 8 }, 'the same model twice adds up')
+  assert.deepEqual(rowsToExpected([{ model: 'D30', qty: '' }, { model: 'D60', qty: '0' }, { model: 'A9', qty: '1.5' }, { model: '', qty: '4' }]).bad, ['D30', 'D60', 'A9', 'a row with no model'], 'a row that can\'t be used is named, not guessed')
+  const ui = readFileSync(new URL('../src/Orders.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('Device model') && ui.includes('Quantity') && ui.includes('type="number"') && !ui.includes('15 D30, 2 D60, banana') && ui.includes('tb-modelrow'))
+})

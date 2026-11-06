@@ -181,11 +181,13 @@ async function search() {
     // Then search. Each filter is tried on its own because a field Simpro
     // won't filter on makes the whole request fail, and one unsupported
     // field shouldn't take the others down with it.
-    const term = encodeURIComponent(q) + '%25'
+    const term = '%25' + encodeURIComponent(q) + '%25'   // anywhere in the text, not just the start (a serial sits in the middle of a description)
     const cols = 'columns=ID,Name,Description,Customer,Site,Stage,Status'
     const tries = [
       ['Name', `/companies/${companyId}/jobs/?Name=${term}&${cols}&pageSize=20`],
       ['Description', `/companies/${companyId}/jobs/?Description=${term}&${cols}&pageSize=20`],
+      ['Notes', `/companies/${companyId}/jobs/?Notes=${term}&${cols}&pageSize=20`],
+      ['Site', `/companies/${companyId}/jobs/?Site.Name=${term}&${cols}&pageSize=20`],
       ['Customer', `/companies/${companyId}/jobs/?Customer.CompanyName=${term}&${cols}&pageSize=20`],
     ]
     const settled = await Promise.all(tries.map(([, path]) => call('GET', path).catch((e) => ({ status: 0, data: String(e) }))))

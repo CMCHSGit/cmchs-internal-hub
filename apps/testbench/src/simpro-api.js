@@ -68,8 +68,10 @@ export async function listCompanies(call) {
 }
 
 /**
- * Jobs matching what was typed: a number is tried as the job number first (one call, and what people type most),
- * then name, description and customer, each on its own because a field Simpro won't filter on fails the whole request.
+ * Jobs matching what was typed: a number is tried as the job number first (one call, and what people type most), then the text is looked for
+ * ANYWHERE in the name, description, notes, site and customer (a serial number is usually in the middle of a description or a note, so a
+ * starts-with search would miss it), each on its own because a field Simpro won't filter on fails the whole request. The list carries
+ * `notesSearched`: whether Simpro agreed to search the notes (it may not), so the picker can say so when nothing is found.
  */
 export async function findJobs(call, companyId, q) {
   const text = String(q || '').trim()
@@ -79,14 +81,17 @@ export async function findJobs(call, companyId, q) {
     if (ok(r) && r.data) return [r.data]
     if (r.status !== 404) throw new SendError(`Job ${text}: ${simproErr(r)}`, r.status >= 500)
   }
-  const term = encodeURIComponent(text) + '%25'
+  const term = '%25' + encodeURIComponent(text) + '%25'   // % is Simpro's wildcard: on both ends, so the text can be anywhere
   const cols = 'columns=ID,Name,Description,Customer,Site,Stage,Status'
-  const tries = ['Name', 'Description', 'Customer.CompanyName'].map((f) => `/companies/${companyId}/jobs/?${f}=${term}&${cols}&pageSize=20`)
+  const fields = ['Name', 'Description', 'Notes', 'Site.Name', 'Customer.CompanyName']
+  const tries = fields.map((f) => `/companies/${companyId}/jobs/?${f}=${term}&${cols}&pageSize=20`)
   const settled = await Promise.all(tries.map((p) => call('GET', p).catch((e) => ({ status: 0, data: String(e) }))))
   const seen = new Map()
   for (const r of settled) if (ok(r) && Array.isArray(r.data)) for (const j of r.data) seen.set(String(j.ID), j)
   if (!seen.size && settled.every((r) => !ok(r))) throw new SendError(`Search failed (${settled.map((r) => r.status).join(', ')}). Try the exact job number.`, settled.some((r) => r.status === 0 || r.status >= 500))
-  return [...seen.values()]
+  const jobs = [...seen.values()]
+  Object.defineProperty(jobs, 'notesSearched', { value: ok(settled[fields.indexOf('Notes')]) })   // not enumerable: the list stays a plain list
+  return jobs
 }
 
 /**

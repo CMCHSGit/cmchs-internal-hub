@@ -353,3 +353,23 @@ test('the asset list: the red (mandatory) columns it is missing for a device are
   assert.equal(after[0].rows[2][3], 'CHS-2'); assert.deepEqual(plain(after[0].rows[1]), plain(sheets[0].rows[1]))
   assert.equal(await XlsxLite.text(out, 'docProps/untouched.txt'), 'left exactly as it was')
 })
+
+test('job search looks anywhere in the name, description, notes, site and customer (a serial sits in the middle of a description), and says if the notes could not be searched', async () => {
+  const paths = []
+  const call = callWith(async (m, p) => {
+    paths.push(p)
+    if (p.includes('Notes=')) return { status: 400, data: {} }   // Simpro won't filter on notes
+    if (p.includes('Description=')) return { status: 200, data: [{ ID: 7, Name: 'PVT', Description: 'Units FP5-6A036784, FP5-6A036785' }] }
+    return { status: 200, data: [] }
+  })
+  const jobs = await findJobs(call, 3, 'FP5-6A036784')
+  assert.deepEqual(jobs.map((j) => j.ID), [7])
+  assert.equal(jobs.notesSearched, false, 'the picker can say Simpro wouldn\'t search the notes')
+  for (const f of ['Name', 'Description', 'Notes', 'Site.Name', 'Customer.CompanyName']) assert.ok(paths.some((p) => p.includes(`${f}=%25FP5-6A036784%25`)), f + ' is searched with the text anywhere (wildcard on both ends)')
+  const ok = callWith(async () => ({ status: 200, data: [] }))
+  assert.equal((await findJobs(ok, 3, 'abc')).notesSearched, true)
+  const ansur = readFileSync(new URL('../../ansurtopdf/simpro.js', import.meta.url), 'utf8')
+  assert.ok(ansur.includes("const term = '%25' + encodeURIComponent(q) + '%25'") && ansur.includes('Notes=${term}') && ansur.includes('Site.Name=${term}'), 'the Ansur builder\'s job search does the same')
+  const picker = readFileSync(new URL('../src/JobPicker.jsx', import.meta.url), 'utf8')
+  assert.ok(picker.includes('jobs.notesSearched') && picker.includes('words from the description or notes'))
+})

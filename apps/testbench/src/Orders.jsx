@@ -4,24 +4,27 @@ import { useMemo, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
-import { expectedText, expectedTotal, jobNumber, orderProblem, parseExpected, progress } from './orders.js'
+import { expectedText, expectedTotal, jobNumber, orderProblem, progress, rowsToExpected } from './orders.js'
 import { saveOrder, removeOrder } from './orders-firebase.js'
 
 const today = () => new Date().toISOString().slice(0, 10)
 const when = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(d) }
 const blank = () => ({ number: '', jobLabel: '', customer: '', expected: {}, since: today(), note: '', status: 'open' })
 
-function OrderForm({ start, customers, sim, online, user, onCancel, onSave }) {
+function OrderForm({ start, customers, models, sim, online, user, onCancel, onSave }) {
   const [o, setO] = useState(start)
-  const [text, setText] = useState(expectedText(start.expected).replace(/ × /g, ' '))
+  // One row for each model: the model, and how many of it. (Always a spare empty row at the end to type into.)
+  const [rows, setRows] = useState(() => [...Object.entries(start.expected || {}).map(([model, qty]) => ({ model, qty: String(qty) })), { model: '', qty: '' }])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const parsed = useMemo(() => parseExpected(text), [text])
+  const { expected, bad } = useMemo(() => rowsToExpected(rows), [rows])
   const job = o.number ? { id: o.number, label: o.jobLabel || `#${o.number}` } : null
-  const draft = { ...o, expected: parsed.expected }
   const set = (patch) => setO((x) => ({ ...x, ...patch }))
+  const change = (i, patch) => setRows((rs) => { const n = rs.map((r, k) => (k === i ? { ...r, ...patch } : r)); return n[n.length - 1].model || n[n.length - 1].qty ? [...n, { model: '', qty: '' }] : n })
+  const remove = (i) => setRows((rs) => (rs.length > 1 ? rs.filter((_, k) => k !== i) : [{ model: '', qty: '' }]))
   async function save() {
-    const p = orderProblem(draft) || (parsed.bad.length ? `Couldn’t read “${parsed.bad[0]}”. Write it like 15 D30.` : '')
+    const draft = { ...o, expected }
+    const p = orderProblem(draft) || (bad.length ? `Give “${bad[0]}” a quantity (a whole number, 1 or more).` : '')
     if (p) { setErr(p); return }
     setBusy(true); setErr('')
     try { await onSave({ ...draft, number: jobNumber(draft.number) }) } catch (e) { setErr(e?.message || 'Not saved.'); setBusy(false) }
@@ -38,13 +41,17 @@ function OrderForm({ start, customers, sim, online, user, onCancel, onSave }) {
         <datalist id="tbCustomers">{customers.map((c) => <option key={c} value={c} />)}</datalist>
         <label>Counting tests from<input type="date" value={o.since} onChange={(e) => set({ since: e.target.value })} /></label>
       </div>
-      <label className="tb-orderq">How many of each model
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="15 D30, 2 D60" />
-      </label>
-      <div className="tb-chips" aria-live="polite">
-        {Object.entries(parsed.expected).map(([m, n]) => <span key={m} className="tb-chip">{n} × {m}</span>)}
-        {expectedTotal(parsed.expected) > 0 && <span className="tb-muted">{expectedTotal(parsed.expected)} devices in all</span>}
-        {parsed.bad.length > 0 && <span className="tb-bad">Can’t read: {parsed.bad.join(', ')}</span>}
+      <div className="tb-models" role="group" aria-label="Devices on this order">
+        <div className="tb-modelhead"><span>Device model</span><span>Quantity</span><span /></div>
+        {rows.map((r, i) => (
+          <div className="tb-modelrow" key={i}>
+            <input value={r.model} list="tbModels" onChange={(e) => change(i, { model: e.target.value })} placeholder={i === 0 ? 'e.g. D30' : 'Another model'} aria-label={`Device model ${i + 1}`} />
+            <input type="number" min="1" step="1" inputMode="numeric" value={r.qty} onChange={(e) => change(i, { qty: e.target.value })} placeholder="Qty" aria-label={`Quantity of model ${i + 1}`} />
+            <button type="button" className="tb-rowx" onClick={() => remove(i)} aria-label={`Remove row ${i + 1}`} title="Remove this row" disabled={!r.model && !r.qty}>×</button>
+          </div>
+        ))}
+        <datalist id="tbModels">{models.map((m) => <option key={m} value={m} />)}</datalist>
+        <p className="tb-muted">{expectedTotal(expected) > 0 ? `${expectedTotal(expected)} device${expectedTotal(expected) === 1 ? '' : 's'} in all (${expectedText(expected)}).` : 'Add each model on its own row, with how many are to be tested.'} A test counts toward a model when its model contains that name as a whole word, so “D30” also counts “BeneHeart D30”.</p>
       </div>
       <label className="tb-orderq">Note (optional)<input value={o.note} onChange={(e) => set({ note: e.target.value })} placeholder="e.g. delivered to the ward, ready from Monday" /></label>
       {err && <p className="tb-note tb-note-warning" role="alert">{err}</p>}
@@ -112,6 +119,7 @@ export default function Orders({ orders, ordersError, tests, who, user, online, 
   const [show, setShow] = useState('open')
   const [note, setNote] = useState({ text: '', tone: 'info' })
   const customers = useMemo(() => [...new Set(tests.map((t) => t.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [tests])
+  const models = useMemo(() => [...new Set(tests.map((t) => String(t.model || '').split(/[,;]/)[0].trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [tests])   // models already tested: suggestions for the model field
   const shown = orders.filter((o) => (show === 'open' ? o.status !== 'closed' : o.status === 'closed'))
 
   async function save(o) {
@@ -143,7 +151,7 @@ export default function Orders({ orders, ordersError, tests, who, user, online, 
       {ordersError && <Alert tone="warning" title="Orders aren’t switched on yet">{ordersError}</Alert>}
       {note.text && <p className={`tb-note tb-note-${note.tone}`} role="status">{note.text}</p>}
       {form ? (
-        <OrderForm start={form} customers={customers} sim={sim} online={online} user={user} onCancel={() => setForm(null)} onSave={save} />
+        <OrderForm start={form} customers={customers} models={models} sim={sim} online={online} user={user} onCancel={() => setForm(null)} onSave={save} />
       ) : (
         <>
           <div className="tb-selbar">

@@ -98,3 +98,12 @@
 .tb-ordertable tr.is-short td { background: var(--chs-orange-20); }
 .tb-ordertable tr.is-extra td { background: var(--chs-purple-20); }
 .tb-order details summary { cursor: pointer; color: var(--text-muted); }
+.tb-models { display: flex; flex-direction: column; gap: 6px; max-width: 520px; }
+.tb-modelhead, .tb-modelrow { display: grid; grid-template-columns: minmax(0, 1fr) 110px 36px; gap: 8px; align-items: center; }
+.tb-modelhead { color: var(--text-muted); font: var(--type-caption); font-weight: 600; }
+.tb-modelrow input { min-height: 38px; width: 100%; }
+.tb-modelrow input[type="number"] { text-align: right; }
+.tb-rowx { min-height: 38px; background: transparent; border: 1px solid transparent; border-radius: var(--radius-md); font-size: 20px; line-height: 1; color: var(--text-muted); cursor: pointer; }
+.tb-rowx:hover:not(:disabled) { background: var(--surface-subtle); color: var(--text-strong); }
+.tb-rowx:disabled { opacity: .3; cursor: default; }
+.tb-rowx:focus-visible { outline: none; box-shadow: var(--focus-ring); }
