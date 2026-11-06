@@ -59,8 +59,8 @@ test('an ESA612 still in remote mode (REMOTE refused with error 02) is reset wit
 })
 
 test('Save keeps the PDF and Ansur record in Saved reports, Download writes both after asking where; Saved reports saves PDF and Ansur record for every test, making whichever is missing', () => {
-  assert.match(html, /async function saveReportFiles\(run, mode = 'download'\)/)
-  assert.match(html, /showDirectoryPicker\(\{ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' \}\)/, 'asks where, opening where it was last')
+  assert.match(html, /async function saveReportFiles\(run, mode = 'download', change = false\)/)
+  assert.match(html, /showDirectoryPicker\(\{ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' \}\)/, 'asks where the first time, opening where it was last')
   assert.ok(html.includes("if (kinds !== 'pdf' && !run.imported) files.push([outName(run, 'mtr')"), 'the Ansur record is made too (not for one opened from an Ansur record)')
   assert.match(html, /\$\('#sumSave'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'save'\)\)/, 'Save keeps both in Saved reports')
   assert.match(html, /\$\('#sumDownload'\)\.addEventListener\('click', \(\) => saveReportFiles\(null, 'download'\)\)/, 'Download writes both to a folder')
@@ -71,7 +71,7 @@ test('Save keeps the PDF and Ansur record in Saved reports, Download writes both
   const reports = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.match(reports, /const needPdf = /)
   assert.match(reports, /await makePdf\(g\)/)
-  assert.match(reports, /showDirectoryPicker\(\{ id: 'chs-test-bench-save'/, 'Saved reports asks where too')
+  assert.match(reports, /showDirectoryPicker\(\{ id: 'chs-test-bench-save'/, 'Saved reports asks where too (the first time)')
   assert.match(reports, /remove\(\[\.\.\.files, \.\.\.stale\]/, 'removing a test removes the older copies of it too')
   assert.match(section, /'chs-bench:build-pdf'/)
 })
@@ -292,4 +292,13 @@ test('a test with parts ("D30, MR6502 Internal Defib Paddles") is coloured by wh
   const part = whole.split(/[,;]+/).map((x) => x.trim())[0]
   assert.deepEqual(L.candidates([d30], part).map((t) => L.color(t)), ['blue'])
   assert.match(html, /String\(model\)\.split\(\/\[,;\]\+\/\)/, 'the bench tries each part in turn')
+})
+
+test('the folder to save into is remembered, so Save goes straight there instead of waiting for the browser\'s folder window; "Other folder…" changes it', () => {
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes("st.get('saveDir')") && ui.includes("st.put(h, 'saveDir')") && ui.includes('queryPermission') && ui.includes('requestPermission'), 'hub: kept, and only a permission check when it is used again')
+  assert.ok(/dir = await chooseFolder\(change\)/.test(ui) && ui.includes('Other folder…') && ui.includes('Save to “${folderName}”'))
+  assert.ok(ui.indexOf('showDirectoryPicker') === ui.lastIndexOf('showDirectoryPicker') || ui.split('showDirectoryPicker').length <= 5, 'the folder window is only opened from chooseFolder and the add-files folder')
+  const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(bench.includes("DB.getKV('saveDir')") && bench.includes("DB.putKV('saveDir', h)") && bench.includes('dir = await SaveFolder.pick(change)') && bench.includes('id="sumFolder"'), 'bench: the same for Download')
 })

@@ -496,6 +496,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <label class="sum-kinds" title="Which files Save and Download make">Files <select class="select" id="sumKinds" aria-label="Which files Save and Download make"><option value="both">PDF and Ansur record</option><option value="pdf">PDF only</option><option value="mtr">Ansur record (.mtr) only</option></select></label>
           <button class="btn" id="sumSave" type="button" title="Keeps the PDF report and the Ansur record (.mtr) in Saved reports, ready to send to a Simpro job or download later."><svg class="i"><use href="#i-check"/></svg>Save</button>
           <button class="btn secondary" id="sumDownload" type="button" title="Downloads the PDF report and the Ansur record (.mtr) into a folder you choose."><svg class="i"><use href="#i-download"/></svg>Download</button>
+          <button class="btn quiet sm" id="sumFolder" type="button" title="Download into a different folder from last time">Other folder…</button>
           <button class="btn quiet" id="sumPrint" type="button"><svg class="i"><use href="#i-printer"/></svg>Print</button>
         </div>
       </div>
@@ -4131,16 +4132,30 @@ async function exportMtr(run) {
  *    a folder they are downloaded; closing the picker cancels. They are not added to Saved reports.
  * A test opened from an Ansur record (or a results file) gets the PDF only: its Ansur record is the file it came from.
  */
-async function saveReportFiles(run, mode = 'download') {
+/** The folder Download saves into is remembered, so the next one goes straight there: the browser's folder window can take a long time to open
+    (a synced OneDrive folder in particular). It is asked for the first time, or when "Other folder…" is used. */
+const SaveFolder = {
+  async pick(change) {
+    let h = change ? null : await DB.getKV('saveDir');
+    if (h) {
+      let p = 'denied';
+      try { p = await h.queryPermission({ mode: 'readwrite' }); if (p !== 'granted') p = await h.requestPermission({ mode: 'readwrite' }); } catch { p = 'denied'; }
+      if (p !== 'granted') h = null;
+    }
+    if (!h) { h = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }); DB.putKV('saveDir', h).catch(() => {}); }
+    return h;
+  },
+};
+async function saveReportFiles(run, mode = 'download', change = false) {
   run = run || Runner.run; if (!run) return;
   const keep = mode === 'save';
   if (keep && window.parent === window) { toast('Saved reports belong to the hub. Opened on its own, this page can only Download.', 5000); return; }
   let dir = null;
   if (!keep && typeof window.showDirectoryPicker === 'function') {
-    try { dir = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }); }   // first, while the click still counts
+    try { dir = await SaveFolder.pick(change); }   // first, while the click still counts
     catch (e) { if (e.name === 'AbortError') return; log('er', 'RUN', 'Folder not chosen, downloading instead: ' + e.message); }
   }
-  const btns = ['#sumSave', '#sumDownload'].map((s) => $(s)).filter(Boolean); btns.forEach((b) => { b.disabled = true; }); let fell = 0;
+  const btns = ['#sumSave', '#sumDownload', '#sumFolder'].map((s) => $(s)).filter(Boolean); btns.forEach((b) => { b.disabled = true; }); let fell = 0;
   try {
     const kinds = Prefs.get('saveKinds') || 'both', files = [];   // both, the PDF only, or the Ansur record only
     if (kinds !== 'mtr') files.push([ReportPdf.fileName(run), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' })]);
@@ -4794,6 +4809,7 @@ const App = {
     $('#sumKinds').value = Prefs.get('saveKinds') || 'both'; $('#sumKinds').addEventListener('change', (e) => Prefs.set('saveKinds', e.target.value));
     $('#sumSave').addEventListener('click', () => saveReportFiles(null, 'save'));
     $('#sumDownload').addEventListener('click', () => saveReportFiles(null, 'download'));
+    $('#sumFolder').addEventListener('click', () => saveReportFiles(null, 'download', true));
     $('#tplCollapse').addEventListener('click', () => { Collapsed.all('run', groupTemplates(Store.templates).map(g => g[0]), true); this.refreshRunPicker(); });
     $('#tplExpand').addEventListener('click', () => { Collapsed.all('run', [], false); this.refreshRunPicker(); });
 

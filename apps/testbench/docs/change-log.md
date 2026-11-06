@@ -205,3 +205,6 @@ A test's title no longer says "· rerun N" (the files keep their "(rerun N)" nam
 
 ## Saved reports: progress bar while saving (06/11/2026)
 Saving or downloading shows a bar with "N of M done, K left". Each file also gets three tries, with the "PDF reports" folder looked up again each time (a failure on one file, such as a file name that is too long, still doesn't stop the rest).
+
+## Save goes straight to the remembered folder (06/11/2026)
+The browser's folder window can take a long time to open (a synced OneDrive folder in particular), so Saved reports' **Save to …** and the bench's **Download** now remember the folder chosen and write straight into it next time (at most a quick "allow" prompt from the browser, never the folder window). The first time, or when the remembered folder can't be used any more, the folder window opens as before; **Other folder…** (beside both buttons) chooses a different one. The button names the folder: Save to “Reports”.
