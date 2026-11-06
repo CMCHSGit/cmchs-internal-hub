@@ -13,6 +13,7 @@ export const APP_LABELS = {
   projects: 'Projects',
   asks: 'Asks',
   checklists: 'Checklists',
+  knowledge: 'Knowledge base',
   admin: 'Admin',
   settings: 'Settings',
   'pdf-editor': 'PDF editor',

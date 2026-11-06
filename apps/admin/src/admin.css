@@ -17,7 +17,7 @@
 .admin-notify-head { display: none; }
 .admin-tracker { display: inline-flex; align-items: center; gap: 6px; font-size: var(--size-body-sm); color: var(--text-muted); }
 @media (min-width: 1000px) {
-  .admin-people .admin-item { display: grid; grid-template-columns: minmax(0, 1fr) 140px 110px 110px 190px 70px; gap: 12px; }
+  .admin-people .admin-item { display: grid; grid-template-columns: minmax(0, 1fr) 140px 110px 110px 110px 190px 70px; gap: 12px; }
   .admin-people .admin-remove { justify-self: start; }
   .admin-people .admin-controls { display: contents; }
   .admin-people .admin-controls select, .admin-people .admin-controls .input { width: 100% !important; }

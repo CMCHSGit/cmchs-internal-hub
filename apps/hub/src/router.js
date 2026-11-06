@@ -19,6 +19,7 @@ export const SECTIONS = [
   { id: 'oncall', prefix: '/oncall/' },
   { id: 'service', prefix: '/service/' },
   { id: 'checklists', prefix: '/checklists/' },
+  { id: 'knowledge', prefix: '/knowledge/' },
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
   { id: 'testbench', prefix: '/testbench/' },

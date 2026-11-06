@@ -132,6 +132,17 @@
     "visible": true
   },
   {
+    "id": "knowledge",
+    "name": "Knowledge base",
+    "short": "Knowledge",
+    "description": "Part numbers and what else they are called, faults and fixes, what is installed where, and what was done on past jobs",
+    "link": "/knowledge/",
+    "category": "Service",
+    "icon": "book-open",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "projects",
     "name": "Project tracker",
     "short": "Projects",

@@ -1,0 +1,297 @@
+/* The knowledge base's plain logic: no Firebase, no React, so the tests run it outside Vite.
+
+   Four kinds of record, each its own Firestore collection of small flat documents (rules/firestore.rules):
+     article  kbArticles  a quirk, fault, fix or how-to: title, body, category, tags, parts (part numbers)
+     part     kbParts     a part: partNo, name, aliases (the other names people use), fits (models), notes, diagram
+     device   kbDevices   an installed device: site, dept, model, serial, version, options, and any other column
+     job      kbJobs      a past job, from a Simpro export: jobNo, title, notes, model, parts, site, date
+
+   Every record carries `search`, a lower-case string of its words (and its part numbers with the dashes and
+   spaces taken out, so "AB-123", "ab 123" and "ab123" all find each other). Searching is every word of the
+   question being somewhere in that string: instant on the device, no server and no AI. */
+
+export const KINDS = {
+  article: { col: 'kbArticles', label: 'Articles', one: 'article' },
+  part: { col: 'kbParts', label: 'Parts', one: 'part' },
+  device: { col: 'kbDevices', label: 'Installed devices', one: 'device' },
+  job: { col: 'kbJobs', label: 'Past jobs', one: 'job' },
+}
+export const KIND_IDS = Object.keys(KINDS)
+
+// What each kind holds: text fields (with their length caps), list fields, and the fields that count most in a search.
+const SHAPE = {
+  article: { text: { title: 200, body: 20000, category: 80, reviewedAt: 10 }, list: ['tags', 'parts'], main: ['title', 'tags', 'parts'] },
+  part: { text: { partNo: 80, name: 200, notes: 4000, diagram: 500 }, list: ['aliases', 'fits'], main: ['partNo', 'name', 'aliases'] },
+  device: { text: { site: 120, dept: 120, model: 120, serial: 120, version: 80, options: 1000, notes: 1000 }, list: [], main: ['model', 'site', 'dept', 'serial'] },
+  job: { text: { jobNo: 40, title: 300, notes: 20000, site: 120, date: 10 }, list: ['parts', 'model'], main: ['title', 'jobNo', 'parts'] },
+}
+const MAX_LIST = 60, MAX_ITEM = 80, MAX_EXTRA = 24, MAX_EXTRA_VALUE = 200
+
+const clean = (s, max) => String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max)
+/** Body text keeps its line breaks. */
+const cleanBody = (s, max) => String(s ?? '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').trim().slice(0, max)
+const cleanList = (v) => {
+  const items = Array.isArray(v) ? v : String(v ?? '').split(/[,;\n]/)
+  return [...new Set(items.map((x) => clean(x, MAX_ITEM)).filter(Boolean))].slice(0, MAX_LIST)
+}
+
+/** Words only: lower case, anything that is not a letter or digit is a space. */
+export const words = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+/** A part number with no dashes or spaces: AB-123/4 → ab1234. */
+export const compact = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+
+/** The record as it is stored: trimmed, capped, with `search` made. Only the kind's own fields. */
+export function buildRecord(kind, input = {}) {
+  const shape = SHAPE[kind]
+  if (!shape) throw new Error('Unknown kind ' + kind)
+  const out = {}
+  for (const [f, max] of Object.entries(shape.text)) out[f] = (f === 'body' || (f === 'notes' && kind === 'job')) ? cleanBody(input[f], max) : clean(input[f], max)
+  for (const f of shape.list) out[f] = cleanList(input[f])
+  if (kind === 'device') out.extra = cleanExtra(input.extra)
+  out.search = searchOf(kind, out)
+  return out
+}
+
+function cleanExtra(extra) {
+  const out = {}
+  for (const [k, v] of Object.entries(extra || {})) {
+    const key = clean(k, 60), val = clean(v, MAX_EXTRA_VALUE)
+    if (key && val && Object.keys(out).length < MAX_EXTRA) out[key] = val
+  }
+  return out
+}
+
+/** Every searchable word of a record, in one string; capped so a long article stays a small document. */
+export function searchOf(kind, rec) {
+  const shape = SHAPE[kind]
+  const parts = []
+  for (const f of Object.keys(shape.text)) parts.push(rec[f])
+  for (const f of shape.list) parts.push(...(rec[f] || []))
+  if (kind === 'device') for (const [k, v] of Object.entries(rec.extra || {})) parts.push(k, v)
+  const w = words(parts.join(' '))
+  // Part numbers, with the dashes gone, so a number typed any way finds it.
+  const codes = [rec.partNo, rec.serial, rec.jobNo, ...(rec.parts || []), ...(rec.aliases || [])].filter(Boolean).map(compact).filter(Boolean)
+  return (w + ' ' + [...new Set(codes)].join(' ')).trim().slice(0, 9000)
+}
+
+/** The question as words, ignoring filler a person types ("the", "in", "how many"). */
+const FILLER = new Set(['the', 'a', 'an', 'in', 'at', 'of', 'for', 'do', 'does', 'they', 'have', 'has', 'what', 'which', 'is', 'are', 'how', 'many', 'to', 'on', 'with', 'use', 'using', 'total', 'and'])
+export function queryWords(q) {
+  const all = words(q).split(' ').filter(Boolean)
+  const kept = all.filter((w) => !FILLER.has(w))
+  return kept.length ? kept : all
+}
+
+/** Records matching every word of the question, best first. Empty question: everything, as stored. */
+export function searchRecords(kind, records, q) {
+  const ws = queryWords(q)
+  if (!ws.length) return records
+  const main = SHAPE[kind].main
+  const joined = ws.join('')
+  const scored = []
+  for (const r of records) {
+    const hay = r.search || ''
+    if (!ws.every((w) => hay.includes(w))) continue
+    let score = 0
+    const lead = main.flatMap((f) => (Array.isArray(r[f]) ? r[f] : [r[f]])).filter(Boolean).map(words)
+    for (const w of ws) score += lead.some((t) => t.split(' ').includes(w)) ? 10 : lead.some((t) => t.includes(w)) ? 6 : 1
+    if (lead.some((t) => compact(t) === joined)) score += 100
+    scored.push([score, r])
+  }
+  return scored.sort((a, b) => b[0] - a[0]).map((x) => x[1])
+}
+
+/** How many devices fall under each value of a field ("site", "dept", "model", "version", or an extra column), most first. */
+export function countBy(devices, field) {
+  const tally = new Map()
+  for (const d of devices) {
+    const v = (field in d ? d[field] : d.extra?.[field]) || '(blank)'
+    tally.set(v, (tally.get(v) || 0) + 1)
+  }
+  return [...tally].map(([value, n]) => ({ value, n })).sort((a, b) => b.n - a.n || a.value.localeCompare(b.value))
+}
+
+/** The fields a device list can be grouped by: the fixed ones, then every other column that was imported. */
+export function groupFields(devices) {
+  const extra = new Set()
+  for (const d of devices) for (const k of Object.keys(d.extra || {})) extra.add(k)
+  return ['site', 'dept', 'model', 'version', ...[...extra].sort()]
+}
+
+/** Parts a record names that exist in the catalogue (by number or alias), for "related parts" links. */
+export function relatedParts(rec, parts) {
+  const wanted = new Set([...(rec.parts || []), ...(rec.aliases || []), rec.partNo].filter(Boolean).map(compact))
+  return parts.filter((p) => wanted.has(compact(p.partNo)) || (p.aliases || []).some((a) => wanted.has(compact(a))))
+}
+
+/** Records that name this part by its number or an alias: articles and past jobs. */
+export function mentioning(part, records) {
+  const codes = [part.partNo, ...(part.aliases || [])].filter(Boolean).map(compact).filter(Boolean)
+  return records.filter((r) => codes.some((c) => (r.parts || []).some((p) => compact(p) === c)))
+}
+
+// ── Import: a spreadsheet or CSV into records ─────────────────────────────────────────────────────
+
+/** The headings each field is found under (matched as words), plus any a person types. */
+const HEADINGS = {
+  part: {
+    partNo: ['part number', 'part no', 'part', 'part #', 'p n', 'pn', 'number', 'code', 'item', 'item code', 'stock code', 'catalogue number', 'catalog number'],
+    name: ['name', 'description', 'part name', 'item name'],
+    aliases: ['aliases', 'alias', 'also called', 'other names', 'aka', 'also known as', 'alternative names', 'synonyms'],
+    fits: ['fits', 'models', 'model', 'used on', 'compatible', 'compatible with', 'suits', 'equipment'],
+    notes: ['notes', 'note', 'comments', 'comment', 'info'],
+    diagram: ['diagram', 'figure', 'image', 'picture', 'drawing', 'link', 'manual', 'page'],
+  },
+  device: {
+    site: ['site', 'customer', 'hospital', 'location', 'facility', 'client'],
+    dept: ['dept', 'department', 'ward', 'ward location', 'ward/location', 'area', 'unit'],
+    model: ['model', 'device model', 'equipment', 'description', 'device'],
+    serial: ['serial', 'serial number', 'serial no', 's n', 'sn'],
+    version: ['version', 'software', 'software version', 'firmware', 'sw version'],
+    options: ['options', 'option', 'configuration', 'config'],
+    notes: ['notes', 'note', 'comments', 'comment'],
+  },
+  job: {
+    jobNo: ['job', 'job number', 'job no', 'job #', 'number', 'id'],
+    title: ['title', 'name', 'job name', 'description', 'summary'],
+    notes: ['notes', 'job notes', 'work done', 'work performed', 'details', 'comments', 'report', 'job description', 'invoice notes'],
+    model: ['model', 'models', 'device', 'equipment'],
+    parts: ['parts', 'parts used', 'part numbers', 'part', 'materials'],
+    site: ['site', 'customer', 'hospital', 'location'],
+    date: ['date', 'completed', 'completed date', 'job date', 'closed', 'created'],
+  },
+}
+
+/** Column index for each field of the kind, by the first heading that matches; a heading is used once. */
+export function mapHeaders(kind, headers) {
+  const map = {}, taken = new Set()
+  const wanted = HEADINGS[kind] || {}
+  const hw = headers.map(words)
+  for (const [field, names] of Object.entries(wanted)) {
+    for (const name of names) {
+      const i = hw.findIndex((h, idx) => h === words(name) && !taken.has(idx))
+      if (i >= 0) { map[field] = i; taken.add(i); break }
+    }
+  }
+  return { map, taken }
+}
+
+/** The first row with at least two recognised headings is the header row (people put titles above it). */
+export function findHeaderRow(kind, rows) {
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const { map } = mapHeaders(kind, (rows[i] || []).map(String))
+    if (Object.keys(map).length >= 2 || (kind === 'part' && 'partNo' in map)) return i
+  }
+  return -1
+}
+
+/**
+ * Rows (arrays of cells, header row first) into records of the kind.
+ * Devices keep every unrecognised column as `extra`, so an SpO2 type or a WiFi column is searchable and can be grouped on.
+ * `defaults` fills a field a row leaves blank (a customer workbook has no Site column: the file's name is the site), and its
+ * `extra` adds columns to every device (the sheet's name).
+ * Returns { records, skipped } where skipped counts rows with nothing usable.
+ */
+export function rowsToRecords(kind, rows, defaults = {}) {
+  const h = findHeaderRow(kind, rows)
+  if (h < 0) return { records: [], skipped: 0, error: 'Could not find a heading row. Expected headings like: ' + Object.values(HEADINGS[kind]).map((n) => n[0]).join(', ') + '.' }
+  const headers = rows[h].map((c) => String(c ?? '').trim())
+  const { map, taken } = mapHeaders(kind, headers)
+  const records = []
+  let skipped = 0
+  for (const row of rows.slice(h + 1)) {
+    const input = {}
+    for (const [field, i] of Object.entries(map)) input[field] = cell(row[i])
+    for (const [field, v] of Object.entries(defaults)) if (field !== 'extra' && !input[field]) input[field] = v
+    if (kind === 'device') {
+      input.extra = { ...(defaults.extra || {}) }
+      headers.forEach((head, i) => { if (!taken.has(i) && head && cell(row[i])) input.extra[head] = cell(row[i]) })
+    }
+    const rec = buildRecord(kind, input)
+    const key = kind === 'part' ? rec.partNo : kind === 'job' ? rec.jobNo || rec.title : rec.model || rec.serial
+    if (!key) { skipped++; continue }
+    records.push(rec)
+  }
+  return { records, skipped }
+}
+
+/**
+ * An article's body as blocks to draw, never as HTML: paragraphs, "- " bullet lines, **bold** and http(s) links.
+ * The page draws each piece as React text, so nothing a person types can inject markup.
+ */
+export function richBlocks(body) {
+  const inline = (text) => {
+    const out = []
+    const re = /\*\*([^*]+)\*\*|(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)])/g
+    let last = 0, m
+    while ((m = re.exec(text))) {
+      if (m.index > last) out.push({ t: 'text', text: text.slice(last, m.index) })
+      out.push(m[1] != null ? { t: 'bold', text: m[1] } : { t: 'link', text: m[2], href: m[2] })
+      last = m.index + m[0].length
+    }
+    if (last < text.length) out.push({ t: 'text', text: text.slice(last) })
+    return out
+  }
+  const blocks = []
+  for (const raw of String(body || '').split('\n')) {
+    const line = raw.trimEnd()
+    if (!line.trim()) { blocks.push({ type: 'gap' }); continue }
+    const bullet = /^\s*[-*•]\s+(.*)$/.exec(line)
+    blocks.push(bullet ? { type: 'li', parts: inline(bullet[1]) } : { type: 'p', parts: inline(line) })
+  }
+  return blocks.filter((b, i) => b.type !== 'gap' || (i > 0 && blocks[i - 1].type !== 'gap' && i < blocks.length - 1))
+}
+
+/** A cell as text: dates as 2026-11-06, rich text and formulas as what they show. */
+export function cell(v) {
+  if (v == null) return ''
+  if (v instanceof Date) return v.toISOString().slice(0, 10)
+  if (typeof v === 'object') {
+    if ('result' in v) return cell(v.result)
+    if ('text' in v) return String(v.text)
+    if ('richText' in v) return v.richText.map((r) => r.text).join('')
+    return ''
+  }
+  return String(v).trim()
+}
+
+/** A CSV file's text into rows; quoted fields, doubled quotes and line breaks inside quotes are handled. */
+export function parseCsv(text) {
+  const rows = []
+  let row = [], field = '', quoted = false
+  const s = String(text).replace(/^﻿/, '')
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (quoted) {
+      if (c === '"' && s[i + 1] === '"') { field += '"'; i++ } else if (c === '"') quoted = false
+      else field += c
+    } else if (c === '"') quoted = true
+    else if (c === ',') { row.push(field); field = '' }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && s[i + 1] === '\n') i++
+      row.push(field); field = ''
+      if (row.some((x) => x !== '')) rows.push(row)
+      row = []
+    } else field += c
+  }
+  row.push(field)
+  if (row.some((x) => x !== '')) rows.push(row)
+  return rows
+}
+
+/** The Firestore id of a record: what makes it the same record when a file is imported again. Articles get a random one in the store. */
+export function recordId(kind, rec) {
+  const slug = (s) => compact(s).slice(0, 60)
+  if (kind === 'part') return 'p-' + slug(rec.partNo)
+  if (kind === 'job') return 'j-' + slug(rec.jobNo || rec.title)
+  if (kind === 'device') return 'd-' + slug(rec.site) + '-' + (rec.serial ? slug(rec.serial) : slug(rec.model + rec.dept) + '-' + hash(rec.search))
+  return null
+}
+function hash(s) {
+  let h = 5381
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
+  return h.toString(36)
+}
+
+/** Whether this person can change the knowledge base: an admin, or anyone an admin gave the editor switch. */
+export const canEditKb = (profile) => !!profile && (profile.role === 'admin' || profile.kbEditor === true)

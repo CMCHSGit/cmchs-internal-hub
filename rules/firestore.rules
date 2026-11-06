@@ -56,7 +56,7 @@ service cloud.firestore {
     // Since the hub's People page: people may also change their own name and
     // work mobile; HR may add placeholders (with a work email), change anyone's
     // name, team, work email and work mobile, and remove anyone but an admin.
-    // Only an admin can set role, simproAccess or hr.
+    // Only an admin can set role, simproAccess, hr or kbEditor (the knowledge base's editor switch).
     match /users/{uid} {
       allow read: if isSignedIn();
       allow create: if isAdmin() || (isOwner(uid) && isNewOwnProfile()) || (isHR() && isHRNewPerson());
@@ -579,6 +579,58 @@ service cloud.firestore {
         && d.customer is string && d.customer.size() < 201 && d.jobLabel is string && d.note is string && d.note.size() < 501
         && d.expected is map && d.status in ['open', 'closed'] && d.since is string
         && d.createdBy is string && d.createdAt is number && d.updatedAt is number;
+    }
+
+    // Knowledge base (internal.chsnz.co.nz/knowledge/): articles, a parts catalogue, installed devices and past jobs, each a
+    // collection of small flat documents (apps/knowledge/src/model.js builds them). Everyone signed in reads; admins and anyone an
+    // admin gave users/{uid}.kbEditor == true write, and an admin alone sets that switch (a person cannot give it to themselves:
+    // isOwnSafeUpdate and the HR rules never list it). Every write says who made it (updatedBy is the writer) and when (the server's
+    // time), and only the known fields, with sizes capped, so a document stays small however it is imported.
+    function canEditKb() {
+      return isSignedIn() && (isAdmin() || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('kbEditor', false) == true);
+    }
+    function kbStr(v, max)  { return v is string && v.size() <= max; }
+    function kbList(v)      { return v is list && v.size() <= 60; }
+    function kbStamped(d)   { return d.updatedBy == request.auth.uid && kbStr(d.updatedByName, 120) && d.updatedAt == request.time && kbStr(d.search, 9000); }
+    function isKbArticle(d) {
+      return d.keys().hasOnly(['title', 'body', 'category', 'tags', 'parts', 'reviewedAt', 'search', 'updatedBy', 'updatedByName', 'updatedAt'])
+        && kbStr(d.title, 200) && d.title.size() > 0 && kbStr(d.body, 20000) && kbStr(d.category, 80) && kbList(d.tags) && kbList(d.parts)
+        && kbStr(d.get('reviewedAt', ''), 10) && kbStamped(d);
+    }
+    function isKbPart(d) {
+      return d.keys().hasOnly(['partNo', 'name', 'notes', 'diagram', 'aliases', 'fits', 'search', 'updatedBy', 'updatedByName', 'updatedAt'])
+        && kbStr(d.partNo, 80) && d.partNo.size() > 0 && kbStr(d.name, 200) && kbStr(d.notes, 4000) && kbStr(d.diagram, 500)
+        && kbList(d.aliases) && kbList(d.fits) && kbStamped(d);
+    }
+    function isKbDevice(d) {
+      return d.keys().hasOnly(['site', 'dept', 'model', 'serial', 'version', 'options', 'notes', 'extra', 'search', 'updatedBy', 'updatedByName', 'updatedAt'])
+        && kbStr(d.site, 120) && kbStr(d.dept, 120) && kbStr(d.model, 120) && kbStr(d.serial, 120) && kbStr(d.version, 80)
+        && kbStr(d.options, 1000) && kbStr(d.notes, 1000) && d.extra is map && d.extra.size() <= 24 && kbStamped(d);
+    }
+    function isKbJob(d) {
+      return d.keys().hasOnly(['jobNo', 'title', 'notes', 'site', 'date', 'parts', 'model', 'search', 'updatedBy', 'updatedByName', 'updatedAt'])
+        && kbStr(d.jobNo, 40) && kbStr(d.title, 300) && kbStr(d.notes, 20000) && kbStr(d.site, 120) && kbStr(d.date, 10)
+        && kbList(d.parts) && kbList(d.model) && kbStamped(d);
+    }
+    match /kbArticles/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if canEditKb() && isKbArticle(request.resource.data);
+      allow delete: if canEditKb();
+    }
+    match /kbParts/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if canEditKb() && isKbPart(request.resource.data);
+      allow delete: if canEditKb();
+    }
+    match /kbDevices/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if canEditKb() && isKbDevice(request.resource.data);
+      allow delete: if canEditKb();
+    }
+    match /kbJobs/{id} {
+      allow read: if isSignedIn();
+      allow create, update: if canEditKb() && isKbJob(request.resource.data);
+      allow delete: if canEditKb();
     }
 
     // Assets recorded on the new-equipment page while testing (internal.chsnz.co.nz/new-equipment/),

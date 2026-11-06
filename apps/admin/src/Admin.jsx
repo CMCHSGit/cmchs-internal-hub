@@ -62,6 +62,10 @@ export function UsersTab() {
     }
     setUsers(prev => prev.map(u => u.uid === uid ? { ...u, [field]: value } : u))
     showToast('Saved.')
+    if (field === 'kbEditor') {
+      logActivity(user, value ? `Made ${name} a knowledge base editor in Settings.` : `Took away ${name}'s knowledge base editor switch in Settings.`)
+      return
+    }
     if (field === 'simproAccess') {
       logActivity(user, value ? `Gave ${name} Simpro access in Settings.` : `Took away ${name}'s Simpro access in Settings.`)
       return
@@ -163,7 +167,7 @@ export function UsersTab() {
       {loading ? <Loading /> : (
         <div className="card admin-list admin-people">
           <div className="admin-item admin-people-head" aria-hidden="true">
-            <span>Name</span><span>Team</span><span>Role</span><span>Simpro</span><span>Demo tracker</span>
+            <span>Name</span><span>Team</span><span>Role</span><span>Simpro</span><span>Knowledge</span><span>Demo tracker</span>
           </div>
           {users.map(u => (
             <div key={u.uid} className="admin-item">
@@ -198,6 +202,7 @@ export function UsersTab() {
                   <option value="admin">Admin</option>
                 </select>
                 <SimproAccess person={u} onChange={on => updateUser(u.uid, 'simproAccess', on)} />
+                <KbEditor person={u} onChange={on => updateUser(u.uid, 'kbEditor', on)} />
                 <TrackerRole person={u} onChange={role => setTrackerRole(u, role)} />
                 {u.pending && (
                   <Button variant="ghost" size="sm" className="admin-remove" style={{ color: 'var(--status-critical)' }} onClick={() => removePerson(u)}>Remove</Button>
@@ -212,6 +217,20 @@ export function UsersTab() {
       <Toast message={toast} />
     </div>
   )
+}
+
+/**
+ * users/{uid}.kbEditor: may add, change, import and remove in the knowledge base (admins always may). Only an admin can set it
+ * (rules/firestore.rules). Not offered for a placeholder, for the same reason as Simpro access.
+ */
+function KbEditor({ person, onChange }) {
+  if (person.role === 'admin') {
+    return <span className="admin-simpro text-sm text-muted" title="Admins can always edit the knowledge base"><span className="admin-simpro-key">Knowledge: </span>Always (admin)</span>
+  }
+  if (person.pending) {
+    return <span className="admin-simpro text-sm text-muted"><span className="admin-simpro-key">Knowledge: </span>After they sign in</span>
+  }
+  return <Switch className="admin-simpro" checked={person.kbEditor === true} onChange={onChange} label="Knowledge base editor" />
 }
 
 /**
