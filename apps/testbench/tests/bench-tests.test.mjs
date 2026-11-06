@@ -273,3 +273,11 @@ test('groups fold on the Run a test page and in the Templates list (kept on this
   assert.ok(html.includes("const folded = q ? new Set() : Collapsed.get('run')"), 'a search shows everything it finds')
   assert.ok(html.includes('id="tplColor"') && html.includes('data-gcolor') && !html.includes('id="tplHighlight"'))
 })
+
+test('deleting a template: from this browser only, or permanently from the shared folder for everyone (a separate, confirmed choice)', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const fn = html.slice(html.indexOf('  async deleteTemplate() {'), html.indexOf('  async deleteTemplate() {') + 3500)
+  assert.ok(fn.includes("value: 'local'") && fn.includes("value: 'forever'") && fn.includes('Delete permanently for everyone'))
+  assert.ok(fn.includes('Shared.dir.removeEntry(t.shared.file)') && fn.includes("requestPermission({ mode: 'readwrite' })"), 'asks the browser for write access, then deletes the file')
+  assert.ok(fn.includes('!t.shared.published'), 'the hub-published copies can only be removed from the browser')
+})

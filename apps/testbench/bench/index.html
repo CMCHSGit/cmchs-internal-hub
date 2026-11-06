@@ -2213,10 +2213,25 @@ const Builder = {
     const c = clone(this.tpl); c.id = uid(); c.name += ' (copy)'; c.steps.forEach(s => s.id = uid());
     await Store.add(c); this.tplId = c.id; this.selId = null; this.renderAll(); toast('Template duplicated');
   },
+  /** Delete from this browser only, or (for a template in the shared folder, from Chrome or Edge) permanently from the shared folder for everyone. */
   async deleteTemplate() {
     const t = this.tpl; if (!t) return;
-    const ok = await dialog({ title: 'Delete this template?', body: `<p>“${esc(t.name)}” and its ${t.steps.length} steps will be deleted from this browser. ${t.shared ? `It’s still in the shared templates folder (${esc(t.shared.file)}), so it comes back the next time the folder is loaded. Delete that file to remove it for everyone.` : 'Export it first if you might need it again.'}</p>`, buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Delete template', value: true, cls: 'danger' }] });
-    if (!ok) return;
+    const inFolder = !!(t.shared && !t.shared.published && Shared.dir);   // a file in the shared SharePoint folder this browser can write to
+    const buttons = [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Delete from this browser', value: 'local', cls: inFolder ? 'quiet' : 'danger' }];
+    if (inFolder) buttons.push({ label: 'Delete permanently for everyone', value: 'forever', cls: 'danger' });
+    const body = `<p>“${esc(t.name)}” and its ${t.steps.length} steps.</p>` + (t.shared
+      ? `<p><b>Delete from this browser</b> removes it from this PC only. It is still in the shared templates folder (${esc(t.shared.file)}), so it comes back the next time the folder is loaded.</p>${inFolder ? `<p><b>Delete permanently for everyone</b> deletes the file ${esc(t.shared.file)} from the shared folder, so it goes from every engineer's bench the next time they load it. This can't be undone from here (OneDrive's recycle bin may still have it).</p>` : '<p class="muted">This copy came with the hub, or the shared folder isn’t connected with write access here, so it can only be removed from this browser.</p>'}`
+      : '<p>It will be deleted from this browser. Export it first if you might need it again.</p>');
+    const how = await dialog({ title: 'Delete this template?', body, buttons });
+    if (!how) return;
+    if (how === 'forever') {
+      let perm = 'denied'; try { perm = await Shared.access.requestPermission({ mode: 'readwrite' }); } catch {}
+      if (perm !== 'granted') { toast('The browser didn’t allow changes to the shared folder, so nothing was deleted.', 5000); return; }
+      try { await Shared.dir.removeEntry(t.shared.file); }
+      catch (e) { if (e.name !== 'NotFoundError') { toast('Couldn’t delete it from the shared folder: ' + e.message, 6000); return; } }
+      log('in', 'APP', 'Deleted a template file from the shared folder: ' + t.shared.file);
+      toast('Deleted from the shared folder. It goes from other benches when they next load the folder.', 5000);
+    }
     await Store.remove(t.id); this.tplId = Store.templates[0]?.id || null; this.selId = null; this.renderAll(); App.refreshRunPicker();
   },
   exportTemplate() {
