@@ -234,3 +234,42 @@ test('only the PDFs are attached to a Simpro job, and downloaded PDFs go in a fo
   const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.ok(bench.includes("getDirectoryHandle('PDF reports', { create: true })"), 'the bench\'s Download does the same')
 })
+
+test('a group (device type) has a colour its templates take; a template\'s own colour, then this engineer\'s, win over it', async () => {
+  const { default: vm } = await import('node:vm')
+  const a = html.indexOf('const CATEGORIES'), b = html.indexOf('/** Build a clean Test Bench template')
+  const L = vm.runInNewContext('const DB = {}, clone = (o) => JSON.parse(JSON.stringify(o)); ' + html.slice(a, b) + '; ({ Layout })').Layout
+  const defib = { name: 'Mindray D30', category: 'Defibrillation' }, own = { name: 'Mindray D1', category: 'Defibrillation', color: 'green' }, none = { name: 'AED', category: 'Defibrillation', color: 'none' }, hl = { name: 'PM', category: 'Defibrillation', highlight: true }
+  L.team = L.clean({ groupColors: { Defibrillation: 'blue' } })
+  assert.equal(L.groupColor('Defibrillation'), 'blue'); assert.equal(L.groupColor('Monitoring'), '')
+  assert.deepEqual([defib, own, none, hl].map((t) => L.color(t)), ['blue', 'green', '', 'purple'], 'group, template\'s own, "no colour", old highlight flag')
+  L.data = L.clean({ groupColors: { Defibrillation: 'teal' }, items: { 'name:mindray d1': { color: '' } } })
+  assert.equal(L.color(defib), 'teal', 'this engineer\'s group colour over the team\'s')
+  assert.equal(L.color(own), '', 'this engineer\'s own choice for one template over everything')
+  L.data = L.clean({ groupColors: { Defibrillation: '' } }); assert.equal(L.color(defib), '', 'no group colour, set by this engineer, beats the team\'s')
+  L.setGroupColor('Defibrillation', 'pink'); assert.equal(L.groupColor('Defibrillation'), 'pink'); assert.equal(L.groupColor.call({ data: { groupColors: {} }, team: { groupColors: {} } }, 'x'), '')
+  assert.equal(L.effective().groupColors.Defibrillation, 'pink', 'published with the layout')
+  assert.equal(L.clean({ groupColors: { A: 'nonsense', B: 'navy' } }).groupColors.A, undefined, 'only colours that exist')
+  for (const c of ['teal', 'aqua', 'lime', 'yellow', 'pink', 'magenta', 'brown', 'navy', 'indigo']) assert.ok(html.includes(`.c-${c}{`), c + ' has its colours')
+})
+
+test('a model that fits two templates picks the one that lists it as its own model; saved reports colour a model when the fitting templates agree', async () => {
+  const { default: vm } = await import('node:vm')
+  const a = html.indexOf('const CATEGORIES'), b = html.indexOf('/** Build a clean Test Bench template')
+  const L = vm.runInNewContext('const DB = {}, clone = (o) => JSON.parse(JSON.stringify(o)); ' + html.slice(a, b) + '; ({ Layout })').Layout
+  const d30 = { name: 'Mindray BeneHeart D30 / D60 Defibrillator', desc: '', models: ['D30', 'D60'], category: 'Defibrillation' }
+  const bf = { name: 'Mindray BatteryFeed 20 Charger Station', desc: 'Two-bay charger for BeneHeart D30 / D60 batteries', models: [], category: 'Defibrillation' }
+  L.data = L.clean({ items: { 'name:mindray batteryfeed 20 charger station': { covers: ['BatteryFeed 20', 'D30 battery', 'D60 battery'] } } })
+  for (const m of ['BeneHeart D30', 'BeneHeart D60', 'D30']) assert.equal(L.bestFor([d30, bf], m), d30, m)
+  assert.equal(L.bestFor([d30, bf], 'BatteryFeed 20'), bf)
+  const tied = [{ name: 'Mindray BeneHeart C Series', desc: '', models: [] }, { name: 'Mindray BeneHeart S Series', desc: '', models: [] }]
+  assert.equal(L.bestFor(tied, 'BeneHeart'), null, 'a tie is no single template')
+  assert.equal(L.candidates(tied, 'BeneHeart').length, 2, 'but both are candidates, so a shared colour can still be shown')
+  assert.match(html, /cols\.length === 1 && cols\[0\]/, 'the bench replies with a colour when the candidates share one')
+})
+
+test('groups fold on the Run a test page and in the Templates list (kept on this PC), and the template editor has a colour selector', async () => {
+  assert.ok(html.includes("data-gtoggle") && html.includes("Collapsed.toggle('run'") && html.includes("Collapsed.toggle('tpl'") && html.includes('id="tplCollapse"') && html.includes('id="tplLCollapse"'))
+  assert.ok(html.includes("const folded = q ? new Set() : Collapsed.get('run')"), 'a search shows everything it finds')
+  assert.ok(html.includes('id="tplColor"') && html.includes('data-gcolor') && !html.includes('id="tplHighlight"'))
+})

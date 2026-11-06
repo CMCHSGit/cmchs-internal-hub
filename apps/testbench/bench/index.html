@@ -242,6 +242,20 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .tpl-tile.arr:hover{transform:none}
 .tpl-tile.arr.dragging{opacity:.45}
 .tpl-tile.arr.over{box-shadow:inset 0 3px 0 var(--chs-purple),var(--shadow-card)}
+.tpl-group .g-toggle,.tpl-list .g-toggle{all:unset;display:inline-flex;align-items:center;gap:8px;cursor:pointer;font:inherit;letter-spacing:inherit;text-transform:inherit;color:inherit;padding:4px 6px;border-radius:var(--radius-md)}
+.tpl-group .g-toggle:hover,.tpl-list .g-toggle:hover{background:var(--chs-black-05)}
+.tpl-group .g-toggle:focus-visible,.tpl-list .g-toggle:focus-visible{box-shadow:var(--focus-ring)}
+.g-toggle .chev{width:14px;text-align:center}
+.g-toggle .g-count{font-weight:600;letter-spacing:0;opacity:.7}
+.tpl-group.hl{color:var(--hc-d)}
+.tpl-group.hl .g-toggle{box-shadow:inset 4px 0 0 var(--hc);padding-left:10px}
+.tpl-group.hl::after{background:var(--hc-b)}
+.tpl-list .tpl-group-li{padding:8px 4px 2px}
+.tpl-list .tpl-group-li.hl{color:var(--hc-d)}
+.tpl-list .tpl-group-li.hl .g-toggle{box-shadow:inset 4px 0 0 var(--hc);padding-left:10px}
+.tpl-list li button.hl{box-shadow:inset 4px 0 0 var(--hc);background:var(--hc-bg)}
+.tpl-list li button.hl[aria-current="true"]{background:var(--chs-purple-20)}
+.tpl-group .g-color{height:26px;min-height:26px;width:auto;padding:0 6px;font-size:12px;letter-spacing:0;text-transform:none}
 .tpl-group.over{color:var(--chs-purple-dark)}
 .tpl-group.over::after{background:var(--chs-purple);height:2px}
 .arr-top{display:flex;align-items:flex-start;gap:6px}
@@ -414,7 +428,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         </div>
       </div>
       <div class="next-bar" id="nextBar"><span class="overline">Next device</span><b id="nextName"></b><span class="hint">Same template. The details are kept; enter the serial number.</span><button class="btn quiet sm" id="nextOther" type="button">Choose a different template</button></div>
-      <div class="arrange-bar"><input class="input search" id="tplSearch" type="search" placeholder="Search templates, models or keywords (e.g. N1, V500, anaesthesia)" aria-label="Search templates" autocomplete="off"><button class="btn quiet sm" id="tplArrange" type="button">Arrange templates</button></div>
+      <div class="arrange-bar"><input class="input search" id="tplSearch" type="search" placeholder="Search templates, models or keywords (e.g. N1, V500, anaesthesia)" aria-label="Search templates" autocomplete="off"><button class="btn quiet sm" id="tplArrange" type="button">Arrange templates</button><button class="btn quiet sm" id="tplCollapse" type="button" title="Fold every group">Collapse all</button><button class="btn quiet sm" id="tplExpand" type="button" title="Open every group">Expand all</button></div>
       <div class="arrange-bar" id="arrangeTools" hidden><label class="sz">Text size <select class="input" id="arrScale"><option value="0.9">Small</option><option value="1">Normal</option><option value="1.15">Large</option><option value="1.3">Extra large</option></select></label><button class="btn quiet sm" id="arrPublish" type="button">Publish as team layout</button><button class="btn quiet sm" id="arrReset" type="button">Reset my layout</button></div>
       <p class="hint" id="arrangeHint" style="margin:0 0 10px"></p>
       <div class="tpl-pick" id="tplPick"></div>
@@ -511,7 +525,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
     </div>
     <div class="builder">
       <aside class="panel sticky" aria-label="Templates and library">
-        <div class="panel-head"><h3>Templates</h3></div>
+        <div class="panel-head"><h3>Templates</h3><span class="row" style="gap:4px"><button class="btn quiet sm" id="tplLCollapse" type="button" title="Fold every group">Collapse all</button><button class="btn quiet sm" id="tplLExpand" type="button" title="Open every group">Expand all</button></span></div>
         <ul class="tpl-list" id="tplList"></ul>
         <div class="panel-head" style="border-top:1px solid var(--border-subtle)"><h3>Test library</h3><span class="hint">Drag or click</span></div>
         <div class="panel-body" id="palette"></div>
@@ -523,7 +537,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
             <input class="input" id="tplDesc" placeholder="Short description, e.g. Mindray TM80, Class I, CF applied parts" aria-label="Template description" style="margin-top:8px;min-height:34px">
             <input class="input" id="tplCategory" list="tplCats" aria-label="Template group" style="margin-top:8px;min-height:34px">
             <datalist id="tplCats"></datalist>
-            <label class="check" style="margin-top:8px"><input type="checkbox" id="tplHighlight"> Highlight this template on the Run a test page (for the main patient monitors)</label>
+            <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap;align-items:center"><label for="tplColor" class="lbl">Colour</label><select class="input" id="tplColor" style="width:auto;min-height:34px" aria-label="Colour of this template"></select><span class="hint">On the Run a test page, here in the list and in Saved reports. Whole groups can be coloured under Arrange templates.</span></div>
           </div>
           <div class="row" style="flex-wrap:nowrap">
             <button class="icon-btn" id="tplSaveShared" type="button" aria-label="Save to the shared templates folder" title="Save to the shared templates folder"><svg class="i"><use href="#i-upload"/></svg></button>
@@ -1483,7 +1497,7 @@ const HL_COLOURS = { purple: 'Purple', green: 'Green', orange: 'Orange', blue: '
 /* The same colours as hex (the .c-… rules in the css), for the hub's Saved reports, which shows each model in its template's colour. */
 const HL_HEX = {"purple":{"hc":"#554596","b":"#968ac1","bg":"#f6f4fb","d":"#3f3374"},"green":{"hc":"#2f8f4e","b":"#8cc79f","bg":"#eef8f1","d":"#1f6b39"},"orange":{"hc":"#e07a1f","b":"#f0b982","bg":"#fff4e8","d":"#a85410"},"blue":{"hc":"#2b6fd1","b":"#9bbbe8","bg":"#eef4fd","d":"#1d4f9a"},"red":{"hc":"#c93b3b","b":"#e8a0a0","bg":"#fdeeee","d":"#962626"},"grey":{"hc":"#5b6770","b":"#b8c0c6","bg":"#f1f3f4","d":"#3a444b"},"teal":{"hc":"#0f8b8d","b":"#86c9ca","bg":"#ebf8f8","d":"#0a6264"},"aqua":{"hc":"#1da1d6","b":"#93d0ea","bg":"#ecf8fd","d":"#12739b"},"lime":{"hc":"#7ba62a","b":"#bcd98a","bg":"#f4f9e8","d":"#56751a"},"yellow":{"hc":"#d4a512","b":"#ecd27f","bg":"#fff9e0","d":"#8f6f08"},"pink":{"hc":"#e0709a","b":"#f0b4c9","bg":"#fdeff4","d":"#b0436b"},"magenta":{"hc":"#b2308f","b":"#dc9cca","bg":"#fbedf7","d":"#82206a"},"brown":{"hc":"#8a5a3b","b":"#c9a88f","bg":"#f6efea","d":"#62402a"},"navy":{"hc":"#1f3a73","b":"#8d9ec6","bg":"#edf0f8","d":"#152a56"},"indigo":{"hc":"#4a48c9","b":"#a5a4e8","bg":"#eeeefc","d":"#34329b"}};
 const SIZES = { s: 0.85, '': 1, l: 1.2, xl: 1.45 };
-const blankLayout = () => ({ groups: [], order: [], items: {}, scale: 0, saved: 0 });
+const blankLayout = () => ({ groups: [], order: [], items: {}, groupColors: {}, scale: 0, saved: 0 });
 const normKey = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9*]+/g, '');
 const Layout = {
   data: blankLayout(), team: blankLayout(), dirty: false,   // data: this user's changes; team: the shared folder's
@@ -1493,8 +1507,22 @@ const Layout = {
   get order() { return this.data.order.length ? this.data.order : this.team.order; },
   get scale() { return this.data.scale || this.team.scale || 1; },
   cat(t) { return this.item(t).group || categoryOf(t); },
-  /** The highlight colour name, or '' for none. A template with highlight: true in its file is purple unless changed. */
-  color(t) { const c = this.item(t).color; return c === undefined ? (t.highlight ? 'purple' : '') : (HL_COLOURS[c] ? c : ''); },
+  /** The colour of a whole group (a device type), or ''. */
+  groupColor(name) {
+    const d = this.data.groupColors || {}, tm = this.team.groupColors || {};
+    const c = name in d ? d[name] : tm[name];
+    return HL_COLOURS[c] ? c : '';
+  },
+  setGroupColor(name, c) { if (!this.data.groupColors) this.data.groupColors = {}; this.data.groupColors[name] = HL_COLOURS[c] ? c : ''; },
+  /** The highlight colour name, or '' for none. This engineer's own choice (Arrange templates) comes first, then the template's own colour (Templates
+      page; highlight: true in an older file is purple), then the colour of its group. */
+  color(t) {
+    const c = this.item(t).color;
+    if (c !== undefined) return HL_COLOURS[c] ? c : '';
+    if (t.color === 'none') return '';
+    if (HL_COLOURS[t.color]) return t.color;
+    return t.highlight ? 'purple' : this.groupColor(this.cat(t));
+  },
   tileScale(t) { return +(this.scale * (SIZES[this.item(t).size || ''] || 1)).toFixed(3); },
   covers(t) { return Array.isArray(this.item(t).covers) ? this.item(t).covers : []; },
   index(t) { const i = this.order.indexOf(this.key(t)); return i < 0 ? 1e9 : i; },
@@ -1507,7 +1535,8 @@ const Layout = {
       if (Array.isArray(v.covers)) o.covers = s(v.covers);
       items[k] = o;
     }
-    return { groups: s(raw && raw.groups), order: s(raw && raw.order), items, scale: [0.9, 1, 1.15, 1.3].includes(+(raw && raw.scale)) ? +raw.scale : 0, saved: +(raw && raw.saved) || 0 };
+    const groupColors = {}; for (const [k, v] of Object.entries((raw && raw.groupColors) || {})) if (typeof v === 'string' && (HL_COLOURS[v] || v === '')) groupColors[k] = v;
+    return { groups: s(raw && raw.groups), order: s(raw && raw.order), items, groupColors, scale: [0.9, 1, 1.15, 1.3].includes(+(raw && raw.scale)) ? +raw.scale : 0, saved: +(raw && raw.saved) || 0 };
   },
   async load() {
     try { const d = await DB.getKV('layout'); if (d) this.data = this.clean(d); } catch {}
@@ -1525,6 +1554,7 @@ const Layout = {
       if (n.includes('*')) return new RegExp('^' + n.split('*').map(x => x.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$').test(w);
       return n.startsWith(w) || (n.length >= 2 && w.startsWith(n)) || e.split(/[^a-z0-9]+/).some(k => k && (k.startsWith(w) || (k.length >= 2 && w.startsWith(k))));
     });
+    if (entries.some(e => normKey(e) === w)) return 4;   // the entry is exactly this word (a template's own model, D30): fits better than a part of one ("D30 battery")
     if (listed) return 3;
     const text = [t.name, t.desc, this.cat(t)].join(' ').toLowerCase();   // words, and hyphenated ones joined too (PM-60 as pm60)
     return [...text.split(/[^a-z0-9]+/), ...text.split(/[\s/,;()]+/).map(normKey)].filter(Boolean).some(k => k.startsWith(w)) ? 1 : 0;
@@ -1533,15 +1563,18 @@ const Layout = {
   matches(t, q) { const words = this.words(q); return words.every(w => this.hit(t, w) > 0); },
   /** The one template for a device model (e.g. "BeneHeart D30"), or null when none, or more than one, fits best. A word with a digit
       (D30, N12) names the model, so a template must match all of those; plain words (BeneHeart) only add to the score. */
-  bestFor(list, model) {
-    const words = this.words(model), model_ = words.filter(w => /\d/.test(w)); if (!words.length) return null;
+  rank(list, model) {
+    const words = this.words(model), model_ = words.filter(w => /\d/.test(w)); if (!words.length) return [];
     const scored = list.map(t => {
       const h = words.map(w => this.hit(t, w));
       if (model_.length && !words.every((w, i) => h[i] > 0 || !/\d/.test(w))) return { t, s: 0 };
-      return { t, s: words.reduce((a, w, i) => a + (h[i] ? (/\d/.test(w) ? 3 : 1) * (h[i] === 3 ? 1.5 : 1) : 0), 0) };
+      return { t, s: words.reduce((a, w, i) => a + (h[i] ? (/\d/.test(w) ? 3 : 1) * (h[i] === 4 ? 2 : h[i] === 3 ? 1.5 : 1) : 0), 0) };
     }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
-    return scored.length && (scored.length === 1 || scored[0].s > scored[1].s) ? scored[0].t : null;
+    return scored;
   },
+  bestFor(list, model) { const scored = this.rank(list, model); return scored.length && (scored.length === 1 || scored[0].s > scored[1].s) ? scored[0].t : null; },
+  /** The templates that fit a model equally well (the best score), e.g. to colour it when no single one wins. */
+  candidates(list, model) { const scored = this.rank(list, model); return scored.filter(x => x.s === scored[0].s).map(x => x.t); },
   /** Fix the page as it is now, so that moving one template moves only that one. */
   snapshot(list) { const g = groupTemplates(list); this.data.groups = g.map(x => x[0]); this.data.order = g.flatMap(x => x[1].map(t => this.key(t))); },
   setItem(t, patch) { const k = this.key(t); this.data.items[k] = Object.assign({}, this.data.items[k], patch); },
@@ -1557,7 +1590,7 @@ const Layout = {
     const g = names.slice(), i = g.indexOf(name), j = i + dir; if (i < 0 || j < 0 || j >= g.length) return;
     [g[i], g[j]] = [g[j], g[i]]; this.data.groups = g;
   },
-  renameGroup(from, to, list) { for (const t of list) if (this.cat(t) === from) this.setItem(t, { group: to }); this.data.groups = this.groups.map(g => g === from ? to : g).filter((g, i, a) => a.indexOf(g) === i); },
+  renameGroup(from, to, list) { for (const t of list) if (this.cat(t) === from) this.setItem(t, { group: to }); this.data.groups = this.groups.map(g => g === from ? to : g).filter((g, i, a) => a.indexOf(g) === i); const gc = this.groupColor(from); if (gc) this.setGroupColor(to, gc); },
   /** The template's own setting takes over again (the Templates page changed it). */
   clearItem(t, field) { const it = this.data.items[this.key(t)]; if (it && field in it) { delete it[field]; this.persist(); } },
   reset() { this.data = blankLayout(); },
@@ -1565,7 +1598,7 @@ const Layout = {
   /** What this user sees: the team's, with this user's changes on top. */
   effective() {
     const items = {}; for (const k of new Set([...Object.keys(this.team.items), ...Object.keys(this.data.items)])) items[k] = Object.assign({}, this.team.items[k], this.data.items[k]);
-    return { groups: this.groups, order: this.order, items, scale: this.scale, saved: Date.now() };
+    return { groups: this.groups, order: this.order, items, groupColors: Object.assign({}, this.team.groupColors, this.data.groupColors), scale: this.scale, saved: Date.now() };
   },
   /** The team layout from the shared folder (the user's own changes stay on top of it). */
   async pullShared() {
@@ -1589,6 +1622,13 @@ const Layout = {
   },
 };
 /** [[category, templates]] in the order shown: the arranged groups first, then the usual groups, then others by name, "Other" last. */
+/** Which groups are folded on the Run a test page ('run') and in the Templates list ('tpl'): kept on this PC for this person. */
+const Collapsed = {
+  get(where) { try { return new Set(JSON.parse(localStorage.getItem('chsBench.collapsed.' + where) || '[]')); } catch { return new Set(); } },
+  put(where, set) { try { localStorage.setItem('chsBench.collapsed.' + where, JSON.stringify([...set])); } catch {} },
+  toggle(where, name) { const s = this.get(where); if (!s.delete(name)) s.add(name); this.put(where, s); },
+  all(where, names, on) { this.put(where, new Set(on ? names : [])); },
+};
 function groupTemplates(list) {
   const m = new Map();
   for (const t of [...list].sort((a, b) => Layout.index(a) - Layout.index(b))) { const c = Layout.cat(t); if (!m.has(c)) m.set(c, []); m.get(c).push(t); }
@@ -1597,7 +1637,7 @@ function groupTemplates(list) {
 }
 /** Build a clean Test Bench template from imported JSON (file, shared folder or copy). */
 function templateFromRaw(raw, fallbackName) {
-  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), highlight: !!raw.highlight, updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
+  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), highlight: !!raw.highlight, color: HL_COLOURS[raw.color] || raw.color === 'none' ? raw.color : undefined, updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
     steps: raw.steps.filter(s => s && TYPES[s.type]).map(s => newStep(s.type, { title: String(s.title || TYPES[s.type].label), instructions: String(s.instructions || ''), hold: Math.max(0, +s.hold || 0), images: Array.isArray(s.images) ? s.images.filter(i => i && /^data:image\//.test(i.src)) : [], params: s.params || {}, models: Array.isArray(s.models) && s.models.length ? s.models.map(String) : undefined })) };
 }
 function newStep(type, over = {}) {
@@ -1895,7 +1935,9 @@ const Builder = {
     $('#tplImportFile').addEventListener('change', (e) => this.importTemplate(e));
     $('#tplName').addEventListener('input', (e) => { this.tpl.name = e.target.value; Store.save(this.tpl); this.renderTplList(); });
     $('#tplDesc').addEventListener('input', (e) => { this.tpl.desc = e.target.value; Store.save(this.tpl); });
-    $('#tplHighlight').addEventListener('change', (e) => { if (!this.tpl) return; this.tpl.highlight = e.target.checked; Layout.clearItem(this.tpl, 'color'); Store.save(this.tpl); this.renderTplList(); });
+    $('#tplColor').addEventListener('change', (e) => { if (!this.tpl) return; const v = e.target.value; if (v) this.tpl.color = v; else delete this.tpl.color; this.tpl.highlight = !!v && v !== 'none'; Layout.clearItem(this.tpl, 'color'); Store.save(this.tpl); this.renderTplList(); this.renderHeader(); });
+    $('#tplLCollapse').addEventListener('click', () => { Collapsed.all('tpl', groupTemplates(Store.templates).map(g => g[0]), true); this.renderTplList(); });
+    $('#tplLExpand').addEventListener('click', () => { Collapsed.all('tpl', [], false); this.renderTplList(); });
     $('#tplCategory').addEventListener('input', (e) => { this.tpl.category = e.target.value.trim(); Layout.clearItem(this.tpl, 'group'); Store.save(this.tpl); this.renderTplList(); $('#tplCategory').placeholder = `Group on the Run a test page (now: ${Layout.cat(this.tpl)}), e.g. Anaesthesia, Monitoring`; });
     this.bindCanvas();
     this.bindInspector();
@@ -1909,13 +1951,16 @@ const Builder = {
   renderAll() { this.renderTplList(); this.renderHeader(); this.renderCanvas(); this.renderInspector(); },
 
   renderTplList() {
-    $('#tplList').innerHTML = groupTemplates(Store.templates).map(([cat, list]) => `<li class="tpl-group-li" role="presentation">${esc(cat)}</li>` + list.map(t => `<li><button type="button" data-id="${t.id}" aria-current="${t.id === this.tpl?.id}">
-      <span class="t-name">${esc(t.name || 'Untitled template')}</span><span class="t-meta">${t.steps.length} step${t.steps.length === 1 ? '' : 's'}${t.shared ? ` · <span class="shared-tag${t.sharedDirty ? ' dirty' : ''}">${t.sharedDirty ? 'Shared, changed here' : 'Shared'}</span>` : ''}</span></button></li>`).join('')).join('');
-    $$('#tplList button').forEach(b => b.addEventListener('click', () => { this.tplId = b.dataset.id; this.selId = null; this.renderAll(); }));
+    const folded = Collapsed.get('tpl'), cur = this.tpl;
+    $('#tplList').innerHTML = groupTemplates(Store.templates).map(([cat, list]) => { const gc = Layout.groupColor(cat), shut = folded.has(cat) && !(cur && list.includes(cur)); return `<li class="tpl-group-li${gc ? ' hl c-' + gc : ''}" role="presentation"><button type="button" class="g-toggle" data-gtoggle="${esc(cat)}" aria-expanded="${!shut}" title="${shut ? 'Show' : 'Hide'} this group"><span class="chev">${shut ? '▸' : '▾'}</span><span>${esc(cat)}</span><span class="g-count">${list.length}</span></button></li>` + (shut ? '' : list.map(t => `<li><button type="button" data-id="${t.id}" class="${Layout.color(t) ? 'hl c-' + Layout.color(t) : ''}" aria-current="${t.id === this.tpl?.id}">
+      <span class="t-name">${esc(t.name || 'Untitled template')}</span><span class="t-meta">${t.steps.length} step${t.steps.length === 1 ? '' : 's'}${t.shared ? ` · <span class="shared-tag${t.sharedDirty ? ' dirty' : ''}">${t.sharedDirty ? 'Shared, changed here' : 'Shared'}</span>` : ''}</span></button></li>`).join('')); }).join('');
+    $$('#tplList button[data-id]').forEach(b => b.addEventListener('click', () => { this.tplId = b.dataset.id; this.selId = null; this.renderAll(); }));
+    $$('#tplList [data-gtoggle]').forEach(b => b.addEventListener('click', () => { Collapsed.toggle('tpl', b.dataset.gtoggle); this.renderTplList(); }));
   },
   renderHeader() {
     $('#tplName').value = this.tpl?.name || ''; $('#tplDesc').value = this.tpl?.desc || '';
-    $('#tplHighlight').checked = !!this.tpl && !!Layout.color(this.tpl);
+    { const t = this.tpl, own = t ? (t.color ? t.color : t.highlight ? 'purple' : '') : '', gc = t ? Layout.groupColor(Layout.cat(t)) : '';
+      $('#tplColor').innerHTML = `<option value=""${own === '' ? ' selected' : ''}>Same as its group (${gc ? HL_COLOURS[gc] : 'no colour'})</option><option value="none"${t && t.color === 'none' ? ' selected' : ''}>No colour</option>` + Object.entries(HL_COLOURS).map(([k, n]) => `<option value="${k}"${k === own ? ' selected' : ''}>${n}</option>`).join(''); $('#tplColor').disabled = !t; }
     $('#tplCategory').value = this.tpl?.category || ''; $('#tplCategory').placeholder = this.tpl ? `Group on the Run a test page (now: ${Layout.cat(this.tpl)}), e.g. Anaesthesia, Monitoring` : 'Group';
     $('#tplCats').innerHTML = [...new Set([...CATEGORIES, ...Layout.groups, ...Store.templates.map(x => Layout.cat(x)), 'Other'])].map(c => `<option value="${esc(c)}">`).join('');
     Shared.renderTpl();
@@ -4513,7 +4558,12 @@ window.addEventListener('message', (e) => {
   if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
   const m = e.data; if (!m || m.type !== 'chs-bench:model-colours' || !Array.isArray(m.models)) return;
   const map = {};
-  try { for (const model of m.models.slice(0, 300)) { const t = Layout.bestFor(Store.templates, String(model)); if (t) map[model] = { color: Layout.color(t), template: t.name }; } } catch (err) { /* no colours */ }
+  try {
+    for (const model of m.models.slice(0, 300)) {
+      const c = Layout.candidates(Store.templates, String(model)), cols = [...new Set(c.map(t => Layout.color(t)))];   // the best fit, or tied ones that share a colour
+      if (c.length && cols.length === 1 && cols[0]) map[model] = { color: cols[0], template: c.map(t => t.name).join(' / ') };
+    }
+  } catch (err) { /* no colours */ }
   window.parent.postMessage({ type: 'chs-bench:model-colours-reply', id: m.id, map, hex: HL_HEX }, location.origin);
 });
 /* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
@@ -4725,6 +4775,8 @@ const App = {
     $('#sumKinds').value = Prefs.get('saveKinds') || 'both'; $('#sumKinds').addEventListener('change', (e) => Prefs.set('saveKinds', e.target.value));
     $('#sumSave').addEventListener('click', () => saveReportFiles(null, 'save'));
     $('#sumDownload').addEventListener('click', () => saveReportFiles(null, 'download'));
+    $('#tplCollapse').addEventListener('click', () => { Collapsed.all('run', groupTemplates(Store.templates).map(g => g[0]), true); this.refreshRunPicker(); });
+    $('#tplExpand').addEventListener('click', () => { Collapsed.all('run', [], false); this.refreshRunPicker(); });
 
     this.refreshRunPicker(); this.renderDevices(); this.fromHash(); Records.renderList(); Power.render(); SharedTests.hello();
     window.addEventListener('pagehide', () => Runner.autosaveNow());
@@ -4760,15 +4812,21 @@ const App = {
       const c = Layout.color(t), cat = Layout.cat(t), mates = matesOf(t), i = mates.indexOf(t), cov = Layout.covers(t), sz = Layout.item(t).size || '';
       return `<div class="tpl-tile arr${c ? ' hl c-' + c : ''}" draggable="true" data-id="${t.id}" style="--ts:${Layout.tileScale(t)}"${t.desc ? ` title="${esc(t.desc)}"` : ''}>
         <span class="t-name">${esc(t.name)}</span>
-        <span class="arr-row"><select class="input" data-color aria-label="Highlight colour of ${esc(t.name)}"><option value="">No highlight</option>${Object.entries(HL_COLOURS).map(([k, n]) => `<option value="${k}"${k === c ? ' selected' : ''}>${n}</option>`).join('')}</select>
+        <span class="arr-row"><select class="input" data-color aria-label="Highlight colour of ${esc(t.name)}"><option value="__inherit"${Layout.item(t).color === undefined ? ' selected' : ''}>Group or template colour${c ? ` (${HL_COLOURS[c]})` : ''}</option><option value=""${Layout.item(t).color === '' ? ' selected' : ''}>No highlight</option>${Object.entries(HL_COLOURS).map(([k, n]) => `<option value="${k}"${k === Layout.item(t).color ? ' selected' : ''}>${n}</option>`).join('')}</select>
         <select class="input" data-size aria-label="Text size of ${esc(t.name)}">${[['s', 'Small'], ['', 'Normal'], ['l', 'Large'], ['xl', 'Extra large']].map(([k, n]) => `<option value="${k}"${k === sz ? ' selected' : ''}>${n}</option>`).join('')}</select></span>
         <span class="arr-row"><select class="input" data-grp aria-label="Group of ${esc(t.name)}">${names.map(n => `<option value="${esc(n)}"${n === cat ? ' selected' : ''}>${esc(n)}</option>`).join('')}<option value="__new">New group…</option></select>
         <button type="button" class="arr-b" data-mv="-1" aria-label="Move ${esc(t.name)} earlier" title="Earlier"${i === 0 ? ' disabled' : ''}>←</button><button type="button" class="arr-b" data-mv="1" aria-label="Move ${esc(t.name)} later" title="Later"${i === mates.length - 1 ? ' disabled' : ''}>→</button></span>
         <span class="arr-row"><button type="button" class="arr-b" data-covers style="flex:1;font-weight:500;font-size:13px" title="${esc(cov.join(', '))}">Models covered${cov.length ? ` (${cov.length})` : ''}…</button></span></div>`;
     };
-    const tiles = groups.map(([cat, list]) => { const gi = names.indexOf(cat); return `<div class="tpl-group" role="presentation" data-group="${esc(cat)}"><span>${esc(cat)}</span>${arr ? `<span class="arr-btns"><button type="button" class="arr-b" data-gmove="-1" aria-label="Move group ${esc(cat)} up" title="Move the group up"${gi === 0 ? ' disabled' : ''}>↑</button><button type="button" class="arr-b" data-gmove="1" aria-label="Move group ${esc(cat)} down" title="Move the group down"${gi === names.length - 1 ? ' disabled' : ''}>↓</button><button type="button" class="arr-b" data-grename>Rename</button></span>` : ''}</div>` + list.map(t => arr ? arrTile(t) : tile(t)).join(''); }).join('');
+    const folded = q ? new Set() : Collapsed.get('run');   // a search shows everything it finds
+    const tiles = groups.map(([cat, list]) => {
+      const gi = names.indexOf(cat), gc = Layout.groupColor(cat), shut = folded.has(cat);
+      const colourSel = arr ? `<select class="input g-color" data-gcolor aria-label="Colour of the ${esc(cat)} group" title="Colour of the whole group: its templates take it unless they have their own"><option value="">No group colour</option>${Object.entries(HL_COLOURS).map(([k, n]) => `<option value="${k}"${k === gc ? ' selected' : ''}>${n}</option>`).join('')}</select>` : '';
+      return `<div class="tpl-group${gc ? ' hl c-' + gc : ''}" role="presentation" data-group="${esc(cat)}"><button type="button" class="g-toggle" data-gtoggle="${esc(cat)}" aria-expanded="${!shut}" title="${shut ? 'Show' : 'Hide'} this group"><span class="chev">${shut ? '▸' : '▾'}</span><span>${esc(cat)}</span><span class="g-count">${list.length}</span></button>${arr ? `${colourSel}<span class="arr-btns"><button type="button" class="arr-b" data-gmove="-1" aria-label="Move group ${esc(cat)} up" title="Move the group up"${gi === 0 ? ' disabled' : ''}>↑</button><button type="button" class="arr-b" data-gmove="1" aria-label="Move group ${esc(cat)} down" title="Move the group down"${gi === names.length - 1 ? ' disabled' : ''}>↓</button><button type="button" class="arr-b" data-grename>Rename</button></span>` : ''}</div>` + (shut ? '' : list.map(t => arr ? arrTile(t) : tile(t)).join(''));
+    }).join('');
     $('#tplPick').innerHTML = tiles || (q ? `<div class="empty">No template matches “${esc(q)}”. Try the model, the series or part of the name, or clear the search.</div>` : '<div class="empty">No templates yet. Build one on the Templates page.</div>');
     $$('#tplPick .tpl-tile:not(.arr)').forEach(b => b.addEventListener('click', () => this.pick(b.dataset.id)));
+    $$('#tplPick [data-gtoggle]').forEach(b => b.addEventListener('click', () => { Collapsed.toggle('run', b.dataset.gtoggle); this.refreshRunPicker(); }));
     const n = groups.reduce((a, g) => a + g[1].length, 0);
     $('#tplArrange').textContent = arr ? 'Done' : 'Arrange templates'; $('#tplArrange').classList.toggle('quiet', !arr);
     $('#arrangeTools').hidden = !arr; $('#arrScale').value = String(scale);
@@ -4792,7 +4850,7 @@ const App = {
       el.addEventListener('dragover', (e) => { if (this.dragId && this.dragId !== t.id) { e.preventDefault(); over(el, true); } });
       el.addEventListener('dragleave', () => over(el, false));
       el.addEventListener('drop', (e) => { e.preventDefault(); const d = byId(this.dragId); if (d && d !== t) { Layout.move(d, cat, t, list); changed(); } });
-      $('[data-color]', el).addEventListener('change', (e) => { Layout.setItem(t, { color: e.target.value }); changed(); });
+      $('[data-color]', el).addEventListener('change', (e) => { if (e.target.value === '__inherit') Layout.clearItem(t, 'color'); else Layout.setItem(t, { color: e.target.value }); changed(); });
       $('[data-size]', el).addEventListener('change', (e) => { Layout.setItem(t, { size: e.target.value }); changed(); });
       $$('[data-mv]', el).forEach(b => b.addEventListener('click', () => { const before = +b.dataset.mv < 0 ? mates[i - 1] : mates[i + 2]; Layout.move(t, cat, before, list); changed(); }));
       $('[data-grp]', el).addEventListener('change', async (e) => {
@@ -4813,6 +4871,7 @@ const App = {
       h.addEventListener('dragover', (e) => { if (this.dragId) { e.preventDefault(); over(h, true); } });
       h.addEventListener('dragleave', () => over(h, false));
       h.addEventListener('drop', (e) => { e.preventDefault(); const d = byId(this.dragId); if (d) { Layout.move(d, name, null, list); changed(); } });
+      $('[data-gcolor]', h)?.addEventListener('change', (e) => { Layout.setGroupColor(name, e.target.value); changed(); });
       $$('[data-gmove]', h).forEach(b => b.addEventListener('click', () => { Layout.moveGroup(name, +b.dataset.gmove, all.map(g => g[0])); changed(); }));
       $('[data-grename]', h)?.addEventListener('click', async () => { const n = await askGroup('Rename group', name); if (n && n !== name) { Layout.renameGroup(name, n, list); changed(); } });
     });
