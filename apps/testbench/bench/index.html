@@ -4575,8 +4575,12 @@ window.addEventListener('message', (e) => {
   const map = {};
   try {
     for (const model of m.models.slice(0, 300)) {
-      const c = Layout.candidates(Store.templates, String(model)), cols = [...new Set(c.map(t => Layout.color(t)))];   // the best fit, or tied ones that share a colour
-      if (c.length && cols.length === 1 && cols[0]) map[model] = { color: cols[0], template: c.map(t => t.name).join(' / ') };
+      // A test of a device with parts ("D30, MR6502 Internal Defib Paddles") takes the colour of whichever part is a device type: the whole name first, then each part in turn.
+      const tries = [String(model), ...String(model).split(/[,;]+/).map(x => x.trim()).filter(Boolean)];
+      for (const q of tries) {
+        const c = Layout.candidates(Store.templates, q), cols = [...new Set(c.map(t => Layout.color(t)))];   // the best fit, or tied ones that share a colour
+        if (c.length && cols.length === 1 && cols[0]) { map[model] = { color: cols[0], template: c.map(t => t.name).join(' / ') }; break; }
+      }
     }
   } catch (err) { /* no colours */ }
   window.parent.postMessage({ type: 'chs-bench:model-colours-reply', id: m.id, map, hex: HL_HEX }, location.origin);

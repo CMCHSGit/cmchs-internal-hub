@@ -199,3 +199,6 @@ A device that dropped out on its own (switched off, cable knocked, USB reset) le
 
 ## Delete a template: this browser, or permanently from the shared folder (06/11/2026)
 Delete on a template in the shared folder now asks which: **Delete from this browser** (as before: it comes back when the folder is next loaded) or **Delete permanently for everyone** (Chrome or Edge with the folder connected: asks for write access, then deletes the file from the shared SharePoint folder; other benches drop it when they next load the folder; OneDrive's recycle bin may still hold it). Templates that came with the hub (Firefox) can only be removed from the browser. A copy in the repo's `apps/testbench/templates/` is removed with `tools/sync-templates.mjs`.
+
+## Saved reports: no "rerun" label; a device with parts takes its device type's colour (06/11/2026)
+A test's title no longer says "· rerun N" (the files keep their "(rerun N)" names). A model recorded with parts, such as "D30, MR6502 Internal Defib Paddles", is coloured by whichever comma-separated part is a device type (the whole name is tried first, then each part), so it takes the colour of the D30/D60 template.

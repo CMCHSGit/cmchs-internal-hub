@@ -281,3 +281,15 @@ test('deleting a template: from this browser only, or permanently from the share
   assert.ok(fn.includes('Shared.dir.removeEntry(t.shared.file)') && fn.includes("requestPermission({ mode: 'readwrite' })"), 'asks the browser for write access, then deletes the file')
   assert.ok(fn.includes('!t.shared.published'), 'the hub-published copies can only be removed from the browser')
 })
+
+test('a test with parts ("D30, MR6502 Internal Defib Paddles") is coloured by whichever part is a device type', async () => {
+  const { default: vm } = await import('node:vm')
+  const a = html.indexOf('const CATEGORIES'), b = html.indexOf('/** Build a clean Test Bench template')
+  const L = vm.runInNewContext('const DB = {}, clone = (o) => JSON.parse(JSON.stringify(o)); ' + html.slice(a, b) + '; ({ Layout })').Layout
+  const d30 = { name: 'Mindray BeneHeart D30 / D60 Defibrillator', desc: '', models: ['D30', 'D60'], category: 'Defibrillation', color: 'blue' }
+  const whole = 'D30, MR6502 Internal Defib Paddles'
+  assert.equal(L.candidates([d30], whole).length, 0, 'the whole name fits nothing (the paddles are a part, not a device type)')
+  const part = whole.split(/[,;]+/).map((x) => x.trim())[0]
+  assert.deepEqual(L.candidates([d30], part).map((t) => L.color(t)), ['blue'])
+  assert.match(html, /String\(model\)\.split\(\/\[,;\]\+\/\)/, 'the bench tries each part in turn')
+})

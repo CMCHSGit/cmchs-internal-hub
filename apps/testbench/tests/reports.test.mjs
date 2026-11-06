@@ -187,7 +187,7 @@ test('a rerun the same day keeps the first test: its files have their own names,
   assert.ok(html.includes("${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}"), 'the bench names a rerun\'s files that way')
   assert.ok(html.includes('Runner.start(t, clone(prev.dut), prev.model, (prev.attempt || 1) + 1)'))
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
-  assert.ok(ui.includes('rerun ${g.rerun}'), 'Saved reports says which one is the rerun')
+  assert.ok(!ui.includes('rerun ${g.rerun}'), 'Saved reports does not label a rerun')
 })
 
 /* ---- files someone adds themselves ---- */

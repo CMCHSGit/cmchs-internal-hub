@@ -278,7 +278,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
                 <div key={g.base} className={`tb-test${chosen.has(g.base) ? ' is-picked' : ''}${tint(modelOf(g)) ? ' has-model' : ''}`} style={tint(modelOf(g)) ? { '--hc': tint(modelOf(g)).hc, '--hc-bg': tint(modelOf(g)).bg } : undefined}>
                   <input type="checkbox" checked={chosen.has(g.base)} onChange={(e) => toggle([g.base], e.target.checked)} aria-label={`Tick ${g.base}`} />
                   <div className="tb-test-main">
-                    <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}{g.rerun ? ` · rerun ${g.rerun}` : ''}
+                    <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}
                       {g.files.some((f) => fresh.has(f.name)) && <Badge tone="purple">New</Badge>}
                       {g.uploaded && <Badge tone="grey">Added by you</Badge>}
                       {g.sentTo.length ? <Badge tone="green">Sent to {g.sentTo.join(', ')}</Badge> : <Badge tone="grey">Not sent</Badge>}
