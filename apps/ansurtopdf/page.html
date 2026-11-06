@@ -9,15 +9,15 @@
       <input id="file" type="file" accept=".mtr" multiple hidden>
     </div>
     <div class="folder" id="folderLine">Folder: <b id="folderName">none</b> <span>(open a folder to save PDFs straight back into it)</span></div>
-    <div class="sigline">
+    <div class="sigline" style="display:none">
       <label class="chk"><input type="checkbox" id="optSig" checked> Add signature block</label>
       <input type="text" id="sigName" list="engList" placeholder="Engineer name, as entered in Ansur" autocomplete="off">
       <datalist id="engList"></datalist>
       <button id="sigPick" type="button" class="ghost">Optional: use a signature image for this name</button>
       <input id="sigFile" type="file" accept="image/png,image/jpeg" hidden>
     </div>
-    <div id="sigList" class="siglist"></div>
-    <div class="sigline" id="sigNote"></div>
+    <div id="sigList" class="siglist" style="display:none"></div>
+    <div class="sigline" id="sigNote" style="display:none"></div>
   </section>
 
   <div id="bulk" hidden>

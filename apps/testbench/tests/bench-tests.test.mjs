@@ -218,7 +218,7 @@ test('the PDF report keeps the bench\'s layout, with Performance Verification Te
   const pdf = html.slice(html.indexOf('const ReportPdf = {'), html.indexOf('/* ======================= results folder'))
   assert.ok(pdf.includes("wrap('Performance Verification Test Report', FB, 16, CW - LW - 14)"), 'the title')
   assert.ok(!pdf.includes('wrap(run.template.name, FB, 16'), 'not the template\'s name')
-  for (const part of ["'TEST RECORD'", "'TEST PASSED'", 'reportInfo(run)', 'reportSections(run)', "['Item', 'Result', 'Limit', 'Status']", 'CHS Test Bench · printed'])
+  for (const part of ["'TEST RECORD'", "'TEST PASSED'", 'reportInfo(run)', 'reportSections(run)', "['Item', 'Result', 'Limit', 'Status']", 'Connected Healthcare Systems · printed'])
     assert.ok(pdf.includes(part), 'still has ' + part)
 })
 
@@ -298,4 +298,35 @@ test('the folder to save into is remembered, so Save goes straight there instead
   assert.ok(ui.indexOf('showDirectoryPicker') === ui.lastIndexOf('showDirectoryPicker') || ui.split('showDirectoryPicker').length <= 5, 'the folder window is only opened from chooseFolder and the add-files folder')
   const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.ok(bench.includes("DB.getKV('saveDir')") && bench.includes("DB.putKV('saveDir', h)") && bench.includes('dir = await SaveFolder.pick(change)') && bench.includes('id="sumFolder"'), 'bench: the same for Download')
+})
+
+test('the Ansur PVT Report Builder and the Test Bench make the same PDF: the layout is the same code, line for line', () => {
+  const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const ansur = readFileSync(new URL('../../ansurtopdf/builder.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const bPdf = bench.slice(bench.indexOf('const ReportPdf = {'), bench.indexOf('/* ======================= results folder'))
+  const aPdf = ansur.slice(ansur.indexOf('async function renderPdf('), ansur.indexOf('// ---------- ZIP'))
+  const same = [
+    "const C = { ink: hex('#1d1d1d'), muted: hex('#747577'), line: hex('#d1d3d4'), fill: hex('#f3f3f4'), purple: hex('#554596'), green: hex('#80bd01'), orange: hex('#ef7d00'), pass: hex('#4f7500'), fail: hex('#c8102e'), warn: hex('#b35c00'), white: rgb(1, 1, 1) };",
+    'const MM = 72 / 25.4, PW = 595.28, PH = 841.89, ML = 15 * MM, MR = 15 * MM, MT = 14 * MM, MB = 18 * MM, CW = PW - ML - MR;',
+    'const Z = 8.6, LEAD = 11, PX = 4.5, PY = 3.6;',
+    "const H = (t) => ({ t: t.toUpperCase(), f: FB, z: 6.8, color: C.muted });",
+    "const LH = 38, LW = LH * logoImg.width / logoImg.height, top0 = y;",
+    "text('TEST RECORD', ML, y - 8, FB, 7.2, C.muted); y -= 14;",
+    "for (const l of wrap('Performance Verification Test Report', FB, 16, CW - LW - 14)) { text(l, ML, y - 15, FB, 16); y -= 19; }",
+    '[C.purple, C.green, C.orange].forEach((c, i) => page.drawRectangle({ x: ML + i * CW / 3, y: y - 3, width: CW / 3, height: 3, color: c }));',
+    'bh = 26;',
+    "text(ds, ML + CW - 10 - W(clean(ds), FR, 9), y - bh / 2 - 3.2, FR, 9, C.white);",
+    'const ic = [48 * MM, CW - 48 * MM];',
+    'table(ic, null, info.map(([k, v]) => [H(k), { t: v, z: 9 }]), { labelFill: C.fill });',
+    "const cols = hasVal ? [CW - 86 * MM, 30 * MM, 34 * MM, 22 * MM] : [CW - 22 * MM, 22 * MM];",
+    "const hdr = (hasVal ? ['Item', 'Result', 'Limit', 'Status'] : ['Item', 'Status']).map(H);",
+    "{ t: x.display || '', f: FM, z: 8.4 }".replace("x.display", 'x.result').slice(0, 0) + "FM, z: 8.4",
+    "const title = `${i + 1}. ${secTitle}`, tl = wrap(title, FB, 10.5, CW - 70);",
+    "const headH = tl.length * 13 + 6;",
+    "p.drawLine({ start: { x: ML, y: MB - 4 }, end: { x: ML + CW, y: MB - 4 }, thickness: 0.5, color: C.line });",
+    "const made = `Connected Healthcare Systems · printed ${new Date().toLocaleDateString('en-NZ')}`;",
+    "p.drawText(clean(made), { x: ML, y: MB - 23, size: 6.5, font: FR, color: C.muted });",
+  ]
+  for (const line of same) { assert.ok(bPdf.includes(line), 'bench has: ' + line.slice(0, 70)); assert.ok(aPdf.includes(line), 'Ansur has: ' + line.slice(0, 70)) }
+  assert.ok(!aPdf.includes('Signatures') && !aPdf.includes("'Device under test'"), 'no layout of its own left in the Ansur builder')
 })

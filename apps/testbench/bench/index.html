@@ -4429,7 +4429,7 @@ const ReportPdf = {
     // footers
     const pick = (re) => { const k = Object.keys(run.dut || {}).find(k => re.test(k.trim())); return k ? run.dut[k] : ''; };
     const left = [pick(/^serial/i), pick(/^model$/i), run.template.name].filter(Boolean).join('  ·  ');
-    const made = `CHS Test Bench · printed ${new Date().toLocaleDateString('en-NZ')}`;
+    const made = `Connected Healthcare Systems · printed ${new Date().toLocaleDateString('en-NZ')}`;
     pages.forEach((p, i) => {
       const right = `Page ${i + 1} of ${pages.length}`;
       let l = clean(left); const maxL = CW - W(right, FR, 7.2) - 14; while (W(l, FR, 7.2) > maxL && l.length > 4) l = l.slice(0, -2) + '…';

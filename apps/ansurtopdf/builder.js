@@ -203,164 +203,134 @@ export function mountBuilder() {
   const hex = (h) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
   const COL = { ink: hex('#1f2933'), muted: hex('#5f6b7a'), line: hex('#d5dbe1'), head: hex('#eef2f5'), pass: hex('#1e7a46'), fail: hex('#b42318'), other: hex('#7a6a1e'), white: rgb(1, 1, 1) };
 
-  async function renderPdf(m, so = {}) {
+  /* The report is laid out exactly as the CHS Test Bench's own PDF (apps/testbench/bench/index.html, ReportPdf.build): Test record, the title
+     "Performance Verification Test Report", the colour bar, the Test passed/failed banner, the details table, numbered tests with Item / Result /
+     Limit / Status, and the footer. The two are kept the same on purpose (a test in apps/testbench/tests/bench-tests.test.mjs compares them). */
+  async function renderPdf(m) {
     const pdf = await PDFDocument.create();
     const base = m.fileName.replace(/\.mtr$/i, '');
-    pdf.setTitle(base); pdf.setAuthor(m.engineer || ''); pdf.setSubject('AS/NZS 3551 PVT report');
+    pdf.setTitle(base); pdf.setAuthor(m.engineer || 'Connected Healthcare Systems'); pdf.setSubject(m.templateName || 'Performance Verification Test Report');
     pdf.setCreator('Ansur PVT Report Builder'); pdf.setProducer('Ansur PVT Report Builder');
-    const FR = await pdf.embedFont(StandardFonts.Helvetica), FB = await pdf.embedFont(StandardFonts.HelveticaBold);
-    // Helvetica has no Greek, so characters like Ω are drawn in the Symbol font instead.
-    const FS = await pdf.embedFont(StandardFonts.Symbol);
-    const charset = new Set(FR.getCharacterSet()), symset = new Set(FS.getCharacterSet());
-    const isSym = (c) => !charset.has(c.codePointAt(0)) && symset.has(c.codePointAt(0));
-    const clean = (s) => Array.from(String(s == null ? '' : s)).map(c => (charset.has(c.codePointAt(0)) || isSym(c) ? c : (c === '\u00a0' ? ' ' : '?'))).join('');
-    // Split a cleaned string into runs of [text, font] so Symbol characters get their own font.
-    const runs = (s, f) => { const out = []; Array.from(s).forEach(c => { const rf = isSym(c) ? FS : f; const last = out[out.length - 1]; if (last && last[1] === rf) last[0] += c; else out.push([c, rf]); }); return out; };
-    const W = (s, f, z) => runs(s, f).reduce((a, [t, rf]) => a + rf.widthOfTextAtSize(t, z), 0);
-    const drawOn = (pg, s, x, baseline, f, z, color) => { runs(clean(s), f).forEach(([t, rf]) => { pg.drawText(t, { x, y: baseline, size: z, font: rf, color }); x += rf.widthOfTextAtSize(t, z); }); };
-
+    const hex = (h) => rgb(parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255);
+    const C = { ink: hex('#1d1d1d'), muted: hex('#747577'), line: hex('#d1d3d4'), fill: hex('#f3f3f4'), purple: hex('#554596'), green: hex('#80bd01'), orange: hex('#ef7d00'), pass: hex('#4f7500'), fail: hex('#c8102e'), warn: hex('#b35c00'), white: rgb(1, 1, 1) };
+    const MM = 72 / 25.4, PW = 595.28, PH = 841.89, ML = 15 * MM, MR = 15 * MM, MT = 14 * MM, MB = 18 * MM, CW = PW - ML - MR;
+    const FR = await pdf.embedFont(StandardFonts.Helvetica), FB = await pdf.embedFont(StandardFonts.HelveticaBold), FM = await pdf.embedFont(StandardFonts.Courier);
+    const charset = new Set(FR.getCharacterSet());
+    const clean = (s) => Array.from(String(s ?? '').replace(/≤\s*/g, 'max ').replace(/≥\s*/g, 'min ').replace(/Ω/g, 'Ohm').replace(/→/g, '->').replace(/[  ]/g, ' ').replace(/−/g, '-'))
+      .map(c => charset.has(c.codePointAt(0)) ? c : '?').join('');
+    const W = (s, f, z) => f.widthOfTextAtSize(s, z);
     const wrap = (s, f, z, w) => {
-      s = clean(s); const out = []; let line = '';
-      s.split(' ').forEach(word => {
-        const tryL = line ? line + ' ' + word : word;
-        if (W(tryL, f, z) <= w) { line = tryL; return; }
-        if (line) out.push(line);
-        // break very long words
-        while (W(word, f, z) > w) { let i = word.length; while (i > 1 && W(word.slice(0, i), f, z) > w) i--; out.push(word.slice(0, i)); word = word.slice(i); }
-        line = word;
-      });
-      out.push(line);
+      const out = [];
+      for (const para of clean(s).split('\n')) {
+        let line = '';
+        for (let word of para.split(' ')) {
+          const t = line ? line + ' ' + word : word;
+          if (W(t, f, z) <= w) { line = t; continue; }
+          if (line) out.push(line);
+          while (W(word, f, z) > w) { let i = word.length; while (i > 1 && W(word.slice(0, i), f, z) > w) i--; out.push(word.slice(0, i)); word = word.slice(i); }
+          line = word;
+        }
+        out.push(line);
+      }
       return out;
     };
+    const kind = (s) => statusKind(s);
+    const statusText = (s) => { const k = kind(s); return k === 'pass' ? 'Pass' : k === 'fail' ? 'Fail' : s || ''; };
+    const statusCol = (s) => { const k = kind(s); return k === 'pass' ? C.pass : k === 'fail' ? C.fail : /not done|skipp|pending|incomplete|not completed/i.test(s || '') ? C.warn : C.muted; };
 
     let page, y; const pages = [];
     const newPage = () => { page = pdf.addPage([PW, PH]); pages.push(page); y = PH - MT; };
     const room = () => y - MB;
-    const draw = (s, x, baseline, f, z, color) => { if (s) drawOn(page, s, x, baseline, f, z, color); };
-    const baselineFor = (top, lead, z) => top - (lead / 2 + z * 0.35);
+    const text = (s, x, base, f, z, color = C.ink) => { const t = clean(s); if (t) page.drawText(t, { x, y: base, size: z, font: f, color }); };
 
-    // spans: [{t, f, z, color}] on one line
-    const heading = (spans, lead, before, after) => { y -= before; let x = ML; const bl = baselineFor(y, lead, spans[0].z); spans.forEach(s => { draw(s.t, x, bl, s.f, s.z, s.color); x += W(clean(s.t), s.f, s.z); }); y -= lead + after; };
-    const headingH = (lead, before, after) => before + lead + after;
-
-    // table: cols [{w}], rows [[{t,f,color}]], opts {header:true, firstColFill:bool}
-    const Z = 9, LEAD = 11.5, PADX = 4.5, PADY = 3.5;
-    const measureRow = (cols, row) => {
-      const lines = row.map((c, i) => wrap(c.t, c.f || FR, Z, cols[i] - 2 * PADX));
-      return { lines, h: Math.max(...lines.map(l => l.length)) * LEAD + 2 * PADY };
-    };
-    const drawRow = (cols, row, meas, fills) => {
+    // ---- tables
+    const Z = 8.6, LEAD = 11, PX = 4.5, PY = 3.6;
+    const measure = (cols, row) => { const lines = row.map((c, i) => wrap(c.t, c.f || FR, c.z || Z, cols[i] - 2 * PX)); return { lines, h: Math.max(...lines.map(l => l.length)) * LEAD + 2 * PY }; };
+    const drawRow = (cols, row, mm, opts = {}) => {
       let x = ML;
+      if (opts.fill) page.drawRectangle({ x: ML, y: y - mm.h, width: CW, height: mm.h, color: opts.fill });
+      if (opts.labelFill) page.drawRectangle({ x: ML, y: y - mm.h, width: cols[0], height: mm.h, color: opts.labelFill });
       row.forEach((c, i) => {
-        const fill = fills && fills[i];
-        page.drawRectangle({ x, y: y - meas.h, width: cols[i], height: meas.h, color: fill || undefined, borderColor: COL.line, borderWidth: 0.6 });
-        meas.lines[i].forEach((ln, j) => draw(ln, x + PADX, baselineFor(y - PADY - j * LEAD, LEAD, Z), c.f || FR, Z, c.color || COL.ink));
+        mm.lines[i].forEach((ln, j) => text(ln, x + PX, y - PY - j * LEAD - (c.z || Z) * 0.95, c.f || FR, c.z || Z, c.color || C.ink));
         x += cols[i];
       });
-      y -= meas.h;
+      y -= mm.h;
+      page.drawLine({ start: { x: ML, y }, end: { x: ML + CW, y }, thickness: 0.5, color: C.line });
     };
     const table = (cols, header, rows, opts = {}) => {
-      const hm = header ? measureRow(cols, header) : null;
-      const ms = rows.map(r => measureRow(cols, r));
-      const fillsFor = (isHeader) => cols.map((_, i) => (isHeader ? COL.head : (opts.firstColFill && i === 0 ? COL.head : null)));
-      const putHeader = () => { if (hm) drawRow(cols, header, hm, fillsFor(true)); };
-      putHeader();
-      rows.forEach((r, i) => {
-        if (ms[i].h > room()) { newPage(); putHeader(); }
-        drawRow(cols, r, ms[i], fillsFor(false));
-      });
-      return;
+      const hm = header && measure(cols, header);
+      const put = () => { if (hm) drawRow(cols, header, hm, { fill: C.fill }); };
+      put();
+      for (const r of rows) { const mm = measure(cols, r); if (mm.h > room()) { newPage(); put(); } drawRow(cols, r, mm, opts); }
     };
-    const tableHeight = (cols, header, rows) => (header ? measureRow(cols, header).h : 0) + rows.reduce((a, r) => a + measureRow(cols, r).h, 0);
-    const statusColor = (s) => COL[statusKind(s)];
+    const tableH = (cols, header, rows) => (header ? measure(cols, header).h : 0) + rows.reduce((a, r) => a + measure(cols, r).h, 0);
+    const H = (t) => ({ t: t.toUpperCase(), f: FB, z: 6.8, color: C.muted });
 
+    // ---- page 1 header
     newPage();
-    // Logo, top right of page 1
-    const logo = await pdf.embedJpg(LOGO_BYTES);
-    const LH = 46, LW = LH * logo.width / logo.height;
-    const top0 = y;
-    page.drawImage(logo, { x: PW - MR - LW, y: top0 - LH, width: LW, height: LH });
-    // Title (kept clear of the logo)
-    const titleW = CW - LW - 12;
-    const tLines = wrap(m.hasEsa ? 'Electrical Safety and Performance Verification Report' : 'Performance Verification Test Report', FB, 16, titleW);
-    tLines.forEach(l => heading([{ t: l, f: FB, z: 16, color: COL.ink }], 20, 0, 0));
-    heading([{ t: 'AS/NZS 3551', f: FR, z: 8, color: COL.muted }], 11, 0, 0);
-    y = Math.min(y, top0 - LH) - 10;
-    // Banner
-    const bh = 28, bc = statusColor(m.status);
-    page.drawRectangle({ x: ML, y: y - bh, width: CW, height: bh, color: bc });
-    draw(`Test ${m.status}`, ML + 10, y - bh / 2 - 13 * 0.35, FB, 13, COL.white);
-    const ds = fmtDate(m.date); draw(ds, ML + CW - 10 - W(clean(ds), FR, 9), y - bh / 2 - 9 * 0.35, FR, 9, COL.white);
-    y -= bh + 10;
-    // DUT
-    heading([{ t: 'Device under test', f: FB, z: 11, color: COL.ink }], 14, 0, 4);
-    table([45 * MM, CW - 45 * MM], null, m.dut.map(([k, v]) => [{ t: k, f: FB }, { t: v || '—' }]), { firstColFill: true });
-    y -= 3;
-    heading([{ t: `Standards performed: ${(m.standards && m.standards.length ? m.standards.join(', ') : m.standard) || '—'}`, f: FR, z: 8, color: COL.muted }], 11, 0, 4);
-    if (m.instruments.length || m.appliedParts.length) {
-      heading([{ t: 'Test equipment', f: FB, z: 11, color: COL.ink }], 14, 6, 4);
-      const eq = m.instruments.map(i => [{ t: 'Safety analyser', f: FB }, { t: [i.type, i.serial && `S/N ${i.serial}`, i.version && `firmware ${i.version}`].filter(Boolean).join('  ·  ') }]);
-      if (m.appliedParts.length) eq.push([{ t: 'Applied parts', f: FB }, { t: m.appliedParts.join('; ') }]);
-      table([45 * MM, CW - 45 * MM], null, eq, { firstColFill: true });
-      y -= 3;
-    }
-    // Signature block on page 1: signature over the left line, test date over the right line.
-    if (so.on) {
-      const SBH = 14 + 6 + 4 + 46 + 14;
-      if (SBH > room()) newPage();
-      heading([{ t: 'Signatures', f: FB, z: 11, color: COL.ink }], 14, 6, 4);
-      const colW = 68 * MM, lx = ML + 8 * MM, rx = PW - MR - 8 * MM - colW, lineY = y - 44;
-      if (so.sig && so.sig.bytes) {
-        const img = so.sig.type === 'png' ? await pdf.embedPng(so.sig.bytes) : await pdf.embedJpg(so.sig.bytes);
-        const sc = Math.min((colW - 16) / img.width, 32 / img.height);
-        page.drawImage(img, { x: lx + 8, y: lineY + 2, width: img.width * sc, height: img.height * sc });
-      }
-      const d = m.date && !isNaN(m.date) ? `${pad2(m.date.getDate())}.${pad2(m.date.getMonth() + 1)}.${m.date.getFullYear()}` : '';
-      if (d) draw(d, rx + (colW - W(d, FR, 10)) / 2, lineY + 3, FR, 10, COL.ink);
-      [lx, rx].forEach(x => page.drawLine({ start: { x, y: lineY }, end: { x: x + colW, y: lineY }, thickness: 0.7, color: COL.ink }));
-      const eng = m.engineer;
-      const capL = eng ? `Tested by: ${eng}` : 'Tested by', capR = 'Date';
-      draw(capL, lx + (colW - W(clean(capL), FR, 7.5)) / 2, lineY - 10, FR, 7.5, COL.muted);
-      draw(capR, rx + (colW - W(capR, FR, 7.5)) / 2, lineY - 10, FR, 7.5, COL.muted);
-      y = lineY - 18;
-    }
-    heading([{ t: 'Results', f: FB, z: 11, color: COL.ink }], 14, 6, 2);
+    const logoImg = await pdf.embedJpg(LOGO_BYTES);
+    const LH = 38, LW = LH * logoImg.width / logoImg.height, top0 = y;
+    page.drawImage(logoImg, { x: PW - MR - LW, y: top0 - LH, width: LW, height: LH });
+    text('TEST RECORD', ML, y - 8, FB, 7.2, C.muted); y -= 14;
+    for (const l of wrap('Performance Verification Test Report', FB, 16, CW - LW - 14)) { text(l, ML, y - 15, FB, 16); y -= 19; }
+    y = Math.min(y, top0 - LH) - 8;
+    [C.purple, C.green, C.orange].forEach((c, i) => page.drawRectangle({ x: ML + i * CW / 3, y: y - 3, width: CW / 3, height: 3, color: c }));
+    y -= 13;
 
-    const cols = [CW - 80 * MM, 25 * MM, 30 * MM, 25 * MM];
-    const hdr = ['Item', 'Result', 'Limits', 'Status'].map(t => ({ t, f: FB }));
-    if (!m.blocks.length) heading([{ t: 'No recorded test results in this file.', f: FR, z: 9, color: COL.muted }], 12, 2, 0);
-    m.blocks.forEach(b => {
-      const z = b.level === 2 ? 11 : 9.5, lead = b.level === 2 ? 14 : 12, before = b.level === 2 ? 8 : 4, after = b.level === 2 ? 4 : 2;
-      const spans = [{ t: b.name, f: FB, z, color: b.level === 2 ? COL.ink : COL.muted }];
-      if (b.type) spans.push({ t: `  (${b.type})`, f: FR, z: 8, color: COL.muted });
-      spans.push({ t: `   ${b.status}`, f: FB, z: 9, color: statusColor(b.status) });
-      if (b.kind === 'heading') {
-        if (headingH(lead, before, after) + 60 > room()) newPage();
-        heading(spans, lead, before, after);
-        if (b.note) heading([{ t: b.note, f: FR, z: 8.5, color: COL.muted }], 11, 0, 2);
-        return;
-      }
-      const rows = b.rows.map(r => [{ t: r.item }, { t: r.result }, { t: r.limits }, { t: r.status, f: FB, color: statusColor(r.status) }]);
-      const need = headingH(lead, before, after) + tableHeight(cols, hdr, rows) + 4;
-      const fresh = PH - MT - MB;
-      if (need > room() && need <= fresh) newPage();
-      else if (headingH(lead, before, after) + 50 > room()) newPage();
-      heading(spans, lead, before, after);
-      if (rows.length) table(cols, hdr, rows);
-      else if (b.note) heading([{ t: b.note, f: FR, z: 8.5, color: COL.muted }], 11, 0, 0);
-      y -= 4;
+    // result banner
+    const ok = kind(m.status), bc = ok === 'pass' ? C.pass : ok === 'fail' ? C.fail : C.warn, bh = 26;
+    page.drawRectangle({ x: ML, y: y - bh, width: CW, height: bh, color: bc });
+    text(ok === 'pass' ? 'TEST PASSED' : ok === 'fail' ? 'TEST FAILED' : 'TEST INCOMPLETE', ML + 10, y - bh / 2 - 4.5, FB, 12.5, C.white);
+    const d = m.date && !isNaN(m.date) ? m.date : new Date();
+    const ds = `Tested ${d.toLocaleDateString('en-NZ')} ${d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}`;
+    text(ds, ML + CW - 10 - W(clean(ds), FR, 9), y - bh / 2 - 3.2, FR, 9, C.white);
+    y -= bh + 8;
+
+    // device and equipment, in the same order as the bench's
+    const order = [/^serial/, /^manufacturer/, /^model$/, /^location/, /^customer$/, /^((chs )?asset|(chs\/)?cass id|chs id)/, /^customer asset/];
+    const rank = (k) => { const x = k.trim().toLowerCase(); const i = order.findIndex(re => re.test(x)); return i >= 0 ? i : /^(testing|servicing) (engineer|person)/.test(x) ? 90 : /^test(ing|iong) company|^servicing company/.test(x) ? 91 : 50; };
+    const info = m.dut.filter(([k, v]) => !(/^customer asset/i.test(k.trim()) && !String(v ?? '').trim()))
+      .map(([k, v], i) => [/^((chs )?asset|(chs\/)?cass id|chs id)/i.test(k.trim()) ? 'Asset #' : k, String(v ?? '').trim() || '—', rank(k), i])
+      .sort((a, b) => a[2] - b[2] || a[3] - b[3]).map(([k, v]) => [k, v]);
+    if (!m.dut.some(([k]) => /^test(ing|iong) company/i.test(k.trim()))) info.push(['Testing company', 'CHS']);
+    for (const i of m.instruments) info.push(['Safety analyser', [[i.type, i.version && `v${i.version}`].filter(Boolean).join(', '), i.serial && `S/N ${i.serial}`].filter(Boolean).join(' · ')]);
+    if (m.appliedParts.length) info.push(['Applied parts', m.appliedParts.join('; ')]);
+    const ic = [48 * MM, CW - 48 * MM];
+    table(ic, null, info.map(([k, v]) => [H(k), { t: v, z: 9 }]), { labelFill: C.fill });
+    y -= 10;
+
+    // tests
+    const list = m.blocks.map(b => ({ title: b.name, status: b.status, rows: b.rows || [], note: b.note || '' }));
+    if (!list.length) { text('Nothing recorded.', ML, y - 10, FR, 9, C.muted); y -= 16; }
+    list.forEach(({ title: secTitle, status: secStatus, rows, note }, i) => {
+      const hasVal = rows.some(x => x.result || (x.limits && x.limits !== '—'));
+      const cols = hasVal ? [CW - 86 * MM, 30 * MM, 34 * MM, 22 * MM] : [CW - 22 * MM, 22 * MM];
+      const hdr = (hasVal ? ['Item', 'Result', 'Limit', 'Status'] : ['Item', 'Status']).map(H);
+      const body = rows.map(x => hasVal
+        ? [{ t: x.item }, { t: x.result || '', f: FM, z: 8.4 }, { t: x.limits || '—', color: C.muted }, { t: statusText(x.status), f: FB, color: statusCol(x.status) }]
+        : [{ t: x.item }, { t: statusText(x.status), f: FB, color: statusCol(x.status) }]);
+      const title = `${i + 1}. ${secTitle}`, tl = wrap(title, FB, 10.5, CW - 70);
+      const headH = tl.length * 13 + 6;
+      const need = headH + (rows.length ? tableH(cols, hdr, body) : 0);
+      if (need > room() && need <= PH - MT - MB) newPage(); else if (headH + 40 > room()) newPage();
+      tl.forEach((l, j) => { text(l, ML, y - 10.5 - j * 13, FB, 10.5); });
+      const st = statusText(secStatus); text(st, ML + W(tl[tl.length - 1], FB, 10.5) + 8, y - 10.5 - (tl.length - 1) * 13, FB, 9.5, statusCol(secStatus));
+      y -= headH;
+      if (rows.length) table(cols, hdr, body);
+      else if (note) { text(note, ML, y - 8, FR, 8.5, C.muted); y -= 13; }
+      y -= 9;
     });
 
-    // Footers
-    const eng = m.engineer, co = m.company;
-    let left = `${m.fileName}  ·  Fluke Ansur record${eng ? `  ·  Tested by ${eng}${co ? ', ' + co : ''}` : ''}`;
+    // footers
+    const left = [m.serial, m.model, m.templateName].filter(Boolean).join('  ·  ');
+    const made = `Connected Healthcare Systems · printed ${new Date().toLocaleDateString('en-NZ')}`;
     pages.forEach((p, i) => {
       const right = `Page ${i + 1} of ${pages.length}`;
-      const maxL = CW - W(right, FR, 7.5) - 12;
-      let l = clean(left); while (W(l, FR, 7.5) > maxL && l.length > 4) l = l.slice(0, -2);
-      if (l !== clean(left)) l = l.slice(0, -1) + '…';
-      drawOn(p, l, ML, 10 * MM, FR, 7.5, COL.muted);
-      drawOn(p, right, PW - MR - W(right, FR, 7.5), 10 * MM, FR, 7.5, COL.muted);
+      let l = clean(left); const maxL = CW - W(right, FR, 7.2) - 14; while (W(l, FR, 7.2) > maxL && l.length > 4) l = l.slice(0, -2) + '…';
+      p.drawLine({ start: { x: ML, y: MB - 4 }, end: { x: ML + CW, y: MB - 4 }, thickness: 0.5, color: C.line });
+      p.drawText(l, { x: ML, y: MB - 14, size: 7.2, font: FR, color: C.muted });
+      p.drawText(right, { x: PW - MR - W(right, FR, 7.2), y: MB - 14, size: 7.2, font: FR, color: C.muted });
+      p.drawText(clean(made), { x: ML, y: MB - 23, size: 6.5, font: FR, color: C.muted });
     });
     return await pdf.save();
   }
@@ -432,7 +402,7 @@ export function mountBuilder() {
     ctx.fillText(name, pad + left, pad + asc);
     return (scriptCache[name] = dataUrlToSig(cv.toDataURL('image/png')));
   };
-  const sigOpts = (m) => ({ on: $('#optSig').checked, sig: sigFor(m) || scriptSig(engOf(m)) });
+  const sigOpts = () => ({ on: false });   // the report has no signature block now (it is laid out like the Test Bench's)
   const dataUrlToSig = (url) => {
     const m = /^data:image\/(png|jpe?g);base64,(.+)$/i.exec(url || ''); if (!m) return null;
     const bin = atob(m[2]), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
