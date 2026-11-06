@@ -126,7 +126,7 @@ function Page() {
 
       {loaded && total === 0 && (
         <Alert tone="info" title="Nothing here yet" icon={<BookOpen size={18} />}>
-          {canEdit ? 'Add an article or a part, or Import a parts list, an asset list or past jobs from Excel or CSV.' : 'An admin or editor needs to add the first entries.'}
+          {canEdit ? 'Add an article or a part, or Import Word guides, a parts list, an asset list or past jobs.' : 'An admin or editor needs to add the first entries.'}
         </Alert>
       )}
 
@@ -184,7 +184,7 @@ function Page() {
       )}
       {editing && <Editor kind={editing.kind} record={editing.record} categories={[...new Set((lists.article || []).map((a) => a.category).filter(Boolean))].sort()} by={by}
         onClose={() => setEditing(null)} onSaved={(kind, id, msg) => { setEditing(null); toast(msg); openItem(kind, id) }} />}
-      {importing && <ImportDialog by={by} onClose={() => setImporting(false)} onDone={(msg) => { setImporting(false); toast(msg) }} />}
+      {importing && <ImportDialog by={by} categories={[...new Set((lists.article || []).map((a) => a.category).filter(Boolean))].sort()} existing={new Set((lists.article || []).map((a) => a.id))} onClose={() => setImporting(false)} onDone={(msg) => { setImporting(false); toast(msg) }} />}
       <Toast message={toastMsg} />
     </div>
   )

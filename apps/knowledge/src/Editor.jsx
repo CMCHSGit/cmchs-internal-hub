@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
 import { buildRecord, cell, findHeaderRow, KINDS, rowsToRecords, parseCsv } from './model.js'
+import { articlesFromDocx, buildArticles, readDocx } from './docx.js'
 import { importRecords, saveRecord } from './store.js'
 
 const FIELDS = {
@@ -63,6 +64,7 @@ export function Editor({ kind, record, categories, by, onClose, onSaved }) {
 // ── Import ────────────────────────────────────────────────────────────────────────────────────────
 
 const WHAT = {
+  article: ['Word guides', 'Word (.docx) how-to guides, as many as you like at once: one article each, with its text, bold, numbered steps and tables. Pictures stay in the Word file; “[Picture]” marks where each was. The same file again replaces its article.'],
   part: ['Parts list', 'Part number, name, other names, models it fits, notes, diagram. One row a part; a part number already here is replaced.'],
   device: ['Asset list', 'A customer’s device list: site or ward, model, serial, software version, and any other columns (SpO2 type, WiFi, …), which become searchable and countable.'],
   job: ['Past jobs', 'From a Simpro export: job number, title, notes, models, parts used, site, date. A job number already here is replaced.'],
@@ -84,17 +86,52 @@ async function readFile(file, kind) {
   return sheets
 }
 
-export function ImportDialog({ by, onClose, onDone }) {
-  const [kind, setKind] = useState('part')
-  const [parsed, setParsed] = useState(null) // { records, skipped, sheets, left, fileName }
+/** Word guides: each file into its article(s). A file that can't be read is listed with why, and the rest carry on. */
+async function readGuides(files, progress) {
+  const articles = [], problems = []
+  const seen = new Set()
+  let pictures = 0
+  for (const [i, f] of files.entries()) {
+    progress(`Reading ${i + 1} of ${files.length}…`)
+    if (!/\.docx$/i.test(f.name)) { problems.push([f.name, /\.doc$/i.test(f.name) ? 'An old .doc: open it in Word and Save As .docx.' : /\.pdf$/i.test(f.name) ? 'PDFs can’t be read yet.' : 'Not a Word .docx.']); continue }
+    try {
+      const r = articlesFromDocx(await readDocx(f), f.name)
+      if (r.problem) { problems.push([f.name, r.problem]); continue }
+      if (r.articles.some((a) => seen.has(a.id))) { problems.push([f.name, 'Has the same title as another file in this list.']); continue }
+      r.articles.forEach((a) => seen.add(a.id))
+      articles.push(...r.articles); pictures += r.pictures
+    } catch (e) {
+      console.error(e)
+      problems.push([f.name, 'Could not read it as a Word document.'])
+    }
+  }
+  return { articles, problems, pictures }
+}
+
+export function ImportDialog({ by, categories = [], existing = new Set(), onClose, onDone }) {
+  const [kind, setKind] = useState('article')
+  const [parsed, setParsed] = useState(null) // { records, skipped, left, problems?, pictures? }
   const [site, setSite] = useState('')
-  const [file, setFile] = useState(null)
+  const [category, setCategory] = useState('')
+  const [where, setWhere] = useState('')
+  const [files, setFiles] = useState([])
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const input = useRef(null)
+  const file = files[0]
 
-  async function parse(f, k, siteName) {
+  async function parse(fs, k, siteName) {
+    const f = fs[0]
     setBusy(true); setError(''); setParsed(null)
+    if (k === 'article') {
+      try {
+        const r = await readGuides(fs, setProgress)
+        if (!r.articles.length) setError('Nothing in those files could be made into an article.')
+        setParsed({ records: r.articles, skipped: 0, left: 0, problems: r.problems, pictures: r.pictures })
+      } finally { setBusy(false); setProgress('') }
+      return
+    }
     try {
       const base = siteName ?? (f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\b(asset|assets|list|register|equipment)\b/gi, '').replace(/\s+/g, ' ').trim() || f.name)
       if (siteName == null) setSite(base)
@@ -114,13 +151,20 @@ export function ImportDialog({ by, onClose, onDone }) {
     } finally { setBusy(false) }
   }
 
-  const pick = (e) => { const f = e.target.files?.[0]; if (f) { setFile(f); parse(f, kind) } }
-  const changeKind = (k) => { setKind(k); setParsed(null); setError(''); if (file) parse(file, k) }
+  const pick = (e) => { const fs = [...(e.target.files || [])]; if (fs.length) { setFiles(fs); parse(fs, kind) } }
+  const changeKind = (k) => {
+    setKind(k); setParsed(null); setError('')
+    if ((k === 'article') !== (kind === 'article')) { setFiles([]); if (input.current) input.current.value = '' } // Word files and spreadsheets don't mix
+    else if (files.length) parse(files, k)
+  }
 
   async function run() {
+    if (kind === 'article' && where.trim() && !/^https?:\/\/\S+$/i.test(where.trim())) return setError('The link to the originals must start with https://')
     setBusy(true); setError('')
     try {
-      const n = await importRecords(kind, parsed.records, by)
+      const guides = kind === 'article'
+      const records = guides ? buildArticles(parsed.records, { category, where: where.trim() }) : parsed.records
+      const n = await importRecords(kind, records, by, guides ? parsed.records.map((a) => a.id) : [])
       onDone(`Imported ${n} ${n === 1 ? 'entry' : KINDS[kind].label.toLowerCase()}.`)
     } catch (e) {
       console.error(e)
@@ -133,35 +177,62 @@ export function ImportDialog({ by, onClose, onDone }) {
   const columns = kind === 'device' ? [...new Set(parsed?.records.flatMap((r) => Object.keys(r.extra || {})) || [])] : []
 
   return (
-    <Dialog title="Import" description="From an Excel (.xlsx) or CSV file. Nothing is written until you press Import." onClose={onClose} width={680}>
+    <Dialog title="Import" description="From Word (.docx), Excel (.xlsx) or CSV files. Nothing is written until you press Import." onClose={onClose} width={680}>
       <div className="kb-form">
         <div className="kb-kinds" role="radiogroup" aria-label="What the file holds">
           {Object.entries(WHAT).map(([k, [label]]) => (
             <label key={k} className={`kb-kind${kind === k ? ' on' : ''}`}><input type="radio" name="kb-kind" checked={kind === k} onChange={() => changeKind(k)} />{label}</label>
           ))}
         </div>
-        <p className="kb-hint">{WHAT[kind][1]} Articles are added one at a time, with Add article.</p>
+        <p className="kb-hint">{WHAT[kind][1]}{kind === 'article' ? ' To write one yourself, use Add article.' : ' Articles are written one at a time with Add article, or imported from Word files.'}</p>
         <label className="field">
-          <span className="field-label">File</span>
-          <input ref={input} type="file" accept=".xlsx,.csv" onChange={pick} disabled={busy} />
+          <span className="field-label">{kind === 'article' ? 'Word files' : 'File'}</span>
+          <input ref={input} type="file" accept={kind === 'article' ? '.docx' : '.xlsx,.csv'} multiple={kind === 'article'} onChange={pick} disabled={busy} />
         </label>
         {kind === 'device' && file && (
           <label className="field">
             <span className="field-label">Site or customer</span>
-            <input className="input" value={site} onChange={(e) => setSite(e.target.value)} onBlur={() => file && parse(file, kind, site)} />
+            <input className="input" value={site} onChange={(e) => setSite(e.target.value)} onBlur={() => parse(files, kind, site)} />
             <span className="kb-hint">Used for rows with no Site column. Taken from the file’s name; change it if it isn’t right.</span>
           </label>
         )}
-        {busy && !parsed && <p className="kb-hint">Reading the file…</p>}
+        {kind === 'article' && parsed?.records.length > 0 && (<>
+          <label className="field">
+            <span className="field-label">Category (optional)</span>
+            <input className="input" value={category} onChange={(e) => setCategory(e.target.value)} list="kb-import-cats" maxLength={80} placeholder="e.g. Mindray" />
+            <datalist id="kb-import-cats">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+            <span className="kb-hint">Put on every article in this import, so they can be found together.</span>
+          </label>
+          <label className="field">
+            <span className="field-label">Link to where the Word files are kept (optional)</span>
+            <input className="input" type="url" value={where} onChange={(e) => setWhere(e.target.value)} maxLength={300} placeholder="https://… the SharePoint folder" />
+            <span className="kb-hint">Added to each article, so a reader can open the original for its pictures.</span>
+          </label>
+        </>)}
+        {busy && !parsed && <p className="kb-hint">{progress || 'Reading the file…'}</p>}
         {error && <Alert tone="critical">{error}</Alert>}
         {parsed && parsed.records.length > 0 && (
           <div className="kb-preview">
-            <p><b>{parsed.records.length}</b> ready to import{parsed.skipped ? `, ${parsed.skipped} row${parsed.skipped === 1 ? '' : 's'} with nothing usable skipped` : ''}{parsed.left ? `, ${parsed.left} sheet${parsed.left === 1 ? '' : 's'} with no heading row left out` : ''}.</p>
-            {columns.length > 0 && <p className="kb-hint">Other columns kept and searchable: {columns.slice(0, 12).join(', ')}{columns.length > 12 ? ` and ${columns.length - 12} more` : ''}.</p>}
-            <ul className="kb-sample">
-              {sample.map((r, i) => <li key={i}>{kind === 'part' ? `${r.partNo} · ${r.name}` : kind === 'job' ? `${r.jobNo} · ${r.title}` : `${r.model || r.serial} · ${r.site} · ${r.dept}`}</li>)}
-            </ul>
+            {kind === 'article' ? (<>
+              <p><b>{parsed.records.length}</b> article{parsed.records.length === 1 ? '' : 's'} ready to import{parsed.records.filter((a) => existing.has(a.id)).length ? `; ${parsed.records.filter((a) => existing.has(a.id)).length} already here from the same file will be replaced` : ''}.</p>
+              {parsed.pictures > 0 && <p className="kb-hint">{parsed.pictures} picture{parsed.pictures === 1 ? '' : 's'} in the Word files are not copied.</p>}
+              <ul className="kb-sample">
+                {parsed.records.slice(0, 6).map((a) => <li key={a.id}>{a.title}</li>)}
+                {parsed.records.length > 6 && <li>and {parsed.records.length - 6} more</li>}
+              </ul>
+            </>) : (<>
+              <p><b>{parsed.records.length}</b> ready to import{parsed.skipped ? `, ${parsed.skipped} row${parsed.skipped === 1 ? '' : 's'} with nothing usable skipped` : ''}{parsed.left ? `, ${parsed.left} sheet${parsed.left === 1 ? '' : 's'} with no heading row left out` : ''}.</p>
+              {columns.length > 0 && <p className="kb-hint">Other columns kept and searchable: {columns.slice(0, 12).join(', ')}{columns.length > 12 ? ` and ${columns.length - 12} more` : ''}.</p>}
+              <ul className="kb-sample">
+                {sample.map((r, i) => <li key={i}>{kind === 'part' ? `${r.partNo} · ${r.name}` : kind === 'job' ? `${r.jobNo} · ${r.title}` : `${r.model || r.serial} · ${r.site} · ${r.dept}`}</li>)}
+              </ul>
+            </>)}
           </div>
+        )}
+        {parsed?.problems?.length > 0 && (
+          <Alert tone="warning" title={`${parsed.problems.length} file${parsed.problems.length === 1 ? '' : 's'} left out`}>
+            <ul className="kb-sample">{parsed.problems.map(([name, why]) => <li key={name}>{name}: {why}</li>)}</ul>
+          </Alert>
         )}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

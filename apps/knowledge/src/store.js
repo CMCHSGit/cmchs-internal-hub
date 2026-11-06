@@ -54,16 +54,17 @@ export async function removeRecord(kind, id) {
 }
 
 /** Writes a whole imported list (records from rowsToRecords). The same part, job or device again replaces itself. Returns how many were written. */
-export async function importRecords(kind, records, by) {
+export async function importRecords(kind, records, by, ids = []) {
   if (!records.length) return 0
+  const idOf = (r, i) => ids[i] || recordId(kind, r) || newId() // articles from a Word file bring their own, so the same file again replaces it
   if (!db) {
-    for (const r of records) await saveRecord(kind, recordId(kind, r), r, by)
+    for (const [i, r] of records.entries()) await saveRecord(kind, idOf(r, i), r, by)
     return records.length
   }
   const s = stamp(by)
   for (let i = 0; i < records.length; i += CHUNK) {
     const batch = writeBatch(db)
-    for (const r of records.slice(i, i + CHUNK)) batch.set(doc(db, KINDS[kind].col, recordId(kind, r) || newId()), { ...r, ...s })
+    for (const [j, r] of records.slice(i, i + CHUNK).entries()) batch.set(doc(db, KINDS[kind].col, idOf(r, i + j)), { ...r, ...s })
     await batch.commit()
   }
   logActivity(null, `Imported ${records.length} ${records.length === 1 ? ONE[kind].replace(/^an? /, '') : MANY[kind]} into the knowledge base`, { app: 'knowledge' })

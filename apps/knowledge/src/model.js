@@ -68,7 +68,8 @@ export function searchOf(kind, rec) {
   for (const f of Object.keys(shape.text)) parts.push(rec[f])
   for (const f of shape.list) parts.push(...(rec[f] || []))
   if (kind === 'device') for (const [k, v] of Object.entries(rec.extra || {})) parts.push(k, v)
-  const w = words(parts.join(' '))
+  // Each word once (a long guide says "the" a hundred times), and the [Picture] marks a Word import leaves are not words to find.
+  const w = [...new Set(words(parts.join(' ').replace(/\[(?:\d+ pictures|Picture)\]/g, ' ')).split(' '))].join(' ')
   // Part numbers, with the dashes gone, so a number typed any way finds it.
   const codes = [rec.partNo, rec.serial, rec.jobNo, ...(rec.parts || []), ...(rec.aliases || [])].filter(Boolean).map(compact).filter(Boolean)
   return (w + ' ' + [...new Set(codes)].join(' ')).trim().slice(0, 9000)
@@ -216,7 +217,7 @@ export function rowsToRecords(kind, rows, defaults = {}) {
 }
 
 /**
- * An article's body as blocks to draw, never as HTML: paragraphs, "- " bullet lines, **bold** and http(s) links.
+ * An article's body as blocks to draw, never as HTML: paragraphs, "- " bullet lines, "1. " numbered ones, **bold** and http(s) links.
  * The page draws each piece as React text, so nothing a person types can inject markup.
  */
 export function richBlocks(body) {
@@ -236,8 +237,11 @@ export function richBlocks(body) {
   for (const raw of String(body || '').split('\n')) {
     const line = raw.trimEnd()
     if (!line.trim()) { blocks.push({ type: 'gap' }); continue }
-    const bullet = /^\s*[-*•]\s+(.*)$/.exec(line)
-    blocks.push(bullet ? { type: 'li', parts: inline(bullet[1]) } : { type: 'p', parts: inline(line) })
+    // "- step" or "1. step" ("a. step" only when indented, so a sentence starting "I." is not a list); two spaces a level.
+    const item = /^(\s*)(?:[-*•]|(\d{1,3}|[a-z]|[ivxl]{1,5})([.)]))\s+(.*)$/.exec(line)
+    if (item && (!item[2] || /^\d/.test(item[2]) || item[1].length >= 2)) {
+      blocks.push({ type: 'li', level: Math.min(Math.floor(item[1].length / 2), 5), marker: item[2] ? item[2] + item[3] : null, parts: inline(item[4]) })
+    } else blocks.push({ type: 'p', parts: inline(line) })
   }
   return blocks.filter((b, i) => b.type !== 'gap' || (i > 0 && blocks[i - 1].type !== 'gap' && i < blocks.length - 1))
 }

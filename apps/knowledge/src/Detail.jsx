@@ -18,7 +18,9 @@ export function Rich({ text }) {
   blocks.forEach((b, i) => {
     if (b.type === 'li') {
       if (!list) { list = []; out.push(<ul key={'l' + i} className="kb-ul">{list}</ul>) }
-      list.push(<li key={i}>{parts(b.parts)}</li>)
+      // A numbered step shows its own number ("3." or "a."); a deeper step is indented.
+      list.push(<li key={i} className={b.marker ? 'kb-step' : undefined} style={b.level ? { marginLeft: `${b.level * 20}px` } : undefined}>
+        {b.marker && <span className="kb-step-n">{b.marker}</span>}{parts(b.parts)}</li>)
       return
     }
     list = null
