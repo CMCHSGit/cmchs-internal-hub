@@ -208,3 +208,6 @@ Saving or downloading shows a bar with "N of M done, K left". Each file also get
 
 ## Save goes straight to the remembered folder (06/11/2026)
 The browser's folder window can take a long time to open (a synced OneDrive folder in particular), so Saved reports' **Save to …** and the bench's **Download** now remember the folder chosen and write straight into it next time (at most a quick "allow" prompt from the browser, never the folder window). The first time, or when the remembered folder can't be used any more, the folder window opens as before; **Other folder…** (beside both buttons) chooses a different one. The button names the folder: Save to “Reports”.
+
+## PDF report: the bench's own layout again, titled Performance Verification Test Report (06/11/2026)
+The report is back to the bench's own layout (Test record overline, the green banner, the details table, numbered tests with Item / Result / Limit / Status, the printed-by footer), and the only change from before is the title: **Performance Verification Test Report** replaces the template's name above the banner (the template's name stays in the file's properties and the footer). The Ansur PVT Report Builder layout tried earlier the same day is gone.

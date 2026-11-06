@@ -213,16 +213,13 @@ test('connecting again after a device dropped out lets go of the old connection 
   assert.ok(html.includes("if (goodbye === 'dead')"), 'no goodbye commands to a device that is gone')
 })
 
-test('the PDF report is laid out like the Ansur PVT Report Builder\'s: Performance Verification Test Report, banner, device under test, test equipment, signatures, results', () => {
+test('the PDF report keeps the bench\'s layout, with Performance Verification Test Report as its title instead of the template\'s name', () => {
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
-  const a = html.indexOf('const ReportPdf = {'), b = html.indexOf('/* ======================= results folder')
-  const pdf = html.slice(a, b)
-  assert.ok(pdf.includes("'Performance Verification Test Report'") && pdf.includes("'AS/NZS 3551'"), 'the title is not the template\'s name')
-  assert.ok(!pdf.includes('TEST RECORD') && !pdf.includes('run.template.name, FB, 16'), 'no template name as the title')
-  for (const part of ["'Device under test'", "'Test equipment'", "'Signatures'", "'Results'", "Standards performed:", "['Item', 'Result', 'Limits', 'Status']", 'Page ${i + 1} of ${pages.length}'])
-    assert.ok(pdf.includes(part), 'has ' + part)
-  assert.ok(pdf.includes('StandardFonts.Symbol'), 'Ω and ≤ in the Symbol font, as the builder does')
-  assert.ok(pdf.includes('ansurPvt.signatures') && pdf.includes('Segoe Script'), 'the signature saved in the builder, else the name in handwriting')
+  const pdf = html.slice(html.indexOf('const ReportPdf = {'), html.indexOf('/* ======================= results folder'))
+  assert.ok(pdf.includes("wrap('Performance Verification Test Report', FB, 16, CW - LW - 14)"), 'the title')
+  assert.ok(!pdf.includes('wrap(run.template.name, FB, 16'), 'not the template\'s name')
+  for (const part of ["'TEST RECORD'", "'TEST PASSED'", 'reportInfo(run)', 'reportSections(run)', "['Item', 'Result', 'Limit', 'Status']", 'CHS Test Bench · printed'])
+    assert.ok(pdf.includes(part), 'still has ' + part)
 })
 
 test('only the PDFs are attached to a Simpro job, and downloaded PDFs go in a folder of their own', () => {
