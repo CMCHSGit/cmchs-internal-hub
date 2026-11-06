@@ -2,16 +2,20 @@
    Text is always drawn as React text, never as HTML (richBlocks in model.js): nothing typed in an article can inject markup. */
 import { Link2, Pencil, Trash2 } from 'lucide-react'
 import { Badge, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
-import { mentioning, relatedParts, richBlocks } from './model.js'
+import { mentioning, relatedParts, richBlocks, sourceLink } from './model.js'
 import { removeRecord } from './store.js'
 
 const NZ = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}-${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]}-${m[1]}` : iso || '' }
 
 /** A body of text with **bold**, bullet lines and http(s) links, as elements. */
-export function Rich({ text }) {
+export function Rich({ text, source = '' }) {
   const blocks = richBlocks(text)
+  // A "[Picture p.3]" mark opens the article's original PDF at that page, when the article has one.
   const parts = (ps) => ps.map((p, i) => p.t === 'bold' ? <strong key={i}>{p.text}</strong>
     : p.t === 'link' ? <a key={i} href={p.href} target="_blank" rel="noopener noreferrer">{p.text}</a>
+    : p.t === 'pic' ? (source
+      ? <a key={i} className="kb-pic" href={source + (p.page ? `#page=${p.page}` : '')} target="_blank" rel="noopener noreferrer" title="Open the original PDF">{p.text}</a>
+      : <span key={i} className="kb-pic">{p.text}</span>)
     : <span key={i}>{p.text}</span>)
   const out = []
   let list = null
@@ -60,7 +64,7 @@ export function Detail({ kind, rec, lists, canEdit, onClose, onOpen, onEdit, onT
       <div className="kb-detail">
         {kind === 'article' && (<>
           <div className="kb-tags">{rec.category && <Badge tone="neutral">{rec.category}</Badge>}{(rec.tags || []).map((t) => <Badge key={t} tone="purple">{t}</Badge>)}</div>
-          <Rich text={rec.body} />
+          <Rich text={rec.body} source={sourceLink(rec.body)} />
           <Facts rows={[['Last checked', NZ(rec.reviewedAt)]]} />
         </>)}
         {kind === 'part' && (<>

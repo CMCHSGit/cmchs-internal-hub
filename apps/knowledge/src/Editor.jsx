@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
 import { buildRecord, cell, findHeaderRow, KINDS, rowsToRecords, parseCsv } from './model.js'
-import { articlesFromDocx, buildArticles, readDocx } from './docx.js'
+import { articlesFromDocx, buildArticles, folderLinkProblem, readDocx } from './docx.js'
 import { importRecords, saveRecord } from './store.js'
 
 const FIELDS = {
@@ -64,7 +64,7 @@ export function Editor({ kind, record, categories, by, onClose, onSaved }) {
 // ── Import ────────────────────────────────────────────────────────────────────────────────────────
 
 const WHAT = {
-  article: ['Word guides', 'Word (.docx) how-to guides, as many as you like at once: one article each, with its text, bold, numbered steps and tables. Pictures stay in the Word file; “[Picture]” marks where each was. The same file again replaces its article.'],
+  article: ['Word guides', 'Word (.docx) how-to guides, as many as you like at once: one article each, with its text, bold, numbered steps and tables. Pictures are not copied: “[Picture p.3]” marks where each was and on which page, and opens the PDF copy there if you give its folder below. The same file again replaces its article.'],
   part: ['Parts list', 'Part number, name, other names, models it fits, notes, diagram. One row a part; a part number already here is replaced.'],
   device: ['Asset list', 'A customer’s device list: site or ward, model, serial, software version, and any other columns (SpO2 type, WiFi, …), which become searchable and countable.'],
   job: ['Past jobs', 'From a Simpro export: job number, title, notes, models, parts used, site, date. A job number already here is replaced.'],
@@ -159,7 +159,8 @@ export function ImportDialog({ by, categories = [], existing = new Set(), onClos
   }
 
   async function run() {
-    if (kind === 'article' && where.trim() && !/^https?:\/\/\S+$/i.test(where.trim())) return setError('The link to the originals must start with https://')
+    const bad = kind === 'article' && where.trim() ? folderLinkProblem(where) : ''
+    if (bad) return setError(bad)
     setBusy(true); setError('')
     try {
       const guides = kind === 'article'
@@ -204,9 +205,9 @@ export function ImportDialog({ by, categories = [], existing = new Set(), onClos
             <span className="kb-hint">Put on every article in this import, so they can be found together.</span>
           </label>
           <label className="field">
-            <span className="field-label">Link to where the Word files are kept (optional)</span>
+            <span className="field-label">Folder the PDF copies are kept in (optional)</span>
             <input className="input" type="url" value={where} onChange={(e) => setWhere(e.target.value)} maxLength={300} placeholder="https://… the SharePoint folder" />
-            <span className="kb-hint">Added to each article, so a reader can open the original for its pictures.</span>
+            <span className="kb-hint">Save each Word file as a PDF with the same name in one SharePoint folder, then paste that folder’s address from the browser’s address bar. Each article links to its own PDF, and each “[Picture p.3]” opens it at that page.</span>
           </label>
         </>)}
         {busy && !parsed && <p className="kb-hint">{progress || 'Reading the file…'}</p>}
@@ -215,7 +216,7 @@ export function ImportDialog({ by, categories = [], existing = new Set(), onClos
           <div className="kb-preview">
             {kind === 'article' ? (<>
               <p><b>{parsed.records.length}</b> article{parsed.records.length === 1 ? '' : 's'} ready to import{parsed.records.filter((a) => existing.has(a.id)).length ? `; ${parsed.records.filter((a) => existing.has(a.id)).length} already here from the same file will be replaced` : ''}.</p>
-              {parsed.pictures > 0 && <p className="kb-hint">{parsed.pictures} picture{parsed.pictures === 1 ? '' : 's'} in the Word files are not copied.</p>}
+              {parsed.pictures > 0 && <p className="kb-hint">{parsed.pictures} picture{parsed.pictures === 1 ? '' : 's'} in the Word files are not copied{where.trim() ? '' : '; add the PDF folder below so each one can be opened'}.</p>}
               <ul className="kb-sample">
                 {parsed.records.slice(0, 6).map((a) => <li key={a.id}>{a.title}</li>)}
                 {parsed.records.length > 6 && <li>and {parsed.records.length - 6} more</li>}

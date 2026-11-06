@@ -61,6 +61,11 @@ function cleanExtra(extra) {
   return out
 }
 
+/** The mark a Word import leaves where a picture was: [Picture], [3 pictures], and the page it was on: [Picture p.3], [2 pictures p.3-4]. */
+export const PICTURE_MARK = /\[(?:(\d+) pictures|Picture)(?: p\.(\d+)(?:-\d+)?)?\]/g
+/** The link to an article's original PDF, from its "Original PDF: https://…" line; '' when it has none. */
+export const sourceLink = (body) => /^Original PDF: (https?:\/\/\S+)\s*$/m.exec(String(body || ''))?.[1] || ''
+
 /** Every searchable word of a record, in one string; capped so a long article stays a small document. */
 export function searchOf(kind, rec) {
   const shape = SHAPE[kind]
@@ -69,7 +74,7 @@ export function searchOf(kind, rec) {
   for (const f of shape.list) parts.push(...(rec[f] || []))
   if (kind === 'device') for (const [k, v] of Object.entries(rec.extra || {})) parts.push(k, v)
   // Each word once (a long guide says "the" a hundred times), and the [Picture] marks a Word import leaves are not words to find.
-  const w = [...new Set(words(parts.join(' ').replace(/\[(?:\d+ pictures|Picture)\]/g, ' ')).split(' '))].join(' ')
+  const w = [...new Set(words(parts.join(' ').replace(PICTURE_MARK, ' ')).split(' '))].join(' ')
   // Part numbers, with the dashes gone, so a number typed any way finds it.
   const codes = [rec.partNo, rec.serial, rec.jobNo, ...(rec.parts || []), ...(rec.aliases || [])].filter(Boolean).map(compact).filter(Boolean)
   return (w + ' ' + [...new Set(codes)].join(' ')).trim().slice(0, 9000)
@@ -223,11 +228,11 @@ export function rowsToRecords(kind, rows, defaults = {}) {
 export function richBlocks(body) {
   const inline = (text) => {
     const out = []
-    const re = /\*\*([^*]+)\*\*|(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)])/g
+    const re = new RegExp(String.raw`\*\*([^*]+)\*\*|(https?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)])|(${PICTURE_MARK.source})`, 'g')
     let last = 0, m
     while ((m = re.exec(text))) {
       if (m.index > last) out.push({ t: 'text', text: text.slice(last, m.index) })
-      out.push(m[1] != null ? { t: 'bold', text: m[1] } : { t: 'link', text: m[2], href: m[2] })
+      out.push(m[1] != null ? { t: 'bold', text: m[1] } : m[2] != null ? { t: 'link', text: m[2], href: m[2] } : { t: 'pic', text: m[3], page: Number(m[5]) || 0 })
       last = m.index + m[0].length
     }
     if (last < text.length) out.push({ t: 'text', text: text.slice(last) })

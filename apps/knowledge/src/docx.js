@@ -5,7 +5,7 @@
    word/_rels/document.xml.rels. What comes through: paragraphs, bold, headings (as bold lines), bulleted and numbered
    steps (with their numbers, nested ones indented), tables (a row a line, cells split with " | ") and links (as the address
    after the words). Pictures do not come through: they stay in the Word file, and a "[Picture]" marks where each was. */
-import { buildRecord, compact } from './model.js'
+import { buildRecord, compact, PICTURE_MARK } from './model.js'
 
 // ── A small XML reader (no DOMParser, which node does not have) ────────────────────────────────────
 
@@ -97,8 +97,11 @@ function makeCounter(numbering) {
 
 // ── Paragraphs, tables ───────────────────────────────────────────────────────────────────────────────────────────
 
-const PICTURE = '[Picture]'
-const pictures = (n) => (n > 1 ? `[${n} pictures]` : PICTURE)
+/** [Picture] or [3 pictures], with the page (or pages) they were on: [Picture p.3], [2 pictures p.3-4]. */
+function pictures(n, pages) {
+  const lo = Math.min(...pages), hi = Math.max(...pages)
+  return `[${n > 1 ? n + ' pictures' : 'Picture'} p.${lo}${hi > lo ? '-' + hi : ''}]`
+}
 
 /** Runs and links in a paragraph as { segs: [{ t, b }], pics }: text with whether it is bold. */
 function inlines(node, ctx, acc) {
@@ -110,15 +113,21 @@ function inlines(node, ctx, acc) {
           if (x.n === 'w:t') acc.segs.push({ t: textOf(x), b: bold })
           else if (x.n === 'w:tab' || x.n === 'w:br' || x.n === 'w:cr') acc.segs.push({ t: ' ', b: false })
           else if (x.n === 'w:noBreakHyphen') acc.segs.push({ t: '-', b: bold })
-          else if (x.n === 'w:drawing' || x.n === 'w:pict' || x.n === 'w:object' || x.n === 'mc:AlternateContent') acc.pics += countPictures(x)
+          else if (x.n === 'w:lastRenderedPageBreak') { ctx.page++; ctx.breaks++ } // where Word last started a new page
+          else if (x.n === 'w:drawing' || x.n === 'w:pict' || x.n === 'w:object' || x.n === 'mc:AlternateContent') {
+            const n = countPictures(x)
+            acc.pics += n
+            for (let i = 0; i < n; i++) acc.pages.push(ctx.page)
+          }
         }
         break
       }
       case 'w:hyperlink': {
-        const inner = { segs: [], pics: 0 }
+        const inner = { segs: [], pics: 0, pages: [] }
         inlines(c, ctx, inner)
         acc.segs.push(...inner.segs)
         acc.pics += inner.pics
+        acc.pages.push(...inner.pages)
         const href = ctx.rels[attr(c, 'r:id')] || ''
         const label = inner.segs.map((s) => s.t).join('').trim()
         if (/^https?:\/\//i.test(href) && label && label.replace(/\/$/, '').toLowerCase() !== href.replace(/\/$/, '').toLowerCase()) acc.segs.push({ t: ` (${href})`, b: false })
@@ -152,10 +161,10 @@ function paragraph(p, ctx) {
   const numPr = first(ppr, 'w:numPr')
   const numId = attr(first(numPr, 'w:numId'))
   const lvl = Math.min(Number(attr(first(numPr, 'w:ilvl')) ?? 0) || 0, 5)
-  const acc = { segs: [], pics: 0 }
+  const acc = { segs: [], pics: 0, pages: [] }
   inlines(p, ctx, acc)
   let text = render(acc.segs)
-  if (acc.pics) text = (text ? text + ' ' : '') + pictures(acc.pics)
+  if (acc.pics) text = (text ? text + ' ' : '') + pictures(acc.pics, acc.pages)
   if (/^(heading\s*\d|title|subtitle)/i.test(style)) return { kind: 'h', text: text.replace(/\*\*/g, '').trim() }
   let marker = null
   if (numId && numId !== '0') marker = ctx.count(numId, lvl)
@@ -190,20 +199,22 @@ function walk(node, ctx, emit) {
 export function docxText({ document, numbering = '', rels = '' }) {
   const relMap = {}
   for (const r of kids(first(parseXml(rels), 'Relationships'), 'Relationship')) if (r.a.TargetMode === 'External') relMap[r.a.Id] = r.a.Target
-  const ctx = { rels: relMap, count: makeCounter(readNumbering(numbering)) }
+  const ctx = { rels: relMap, count: makeCounter(readNumbering(numbering)), page: 1, breaks: 0 }
   const body = first(first(parseXml(document), 'w:document'), 'w:body')
   const lines = []
   let pictureCount = 0
   walk(body || { c: [] }, ctx, (b) => {
-    pictureCount += (b.text?.match(/\[(\d+ pictures|Picture)\]/g) || []).reduce((n, m) => n + (parseInt(m.slice(1), 10) || 1), 0)
+    for (const m of (b.text || '').matchAll(PICTURE_MARK)) pictureCount += Number(m[1]) || 1
     if (b.kind === 'gap') lines.push('')
     else if (b.kind === 'line') lines.push(b.text)
     else if (b.kind === 'h') { if (b.text) lines.push('', '**' + b.text + '**') }
     else if (b.kind === 'li') { if (b.text) lines.push('  '.repeat(b.level) + (b.marker ? b.marker + ' ' : '') + b.text) }
     else lines.push(b.text)
   })
-  const text = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
-  return { text, pictures: pictureCount }
+  let text = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  // A document Word never laid out (no page breaks recorded) has no page numbers worth showing.
+  if (!ctx.breaks) text = text.replace(/ p\.\d+(?:-\d+)?\]/g, ']')
+  return { text, pictures: pictureCount, pages: ctx.breaks ? ctx.page : 0 }
 }
 
 // ── Into articles ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -246,7 +257,7 @@ export function articlesFromDocx(parts, fileName) {
     const a = w(lines[firstAt]), b = w(title)
     if (a && a.length < 120 && (a === b || (a.length > 4 && b.includes(a)) || (b.length > 4 && a.includes(b) && a.length < b.length + 20))) lines = lines.slice(firstAt + 1)
   }
-  const readable = lines.join('\n').replace(/\[(\d+ pictures|Picture)\]/g, '').trim()
+  const readable = lines.join('\n').replace(PICTURE_MARK, '').trim()
   if (readable.length < 8) return { articles: [], pictures: pics, problem: pics ? 'It is only pictures: nothing to read.' : 'It has no text.' }
   const body = chunks(lines, MAX_BODY)
   const base = 'w-' + (compact(title).slice(0, 60) || 'untitled')
@@ -270,9 +281,27 @@ export async function readDocx(file) {
   return { document, numbering: await get('word/numbering.xml'), rels: await get('word/_rels/document.xml.rels') }
 }
 
-/** The article records (built, with `search`) ready for importRecords. `where` is a link to the folder the Word files are kept in, so a reader can find the pictures. */
+/** What is wrong with a pasted SharePoint folder address, or '' if it will do. */
+export function folderLinkProblem(url) {
+  let u
+  try { u = new URL(String(url).trim()) } catch { return 'Paste the folder’s address, starting with https://' }
+  if (u.protocol !== 'https:') return 'The folder’s address must start with https://'
+  if (/\/:[a-z]:\//i.test(u.pathname)) return 'That is a sharing link. Open the folder in SharePoint and copy the address from the browser’s address bar instead.'
+  if (/\.aspx$/i.test(u.pathname) && !u.searchParams.get('id')) return 'That is a view of the library, not a folder. Open the folder itself and copy its address.'
+  return ''
+}
+
+/** The address of a guide's PDF copy: the folder's address plus the file's name with .pdf. Takes the plain address of a folder or the …/AllItems.aspx?id=… form. */
+export function fileLink(folderUrl, fileName) {
+  const u = new URL(String(folderUrl).trim())
+  const id = u.searchParams.get('id')
+  const base = id ? u.origin + id.split('/').map(encodeURIComponent).join('/') : u.origin + u.pathname.replace(/\/+$/, '')
+  return `${base.replace(/\/+$/, '')}/${encodeURIComponent(String(fileName).replace(/\.[^.]+$/, '') + '.pdf')}`
+}
+
+/** The article records (built, with `search`) ready for importRecords. `where` is the folder the PDF copies are kept in: each article gets a link to its own. */
 export const buildArticles = (articles, { category = '', where = '' } = {}) => articles.map((a) => buildRecord('article', {
   title: a.title,
-  body: `${a.text}\n\nSource file: ${a.source}${where ? `\nPictures and the original Word file: ${where}` : ''}`,
+  body: `${a.text}\n\nSource file: ${a.source}${where ? `\nOriginal PDF: ${fileLink(where, a.source)}` : ''}`,
   category,
 }))

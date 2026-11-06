@@ -1,8 +1,8 @@
 // Word guides into articles (apps/knowledge/src/docx.js). Run: node --test apps/knowledge/tests/docx.test.mjs
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { articlesFromDocx, buildArticles, docxText, parseXml, titleFromFile } from '../src/docx.js'
-import { buildRecord, queryWords, richBlocks, searchRecords } from '../src/model.js'
+import { articlesFromDocx, buildArticles, docxText, fileLink, folderLinkProblem, parseXml, titleFromFile } from '../src/docx.js'
+import { buildRecord, queryWords, richBlocks, searchRecords, sourceLink } from '../src/model.js'
 
 const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:mc="x"'
 const doc = (body) => `<?xml version="1.0"?><w:document ${W}><w:body>${body}</w:body></w:document>`
@@ -62,8 +62,10 @@ test('an article takes its title from the file name, drops a repeated heading, a
   assert.equal(articles[0].title, 'A9 Vaporizer Calibration')
   assert.equal(articles[0].text, 'Warm up first\n[Picture]')
   assert.equal(pictures, 1)
-  const [rec] = buildArticles(articles, { category: 'Mindray', where: 'https://example.com/folder' })
-  assert.match(rec.body, /Source file: - A9 Vaporizer Calibration\.docx\nPictures and the original Word file: https:\/\/example\.com\/folder$/)
+  const [rec] = buildArticles(articles, { category: 'Mindray', where: 'https://example.com/folder/' })
+  assert.match(rec.body, /Source file: - A9 Vaporizer Calibration\.docx\nOriginal PDF: https:\/\/example\.com\/folder\/-%20A9%20Vaporizer%20Calibration\.pdf$/)
+  assert.equal(sourceLink(rec.body), 'https://example.com/folder/-%20A9%20Vaporizer%20Calibration.pdf')
+  assert.equal(sourceLink('no link here'), '')
   assert.equal(rec.category, 'Mindray')
   assert.equal(titleFromFile('Installing Windows 2019 LTSC on Dell OptiPlex_v2.docx'), 'Installing Windows 2019 LTSC on Dell OptiPlex v2')
 })
@@ -99,6 +101,39 @@ test('a long guide stays searchable to its end, and [Picture] is not a word to f
   assert.equal(searchRecords('article', [rec], 'zebrafish gasket').length, 1)
   assert.deepEqual(queryWords('picture'), ['picture'])
   assert.equal(searchRecords('article', [rec], 'picture').length, 0)
+})
+
+test('a picture marker carries its page when Word recorded page breaks, and none when it did not', () => {
+  const brk = '<w:p><w:r><w:lastRenderedPageBreak/><w:t>Next page</w:t></w:r></w:p>'
+  const both = '<w:p><w:r><w:t>Spans </w:t></w:r><w:r><w:drawing><a:blip/></w:drawing></w:r><w:r><w:lastRenderedPageBreak/><w:drawing><a:blip/></w:drawing></w:r></w:p>'
+  const r = docxText({ document: doc(picture + brk + picture + brk + both) })
+  assert.equal(r.text, '[Picture p.1]\nNext page\n[Picture p.2]\nNext page\nSpans [2 pictures p.3-4]')
+  assert.equal(r.pictures, 4)
+  assert.equal(r.pages, 4)
+  assert.equal(docxText({ document: doc(picture + picture) }).text, '[Picture]\n[Picture]') // never laid out by Word: no page to claim
+})
+
+test('the PDF link for a file comes from the folder address, in either form SharePoint gives', () => {
+  const want = 'https://x.sharepoint.com/sites/Cass/Shared%20Documents/Service/Knowledge%20Base/Setting%20up%20RIS%206.3.3(MMH).pdf'
+  assert.equal(fileLink('https://x.sharepoint.com/sites/Cass/Shared%20Documents/Service/Knowledge%20Base', 'Setting up RIS 6.3.3(MMH).docx'), want)
+  assert.equal(fileLink('https://x.sharepoint.com/sites/Cass/Shared%20Documents/Service/Knowledge%20Base/', 'Setting up RIS 6.3.3(MMH).docx'), want)
+  assert.equal(fileLink('https://x.sharepoint.com/sites/Cass/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FCass%2FShared%20Documents%2FService%2FKnowledge%20Base&viewid=1', 'Setting up RIS 6.3.3(MMH).docx'), want)
+  assert.equal(fileLink('https://x.sharepoint.com/f', 'A & B.docx'), 'https://x.sharepoint.com/f/A%20%26%20B.pdf')
+})
+
+test('a pasted folder address that cannot give file links is refused with why', () => {
+  assert.equal(folderLinkProblem('https://x.sharepoint.com/sites/Cass/Shared%20Documents/Folder'), '')
+  assert.equal(folderLinkProblem('https://x.sharepoint.com/sites/Cass/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2FCass%2FFolder'), '')
+  assert.match(folderLinkProblem('https://x.sharepoint.com/:f:/s/Cass/EhAbC123?e=xyz'), /sharing link/)
+  assert.match(folderLinkProblem('https://x.sharepoint.com/sites/Cass/Shared%20Documents/Forms/AllItems.aspx'), /not a folder/)
+  assert.match(folderLinkProblem('not a link'), /https/)
+  assert.match(folderLinkProblem('http://x.sharepoint.com/f'), /https/)
+})
+
+test('richBlocks makes picture marks their own pieces, with the page', () => {
+  const [b] = richBlocks('Do this **now** [Picture p.3] then [2 pictures p.4-5] and [Picture]')
+  assert.deepEqual(b.parts.filter((p) => p.t === 'pic').map((p) => [p.text, p.page]), [['[Picture p.3]', 3], ['[2 pictures p.4-5]', 4], ['[Picture]', 0]])
+  assert.equal(b.parts.find((p) => p.t === 'bold').text, 'now')
 })
 
 test('richBlocks reads numbered and lettered steps, with their depth', () => {
