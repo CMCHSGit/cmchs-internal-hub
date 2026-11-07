@@ -99,6 +99,17 @@
     "visible": true
   },
   {
+    "id": "simpro-search",
+    "name": "Simpro Deep Search",
+    "short": "Simpro Search",
+    "description": "Find Simpro jobs by what is written in their descriptions and notes, or by asset and serial number, and read them",
+    "link": "/simprosearch/",
+    "category": "Service",
+    "icon": "search",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "maintenance",
     "name": "Maintenance Schedule",
     "short": "Maintenance Schedule",

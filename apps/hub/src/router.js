@@ -21,6 +21,7 @@ export const SECTIONS = [
   { id: 'checklists', prefix: '/checklists/' },
   { id: 'knowledge', prefix: '/knowledge/' },
   { id: 'simprosync', prefix: '/simprosync/' },
+  { id: 'simprosearch', prefix: '/simprosearch/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
   { id: 'testbench', prefix: '/testbench/' },
   { id: 'new-equipment', prefix: '/new-equipment/' },

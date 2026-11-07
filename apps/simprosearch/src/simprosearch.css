@@ -1,0 +1,64 @@
+/* Simpro Deep Search: the same page, heading and cards as the Service and Checklists pages. */
+.ds-page { max-width: 1180px; margin: 0 auto; padding: 14px 24px 56px; display: flex; flex-direction: column; gap: 14px; }
+.ds-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px; }
+.ds-head > div:first-child { flex: 1 1 320px; min-width: 0; }
+.ds-title { margin: 0; font: var(--type-h2); font-size: 22px; color: var(--text-strong); }
+.ds-sub { margin: 4px 0 0; font: var(--type-body-sm); color: var(--text-muted); }
+.ds-muted { color: var(--text-muted); font: var(--type-body-sm); }
+.ds-mono { font-family: var(--font-mono); }
+.ds-note { margin: 0; font: var(--type-body-sm); color: var(--text-body); }
+.ds-grow { flex: 1 1 280px; min-width: 0; }
+
+.ds-card { background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 16px 18px; }
+.ds-form { display: flex; flex-direction: column; gap: 14px; }
+.ds-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.ds-tags { align-items: center; gap: 8px; }
+.ds-tags .field-label { margin-right: 4px; }
+
+.ds-results { display: flex; flex-direction: column; gap: 12px; }
+.ds-count { margin: 0; font: var(--type-body); color: var(--text-strong); }
+.ds-h2 { margin: 0 0 6px; font: var(--weight-semibold) 18px/1.3 var(--font-display); color: var(--text-strong); }
+.ds-h3 { margin: 0 0 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: var(--weight-semibold) 17px/1.3 var(--font-display); color: var(--text-strong); }
+.ds-hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ds-hit { display: flex; flex-direction: column; gap: 6px; border-top: 4px solid var(--accent-fg); }
+.ds-hit-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ds-hit-title { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; font: var(--weight-semibold) 18px/1.3 var(--font-display); color: var(--accent-fg); overflow-wrap: anywhere; margin-right: auto; }
+.ds-hit-title:hover { text-decoration: underline; }
+.ds-hit-title:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 3px; }
+.ds-snip { font: var(--type-body); line-height: 1.55; overflow-wrap: anywhere; }
+.ds-snip strong { color: var(--accent-fg); margin-right: 6px; }
+.ds-assets { display: flex; flex-direction: column; gap: 8px; }
+.ds-asset { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; padding: 10px 14px; }
+.ds-page mark { background: #fddab4; color: #1d1d1d; border-radius: 2px; padding: 0 1px; }
+
+.ds-check summary { cursor: pointer; font: var(--weight-semibold) var(--size-body)/1.4 var(--font-body); color: var(--text-strong); }
+.ds-check[open] summary { margin-bottom: 8px; }
+.ds-check-out { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.ds-verdicts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font: var(--type-body-sm); }
+.ds-verdict strong { margin-right: 6px; }
+.ds-works strong { color: #3b5600; }
+.ds-ignored strong, .ds-refused strong, .ds-unreachable strong { color: #a85800; }
+
+.ds-job { display: flex; flex-direction: column; gap: 14px; }
+.ds-job-head { display: flex; flex-direction: column; gap: 6px; }
+.ds-job-title { margin: 0; font: var(--weight-semibold) 26px/1.25 var(--font-display); color: var(--text-strong); overflow-wrap: anywhere; }
+.ds-badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.ds-job-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.ds-job-main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.ds-job-side { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.ds-facts { display: flex; flex-direction: column; gap: 4px; }
+.ds-facts .overline { margin-top: 8px; }
+.ds-facts .overline:first-child { margin-top: 0; }
+.ds-asset-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; padding: 8px 0; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); }
+.ds-empty { margin: 0; color: var(--text-muted); font: var(--type-body-sm); }
+
+/* Simpro's rich text, drawn as plain formatted text. */
+.ds-rich { font: var(--type-body); line-height: 1.55; color: var(--text-body); overflow-wrap: anywhere; }
+.ds-rich p, .ds-rich div, .ds-rich ul, .ds-rich ol, .ds-rich blockquote, .ds-rich pre { margin: 0 0 8px; }
+.ds-rich ul, .ds-rich ol { padding-left: 22px; }
+.ds-rich h1, .ds-rich h2, .ds-rich h3, .ds-rich h4, .ds-rich h5, .ds-rich h6 { margin: 10px 0 6px; font: var(--weight-semibold) 16px/1.3 var(--font-body); color: var(--text-strong); }
+.ds-rich pre, .ds-rich code { font-family: var(--font-mono); font-size: 14px; white-space: pre-wrap; }
+.ds-rich a { color: var(--text-link); }
+.ds-table-scroll { overflow-x: auto; margin-bottom: 8px; }
+.ds-rich table { border-collapse: collapse; }
+.ds-rich td, .ds-rich th { border: 1px solid var(--border-subtle); padding: 4px 8px; text-align: left; vertical-align: top; }
