@@ -6,9 +6,9 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { BookOpen, FileSpreadsheet, Plus, Search } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Badge, Button, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
-import { canEditKb, countBy, groupFields, KIND_IDS, KINDS, searchRecords } from './model.js'
+import { alsoMatching, canEditKb, countBy, groupFields, KIND_IDS, KINDS, partInfo, searchRecords } from './model.js'
 import { watch } from './store.js'
-import { Detail } from './Detail.jsx'
+import { Detail, statusTone } from './Detail.jsx'
 import { Editor, ImportDialog } from './Editor.jsx'
 
 const SHOW = 40 // rows drawn at a time; the rest are a click away
@@ -80,6 +80,7 @@ function Page() {
     return out
   }, [lists, query])
 
+  const also = useMemo(() => alsoMatching(query), [query])
   const loaded = KIND_IDS.every((k) => lists[k])
   const total = KIND_IDS.reduce((n, k) => n + (lists[k]?.length || 0), 0)
   const kinds = tab === 'all' ? KIND_IDS : [tab]
@@ -111,6 +112,8 @@ function Page() {
           placeholder="Part number, model, fault, site… e.g. AB-123, N17 waikato ccu, psu" aria-label="Search the knowledge base" enterKeyHint="search" />
         {q && <Button variant="ghost" size="sm" onClick={() => setQ('')}>Clear</Button>}
       </div>
+
+      {also.length > 0 && <p className="kb-also">Also matching: {also.slice(0, 8).join(', ')}{also.length > 8 ? '…' : ''}</p>}
 
       <div className="kb-tabs" role="tablist" aria-label="What to search">
         {TABS.map(([id, label]) => (
@@ -201,8 +204,8 @@ function Row({ kind, rec, onOpen }) {
         <span className="kb-row-sub">{snippet(rec.body)}</span>
       </>)}
       {kind === 'part' && (<>
-        <span className="kb-row-main"><b className="kb-code">{rec.partNo}</b><span>{rec.name}</span></span>
-        <span className="kb-row-sub">{[rec.aliases?.length ? 'Also: ' + rec.aliases.join(', ') : '', rec.fits?.length ? 'Fits: ' + rec.fits.join(', ') : ''].filter(Boolean).join(' · ') || snippet(rec.notes)}</span>
+        <span className="kb-row-main"><b className="kb-code">{rec.partNo}</b><span>{rec.name}</span>{(() => { const s = partInfo(rec.notes).status; return s && !/^active/i.test(s) ? <Badge tone={statusTone(s)}>{s}</Badge> : null })()}</span>
+        <span className="kb-row-sub">{[rec.aliases?.length ? 'Also: ' + rec.aliases.slice(0, 6).join(', ') : '', rec.fits?.length ? 'Fits: ' + rec.fits.join(', ') : ''].filter(Boolean).join(' · ') || snippet(partInfo(rec.notes).rest)}</span>
       </>)}
       {kind === 'device' && (<>
         <span className="kb-row-main"><b>{rec.model || rec.serial}</b><span>{[rec.site, rec.dept].filter(Boolean).join(' · ')}</span></span>

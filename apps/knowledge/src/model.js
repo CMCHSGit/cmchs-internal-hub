@@ -9,6 +9,7 @@
    Every record carries `search`, a lower-case string of its words (and its part numbers with the dashes and
    spaces taken out, so "AB-123", "ab 123" and "ab123" all find each other). Searching is every word of the
    question being somewhere in that string: instant on the device, no server and no AI. */
+import { SYNONYM_GROUPS } from './synonyms.js'
 
 export const KINDS = {
   article: { col: 'kbArticles', label: 'Articles', one: 'article' },
@@ -45,7 +46,7 @@ export function buildRecord(kind, input = {}) {
   const shape = SHAPE[kind]
   if (!shape) throw new Error('Unknown kind ' + kind)
   const out = {}
-  for (const [f, max] of Object.entries(shape.text)) out[f] = (f === 'body' || (f === 'notes' && kind === 'job')) ? cleanBody(input[f], max) : clean(input[f], max)
+  for (const [f, max] of Object.entries(shape.text)) out[f] = (f === 'body' || f === 'notes') ? cleanBody(input[f], max) : clean(input[f], max)
   for (const f of shape.list) out[f] = cleanList(input[f])
   if (kind === 'device') out.extra = cleanExtra(input.extra)
   out.search = searchOf(kind, out)
@@ -88,19 +89,71 @@ export function queryWords(q) {
   return kept.length ? kept : all
 }
 
-/** Records matching every word of the question, best first. Empty question: everything, as stored. */
-export function searchRecords(kind, records, q) {
+const indexes = new WeakMap()
+/**
+ * term (as words) → what searching it also looks for, for a list of synonym groups ([name, kind, same, narrower]). A "same" term
+ * finds every same term and every narrower one of its group; a narrower term finds only itself, but is still a unit, so
+ * "nibp pump" is not split into "nibp" and "pump". Built once per list.
+ */
+function synonymIndex(groups) {
+  let ix = indexes.get(groups)
+  if (!ix) {
+    ix = new Map()
+    const norm = (ts) => [...new Set((ts || []).map(words).filter(Boolean))]
+    for (const [, , same, narrower] of groups) {
+      const s = norm(same), n = norm(narrower)
+      for (const t of s) ix.set(t, [...new Set([...(ix.get(t) || []), ...s, ...n])])
+      for (const t of n) if (!ix.has(t)) ix.set(t, [t])
+    }
+    indexes.set(groups, ix)
+  }
+  return ix
+}
+
+/**
+ * The question as things to find: each is { alts }, the word (or phrase of up to three words) first, then every term that means
+ * the same in the synonym groups. A record matches when it holds any of the alternatives of every term.
+ */
+export function queryTerms(q, groups = SYNONYM_GROUPS) {
   const ws = queryWords(q)
-  if (!ws.length) return records
+  const ix = synonymIndex(groups)
+  const out = []
+  for (let i = 0; i < ws.length;) {
+    let took = 1, alts = [ws[i]]
+    for (let n = Math.min(3, ws.length - i); n >= 1; n--) {
+      const phrase = ws.slice(i, i + n).join(' ')
+      if (ix.has(phrase)) { took = n; alts = [phrase, ...ix.get(phrase).filter((t) => t !== phrase)]; break }
+    }
+    out.push({ alts })
+    i += took
+  }
+  return out
+}
+
+/** The other words a question is also being searched with (for "also matching: display, lcd …" under the box). */
+export function alsoMatching(q, groups = SYNONYM_GROUPS) {
+  return [...new Set(queryTerms(q, groups).flatMap((t) => t.alts.slice(1)))]
+}
+
+/** Records matching every word of the question (or a word that means the same), best first. Empty question: everything, as stored. */
+export function searchRecords(kind, records, q, groups = SYNONYM_GROUPS) {
+  const terms = queryTerms(q, groups)
+  if (!terms.length) return records
   const main = SHAPE[kind].main
-  const joined = ws.join('')
+  const joined = queryWords(q).join('')
   const scored = []
   for (const r of records) {
     const hay = r.search || ''
-    if (!ws.every((w) => hay.includes(w))) continue
+    if (!terms.every((t) => t.alts.some((a) => hay.includes(a)))) continue
     let score = 0
     const lead = main.flatMap((f) => (Array.isArray(r[f]) ? r[f] : [r[f]])).filter(Boolean).map(words)
-    for (const w of ws) score += lead.some((t) => t.split(' ').includes(w)) ? 10 : lead.some((t) => t.includes(w)) ? 6 : 1
+    for (const { alts } of terms) {
+      const [w] = alts
+      if (lead.some((t) => t.split(' ').includes(w))) score += 10
+      else if (lead.some((t) => t.includes(w))) score += 6
+      else if (hay.includes(w)) score += 1
+      else score += alts.some((a) => lead.some((t) => t.includes(a))) ? 3 : 0.5 // only a word that means the same
+    }
     if (lead.some((t) => compact(t) === joined)) score += 100
     scored.push([score, r])
   }
@@ -159,10 +212,10 @@ const HEADINGS = {
   },
   job: {
     jobNo: ['job', 'job number', 'job no', 'job #', 'number', 'id'],
-    title: ['title', 'name', 'job name', 'description', 'summary'],
+    title: ['fault summary', 'title', 'name', 'job name', 'description', 'summary'],
     notes: ['notes', 'job notes', 'work done', 'work performed', 'details', 'comments', 'report', 'job description', 'invoice notes'],
     model: ['model', 'models', 'device', 'equipment'],
-    parts: ['parts', 'parts used', 'part numbers', 'part', 'materials'],
+    parts: ['parts pns', 'parts used', 'part numbers', 'parts', 'part', 'materials'],
     site: ['site', 'customer', 'hospital', 'location'],
     date: ['date', 'completed', 'completed date', 'job date', 'closed', 'created'],
   },
@@ -191,6 +244,74 @@ export function findHeaderRow(kind, rows) {
   return -1
 }
 
+const tidy = (s, max = 700) => String(s ?? '').replace(/\s*\|\s*/g, '; ').replace(/[ \t]+/g, ' ').trim().slice(0, max)
+const flat = (s) => String(s ?? '').replace(/\s+/g, ' ').trim()
+const headed = (head) => { const t = String(head).replace(/[_]+/g, ' ').trim(); return t.charAt(0).toUpperCase() + t.slice(1) }
+
+// A parts list's other columns become "Label: value" lines in the notes (so they are searchable and shown), in this order.
+const PART_LINES = { status: 'Status', 'superseded by': 'Replaced by', supersedes: 'Replaces', 'conflict note': 'Note', category: 'Category', 'typical faults': 'Typical faults', 'job refs': 'Used on jobs' }
+const PART_ORDER = ['Status', 'Replaced by', 'Replaces', 'Note', 'Category', 'Typical faults', 'Seen', 'Used on jobs']
+// Columns that only repeat what is already there, or are bookkeeping.
+const PART_SKIP = new Set(['search text', 'date basis', 'conflict ids', 'conflict confidence', 'keywords', 'first seen', 'last seen', 'jobs count', 'pn variants seen', 'name confidence'])
+
+/** A part row's extra columns: status, what replaced it, a warning, typical faults and the jobs it was used on, in `notes`; mistyped spellings of its number in `aliases`. */
+function enrichPart(input, row, headers, taken) {
+  const lines = new Map()
+  const col = (name) => { const i = headers.findIndex((h) => words(h) === name); return i >= 0 ? cell(row[i]) : '' }
+  headers.forEach((head, i) => {
+    const key = words(head), v = tidy(cell(row[i]))
+    if (taken.has(i) || !head || !v || PART_SKIP.has(key)) return
+    lines.set(PART_LINES[key] || headed(head), v)
+  })
+  const seen = [col('first seen'), col('last seen')].filter(Boolean)
+  const jobs = Number(col('jobs count'))
+  if (seen.length || jobs) lines.set('Seen', [seen.length ? (seen[0] === seen[1] || seen.length === 1 ? seen[0] : seen.join(' to ')) : '', jobs ? `${jobs} job${jobs === 1 ? '' : 's'}` : ''].filter(Boolean).join(', '))
+  if (/^low$/i.test(col('name confidence'))) lines.set('Name confidence', 'Low')
+  const ordered = [...PART_ORDER.filter((l) => lines.has(l)), ...[...lines.keys()].filter((l) => !PART_ORDER.includes(l))]
+  input.notes = [input.notes, ...ordered.map((l) => `${l}: ${lines.get(l)}`)].filter(Boolean).join('\n')
+  const variants = col('pn variants seen').replace(/\s*\(x\d+\)/g, '').replace(/\s*\|\s*/g, '; ') // "115-050780 (x4)" is a count of how often it was written that way
+  if (variants) input.aliases = [input.aliases, variants].filter(Boolean).join('; ')
+}
+
+/** A part's notes read back into what the page shows apart: its status, what replaced it, a warning and the jobs; the rest stays text. */
+export function partInfo(notes) {
+  const info = { status: '', replacedBy: [], replaces: [], note: '', jobs: [], rest: [] }
+  const list = (s) => s.split(/[;,]/).map((x) => x.trim()).filter(Boolean)
+  for (const line of String(notes || '').split('\n')) {
+    const m = /^(Status|Replaced by|Replaces|Note|Used on jobs): (.*)$/.exec(line)
+    if (!m) { info.rest.push(line); continue }
+    if (m[1] === 'Status') info.status = m[2].trim()
+    else if (m[1] === 'Replaced by') info.replacedBy = list(m[2])
+    else if (m[1] === 'Replaces') info.replaces = list(m[2])
+    else if (m[1] === 'Note') info.note = m[2].trim()
+    else info.jobs = list(m[2])
+  }
+  info.rest = info.rest.join('\n').trim()
+  return info
+}
+
+const JOB_LINES = { 'job type': 'Type', 'stage status': 'Stage', 'parts named': 'Parts named', serials: 'Serials' }
+const JOB_SKIP = new Set(['date basis', 'description', 'work done'])
+
+/** A job row: the short fault as the title, the description and work done (where the notes don't already say it) then the notes, and type, stage, parts named and serials as lines under them. */
+function enrichJob(input, row, headers, taken) {
+  const col = (name) => { const i = headers.findIndex((h) => words(h) === name); return i >= 0 ? cell(row[i]) : '' }
+  const notes = input.notes || ''
+  const has = (text) => flat(notes).includes(flat(text))
+  const description = col('description'), work = col('work done')
+  const body = []
+  if (description && flat(description) !== flat(input.title) && !has(description)) body.push(description)
+  if (work && !has(work) && !flat(description).includes(flat(work))) body.push('Work done: ' + work)
+  if (notes) body.push(notes)
+  const meta = []
+  headers.forEach((head, i) => {
+    const key = words(head), v = tidy(cell(row[i]), 300)
+    if (taken.has(i) || !head || !v || JOB_SKIP.has(key)) return
+    meta.push(`${JOB_LINES[key] || headed(head)}: ${v}`)
+  })
+  input.notes = [...body, ...(body.length && meta.length ? [''] : []), ...meta].join('\n')
+}
+
 /**
  * Rows (arrays of cells, header row first) into records of the kind.
  * Devices keep every unrecognised column as `extra`, so an SpO2 type or a WiFi column is searchable and can be grouped on.
@@ -209,6 +330,8 @@ export function rowsToRecords(kind, rows, defaults = {}) {
     const input = {}
     for (const [field, i] of Object.entries(map)) input[field] = cell(row[i])
     for (const [field, v] of Object.entries(defaults)) if (field !== 'extra' && !input[field]) input[field] = v
+    if (kind === 'part') enrichPart(input, row, headers, taken)
+    else if (kind === 'job') enrichJob(input, row, headers, taken)
     if (kind === 'device') {
       input.extra = { ...(defaults.extra || {}) }
       headers.forEach((head, i) => { if (!taken.has(i) && head && cell(row[i])) input.extra[head] = cell(row[i]) })

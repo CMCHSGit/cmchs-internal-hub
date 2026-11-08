@@ -50,6 +50,7 @@
 .kb-rich { color: var(--text-body); font: var(--type-body); overflow-wrap: anywhere; }
 .kb-rich p { margin: 0 0 8px; }
 .kb-ul { margin: 0 0 8px; padding-left: 20px; }
+.kb-also { margin: -4px 0 10px; color: var(--text-muted); font: var(--type-caption); }
 .kb-ul li { margin-bottom: 3px; }
 .kb-pic { font: var(--type-caption); color: var(--text-muted); white-space: nowrap; }
 a.kb-pic { color: var(--accent-fg); }

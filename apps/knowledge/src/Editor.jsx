@@ -65,9 +65,9 @@ export function Editor({ kind, record, categories, by, onClose, onSaved }) {
 
 const WHAT = {
   article: ['Word guides', 'Word (.docx) how-to guides, as many as you like at once: one article each, with its text, bold, numbered steps and tables. Pictures are not copied: “[Picture p.3]” marks where each was and on which page, and opens the PDF copy there if you give its folder below. The same file again replaces its article.'],
-  part: ['Parts list', 'Part number, name, other names, models it fits, notes, diagram. One row a part; a part number already here is replaced.'],
+  part: ['Parts list', 'Part number, name, other names, models it fits, notes, diagram. One row a part; a part number already here is replaced. Other columns (status, replaced by, warning, typical faults, jobs used on) are kept in its notes, and a column of mistyped spellings of the number as other names.'],
   device: ['Asset list', 'A customer’s device list: site or ward, model, serial, software version, and any other columns (SpO2 type, WiFi, …), which become searchable and countable.'],
-  job: ['Past jobs', 'From a Simpro export: job number, title, notes, models, parts used, site, date. A job number already here is replaced.'],
+  job: ['Past jobs', 'From a Simpro export: job number, title (a “fault summary” column is used if there is one), notes, models, parts used, site, date. Description, work done, job type, stage, parts named and serials are kept in the notes. A job number already here is replaced.'],
 }
 
 /** A workbook's sheets (or a CSV's one) as arrays of rows. Sheets with no recognisable heading row are left out. */

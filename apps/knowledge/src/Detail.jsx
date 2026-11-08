@@ -1,8 +1,8 @@
 /* One entry in full, in a dialog. Its address (/knowledge/#/article/<id>) opens it directly, so an entry can be shared as a link.
    Text is always drawn as React text, never as HTML (richBlocks in model.js): nothing typed in an article can inject markup. */
 import { Link2, Pencil, Trash2 } from 'lucide-react'
-import { Badge, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
-import { mentioning, relatedParts, richBlocks, sourceLink } from './model.js'
+import { Alert, Badge, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
+import { compact, mentioning, partInfo, relatedParts, richBlocks, sourceLink } from './model.js'
 import { removeRecord } from './store.js'
 
 const NZ = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}-${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m[2]) - 1]}-${m[1]}` : iso || '' }
@@ -47,6 +47,13 @@ export function Detail({ kind, rec, lists, canEdit, onClose, onOpen, onEdit, onT
   const parts = lists.part || []
   const linkedParts = kind === 'part' ? [] : relatedParts(rec, parts)
   const partsUsing = kind === 'part' ? { articles: mentioning(rec, lists.article || []), jobs: mentioning(rec, lists.job || []) } : null
+  const info = kind === 'part' ? partInfo(rec.notes) : null
+  // Jobs that list the part number, and the jobs the part's own notes say it was used on (a number can be only in a job's text).
+  const usedOn = kind === 'part' ? (() => {
+    const byNo = new Map((lists.job || []).map((j) => [j.jobNo, j]))
+    const seen = new Set(partsUsing.jobs.map((j) => j.id))
+    return [...partsUsing.jobs, ...info.jobs.map((n) => byNo.get(n)).filter((j) => j && !seen.has(j.id) && seen.add(j.id))]
+  })() : []
   const title = kind === 'article' ? rec.title : kind === 'part' ? `${rec.partNo}${rec.name ? ' · ' + rec.name : ''}`
     : kind === 'device' ? `${rec.model || 'Device'}${rec.site ? ' · ' + rec.site : ''}` : `${rec.jobNo ? 'Job ' + rec.jobNo + ' · ' : ''}${rec.title}`
 
@@ -68,12 +75,17 @@ export function Detail({ kind, rec, lists, canEdit, onClose, onOpen, onEdit, onT
           <Facts rows={[['Last checked', NZ(rec.reviewedAt)]]} />
         </>)}
         {kind === 'part' && (<>
-          <Facts rows={[['Part number', rec.partNo], ['Name', rec.name], ['Also called', rec.aliases], ['Fits', rec.fits], ['Notes', rec.notes]]} />
+          {info.status && <div className="kb-tags"><Badge tone={statusTone(info.status)}>{info.status}</Badge></div>}
+          {info.note && <Alert tone="warning">{info.note}</Alert>}
+          <Facts rows={[['Part number', rec.partNo], ['Name', rec.name], ['Also called', rec.aliases], ['Fits', rec.fits]]} />
+          <PnLinks title="Replaced by" pns={info.replacedBy} parts={parts} onOpen={onOpen} />
+          <PnLinks title="Replaces" pns={info.replaces} parts={parts} onOpen={onOpen} />
+          {info.rest && <Rich text={info.rest} />}
           {rec.diagram && (/^https?:\/\//i.test(rec.diagram)
             ? <p><a href={rec.diagram} target="_blank" rel="noopener noreferrer">Open the diagram</a></p>
             : <Facts rows={[['Diagram', rec.diagram]]} />)}
           {partsUsing.articles.length > 0 && <Linked title="Articles that mention it" rows={partsUsing.articles.map((a) => [a.id, a.title, 'article'])} onOpen={onOpen} />}
-          {partsUsing.jobs.length > 0 && <Linked title="Past jobs that used it" rows={partsUsing.jobs.map((j) => [j.id, `${j.jobNo ? 'Job ' + j.jobNo + ': ' : ''}${j.title}`, 'job'])} onOpen={onOpen} />}
+          {usedOn.length > 0 && <Linked title="Past jobs that used it" rows={usedOn.map((j) => [j.id, `${j.jobNo ? 'Job ' + j.jobNo + ': ' : ''}${j.title}`, 'job'])} onOpen={onOpen} />}
         </>)}
         {kind === 'device' && (
           <Facts rows={[['Site', rec.site], ['Department', rec.dept], ['Model', rec.model], ['Serial', rec.serial], ['Software', rec.version], ['Options', rec.options], ['Notes', rec.notes], ...Object.entries(rec.extra || {})]} />
@@ -96,6 +108,22 @@ export function Detail({ kind, rec, lists, canEdit, onClose, onOpen, onEdit, onT
     </Dialog>
   )
 }
+
+/** Part numbers that are in the catalogue open it; ones that are not are just shown. */
+function PnLinks({ title, pns, parts, onOpen }) {
+  if (!pns.length) return null
+  return (
+    <div className="kb-linked">
+      <h3>{title}</h3>
+      <ul>{pns.map((pn) => {
+        const p = parts.find((x) => compact(x.partNo) === compact(pn))
+        return <li key={pn}>{p ? <button type="button" className="kb-link" onClick={() => onOpen('part', p.id)}>{`${p.partNo}${p.name ? ' · ' + p.name : ''}`}</button> : pn}</li>
+      })}</ul>
+    </div>
+  )
+}
+
+export const statusTone = (s) => /^active/i.test(s) ? 'green' : /do not use|wrong/i.test(s) ? 'critical' : /supersed|obsolete/i.test(s) ? 'orange' : 'neutral'
 
 function Linked({ title, rows, onOpen }) {
   return (
