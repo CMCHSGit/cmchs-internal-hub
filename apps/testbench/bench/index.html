@@ -2508,7 +2508,7 @@ const Sheet = {
   relookup() {
     if ($('#dutCard').hidden) return;
     const i = $$('#dutFields input').find(x => /^(serial|chs asset|customer asset)/i.test(x.dataset.k.trim()) && x.value.trim());
-    if (i) this.onTyped(i);
+    if (i) { this.onTyped(i); if (typeof Draft !== 'undefined') Draft.save(); }
   },
   /** Reads the file again (it may have changed). Quiet when it is the automatic load at start-up. */
   async load(quiet) {
@@ -4539,6 +4539,7 @@ const BenchOrders = {
   render() {
     const f = $('#orderField'), sel = $('#dutOrder'); if (!f || !sel) return;
     f.hidden = !this.list.length;
+    if (this.pending && (!this.pending.value || this.list.some(o => o.number === this.pending.value))) { sel.dataset.touched = this.pending.touched ? '1' : ''; if (!this.pending.touched) delete sel.dataset.touched; sel.innerHTML = '<option value=""></option>' + this.list.map(o => `<option value="${esc(o.number)}"></option>`).join(''); sel.value = this.pending.value; this.pending = null; }
     const keep = sel.value, touched = sel.dataset.touched === '1', fit = this.list.filter(o => this.same(o.customer, this.customer()));
     sel.innerHTML = '<option value="">Automatic: by the customer</option>' + this.list.map(o => `<option value="${esc(o.number)}">${esc(o.label)} · ${esc(o.summary || '')}</option>`).join('');
     sel.value = touched && this.list.some(o => o.number === keep) ? keep : (touched && keep === '' ? '' : (fit.length === 1 ? fit[0].number : ''));
@@ -4554,6 +4555,37 @@ window.addEventListener('message', (e) => {
   if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
   if (e.data && e.data.type === 'chs-bench:orders') BenchOrders.set(e.data.list);
 });
+/* ----- the device being set up: kept as it is typed, so a refresh (or a reload for an update) brings you back to it ----- */
+/** The template picked and the details typed (and the order chosen) are kept on this PC while the Device under test form is open, and put back
+    when the page opens again, so a refresh in the middle of typing doesn't lose the place. Dropped once the test starts or the form is closed,
+    and after twelve hours. */
+const Draft = {
+  key: 'chsBench.draft', done: false,
+  save() {
+    try {
+      if ($('#dutCard').hidden || !App.picked) return;
+      const t = Store.get(App.picked), values = {}; $$('#dutFields input').forEach(i => { values[i.dataset.k] = i.value; });
+      localStorage.setItem(this.key, JSON.stringify({ id: App.picked, name: t && t.name, values, order: $('#dutOrder').value || '', touched: $('#dutOrder').dataset.touched === '1', at: Date.now() }));
+    } catch {}
+  },
+  clear() { try { localStorage.removeItem(this.key); } catch {} },
+  load() { try { const d = JSON.parse(localStorage.getItem(this.key) || 'null'); return d && d.values && Date.now() - d.at < 12 * 3600e3 ? d : null; } catch { return null; } },
+  /** Back to the device form as it was. Safe to call more than once (it acts once); false while the template isn't loaded yet. */
+  restore() {
+    if (this.done || Runner.run || !$('#runActive').hidden) return false;
+    const d = this.load(); if (!d) { this.done = true; return false; }
+    const t = Store.get(d.id) || Store.templates.find(x => x.name === d.name); if (!t) return false;
+    this.done = true;
+    App.show('run'); App.pick(t.id);
+    $$('#dutFields input').forEach(i => { if (d.values[i.dataset.k] !== undefined) i.value = d.values[i.dataset.k]; });
+    BenchOrders.pending = { value: d.order, touched: d.touched }; BenchOrders.render();
+    ($$('#dutFields input').find(i => !i.value) || $('#startRun'))?.focus();
+    toast(`Back to where you were: ${t.name}`, 3500);
+    log('in', 'APP', `Restored the device form for “${t.name}” after the page was reloaded`);
+    Sheet.relookup();   // and the serial is looked up in the asset list again, if one is loaded
+    return true;
+  },
+};
 /* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
 const SharedTests = {
   list: [], me: '', admin: false, ok: false, asks: new Map(), timers: {},
@@ -4764,8 +4796,8 @@ const App = {
     $('#sumSave').addEventListener('click', () => saveReportFiles(null, 'save'));
     $('#sumDownload').addEventListener('click', () => saveReportFiles(null, 'download'));
     $('#sumFolder').addEventListener('click', () => saveReportFiles(null, 'download', true));
-    $('#dutFields').addEventListener('input', () => BenchOrders.render());
-    $('#dutOrder').addEventListener('change', (e) => { e.target.dataset.touched = '1'; BenchOrders.hint(); });
+    $('#dutFields').addEventListener('input', () => { BenchOrders.render(); Draft.save(); });
+    $('#dutOrder').addEventListener('change', (e) => { e.target.dataset.touched = '1'; BenchOrders.hint(); Draft.save(); });
     $('#tplCollapse').addEventListener('click', () => { Collapsed.all('run', groupTemplates(Store.templates).map(g => g[0]), true); this.refreshRunPicker(); });
     $('#tplExpand').addEventListener('click', () => { Collapsed.all('run', [], false); this.refreshRunPicker(); });
 
@@ -4773,6 +4805,7 @@ const App = {
     window.addEventListener('pagehide', () => Runner.autosaveNow());
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Runner.autosaveNow(); });
     Runner.offerRestore();
+    if (!Draft.restore()) setTimeout(() => Draft.restore(), 3000);   // the templates may still be loading (a shared folder, the published copies)
     log('in', 'APP', `Ready. ${'serial' in navigator ? 'USB serial supported.' : 'This browser does not support USB serial.'} Templates: ${Store.templates.length}.`);
   },
   fromHash() { const v = (location.hash || '#run').slice(1); this.show(['run', 'templates', 'devices', 'log'].includes(v) ? v : 'run', true); },
@@ -4823,7 +4856,7 @@ const App = {
     $('#arrangeTools').hidden = !arr; $('#arrScale').value = String(scale);
     $('#arrangeHint').textContent = arr ? 'This layout is yours: drag a template to move it (or use the lists and arrows), pick its colour and text size, and list the models it covers so a search for them finds it. Publish as team layout makes it the starting point for everyone.' : (q && n ? `${n} template${n === 1 ? '' : 's'} match “${q}”.` : '');
     if (arr) this.bindArrange(all);
-    if (this.picked && !Store.get(this.picked)) { this.picked = null; $('#dutCard').hidden = true; }
+    if (this.picked && !Store.get(this.picked)) { this.picked = null; $('#dutCard').hidden = true; Draft.clear(); }
   },
   /** Arrange mode: drag a template onto another (to put it before that one) or onto a group heading (to the end of the group). */
   bindArrange(all) {
@@ -4897,9 +4930,9 @@ const App = {
     $('#pickedName').textContent = t.name;
     const prev = {}; $$('#dutFields input').forEach(i => prev[i.dataset.k] = i.value);
     $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || (/^testing engineer$/i.test(k) ? 'Jonathan Nasrun' : ''))}" ${i === 0 ? 'required' : ''}></div>`).join('');
-    $('#dutCard').hidden = false; delete $('#dutOrder').dataset.touched; BenchOrders.render(); this.updateStartHint();
+    $('#dutCard').hidden = false; delete $('#dutOrder').dataset.touched; BenchOrders.render(); this.updateStartHint(); Draft.save();
     enterToNext($$('#dutFields input'), () => this.startRun());
-    $$('#dutFields input').filter(i => /^(serial|chs asset|customer asset)/i.test(i.dataset.k.trim())).forEach(i => { let tm; i.addEventListener('change', () => { clearTimeout(tm); Sheet.onTyped(i); }); i.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { if (i.value.trim().length >= 4) Sheet.onTyped(i); }, 800); }); });   // in the customer's spreadsheet: fill the rest
+    $$('#dutFields input').filter(i => /^(serial|chs asset|customer asset)/i.test(i.dataset.k.trim())).forEach(i => { let tm; i.addEventListener('change', () => { clearTimeout(tm); Sheet.onTyped(i); Draft.save(); }); i.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { if (i.value.trim().length >= 4) { Sheet.onTyped(i); Draft.save(); } }, 800); }); });   // (the details the list fills in are kept too)   // in the customer's spreadsheet: fill the rest
     $('#dutFields input')?.focus();
     $('#dutCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     if (this.pendingDevice) { const d = this.pendingDevice; this.pendingDevice = null; this.fillDevice(d); }
@@ -4911,7 +4944,7 @@ const App = {
     if (e) e.preventDefault();
     if (!$('#runActive').hidden) { this.show('run'); return; }
     if (!$('#runSummary').hidden) { if (Power.on) Power.off(true); $('#runSummary').hidden = true; $('#runSetup').hidden = false; }
-    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true;
+    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true; Draft.clear();
     this.show('run'); this.refreshRunPicker(); window.scrollTo({ top: 0 });
   },
   /** Run the test again on the same device: a new test that starts with every result of the last one kept exactly as it was (statuses, readings,
@@ -4958,7 +4991,7 @@ const App = {
     Sheet.cur = null; Sheet.result = null; Sheet.renderAlert();
     const dut = {}; inputs.forEach(i => dut[i.dataset.k] = i.value.trim());
     const order = BenchOrders.chosen();   // the order this test counts toward, or '' for automatic
-    const go = (...a) => { Runner.start(...a); if (Runner.run && order) Runner.run.order = order; };
+    const go = (...a) => { Runner.start(...a); if (Runner.run && order) Runner.run.order = order; Draft.clear(); };
     const models = tplModels(t);
     if (models.length > 1) {
       const mk = Object.keys(dut).find(k => /^model$/i.test(k.trim()));

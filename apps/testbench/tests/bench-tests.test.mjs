@@ -335,5 +335,15 @@ test('Read again looks the serial already in the form up again by itself', () =>
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.match(html, /relookup\(\) \{\s*\n\s*if \(\$\('#dutCard'\)\.hidden\) return;/, 'not while a test is running (the form is hidden)')
   assert.match(html, /Read \$\{this\.file\}: \$\{this\.rows\.length\} devices`\);\s*\n\s*if \(!quiet\) toast\([^\n]*\n\s*this\.relookup\(\);/, 'right after the list is read')
-  assert.ok(html.includes("/^(serial|chs asset|customer asset)/i.test(x.dataset.k.trim()) && x.value.trim()") && html.includes('if (i) this.onTyped(i);'))
+  assert.ok(html.includes("/^(serial|chs asset|customer asset)/i.test(x.dataset.k.trim()) && x.value.trim()") && html.includes('if (i) { this.onTyped(i);'))
+})
+
+test('the device form is kept as it is typed and put back after a refresh, then dropped when the test starts or the form is closed', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(html.includes("key: 'chsBench.draft'") && html.includes('Date.now() - d.at < 12 * 3600e3'), 'kept on this PC for twelve hours')
+  assert.match(html, /\$\('#dutFields'\)\.addEventListener\('input', \(\) => \{ BenchOrders\.render\(\); Draft\.save\(\); \}\)/, 'saved as each field is typed')
+  assert.ok(html.includes('this.updateStartHint(); Draft.save();') && html.includes('Sheet.onTyped(i); Draft.save();') && html.includes("if (typeof Draft !== 'undefined') Draft.save();"), 'on picking a template, and when the asset list fills details in')
+  assert.ok(html.includes('Runner.offerRestore();\n    if (!Draft.restore()) setTimeout(() => Draft.restore(), 3000);') || /Runner\.offerRestore\(\);\s*\n\s*if \(!Draft\.restore\(\)\) setTimeout\(\(\) => Draft\.restore\(\), 3000\)/.test(html), 'restored when the page opens, again if the templates were still loading')
+  assert.ok(html.includes('Runner.run.order = order; Draft.clear(); }') && /\$\('#dutCard'\)\.hidden = true; Draft\.clear\(\);/.test(html), 'dropped when the test starts, or the form is closed')
+  assert.ok(html.includes('if (this.done || Runner.run || !$(\'#runActive\').hidden) return false;'), 'not on top of a test in progress')
 })

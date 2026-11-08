@@ -229,3 +229,6 @@ The orders rules were published in the Firebase console on 6 Nov 2026 (confirmed
 
 ## Read again looks the serial up by itself (09/11/2026)
 After **Read again** (or any re-read of the asset list), the serial number already in the form is looked up straight away, so the Found / Missing alert and the filled-in details come back without typing it again (`Sheet.relookup`). Not while a test is running (the form is hidden then).
+
+## A refresh in the middle of typing brings you back to the device (09/11/2026)
+While the Device under test form is open, the template picked and everything typed (and the order chosen) is kept on this PC as it is typed (`Draft` in the bench page). When the page opens again, a refresh or a reload for an update, the bench goes back to that template with the details filled in, looks the serial up in the asset list again, and says "Back to where you were". It is dropped when the test starts, when you go back to choose a template, or after twelve hours, and it never replaces a test in progress. If the templates are still loading it tries again after three seconds.
