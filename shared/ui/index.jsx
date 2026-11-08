@@ -141,7 +141,7 @@ export function useToast() {
  * goes to its first field or button, and back where it was afterwards.
  * role="dialog", so the one app's update reload waits while it is open.
  */
-export function Dialog({ title, description, onClose, children, width = 560, className = '', initialFocus }) {
+export function Dialog({ title, titleNode, description, onClose, children, width = 560, className = '', initialFocus }) {
   const box = useRef(null)
   const close = useRef(onClose)
   close.current = onClose
@@ -160,7 +160,7 @@ export function Dialog({ title, description, onClose, children, width = 560, cla
         <StripeRule thickness={4} />
         <div className="dialog-head">
           <div className="dialog-head-text">
-            <h2 className="dialog-title">{title}</h2>
+            <h2 className="dialog-title">{titleNode ?? title}</h2>
             {description && <p className="dialog-desc">{description}</p>}
           </div>
           <button type="button" className="icon-btn icon-btn-md dialog-x" aria-label="Close" onClick={() => close.current()}>

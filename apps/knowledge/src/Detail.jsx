@@ -68,7 +68,7 @@ export function Detail({ kind, rec, lists, canEdit, re = null, onClose, onOpen, 
   }
 
   return (
-    <Dialog title={title} onClose={onClose} width={680}>
+    <Dialog title={title} titleNode={re ? <Hl text={title} re={re} /> : undefined} onClose={onClose} width={680}>
       <div className="kb-detail">
         {kind === 'article' && (<>
           <div className="kb-tags">{rec.category && <Badge tone="neutral">{rec.category}</Badge>}{(rec.tags || []).map((t) => <Badge key={t} tone="purple">{t}</Badge>)}</div>
