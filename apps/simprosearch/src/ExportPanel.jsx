@@ -3,17 +3,9 @@
 import { useRef, useState } from 'react'
 import { Alert, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
-import { makeZip } from '../../testbench/src/zip.js'
+import { saveFiles } from './download.js'
 import { FORMATS, buildFiles, recordOf } from './export.js'
 import { completeJobs } from './search.js'
-
-function save(name, bytesOrText, type) {
-  const url = URL.createObjectURL(new Blob([bytesOrText], { type }))
-  const a = document.createElement('a')
-  a.href = url; a.download = name
-  document.body.appendChild(a); a.click(); a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 10000)
-}
 
 export default function ExportPanel({ call, companyId, jobs, searched = '', one = false }) {
   const [format, setFormat] = useState('md')
@@ -36,11 +28,7 @@ export default function ExportPanel({ call, companyId, jobs, searched = '', one 
       const stamp = new Date().toISOString().slice(0, 10)
       const files = buildFiles(full.map((j) => recordOf(j, { people })), { format, stamp, searched })
       const kind = FORMATS.find((f) => f.id === format)?.label.split(' ')[0] || format
-      if (files.length === 1) save(files[0].name, files[0].text, files[0].type)
-      else {
-        const enc = new TextEncoder()
-        save(`simpro-jobs-${stamp}.zip`, makeZip(files.map((f) => ({ name: f.name, bytes: enc.encode(f.text) }))), 'application/zip')
-      }
+      saveFiles(files, stamp)
       // One line in the activity log: how many, never what was in them.
       logActivity(null, `Exported ${full.length} Simpro ${full.length === 1 ? 'job' : 'jobs'} to a ${kind} file${people ? ' with customer and site names' : ''}`, { app: 'simprosearch' })
       setMessage({

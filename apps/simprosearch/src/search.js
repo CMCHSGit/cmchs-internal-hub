@@ -41,8 +41,8 @@ export const GROUPS = [
 // page says which did (checkSearch below), so this is a list to try, not a promise.
 export const ASSET_FILTERS = ['Serial', 'SerialNumber', 'CustomFields.Value']
 const ASSET_COLUMNS = 'ID,Site,AssetType,Archived,CustomFields'
-const JOB_COLUMNS = 'ID,Name,Description,Notes,Customer,Site,Stage,Status'
-const SAFE_COLUMNS = 'ID,Name,Description,Customer,Site,Stage,Status' // what Ansur and the Test Bench already ask for
+export const JOB_COLUMNS = 'ID,Name,Description,Notes,Customer,Site,Stage,Status'
+export const SAFE_COLUMNS = 'ID,Name,Description,Customer,Site,Stage,Status' // what Ansur and the Test Bench already ask for
 
 /** The text in Simpro's wildcard form (% on both ends, so it can be anywhere), safe to put in the address. */
 export function likeTerm(text) {

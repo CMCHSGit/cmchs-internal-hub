@@ -71,3 +71,5 @@
 .ds-check-line input, .ds-tick { width: 18px; height: 18px; accent-color: var(--chs-purple); flex: 0 0 auto; }
 .ds-pick { align-items: center; gap: 14px; }
 .ds-hit-head .ds-tick { align-self: center; }
+.ds-export > summary { cursor: pointer; font: var(--weight-semibold) var(--size-body)/1.4 var(--font-body); color: var(--text-strong); }
+.ds-export[open] > summary { margin-bottom: 4px; }

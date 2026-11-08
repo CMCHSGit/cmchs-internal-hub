@@ -9,6 +9,7 @@ import { GROUPS, MAX_PAGES, PAGE_SIZE, STAGES, VERDICT_TEXT, checkSearch, custom
 import { htmlToText, splitByTerms } from './html.js'
 import SafeHtml from './SafeHtml.jsx'
 import ExportPanel from './ExportPanel.jsx'
+import BulkExport from './BulkExport.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
 const jobFromHash = () => (/^#\/job\/(\d+)/.exec(location.hash) || [])[1] || ''
@@ -147,6 +148,8 @@ export default function SimproSearch() {
             {note && <p className="ds-note" role="status">{note}</p>}
             {busy && <Loading />}
             {result && <Results key={result.id} result={result} stage={stage} onOpen={open} call={call} companyId={companyId} />}
+
+            <BulkExport call={call} companyId={companyId} />
 
             <details className="ds-card ds-check">
               <summary>What can Simpro search?</summary>
