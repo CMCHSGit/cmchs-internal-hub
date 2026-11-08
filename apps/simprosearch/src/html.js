@@ -106,24 +106,31 @@ export function treeToText(tree) {
 
 export const htmlToText = (html) => treeToText(htmlToTree(html))
 
-/** Splits text around every (case-insensitive) occurrence of `term`: [{ text, hit }]. */
-export function splitByTerm(text, term) {
+/** Splits text around every (case-insensitive) occurrence of any of `terms` (a string or a list): [{ text, hit }]. */
+export function splitByTerms(text, terms) {
   const s = String(text ?? '')
-  const t = String(term ?? '').trim()
-  if (!t) return s ? [{ text: s, hit: false }] : []
+  const needles = [...new Set((Array.isArray(terms) ? terms : [terms]).map((t) => String(t ?? '').trim().toLowerCase()).filter(Boolean))]
+    .sort((a, b) => b.length - a.length) // the longest first, so "north shore" wins over "north"
+  if (!needles.length) return s ? [{ text: s, hit: false }] : []
   const out = []
-  const lower = s.toLowerCase(), needle = t.toLowerCase()
+  const lower = s.toLowerCase()
   let at = 0
-  for (;;) {
-    const i = lower.indexOf(needle, at)
-    if (i < 0) break
-    if (i > at) out.push({ text: s.slice(at, i), hit: false })
-    out.push({ text: s.slice(i, i + needle.length), hit: true })
-    at = i + needle.length
+  while (at < s.length) {
+    let best = -1, len = 0
+    for (const n of needles) {
+      const i = lower.indexOf(n, at)
+      if (i >= 0 && (best < 0 || i < best)) { best = i; len = n.length }
+    }
+    if (best < 0) break
+    if (best > at) out.push({ text: s.slice(at, best), hit: false })
+    out.push({ text: s.slice(best, best + len), hit: true })
+    at = best + len
   }
   if (at < s.length) out.push({ text: s.slice(at), hit: false })
   return out
 }
+
+export const splitByTerm = splitByTerms
 
 /** A short piece of `text` around the first occurrence of `term`: { before, hit, after, cutStart, cutEnd }, or null if it isn't there. */
 export function snippetAround(text, term, radius = 70) {

@@ -5,8 +5,8 @@ import { auth } from '../../schedule/src/firebase.js'
 import { Alert, Badge, Button, Loading, Tag } from '../../../shared/ui/index.jsx'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from '../../testbench/src/simpro-api.js'
-import { GROUPS, PAGE_SIZE, STAGES, VERDICT_TEXT, checkSearch, customerName, loadJob, searchAssets, searchJobs, statusName, whereFound } from './search.js'
-import { htmlToText } from './html.js'
+import { GROUPS, MAX_PAGES, PAGE_SIZE, STAGES, VERDICT_TEXT, checkSearch, customerName, loadJob, parseTerms, searchAssets, searchJobs, statusName, whereFound } from './search.js'
+import { htmlToText, splitByTerms } from './html.js'
 import SafeHtml from './SafeHtml.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
@@ -78,7 +78,7 @@ export default function SimproSearch() {
         groups.includes('assets') ? searchAssets(call, companyId, text).catch(() => ({ assets: [], filters: [], failed: true })) : { assets: [], filters: [] },
       ])
       if (mine !== searchId.current) return
-      setResult({ text, jobs: jobsAnswer.jobs, fields: jobsAnswer.fields, assets: assetsAnswer.assets, assetFilters: assetsAnswer.filters })
+      setResult({ text, terms: parseTerms(text), jobs: jobsAnswer.jobs, fields: jobsAnswer.fields, assets: assetsAnswer.assets, assetFilters: assetsAnswer.filters })
     } catch (err) {
       if (mine === searchId.current) setNote(err.message || String(err))
     } finally {
@@ -110,14 +110,15 @@ export default function SimproSearch() {
       </div>
 
       {jobId
-        ? <JobView call={call} companyId={companyId} id={jobId} term={result?.text || ''} onBack={back} />
+        ? <JobView call={call} companyId={companyId} id={jobId} term={result?.terms || []} onBack={back} />
         : (
           <>
             <form className="ds-card ds-form" onSubmit={find}>
               <div className="ds-row">
                 <label className="field ds-grow">
                   <span className="field-label">Search for</span>
-                  <input className="input ds-mono" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="A job number, serial number, asset number or words" autoFocus />
+                  <input className="input ds-mono" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. A9 Waitemata, or a serial number and a site" autoFocus />
+                  <span className="ds-muted">Every word must be found somewhere in the job, in any place. Put a phrase in quotes: “North Shore”.</span>
                 </label>
                 {companies.length > 1 && (
                   <label className="field">
@@ -159,13 +160,13 @@ export default function SimproSearch() {
 }
 
 function Results({ result, stage, onOpen }) {
-  const { text, jobs, fields, assets, assetFilters } = result
+  const { text, terms, jobs, fields, assets, assetFilters } = result
   const refused = fields.filter((f) => f.status !== 'ok')
   const more = fields.filter((f) => f.more)
   return (
     <section className="ds-results" aria-label="Results">
       <p className="ds-count">
-        <strong>{plural(jobs.length, 'job', 'jobs')}</strong> mention “{text}”{stage ? ` (stage ${stage})` : ''}
+        <strong>{plural(jobs.length, 'job', 'jobs')}</strong> mention {terms.map((t, i) => <span key={t}>{i > 0 && (i === terms.length - 1 ? ' and ' : ', ')}“{t}”</span>)}{terms.length > 1 ? ' (all of them)' : ''}{stage ? ` (stage ${stage})` : ''}
         {assets.length > 0 && <> and <strong>{plural(assets.length, 'customer asset', 'customer assets')}</strong> have that serial number</>}.
       </p>
       {refused.length > 0 && (
@@ -173,7 +174,7 @@ function Results({ result, stage, onOpen }) {
           Not searched: {refused.map((f) => f.label).join(', ')}. “What can Simpro search?” below says why.
         </Alert>
       )}
-      {more.length > 0 && <p className="ds-muted">Simpro gives at most {PAGE_SIZE} for each place. {more.map((f) => f.label).join(', ')} may have more: add more words to narrow it.</p>}
+      {more.length > 0 && <p className="ds-muted">Only the first {PAGE_SIZE * MAX_PAGES} for each word and place are read. {more.map((f) => f.label).join(', ')} may have more: add more words to narrow it.</p>}
       {assetFilters.length > 0 && assets.length === 0 && assetFilters.every((f) => f.status !== 'ok') && (
         <p className="ds-muted">Simpro wouldn’t search customer assets by serial number. Serial numbers written in job descriptions and notes are still searched.</p>
       )}
@@ -183,7 +184,7 @@ function Results({ result, stage, onOpen }) {
           <h2 className="ds-h2">Customer assets</h2>
           {assets.map((a) => (
             <div key={a.id} className="ds-card ds-asset">
-              <span className="ds-mono"><HighlightText text={a.serial} term={text} /></span>
+              <span className="ds-mono"><HighlightText text={a.serial} terms={terms} /></span>
               <span>{[a.model, a.type].filter(Boolean).join(' · ')}</span>
               <span className="ds-muted">{a.site || 'No site'} · asset {a.id}{a.archived ? ' · archived' : ''}</span>
             </div>
@@ -192,21 +193,19 @@ function Results({ result, stage, onOpen }) {
       )}
 
       <ul className="ds-hits">
-        {jobs.map(({ job, found }) => <Hit key={job.ID} job={job} found={found} term={text} onOpen={onOpen} />)}
+        {jobs.map(({ job, found }) => <Hit key={job.ID} job={job} found={found} terms={terms} onOpen={onOpen} />)}
       </ul>
-      {jobs.length === 0 && assets.length === 0 && <p className="ds-muted">Nothing matched “{text}”. Try fewer words, or one distinctive piece such as a serial number.</p>}
+      {jobs.length === 0 && assets.length === 0 && <p className="ds-muted">Nothing matched {terms.length > 1 ? 'all of those words together' : `“${text}”`}. Try fewer words, or one distinctive piece such as a serial number.</p>}
     </section>
   )
 }
 
-function HighlightText({ text, term }) {
-  const i = String(text).toLowerCase().indexOf(String(term).toLowerCase())
-  if (!term || i < 0) return text
-  return <>{text.slice(0, i)}<mark>{text.slice(i, i + term.length)}</mark>{text.slice(i + term.length)}</>
+function HighlightText({ text, terms }) {
+  return splitByTerms(text, terms).map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>))
 }
 
-function Hit({ job, found, term, onOpen }) {
-  const places = whereFound(job, term)
+function Hit({ job, found, terms, onOpen }) {
+  const places = whereFound(job, terms)
   return (
     <li className="ds-card ds-hit">
       <div className="ds-hit-head">
@@ -217,7 +216,7 @@ function Hit({ job, found, term, onOpen }) {
       <div className="ds-muted">{[customerName(job), job.Site?.Name].filter(Boolean).join(' · ')}</div>
       {places.length > 0
         ? places.map((p) => (
-          <div key={p.label} className="ds-snip"><strong>In {p.label.toLowerCase()}</strong> {p.snip.cutStart && '…'}{p.snip.before}<mark>{p.snip.hit}</mark>{p.snip.after}{p.snip.cutEnd && '…'}</div>
+          <div key={p.label} className="ds-snip"><strong>In {p.label.toLowerCase()}</strong> {p.snip.cutStart && '…'}<HighlightText text={p.snip.before + p.snip.hit + p.snip.after} terms={terms} />{p.snip.cutEnd && '…'}</div>
         ))
         : <div className="ds-snip"><strong>Matched in</strong> {found.join(', ').toLowerCase()}</div>}
       {places.length > 0 && found.some((f) => !places.some((p) => p.label === f)) && (
@@ -250,7 +249,7 @@ function CheckResults({ check }) {
   )
 }
 
-function JobView({ call, companyId, id, term, onBack }) {
+function JobView({ call, companyId, id, term: terms, onBack }) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   useEffect(() => {
@@ -280,8 +279,8 @@ function JobView({ call, companyId, id, term, onBack }) {
 
           <div className="ds-job-grid">
             <div className="ds-job-main">
-              <section className="ds-card"><h3 className="ds-h3">Description</h3><SafeHtml html={job.Description} mark={term} empty="No description." /></section>
-              <section className="ds-card"><h3 className="ds-h3">Notes <Badge tone="purple">Private to staff</Badge></h3><SafeHtml html={job.Notes} mark={term} empty="No notes." /></section>
+              <section className="ds-card"><h3 className="ds-h3">Description</h3><SafeHtml html={job.Description} mark={terms} empty="No description." /></section>
+              <section className="ds-card"><h3 className="ds-h3">Notes <Badge tone="purple">Private to staff</Badge></h3><SafeHtml html={job.Notes} mark={terms} empty="No notes." /></section>
               <section className="ds-card">
                 <h3 className="ds-h3">Customer assets on this job</h3>
                 {data.assets.length === 0 && <p className="ds-empty">None attached.</p>}

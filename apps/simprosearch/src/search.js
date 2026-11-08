@@ -5,7 +5,23 @@ import { ok, simproErr, SendError } from '../../testbench/src/simpro-api.js'
 import { htmlToText, snippetAround } from './html.js'
 
 export const STAGES = ['Pending', 'Progress', 'Complete', 'Archived']
-export const PAGE_SIZE = 30
+export const PAGE_SIZE = 100
+export const MAX_PAGES = 3   // so at most PAGE_SIZE * MAX_PAGES rows per word and place
+export const MAX_TERMS = 5
+
+/**
+ * What was typed, as the words to look for. "A9 Waitemata" is two words; "North Shore" in quotes stays one phrase.
+ * A job needs ALL of them (each may be in a different place: A9 in the description, Waitemata in the site name). Repeats are
+ * dropped, case is ignored, and a one-letter word is ignored unless it is all there is.
+ */
+export function parseTerms(text) {
+  const found = []
+  String(text ?? '').replace(/["“”]([^"“”]*)["“”]|([^\s"“”]+)/g, (_, phrase, word) => { found.push(String(phrase ?? word).trim().replace(/\s+/g, ' ')); return '' })
+  const seen = new Set()
+  const terms = found.filter((t) => { const k = t.toLowerCase(); if (!t || seen.has(k)) return false; seen.add(k); return true })
+  const long = terms.filter((t) => t.length > 1)
+  return (long.length ? long : terms).slice(0, MAX_TERMS)
+}
 
 /** The job fields Simpro is asked to look in. `key` is Simpro's filter name; `group` is the "Look in" choice that switches it on. */
 export const JOB_FIELDS = [
@@ -34,18 +50,32 @@ export function likeTerm(text) {
   return '%25' + enc + '%25'
 }
 
-export function jobsPath(companyId, field, text, { stage = '', columns = JOB_COLUMNS, pageSize = PAGE_SIZE } = {}) {
+export function jobsPath(companyId, field, text, { stage = '', columns = JOB_COLUMNS, pageSize = PAGE_SIZE, page = 1 } = {}) {
   const parts = [`${field}=${likeTerm(text)}`]
   if (stage) {
     if (!STAGES.includes(stage)) throw new Error('Not one of Simpro’s four stages: ' + stage)
     parts.push('Stage=' + stage)
   }
   parts.push('columns=' + columns, 'pageSize=' + pageSize)
+  if (page > 1) parts.push('page=' + page)
   return `/companies/${companyId}/jobs/?${parts.join('&')}`
 }
 
 export function assetsPath(companyId, field, text, pageSize = PAGE_SIZE) {
   return `/companies/${companyId}/customerAssets/?${field}=${likeTerm(text)}&columns=${ASSET_COLUMNS}&pageSize=${pageSize}`
+}
+
+/** Every page of one question (up to MAX_PAGES). `capped`: there may be more than were fetched. A refused or lost page ends it. */
+async function fetchPages(call, pathFor) {
+  let rows = []
+  let last
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    last = await settle(call, 'GET', pathFor(page))
+    if (!(ok(last) && Array.isArray(last.data))) return page === 1 ? { ok: false, rows: [], capped: false, res: last } : { ok: true, rows, capped: true, res: last }
+    rows = rows.concat(last.data)
+    if (last.data.length < PAGE_SIZE) return { ok: true, rows, capped: false, res: last }
+  }
+  return { ok: true, rows, capped: true, res: last }
 }
 
 const settle = (call, method, path) => call(method, path).catch((e) => ({ status: 0, data: String(e?.message || e), failed: true }))
@@ -54,12 +84,17 @@ export const customerName = (j) => j?.Customer?.CompanyName || [j?.Customer?.Giv
 export const statusName = (j) => (j?.Status && typeof j.Status === 'object' ? j.Status.Name : j?.Status) || ''
 
 /** What a job row says about where the text is: the labelled places it was seen, each with a short piece around it. */
-export function whereFound(job, text) {
+export function whereFound(job, terms) {
+  const list = Array.isArray(terms) ? terms : [terms]
   const places = []
   for (const [label, raw] of [['Description', job?.Description], ['Notes', job?.Notes]]) {
     if (raw === undefined || raw === null) continue
-    const snip = snippetAround(htmlToText(raw), text)
-    if (snip) places.push({ label, snip })
+    const text = htmlToText(raw)
+    // The piece around the first of the words that is in this text.
+    for (const t of list) {
+      const snip = snippetAround(text, t)
+      if (snip) { places.push({ label, snip }); break }
+    }
   }
   return places
 }
@@ -71,42 +106,85 @@ export function whereFound(job, text) {
  *   fields [{ key, label, status: 'ok' | 'refused' | 'unreachable', count, more }]  what Simpro said to each question
  */
 export async function searchJobs(call, companyId, text, { groups = ['text', 'names'], stage = '' } = {}) {
-  const q = String(text || '').trim()
-  if (!q) return { jobs: [], fields: [] }
-  const byId = new Map()
-  const note = (job, label) => {
+  const terms = parseTerms(text)
+  if (!terms.length) return { jobs: [], fields: [], terms: [] }
+  const wanted = JOB_FIELDS.filter((f) => groups.includes(f.group))
+
+  // One entry per word: the jobs that have that word somewhere (a Map of id to { job, found }).
+  const perTerm = []
+  const noteIn = (map, job, label) => {
     const key = String(job.ID)
-    const have = byId.get(key) || { job, found: [] }
+    const have = map.get(key) || { job, found: [] }
     if (!have.found.includes(label)) have.found.push(label)
     // Keep the row that carries the most columns.
     if (Object.keys(job).length > Object.keys(have.job).length) have.job = job
-    byId.set(key, have)
+    map.set(key, have)
   }
 
-  if (/^\d+$/.test(q) && groups.includes('names')) {
-    const r = await settle(call, 'GET', `/companies/${companyId}/jobs/${q}`)
-    if (ok(r) && r.data && r.data.ID) note(r.data, 'Job number')
-    else if (r.status !== 404 && r.status !== 0) throw new SendError(`Job ${q}: ${simproErr(r)}`, r.status >= 500)
+  // A lone number is tried as the job number.
+  let byNumber = null
+  if (terms.length === 1 && /^\d+$/.test(terms[0]) && groups.includes('names')) {
+    const r = await settle(call, 'GET', `/companies/${companyId}/jobs/${terms[0]}`)
+    if (ok(r) && r.data && r.data.ID) { byNumber = new Map(); noteIn(byNumber, r.data, 'Job number') }
+    else if (r.status !== 404 && r.status !== 0) throw new SendError(`Job ${terms[0]}: ${simproErr(r)}`, r.status >= 500)
   }
 
-  const wanted = JOB_FIELDS.filter((f) => groups.includes(f.group))
-  const ask = (columns) => Promise.all(wanted.map((f) => settle(call, 'GET', jobsPath(companyId, f.key, q, { stage, columns }))))
-  let answers = await ask(JOB_COLUMNS)
-  // Simpro may not hand over Notes in a list row. If every question was refused, try again with the columns the other tools use.
-  if (answers.length && answers.every((r) => !ok(r) && r.status >= 400 && r.status < 500)) answers = await ask(SAFE_COLUMNS)
-  const fields = wanted.map((f, i) => {
-    const r = answers[i]
-    if (ok(r) && Array.isArray(r.data)) {
-      for (const j of r.data) if (j && j.ID != null) note(j, f.label)
-      return { key: f.key, label: f.label, status: 'ok', count: r.data.length, more: r.data.length >= PAGE_SIZE }
+  // What Simpro said to each place, over all the words: refused or unreachable if it ever was, "more" if any answer was cut short.
+  const summary = wanted.map((f) => ({ key: f.key, label: f.label, status: 'ok', count: 0, more: false, code: undefined }))
+  const runTerm = async (term, columns) => {
+    const answers = await Promise.all(wanted.map((f) => fetchPages(call, (page) => jobsPath(companyId, f.key, term, { stage, columns, page }))))
+    return answers
+  }
+  const absorb = (term, answers) => {
+    const map = new Map()
+    answers.forEach((a, i) => {
+      const s = summary[i]
+      if (a.ok) {
+        for (const j of a.rows) if (j && j.ID != null) noteIn(map, j, wanted[i].label)
+        s.count += a.rows.length
+        if (a.capped) s.more = true
+      } else if (s.status === 'ok') {
+        const r = a.res || {}
+        s.status = r.failed || r.status === 0 || r.status >= 500 ? 'unreachable' : 'refused'
+        s.code = r.status
+      }
+    })
+    perTerm.push(map)
+  }
+
+  let columns = JOB_COLUMNS
+  if (wanted.length) {
+    let first = await runTerm(terms[0], columns)
+    // Simpro may not hand over Notes in a list row. If every question was refused, try again with the columns the other tools use.
+    if (first.every((a) => !a.ok && a.res.status >= 400 && a.res.status < 500)) { columns = SAFE_COLUMNS; first = await runTerm(terms[0], columns) }
+    absorb(terms[0], first)
+    for (const term of terms.slice(1)) absorb(term, await runTerm(term, columns))
+  }
+  if (wanted.length && summary.every((f) => f.status !== 'ok') && !(byNumber && byNumber.size)) {
+    throw new SendError(`Simpro didn’t answer the search (${summary.map((f) => f.code || 'no answer').join(', ')}). Try the exact job number.`, summary.some((f) => f.status === 'unreachable'))
+  }
+  // The job with that number is one more way the lone word can match, not another word to satisfy.
+  if (byNumber) {
+    if (perTerm.length) for (const { job, found } of byNumber.values()) for (const l of found) noteIn(perTerm[0], job, l)
+    else perTerm.push(byNumber)
+  }
+
+  // A job must have every word (each in any place): the jobs found for all of them.
+  const [head, ...rest] = perTerm.length ? perTerm : [new Map()]
+  const jobs = []
+  for (const [id, entry] of head) {
+    if (!rest.every((m) => m.has(id))) continue
+    const found = [...entry.found]
+    let job = entry.job
+    for (const m of rest) {
+      const other = m.get(id)
+      for (const label of other.found) if (!found.includes(label)) found.push(label)
+      if (Object.keys(other.job).length > Object.keys(job).length) job = other.job
     }
-    return { key: f.key, label: f.label, status: r.failed || r.status === 0 || r.status >= 500 ? 'unreachable' : 'refused', count: 0, more: false, code: r.status }
-  })
-  if (wanted.length && fields.every((f) => f.status !== 'ok') && !byId.size) {
-    throw new SendError(`Simpro didn’t answer the search (${fields.map((f) => f.code || 'no answer').join(', ')}). Try the exact job number.`, fields.some((f) => f.status === 'unreachable'))
+    jobs.push({ job, found })
   }
-  const jobs = [...byId.values()].sort((a, b) => Number(b.job.ID) - Number(a.job.ID))
-  return { jobs, fields }
+  jobs.sort((a, b) => Number(b.job.ID) - Number(a.job.ID))
+  return { jobs, fields: summary, terms }
 }
 
 /** A customer asset's serial number and model, from its custom fields (the same reading SimproSync uses). */
@@ -131,20 +209,31 @@ export function assetFacts(a) {
  * rows are kept only if their own serial really does contain the text (so a filter Simpro ignored can't flood the page).
  */
 export async function searchAssets(call, companyId, text) {
-  const q = String(text || '').trim()
-  if (!q) return { assets: [], filters: [] }
-  const answers = await Promise.all(ASSET_FILTERS.map((f) => settle(call, 'GET', assetsPath(companyId, f, q))))
+  const terms = parseTerms(text)
+  if (!terms.length) return { assets: [], filters: [] }
+  const filters = ASSET_FILTERS.map((f) => ({ key: f, status: 'ok', count: 0 }))
   const seen = new Map()
-  const filters = ASSET_FILTERS.map((f, i) => {
-    const r = answers[i]
-    if (!(ok(r) && Array.isArray(r.data))) return { key: f, status: r.failed || r.status === 0 || r.status >= 500 ? 'unreachable' : 'refused', count: 0 }
-    for (const a of r.data) {
-      const facts = assetFacts(a)
-      if (facts.serial.toLowerCase().includes(q.toLowerCase())) seen.set(String(facts.id), facts)
-    }
-    return { key: f, status: 'ok', count: r.data.length }
+  for (const term of terms) {
+    const answers = await Promise.all(ASSET_FILTERS.map((f) => settle(call, 'GET', assetsPath(companyId, f, term))))
+    answers.forEach((r, i) => {
+      if (!(ok(r) && Array.isArray(r.data))) {
+        if (filters[i].status === 'ok') filters[i].status = r.failed || r.status === 0 || r.status >= 500 ? 'unreachable' : 'refused'
+        return
+      }
+      filters[i].count += r.data.length
+      for (const a of r.data) {
+        const facts = assetFacts(a)
+        // Only rows whose own serial really contains this word: a filter Simpro ignored can't flood the page.
+        if (facts.serial.toLowerCase().includes(term.toLowerCase())) seen.set(String(facts.id), facts)
+      }
+    })
+  }
+  // With several words, the other words may be the asset's site or model ("DF-12345 Waitemata"): all of them must be in what is known of it.
+  const assets = [...seen.values()].filter((a) => {
+    const hay = [a.serial, a.model, a.type, a.site].join(' ').toLowerCase()
+    return terms.every((t) => hay.includes(t.toLowerCase()))
   })
-  return { assets: [...seen.values()], filters }
+  return { assets, filters }
 }
 
 /**

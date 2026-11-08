@@ -1,7 +1,7 @@
 // Run: npm test -w apps/simprosearch
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { decodeEntities, htmlToText, htmlToTree, safeHref, snippetAround, splitByTerm } from '../src/html.js'
+import { decodeEntities, htmlToText, htmlToTree, safeHref, snippetAround, splitByTerm, splitByTerms } from '../src/html.js'
 
 const tags = (tree) => JSON.stringify(tree)
 
@@ -86,6 +86,13 @@ test('splitByTerm marks every occurrence, ignoring case', () => {
   ])
   assert.deepEqual(splitByTerm('abc', ''), [{ text: 'abc', hit: false }])
   assert.deepEqual(splitByTerm('', 'x'), [])
+})
+
+test('splitByTerms marks several words at once, longest phrase first', () => {
+  assert.deepEqual(splitByTerms('A9 at North Shore Hospital', ['north shore', 'north', 'a9']), [
+    { text: 'A9', hit: true }, { text: ' at ', hit: false }, { text: 'North Shore', hit: true }, { text: ' Hospital', hit: false },
+  ])
+  assert.deepEqual(splitByTerms('abc', []), [{ text: 'abc', hit: false }])
 })
 
 test('snippetAround gives a short piece around the first match', () => {

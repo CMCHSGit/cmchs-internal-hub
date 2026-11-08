@@ -2,7 +2,7 @@
 // A pretend Simpro with invented jobs and assets: nothing here is real, and nothing leaves the process.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { ASSET_FILTERS, assetFacts, checkSearch, jobsPath, likeTerm, loadJob, searchAssets, searchJobs, whereFound } from '../src/search.js'
+import { ASSET_FILTERS, MAX_PAGES, PAGE_SIZE, assetFacts, checkSearch, jobsPath, likeTerm, loadJob, parseTerms, searchAssets, searchJobs, whereFound } from '../src/search.js'
 import { makeCall } from '../../testbench/src/simpro-api.js'
 
 const JOBS = [
@@ -35,6 +35,10 @@ function fakeSimpro(opts = {}) {
       const field = Object.keys(params).find((k) => !['columns', 'pageSize', 'Stage'].includes(k))
       if (!field) return reply(200, JOBS.slice(0, +params.pageSize || 30).map((j) => (/Notes/.test(params.columns || '') ? { ID: j.ID, Notes: j.Notes } : { ID: j.ID })))
       if (opts.refuse?.includes(field)) return reply(400, { errors: [{ message: 'cannot filter' }] })
+      if (opts.bulk && field === 'Description') {
+        const page = +params.page || 1
+        return reply(200, Array.from({ length: +params.pageSize }, (_, i) => ({ ID: 5000 + (page - 1) * +params.pageSize + i, Description: 'x' })))
+      }
       const term = params[field].replace(/^%|%$/g, '').toLowerCase()
       const pick = (j) => opts.ignore?.includes(field) || String(field.split('.').reduce((o, k) => o?.[k], j) ?? '').replace(/<[^>]*>/g, '').toLowerCase().includes(term)
       let rows = JOBS.filter(pick).filter((j) => !params.Stage || j.Stage === params.Stage)
@@ -128,7 +132,59 @@ test('nothing found is an empty list', async () => {
   const { call } = fakeSimpro()
   const { jobs } = await searchJobs(call, 3, 'no such text anywhere')
   assert.deepEqual(jobs, [])
-  assert.deepEqual(await searchJobs(call, 3, '   '), { jobs: [], fields: [] })
+  assert.deepEqual(await searchJobs(call, 3, '   '), { jobs: [], fields: [], terms: [] })
+})
+
+test('the words typed are split, phrases in quotes kept, repeats and one-letter words dropped', () => {
+  assert.deepEqual(parseTerms('A9 Waitemata'), ['A9', 'Waitemata'])
+  assert.deepEqual(parseTerms('  a9   "North Shore"  Hospital '), ['a9', 'North Shore', 'Hospital'])
+  assert.deepEqual(parseTerms('“North Shore” hospital'), ['North Shore', 'hospital'])
+  assert.deepEqual(parseTerms('ward WARD Ward 4'), ['ward'])
+  assert.deepEqual(parseTerms('7'), ['7'])
+  assert.deepEqual(parseTerms(''), [])
+  assert.equal(parseTerms('a1 b2 c3 d4 e5 f6 g7').length, 5)
+})
+
+test('several words: a job needs all of them, each in any place', async () => {
+  const { call } = fakeSimpro()
+  // The serial is in the description and notes; "Ward" only in the site name.
+  const both = await searchJobs(call, 3, 'XX-1001 Ward')
+  assert.deepEqual(both.jobs.map((j) => j.job.ID), [101])
+  assert.ok(both.jobs[0].found.includes('Site') && both.jobs[0].found.includes('Notes'))
+  assert.deepEqual(both.terms, ['XX-1001', 'Ward'])
+  const aged = await searchJobs(call, 3, 'XX-1001 aged')
+  assert.deepEqual(aged.jobs.map((j) => j.job.ID), [102])
+  // A word that is nowhere rules everything out.
+  assert.deepEqual((await searchJobs(call, 3, 'XX-1001 nowhere-at-all')).jobs, [])
+})
+
+test('a quoted phrase is one word', async () => {
+  const { call, seen } = fakeSimpro()
+  const r = await searchJobs(call, 3, '"Ward 4" XX-1001')
+  assert.deepEqual(r.jobs.map((j) => j.job.ID), [101])
+  assert.ok(seen.some((s) => s.path.includes('%25Ward%204%25')))
+})
+
+test('a lone job number is one more way to match, not a second word', async () => {
+  const { call } = fakeSimpro()
+  const r = await searchJobs(call, 3, '101', { groups: ['names'] })
+  assert.deepEqual(r.jobs.map((j) => j.job.ID), [101])
+  assert.ok(r.jobs[0].found.includes('Job number'))
+})
+
+test('a long list is read page by page, up to the limit, and says there may be more', async () => {
+  const { call, seen } = fakeSimpro({ bulk: true })
+  const r = await searchJobs(call, 3, 'anything', { groups: ['text'] })
+  assert.equal(r.fields.find((f) => f.key === 'Description').count, PAGE_SIZE * MAX_PAGES)
+  assert.equal(r.fields.find((f) => f.key === 'Description').more, true)
+  assert.equal(seen.filter((s) => s.path.includes('Description=')).length, MAX_PAGES)
+  assert.ok(seen.some((s) => /&page=3/.test(s.path)))
+})
+
+test('assets with several words: the rest of the words may be the asset’s site', async () => {
+  const { call } = fakeSimpro()
+  assert.deepEqual((await searchAssets(call, 3, 'XX-1001 Ward')).assets.map((a) => a.id), [9001])
+  assert.deepEqual((await searchAssets(call, 3, 'XX-1001 Main')).assets, [])
 })
 
 test('every request is a read', async () => {

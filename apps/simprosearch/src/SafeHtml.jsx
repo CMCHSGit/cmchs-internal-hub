@@ -1,11 +1,11 @@
 /* Draws Simpro's rich text (html.js) as React elements: only the tags html.js lets through, never raw HTML on the page.
    `mark`: text to highlight wherever it appears. */
 import { Fragment } from 'react'
-import { htmlToTree, splitByTerm } from './html.js'
+import { htmlToTree, splitByTerms } from './html.js'
 
 function Text({ v, mark }) {
-  if (!mark) return v
-  return splitByTerm(v, mark).map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : <Fragment key={i}>{p.text}</Fragment>))
+  if (!mark || (Array.isArray(mark) && !mark.length)) return v
+  return splitByTerms(v, mark).map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : <Fragment key={i}>{p.text}</Fragment>))
 }
 
 function Node({ n, mark }) {
