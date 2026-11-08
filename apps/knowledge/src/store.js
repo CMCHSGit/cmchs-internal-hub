@@ -53,6 +53,24 @@ export async function removeRecord(kind, id) {
   logActivity(null, `Removed ${ONE[kind]} from the knowledge base`, { app: 'knowledge' })
 }
 
+/** Removes many records of one kind (batches of 400). Returns how many. One activity line, with the count and no content. */
+export async function removeRecords(kind, ids) {
+  if (!ids.length) return 0
+  if (!db) {
+    const gone = new Set(ids)
+    local[kind] = seed(kind).filter((r) => !gone.has(r.id))
+    tell(kind)
+  } else {
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const batch = writeBatch(db)
+      for (const id of ids.slice(i, i + CHUNK)) batch.delete(doc(db, KINDS[kind].col, id))
+      await batch.commit()
+    }
+  }
+  logActivity(null, `Removed ${ids.length} ${ids.length === 1 ? ONE[kind].replace(/^an? /, '') : MANY[kind]} from the knowledge base`, { app: 'knowledge' })
+  return ids.length
+}
+
 /** Writes a whole imported list (records from rowsToRecords). The same part, job or device again replaces itself. Returns how many were written. */
 export async function importRecords(kind, records, by, ids = []) {
   if (!records.length) return 0

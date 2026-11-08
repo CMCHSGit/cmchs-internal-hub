@@ -135,6 +135,58 @@ export function alsoMatching(q, groups = SYNONYM_GROUPS) {
   return [...new Set(queryTerms(q, groups).flatMap((t) => t.alts.slice(1)))]
 }
 
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * A pattern that finds, in any text, the words of the question and the words that mean the same, to highlight them. Group 1 is a
+ * word that was typed, group 2 a word found only because it means the same. Words match across dashes and spaces ("li ion" finds
+ * "Li-ion"), and a long number typed without dashes finds it with them (115102963 finds 115-102963-00). null for an empty question.
+ */
+export function highlightRegex(q, groups = SYNONYM_GROUPS) {
+  const terms = queryTerms(q, groups)
+  if (!terms.length) return null
+  const typed = new Set(), same = new Set()
+  for (const { alts } of terms) alts.forEach((a, i) => (i ? same : typed).add(a))
+  for (const t of typed) same.delete(t)
+  // The whole question, so a part number typed with its dashes is marked in one piece, not as 115 and 102963 and 00.
+  const whole = queryWords(q)
+  if (whole.length > 1) typed.add(whole.join(' '))
+  const piece = (a) => {
+    const flexible = a.split(' ').map(escapeRe).join('[^a-z0-9]+')
+    return a.length >= 5 && !a.includes(' ') && /\d/.test(a) ? `${flexible}|${[...a].map(escapeRe).join('[^a-z0-9]?')}` : flexible
+  }
+  const group = (set) => [...set].sort((x, y) => y.length - x.length).map(piece).join('|')
+  return new RegExp(`(${group(typed)})` + (same.size ? `|(${group(same)})` : ''), 'gi')
+}
+
+/** Text cut into pieces { text, hit }: hit 1 for a word that was typed, 2 for one that only means the same, 0 for the rest. */
+export function splitHits(text, re) {
+  const s = String(text ?? '')
+  if (!re || !s) return [{ text: s, hit: 0 }]
+  const out = []
+  let last = 0
+  for (const m of s.matchAll(re)) {
+    if (!m[0]) continue
+    if (m.index > last) out.push({ text: s.slice(last, m.index), hit: 0 })
+    out.push({ text: m[0], hit: m[1] != null ? 1 : 2 })
+    last = m.index + m[0].length
+  }
+  if (last < s.length) out.push({ text: s.slice(last), hit: 0 })
+  return out
+}
+
+/** A short piece of `text` for a result row: from the start, unless the first match is further on, then around it. */
+export function snippet(s, n = 150, re) {
+  const t = String(s || '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim()
+  if (t.length <= n) return t
+  const at = re ? t.search(re) : -1
+  if (at >= n - 25) {
+    const start = Math.max(0, at - 40)
+    return '…' + t.slice(start, start + n).trim() + (start + n < t.length ? '…' : '')
+  }
+  return t.slice(0, n).trimEnd() + '…'
+}
+
 /** Records matching every word of the question (or a word that means the same), best first. Empty question: everything, as stored. */
 export function searchRecords(kind, records, q, groups = SYNONYM_GROUPS) {
   const terms = queryTerms(q, groups)

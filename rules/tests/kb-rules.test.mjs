@@ -82,6 +82,26 @@ await check('an import of 100 devices in one batch', true, async () => {
   for (let i = 0; i < 100; i++) batch.set(doc(db, `kbDevices/imp${i}`), device('ed', { serial: 'S' + i }))
   return batch.commit()
 })
+// Removing many at once (the page deletes in batches of 400): the same editors, and nobody else.
+await check('a plain user cannot remove 100 devices in one batch', false, async () => {
+  const db = as('eng'), batch = writeBatch(db)
+  for (let i = 0; i < 100; i++) batch.delete(doc(db, `kbDevices/imp${i}`))
+  return batch.commit()
+})
+await check('a plain user\'s batch of removals did not remove any', true, async () => (await getDoc(doc(as('ed'), 'kbDevices/imp50'))).exists() || Promise.reject(new Error('gone')))
+await check('an editor removes 100 devices in one batch', true, async () => {
+  const db = as('ed'), batch = writeBatch(db)
+  for (let i = 0; i < 100; i++) batch.delete(doc(db, `kbDevices/imp${i}`))
+  return batch.commit()
+})
+await check('an editor removes 400 documents of four kinds in one batch', true, async () => {
+  const db = as('ed'), seed = writeBatch(db)
+  for (let i = 0; i < 100; i++) { seed.set(doc(db, `kbParts/b${i}`), part('ed', { partNo: 'B' + i })); seed.set(doc(db, `kbJobs/b${i}`), job('ed', { jobNo: 'B' + i })) }
+  await seed.commit()
+  const batch = writeBatch(db)
+  for (let i = 0; i < 100; i++) { batch.delete(doc(db, `kbParts/b${i}`)); batch.delete(doc(db, `kbJobs/b${i}`)); batch.delete(doc(db, `kbDevices/none${i}`)); batch.delete(doc(db, `kbArticles/none${i}`)) }
+  return batch.commit()
+})
 
 console.log('\nThe editor switch is the admin\'s alone')
 await check('an admin gives someone the switch', true, () => updateDoc(doc(as('admin1'), 'users/eng'), { kbEditor: true }))

@@ -1,7 +1,7 @@
 // Parts and repair-history exports, and words that mean the same. Run: node --test apps/knowledge/tests/csv-import.test.mjs
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { alsoMatching, buildRecord, mentioning, parseCsv, partInfo, queryTerms, recordId, rowsToRecords, searchRecords } from '../src/model.js'
+import { alsoMatching, buildRecord, highlightRegex, mentioning, parseCsv, partInfo, queryTerms, recordId, rowsToRecords, searchRecords, snippet, splitHits } from '../src/model.js'
 
 const part = (o) => buildRecord('part', o)
 const PARTS = [
@@ -48,6 +48,35 @@ test('what a question is also matched with is listed, and unknown words are left
   // own groups can be given, which is how a list is tested without the team's
   assert.deepEqual(find('gizmo', [part({ partNo: 'G', name: 'Widget' })]), [])
   assert.deepEqual(searchRecords('part', [part({ partNo: 'G', name: 'Widget' })], 'gizmo', [['x', 'part term', ['gizmo', 'widget'], []]]).map((r) => r.partNo), ['G'])
+})
+
+const marked = (text, q) => splitHits(text, highlightRegex(q)).map((p) => (p.hit === 1 ? `[${p.text}]` : p.hit === 2 ? `{${p.text}}` : p.text)).join('')
+
+test('the words that matched are marked: typed words one way, words that only mean the same another', () => {
+  assert.equal(marked('N1 S/N AA3 - Broken Battery door', 'battery door'), 'N1 S/N AA3 - Broken [Battery door]')
+  assert.equal(marked('Battery cover broken, battery lid loose', 'battery door'), '{Battery cover} broken, {battery lid} loose')
+  assert.equal(marked('A9 primary display, LCD fault', 'a9 screen'), '[A9] {primary display}, {LCD} fault') // "primary display" is itself one of the screen words, so it is marked whole
+  assert.equal(marked('Li-ion pack', 'li ion'), '[Li-ion] pack') // across a dash
+  assert.equal(marked('Part 115-102963-00 fits', '115102963'), 'Part [115-102963]-00 fits') // a number typed without its dashes (only what was typed is marked)
+  assert.equal(marked('Part 115-102963-00 fits', '115-102963-00'), 'Part [115-102963-00] fits')
+  assert.equal(marked('nothing here', 'zebrafish'), 'nothing here')
+  assert.equal(highlightRegex(''), null)
+  assert.equal(marked('anything', ''), 'anything')
+})
+
+test('words with regex characters in them are only text', () => {
+  assert.equal(marked('a (b) c.d', '(b)'), 'a [(b)] c.d'.replace('[(b)]', '([b])')) // brackets are not words, so only the b is
+  assert.doesNotThrow(() => highlightRegex('a+b* ?[x'))
+  assert.equal(marked('x [ y', '['), 'x [ y')
+})
+
+test('a result row shows the start of the text, or the part around the match when that is further on', () => {
+  const text = 'Start of a long note. ' + 'filler words go here. '.repeat(12) + 'The battery door seal was replaced. ' + 'more filler. '.repeat(5)
+  assert.match(snippet(text, 150, highlightRegex('start')), /^Start of a long note\./)
+  const s = snippet(text, 150, highlightRegex('battery door'))
+  assert.ok(s.startsWith('…') && s.includes('battery door') && s.length <= 156)
+  assert.equal(snippet('short', 150, highlightRegex('short')), 'short')
+  assert.equal(snippet(text, 50).endsWith('…'), true)
 })
 
 const PARTS_CSV = [

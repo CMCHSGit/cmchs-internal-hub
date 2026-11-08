@@ -3,10 +3,12 @@
    access) add, change, import and remove. Searching is on the device over what is already loaded (model.js): every word of
    the question must be somewhere in the record, so "N17 waikato CCU" lists those devices and the count is the answer. */
 import { useDeferredValue, useEffect, useMemo, useState } from 'react'
-import { BookOpen, FileSpreadsheet, Plus, Search } from 'lucide-react'
+import { BookOpen, CheckSquare, FileSpreadsheet, Plus, Search, Trash2 } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Badge, Button, Loading, Toast, useToast } from '../../../shared/ui/index.jsx'
-import { alsoMatching, canEditKb, countBy, groupFields, KIND_IDS, KINDS, partInfo, searchRecords } from './model.js'
+import { alsoMatching, canEditKb, countBy, groupFields, highlightRegex, KIND_IDS, KINDS, partInfo, searchRecords, snippet, splitHits } from './model.js'
+import { Hl } from './Hl.jsx'
+import { BulkRemove } from './Bulk.jsx'
 import { watch } from './store.js'
 import { Detail, statusTone } from './Detail.jsx'
 import { Editor, ImportDialog } from './Editor.jsx'
@@ -62,6 +64,9 @@ function Page() {
   const [open, setOpen] = useState(fromHash)
   const [editing, setEditing] = useState(null) // { kind, record? }
   const [importing, setImporting] = useState(false)
+  const [selecting, setSelecting] = useState(false)
+  const [picked, setPicked] = useState(() => new Set()) // 'kind:id'
+  const [removing, setRemoving] = useState(false)
   const [toastMsg, toast] = useToast()
   const query = useDeferredValue(q)
 
@@ -81,6 +86,7 @@ function Page() {
   }, [lists, query])
 
   const also = useMemo(() => alsoMatching(query), [query])
+  const re = useMemo(() => highlightRegex(query), [query])
   const loaded = KIND_IDS.every((k) => lists[k])
   const total = KIND_IDS.reduce((n, k) => n + (lists[k]?.length || 0), 0)
   const kinds = tab === 'all' ? KIND_IDS : [tab]
@@ -89,6 +95,9 @@ function Page() {
   const shownGroup = fields.includes(groupBy) ? groupBy : fields[0]
 
   const found = open && lists[open.kind]?.find((r) => r.id === open.id)
+  const toggle = (key) => setPicked((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n })
+  // the picked entries as { kind: [records] }, for the removal dialog (an entry that has gone since is left out)
+  const pickedGroups = useMemo(() => Object.fromEntries(KIND_IDS.map((k) => [k, (lists[k] || []).filter((r) => picked.has(k + ':' + r.id))])), [lists, picked])
 
   return (
     <div className="kb-page">
@@ -100,6 +109,7 @@ function Page() {
         {canEdit && (
           <div className="kb-actions">
             <Button variant="secondary" iconLeft={<FileSpreadsheet size={16} />} onClick={() => setImporting(true)}>Import</Button>
+            <Button variant="secondary" iconLeft={<CheckSquare size={16} />} onClick={() => { setSelecting((on) => !on); setPicked(new Set()) }} aria-pressed={selecting}>{selecting ? 'Stop selecting' : 'Select'}</Button>
             <Button variant="secondary" iconLeft={<Plus size={16} />} onClick={() => setEditing({ kind: 'part' })}>Add part</Button>
             <Button iconLeft={<Plus size={16} />} onClick={() => setEditing({ kind: 'article' })}>Add article</Button>
           </div>
@@ -124,6 +134,17 @@ function Page() {
         ))}
       </div>
 
+      {selecting && loaded && (
+        <div className="kb-bulk" role="region" aria-label="Remove several entries">
+          <span><b>{picked.size.toLocaleString('en-NZ')}</b> selected</span>
+          <Button variant="ghost" size="sm" onClick={() => setPicked(new Set(kinds.flatMap((k) => (results[k] || []).map((r) => k + ':' + r.id))))}>
+            Select all {kinds.reduce((n, k) => n + (results[k]?.length || 0), 0).toLocaleString('en-NZ')} {query.trim() ? 'found' : tab === 'all' ? 'entries' : KINDS[tab].label.toLowerCase()}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setPicked(new Set())} disabled={!picked.size}>Clear</Button>
+          <span className="spacer" />
+          <Button variant="danger" size="sm" iconLeft={<Trash2 size={16} />} onClick={() => setRemoving(true)} disabled={!picked.size}>Remove {picked.size ? picked.size.toLocaleString('en-NZ') : ''}</Button>
+        </div>
+      )}
       {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
       {!error && !loaded && <Loading />}
 
@@ -167,7 +188,15 @@ function Page() {
             {tab === 'all' && <h2 className="kb-h2">{KINDS[k].label} <span className="kb-count">{rows.length}</span></h2>}
             {rows.length === 0 && <p className="kb-none">{query.trim() ? `No ${KINDS[k].label.toLowerCase()} match “${query.trim()}”.` : `No ${KINDS[k].label.toLowerCase()} yet.`}</p>}
             <ul className="kb-list">
-              {rows.slice(0, limit).map((r) => <li key={r.id}><Row kind={k} rec={r} onOpen={() => openItem(k, r.id)} /></li>)}
+              {rows.slice(0, limit).map((r) => {
+                const key = k + ':' + r.id
+                return (
+                  <li key={r.id} className={selecting ? 'kb-pickrow' + (picked.has(key) ? ' on' : '') : undefined}>
+                    {selecting && <input type="checkbox" className="kb-pick" checked={picked.has(key)} onChange={() => toggle(key)} aria-label="Select this entry" />}
+                    <Row kind={k} rec={r} re={re} onOpen={() => (selecting ? toggle(key) : openItem(k, r.id))} />
+                  </li>
+                )
+              })}
             </ul>
             {rows.length > limit && (
               tab === 'all'
@@ -182,38 +211,45 @@ function Page() {
         <Alert tone="warning" title="That entry isn’t here any more" action={<Button variant="ghost" size="sm" onClick={closeItem}>Close</Button>}>It may have been removed.</Alert>
       )}
       {found && (
-        <Detail kind={open.kind} rec={found} lists={lists} canEdit={canEdit} onClose={closeItem} onOpen={openItem}
+        <Detail kind={open.kind} rec={found} lists={lists} canEdit={canEdit} re={re} onClose={closeItem} onOpen={openItem}
           onEdit={() => { setEditing({ kind: open.kind, record: found }); closeItem() }} onToast={toast} />
       )}
       {editing && <Editor kind={editing.kind} record={editing.record} categories={[...new Set((lists.article || []).map((a) => a.category).filter(Boolean))].sort()} by={by}
         onClose={() => setEditing(null)} onSaved={(kind, id, msg) => { setEditing(null); toast(msg); openItem(kind, id) }} />}
       {importing && <ImportDialog by={by} categories={[...new Set((lists.article || []).map((a) => a.category).filter(Boolean))].sort()} existing={new Set((lists.article || []).map((a) => a.id))} onClose={() => setImporting(false)} onDone={(msg) => { setImporting(false); toast(msg) }} />}
+      {removing && <BulkRemove groups={pickedGroups} onClose={() => setRemoving(false)} onDone={(msg) => { setRemoving(false); setPicked(new Set()); toast(msg) }} />}
       <Toast message={toastMsg} />
     </div>
   )
 }
 
-const snippet = (s, n = 150) => { const t = String(s || '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n).trimEnd() + '…' : t }
-
-/** One result: enough to recognise it; the rest is in its dialog. */
-function Row({ kind, rec, onOpen }) {
+/** One result: enough to recognise it; the rest is in its dialog. `re` marks the words that matched. */
+function Row({ kind, rec, onOpen, re }) {
+  const H = (text) => <Hl text={text} re={re} />
+  const hit = (text) => splitHits(text, re).some((p) => p.hit)
   return (
     <button type="button" className="kb-row" onClick={onOpen}>
       {kind === 'article' && (<>
-        <span className="kb-row-main"><b>{rec.title}</b>{rec.category && <Badge tone="neutral">{rec.category}</Badge>}</span>
-        <span className="kb-row-sub">{snippet(rec.body)}</span>
+        <span className="kb-row-main"><b>{H(rec.title)}</b>{rec.category && <Badge tone="neutral">{rec.category}</Badge>}</span>
+        <span className="kb-row-sub">{H(snippet(rec.body, 150, re))}</span>
       </>)}
-      {kind === 'part' && (<>
-        <span className="kb-row-main"><b className="kb-code">{rec.partNo}</b><span>{rec.name}</span>{(() => { const s = partInfo(rec.notes).status; return s && !/^active/i.test(s) ? <Badge tone={statusTone(s)}>{s}</Badge> : null })()}</span>
-        <span className="kb-row-sub">{[rec.aliases?.length ? 'Also: ' + rec.aliases.slice(0, 6).join(', ') : '', rec.fits?.length ? 'Fits: ' + rec.fits.join(', ') : ''].filter(Boolean).join(' · ') || snippet(partInfo(rec.notes).rest)}</span>
-      </>)}
+      {kind === 'part' && (() => {
+        const info = partInfo(rec.notes)
+        const shown = [rec.aliases?.length ? 'Also: ' + rec.aliases.slice(0, 6).join(', ') : '', rec.fits?.length ? 'Fits: ' + rec.fits.join(', ') : ''].filter(Boolean).join(' · ')
+        // a part found by a word in its note or faults, which the line above does not show, gets that bit
+        const more = re && !hit(shown) ? snippet([info.note, info.rest].filter(Boolean).join(' · '), 110, re) : ''
+        return (<>
+          <span className="kb-row-main"><b className="kb-code">{H(rec.partNo)}</b><span>{H(rec.name)}</span>{info.status && !/^active/i.test(info.status) && <Badge tone={statusTone(info.status)}>{info.status}</Badge>}</span>
+          <span className="kb-row-sub">{H([shown, more].filter(Boolean).join(' · ') || snippet(info.rest))}</span>
+        </>)
+      })()}
       {kind === 'device' && (<>
-        <span className="kb-row-main"><b>{rec.model || rec.serial}</b><span>{[rec.site, rec.dept].filter(Boolean).join(' · ')}</span></span>
-        <span className="kb-row-sub">{[rec.serial && 'S/N ' + rec.serial, rec.version && 'v' + rec.version, ...Object.entries(rec.extra || {}).slice(0, 5).map(([k, v]) => `${k}: ${v}`)].filter(Boolean).join(' · ')}</span>
+        <span className="kb-row-main"><b>{H(rec.model || rec.serial)}</b><span>{H([rec.site, rec.dept].filter(Boolean).join(' · '))}</span></span>
+        <span className="kb-row-sub">{H([rec.serial && 'S/N ' + rec.serial, rec.version && 'v' + rec.version, ...Object.entries(rec.extra || {}).slice(0, 5).map(([k, v]) => `${k}: ${v}`)].filter(Boolean).join(' · '))}</span>
       </>)}
       {kind === 'job' && (<>
-        <span className="kb-row-main"><b>{rec.jobNo ? `Job ${rec.jobNo}` : 'Job'}</b><span>{rec.title}</span>{rec.date && <span className="kb-date">{rec.date}</span>}</span>
-        <span className="kb-row-sub">{[rec.site, snippet(rec.notes, 120)].filter(Boolean).join(' · ')}</span>
+        <span className="kb-row-main"><b>{H(rec.jobNo ? `Job ${rec.jobNo}` : 'Job')}</b><span>{H(rec.title)}</span>{rec.date && <span className="kb-date">{rec.date}</span>}</span>
+        <span className="kb-row-sub">{H([rec.site, snippet(rec.notes, 120, re)].filter(Boolean).join(' · '))}</span>
       </>)}
     </button>
   )
