@@ -282,3 +282,24 @@ test('Remove takes every file of the ticked tests, so a test with only a results
   assert.equal(pickFiles(groups, [groups[0].base], ['pdf', 'mtr']).length, 0, 'nothing is included by default, which is why Remove was greyed out')
   assert.equal(groups.flatMap((g) => g.files).length, 1, 'but the test has a file to remove')
 })
+
+test('tests other engineers finished are listed in Saved reports too, unless this laptop already has them', async () => {
+  const { sharedGroups, sharedFileBase, memoryReports: mem, saveReport: save, groupReports: group, filterGroups: filt, nzDmy } = await import('../src/reports.js')
+  const shared = [
+    { id: 'a', by: 'peter@cass.co.nz', byName: 'Peter', serial: 'FP5-1', model: 'BeneHeart D30', customer: 'Waitemata', template: 'D30', overall: 'pass', started: '2026-11-09T08:00:00.000Z', finished: '2026-11-09T08:30:00.000Z' },
+    { id: 'b', by: 'jonathan@cass.co.nz', byName: 'Jonathan', serial: 'FP5-2', model: 'BeneHeart D30', customer: 'Waitemata', template: 'D30', overall: 'fail', started: '2026-11-09T09:00:00.000Z', finished: '2026-11-09T09:30:00.000Z' },
+  ]
+  const store = mem()
+  await save(store, { name: 'FP5-2 - BeneHeart D30 10.11.2026.pdf', mime: 'application/pdf', buffer: new ArrayBuffer(10), meta: { testedAt: '2026-11-09T09:00:00.000Z', serial: 'FP5-2' } })   // this laptop ran test b
+  const g = sharedGroups(await store.all(), shared)
+  assert.deepEqual(g.map((x) => x.sharedId), ['a'], 'only the one this laptop has no files for')
+  assert.deepEqual([g[0].shared, g[0].sharedBy, g[0].serial, g[0].model, g[0].customer, g[0].files.length, g[0].day, g[0].unsent], [true, 'Peter', 'FP5-1', 'BeneHeart D30', 'Waitemata', 0, '2026-11-09', true])
+  assert.equal(sharedFileBase(shared[0]), 'FP5-1 - BeneHeart D30 09.11.2026', 'named as the bench names its own, by the New Zealand day')
+  assert.equal(nzDmy('2026-11-09T12:30:00Z'), '10.11.2026')
+  assert.equal(filt([...group(await store.all()), ...g], { customer: 'Waitemata', text: 'fp5-1' }).length, 1, 'they filter and search like the others')
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('sharedGroups(reports, sharedTests)') && ui.includes('onFetchShared(g)') && ui.includes('made when needed') && ui.includes('Tested by {g.sharedBy'), 'listed, fetched when needed, and says who tested it')
+  assert.match(ui, /for \(const g of sharedPicked\) \{ try \{ const json = await onFetchShared\(g\); made\.push\(await makePdf/, 'attaching sends their PDFs too')
+  const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
+  assert.ok(section.includes('sharedTests={testsList} onFetchShared={fetchShared}') && section.includes("format: 'chs-test-bench-results'") && section.includes('loadTest(g.sharedId)'))
+})

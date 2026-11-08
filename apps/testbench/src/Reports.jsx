@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
-import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups } from './reports.js'
 import { makeZip } from './zip.js'
 
 /** Downloaded PDFs go in a folder of their own (inside the folder chosen, or in the zip); the Ansur records stay beside it. */
@@ -55,7 +55,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -75,7 +75,8 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const [folderName, setFolderName] = useState('')
   useEffect(() => { let live = true; getFolder().then((h) => { if (live && h) setFolderName(h.name) }); return () => { live = false } }, [])
 
-  const groups = useMemo(() => groupReports(reports), [reports])
+  // This laptop's own files, and the tests other engineers have finished that it has no files for yet (made when downloaded or attached).
+  const groups = useMemo(() => [...groupReports(reports), ...sharedGroups(reports, sharedTests)].sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [reports, sharedTests])
   const customers = useMemo(() => customersIn(groups), [groups])
   const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
@@ -91,11 +92,12 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   // Remove takes every file of the ticked tests, whatever "Include" says: that only chooses what is downloaded or attached (a test with only a results file has nothing in it by default, and could never be removed).
   const removable = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.files), [visible, chosen])
   const stale = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.stale || []), [visible, chosen])
-  const count = files.length + needMtr.length + needPdf.length
+  const sharedPicked = useMemo(() => visible.filter((g) => g.shared && chosen.has(g.base)), [visible, chosen])
+  const count = files.length + needMtr.length + needPdf.length + sharedPicked.length * ((exts.includes('pdf') ? 1 : 0) + (exts.includes('mtr') ? 1 : 0))
   // What goes to a Simpro job is the PDF of each ticked test and nothing else (a PDF is made for a test that has only its results file or Ansur record).
   const attachPdfs = useMemo(() => pickFiles(visible, [...chosen], ['pdf']), [visible, chosen])
   const attachMake = useMemo(() => visible.filter((g) => chosen.has(g.base) && !g.files.some((f) => f.ext === 'pdf') && g.files.some((f) => f.ext === 'json' || f.ext === 'mtr')), [visible, chosen])
-  const attachCount = attachPdfs.length + attachMake.length
+  const attachCount = attachPdfs.length + attachMake.length + sharedPicked.length
   const picked = visible.filter((g) => chosen.has(g.base)).length
   const total = reports.reduce((n, r) => n + (r.size || 0), 0)
   const waiting = outbox.filter((x) => x.status === 'waiting').length
@@ -107,6 +109,9 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   /** The ticked files plus an Ansur record and a PDF made for each ticked test that lacks one. `skipped` counts the ones that couldn't be made (older results files). */
   async function withMtr() {
     const made = []; let skipped = 0
+    for (const g of sharedPicked) {   // another engineer's test: fetched, then its report and Ansur record are made here
+      try { const json = await onFetchShared(g), pg = { base: describeFile(json.name).base, files: [json] }; if (exts.includes('pdf')) made.push(await makePdf(pg)); if (exts.includes('mtr')) made.push(await makeMtr(pg)) } catch { skipped++ }
+    }
     for (const g of needMtr) { try { made.push(await makeMtr(g)) } catch { skipped++ } }
     for (const g of needPdf) { try { made.push(await makePdf(g)) } catch { skipped++ } }
     return { list: [...files, ...made], skipped }
@@ -165,6 +170,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
     try {
       const made = []; let skipped = 0
       for (const g of attachMake) { try { made.push(await makePdf(g)) } catch { skipped++ } }
+      for (const g of sharedPicked) { try { const json = await onFetchShared(g); made.push(await makePdf({ base: describeFile(json.name).base, files: [json] })) } catch { skipped++ } }
       const list = [...attachPdfs, ...made]
       if (!list.length) throw new Error('There is no PDF to attach.' + skippedNote(skipped))
       const n = await onAttach(list, job); setNote(skipped ? { ...n, text: n.text + skippedNote(skipped) } : n)
@@ -222,7 +228,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
       <div className="tb-rhead">
         <div>
           <h2>Saved reports</h2>
-          <p className="tb-muted">Every report the bench saves is also kept here on this laptop. Tick the tests you want, then download them together or attach them to a Simpro job.
+          <p className="tb-muted">Every report the bench saves is also kept here on this laptop, and the tests other engineers have finished are listed too: their reports are made here when you download or attach them. Tick the tests you want, then download them together or attach them to a Simpro job.
             {reports.length > 0 && <> {groups.length} test{groups.length === 1 ? '' : 's'} · {kb(total)} kept.</>}</p>
         </div>
       </div>
@@ -317,11 +323,13 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
                     <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}
                       {g.files.some((f) => fresh.has(f.name)) && <Badge tone="purple">New</Badge>}
                       {g.uploaded && <Badge tone="grey">Added by you</Badge>}
+                      {g.shared && <Badge tone="purple">Tested by {g.sharedBy || 'another engineer'}</Badge>}
                       {g.sentTo.length ? <Badge tone="green">Sent to {g.sentTo.join(', ')}</Badge> : <Badge tone="grey">Not sent</Badge>}
                       {g.downloadedAt ? <span title={`Downloaded ${new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.downloadedAt))}`}><Badge tone="green">Downloaded</Badge></span> : <Badge tone="grey">Not downloaded</Badge>}
                     </div>
                     <div className="tb-muted">{[by !== 'customer' && g.customer !== 'No customer recorded' ? g.customer : '', by !== 'day' ? `${g.day} ${timeOf(g)}` : timeOf(g), g.template].filter(Boolean).join(' · ')}</div>
                     <div className="tb-chips">
+                      {g.shared && <><span className="tb-chip is-made" title="Made here from the shared test when you download or attach it">Report · made when needed</span><span className="tb-chip is-made" title="Made here from the shared test when you download or attach it">Ansur record · made when needed</span></>}
                       {g.files.map((f) => (
                         <button key={f.id} type="button" className="tb-chip" title={`Download ${f.name}`} onClick={() => { saveBlob(f.name, new Blob([f.buffer], { type: f.mime })); onMarkDownloaded?.([f.name]) }}>{f.kind} · {kb(f.size)}</button>
                       ))}

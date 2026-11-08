@@ -18,7 +18,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload } from './reports.js'
+import { groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import { watchOrders } from './orders-firebase.js'
@@ -286,6 +286,21 @@ function TestBench() {
     await refreshReports()
   }, [reportStore, refreshReports])
 
+  /** Another engineer's finished test: its whole record is fetched and kept here as a results file, so its report and Ansur record can be made (makePdf, makeMtr) like any other. */
+  const fetchShared = useCallback(async (g) => {
+    if (!reportStore) throw new Error('Saved reports can’t be kept on this laptop.')
+    const json = await loadTest(g.sharedId)
+    if (!json) throw new Error('That test is no longer shared.')
+    const run = JSON.parse(json)
+    let base = sharedFileBase(g)
+    const clash = await reportStore.get(base + '.json')   // the same device twice in a day (a rerun): the second keeps its time in the name
+    if (clash && clash.meta && clash.meta.testedAt && clash.meta.testedAt !== (run.started || g.started)) base += ` (${new Intl.DateTimeFormat('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Pacific/Auckland' }).format(new Date(g.started)).replace(':', '.')})`
+    const buffer = new TextEncoder().encode(JSON.stringify({ format: 'chs-test-bench-results', version: 1, run })).buffer
+    const rec = await saveReport(reportStore, { name: base + '.json', mime: 'application/json', buffer, meta: { customer: g.customer === 'No customer recorded' ? '' : g.customer, serial: g.serial, model: g.model, template: g.template, testedAt: run.started || g.started || '' } })
+    logActivity(null, 'Fetched a test another engineer finished, to download or attach it', { app: 'testbench' })
+    return { ...rec, ext: 'json', kind: 'Results file' }
+  }, [reportStore])
+
   const sim = { call, companies, companyId, setCompanyId, access }
   const tests = useMemo(() => groupReports(reports), [reports])
   const unsent = tests.filter((g) => g.unsent).length
@@ -332,7 +347,7 @@ function TestBench() {
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
           onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
-          onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
+          sharedTests={testsList} onFetchShared={fetchShared} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
           onSendWaiting={() => sendWaiting()}

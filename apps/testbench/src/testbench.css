@@ -107,3 +107,4 @@
 .tb-rowx:hover:not(:disabled) { background: var(--surface-subtle); color: var(--text-strong); }
 .tb-rowx:disabled { opacity: .3; cursor: default; }
 .tb-rowx:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.tb-chip.is-made { cursor: default; font-style: italic; color: var(--text-muted); }

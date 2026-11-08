@@ -160,6 +160,7 @@ export function groupReports(list) {
   return oneCustomerPerDevice(mergeSameTest([...m.values()])).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt))
 }
 
+
 /**
  * A test is one run, and a run has one time it started: files with the same start time are the same test even if they were saved under
  * two names (a serial corrected, a copy kept), so they become one group, the newest save leading. Of each kind (PDF, results file, Ansur
@@ -202,6 +203,31 @@ function oneCustomerPerDevice(groups) {
   }
   for (const g of groups) { const k = String(g.serial || '').trim().toLowerCase(), w = latest.get(k); if (k && w) g.customer = w.customer }
   return groups
+}
+
+/* ---- Tests other engineers finished (the shared finished tests, bench-tests.js) that have no files on this laptop ---- */
+
+/** "03.11.2026" for a moment, as the New Zealand day it was. */
+export const nzDmy = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; const p = Object.fromEntries(new Intl.DateTimeFormat('en-NZ', { timeZone: NZ, day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d).map((x) => [x.type, x.value])); return `${p.day}.${p.month}.${p.year}` }
+const safeName = (x) => String(x ?? '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim()
+/** The name the files of a shared test get here, as the bench names its own: "serial - model dd.mm.yyyy" (the day it was finished). */
+export const sharedFileBase = (s) => `${safeName(s.serial) || 'Device'}${s.model ? ` - ${safeName(s.model)}` : ''} ${nzDmy(s.finished || s.started)}`
+
+/**
+ * Groups for the tests that other engineers (or this one, on another laptop) have finished and shared, and that this laptop has no files
+ * for yet. They have no files to show: their report and Ansur record are made from the shared test when they are downloaded or attached.
+ * A test already here (its start time is on a saved file) is not listed twice.
+ */
+export function sharedGroups(reports, shared) {
+  const here = new Set(reports.map((r) => r.meta && r.meta.testedAt).filter(Boolean))
+  return (shared || []).filter((t) => t && t.id && t.started && !here.has(t.started)).map((t) => {
+    const finished = Date.parse(t.finished || t.started) || 0, tested = Date.parse(t.started) || finished
+    return {
+      base: 'shared:' + t.id, shared: true, sharedId: t.id, sharedBy: t.byName || t.by || '', sharedByEmail: t.by || '', overall: t.overall,
+      serial: t.serial || t.id, model: t.model || '', date: nzDmy(t.finished || t.started), rerun: 0, customer: t.customer || NO_CUSTOMER, template: t.template || '',
+      files: [], savedAt: finished, testedAt: tested, downloadedAt: 0, day: nzDay(tested || finished), sentTo: [], unsent: true, uploaded: false, started: t.started, finished: t.finished,
+    }
+  })
 }
 
 export const PERIODS = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['30', 'Last 30 days']]
