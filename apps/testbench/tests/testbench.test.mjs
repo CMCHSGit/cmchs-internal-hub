@@ -301,6 +301,10 @@ test('a customer spreadsheet: the serial number is looked up by itself, the deta
   // not found: said in red, nothing filled in
   inputs[0].value = 'NOPE-1'; Sheet.onTyped({ value: 'NOPE-1', dataset: { k: 'Serial number' } })
   assert.ok(box.innerHTML.includes('sheet-alert bad') && box.innerHTML.includes('Not found') && box.innerHTML.includes('NOPE-1'))
+  assert.ok(!box.innerHTML.includes('laptop’s copy'), 'no file time known: no hint')
+  Sheet.modified = new Date(2026, 10, 9, 10, 52).getTime(); Sheet.renderAlert()
+  assert.match(box.innerHTML, /This laptop’s copy is from [^<]*10:52[^<]*\. If the device was just added online, wait a minute for OneDrive/, 'says when the laptop’s copy was saved')
+  Sheet.modified = 0
   // a number two devices have: said in red
   Sheet.onTyped({ value: 'dup-1', dataset: { k: 'Serial number' } })
   assert.ok(box.innerHTML.includes('sheet-alert bad') && box.innerHTML.includes('2 devices'))
