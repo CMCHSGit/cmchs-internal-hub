@@ -26,7 +26,7 @@ name. The bench's hand-off point is `offerToHub()`. The bench stays loaded (hidd
 
 Also here: **`src/newequip/`** — the New equipment page at `/new-equipment/` (customer picker, asset list read via Microsoft Graph,
 pending assets, hand-off to Simpro Asset Sync). It is being built to replace the bench + Asset Sync + Ansur report builder eventually;
-until it does everything, those keep working as they are.
+until it does everything, those keep working as they are. Its own map and rules: `src/newequip/CLAUDE.md`.
 
 ## Where data lives
 

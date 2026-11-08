@@ -30,8 +30,10 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
   const headers = useMemo(() => (sheets.find((s) => s.name === sheet) || sheets[0])?.header || null, [sheets, sheet])
   const list = rows || []
 
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(toTsv(list, headers)); say(`${list.length} row${list.length === 1 ? '' : 's'} copied`) } catch { say('Couldn’t copy: use Download instead.') }
+  // All the rows, or one (`only`): tab-separated in the sheet's column order, to paste under the asset list's last row.
+  const copy = async (only) => {
+    const these = only ? [only] : list
+    try { await navigator.clipboard.writeText(toTsv(these, headers)); say(only ? `${only.serial} copied` : `${these.length} row${these.length === 1 ? '' : 's'} copied`) } catch { say('Couldn’t copy: use Download instead.') }
   }
   const download = () => saveBlob(`${customer.name} new assets.csv`, new Blob(['﻿' + toCsv(list, headers)], { type: 'text/csv;charset=utf-8' }))
   const noSite = useMemo(() => missingSite(list), [list])
@@ -74,6 +76,7 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
                     <td>{[r.model || r.description, r.type && r.model ? r.type : ''].filter(Boolean).join(' · ') || '–'}</td>
                     <td>{r.site || '–'}</td><td>{r.ward || '–'}</td>
                     <td className="ne-actions">
+                      <Button variant="ghost" size="sm" aria-label={`Copy ${r.serial} for the workbook`} title="Copy this row to paste into the asset list" iconLeft={<ClipboardCopy size={14} aria-hidden="true" />} onClick={() => copy(r)}>Copy</Button>
                       <a className="btn btn-sm btn-secondary" href={testLink(r, customer.name)}><FlaskConical size={14} aria-hidden="true" /> Test this device</a>
                       <Button variant="ghost" size="sm" aria-label={`Remove ${r.serial}`} iconLeft={<Trash2 size={14} aria-hidden="true" />} onClick={() => remove(r)}>Remove</Button>
                     </td>
@@ -87,14 +90,14 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
               <label className="field"><span className="field-label">Lay out for sheet</span>
                 <select className="input" value={sheet || sheets[0].name} onChange={(e) => setSheet(e.target.value)}>{sheets.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}</select></label>
             )}
-            <Button iconLeft={<ClipboardCopy size={15} aria-hidden="true" />} onClick={copy}>Copy rows for the workbook</Button>
+            <Button iconLeft={<ClipboardCopy size={15} aria-hidden="true" />} onClick={() => copy()}>Copy rows for the workbook</Button>
             <Button variant="secondary" iconLeft={<Download size={15} aria-hidden="true" />} onClick={download}>Download .csv</Button>
             {canSimpro && <Button variant="secondary" disabled={noSite.length > 0} onClick={toSimpro}>Preview these in Simpro</Button>}
             <Button variant="ghost" onClick={clearAll}>They’re pasted: clear</Button>
           </div>
           {canSimpro && noSite.length > 0 && <p className="ne-note">To preview these in Simpro, each needs a Site ID (Simpro matches an asset within its site): {noSite.slice(0, 4).join(', ')}{noSite.length > 4 ? '…' : ''}.</p>}
           {canSimpro && <p className="ne-note">“Preview these in Simpro” opens Simpro Asset Sync with just these rows. It reads Simpro and shows what would be created; nothing changes until you press Apply there.</p>}
-          <p className="ne-note">{headers ? 'Laid out in the columns of the asset list you loaded.' : 'Load the asset list to lay the rows out in its columns; until then they use the new template’s usual order.'} Paste under the sheet’s last row, then clear them.</p>
+          <p className="ne-note">{headers ? 'Laid out in the columns of the asset list you loaded.' : 'Load the asset list to lay the rows out in its columns; until then they use the new template’s usual order.'} Paste under the sheet’s last row (Copy on a row copies just that one), then clear them.</p>
         </>
       )}
       {list.length === 0 && !error && rows && <p className="ne-note">Nothing waiting.</p>}
