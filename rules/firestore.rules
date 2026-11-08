@@ -435,7 +435,7 @@ service cloud.firestore {
     function isAsk(d) {
       return d.keys().hasOnly(['title', 'details', 'createdBy', 'createdByName', 'createdAtMs', 'updatedAtMs',
           'assignees', 'teams', 'cc', 'people', 'owner', 'ownerName', 'status', 'waitingOn', 'urgent', 'due',
-          'doneAtMs', 'doneBy', 'photoCount', 'commentCount', 'lastCommentAtMs', 'lastCommentBy', 'event', 'checklist'])
+          'doneAtMs', 'doneBy', 'photoCount', 'commentCount', 'lastCommentAtMs', 'lastCommentBy', 'event', 'checklist', 'fileCount'])
         && isShortText(d.title, 1, 200) && isShortText(d.details, 0, 4000)
         && d.createdBy is string && d.createdAtMs is number && d.doneAtMs is number
         && d.status in ['open', 'picked', 'waiting', 'done']
@@ -452,6 +452,8 @@ service cloud.firestore {
         && isShortText(d.waitingOn, 0, 120) && d.urgent is bool
         && d.due is string && (d.due == '' || d.due.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}'))
         && (d.get('event', null) == null || d.event is map)
+        // How many files it has (below): optional, older asks have none.
+        && (!('fileCount' in d) || (d.fileCount is int && d.fileCount >= 0))
         // A checklist attached to it (apps/checklists): its id and name, or none.
         && (d.get('checklist', null) == null || (d.checklist is map && d.checklist.keys().hasOnly(['id', 'name'])
             && d.checklist.id is string && d.checklist.id.size() > 0 && d.checklist.id.size() <= 40
@@ -483,9 +485,10 @@ service cloud.firestore {
         allow read: if canSeeAsk(get(/databases/$(database)/documents/asks/$(id)).data);
         allow create: if canSeeAsk(getAfter(/databases/$(database)/documents/asks/$(id)).data)
           && (request.resource.data.uid == request.auth.uid || isAdmin())
-          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'atMs', 'mentions', 'photoIds'])
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'text', 'atMs', 'mentions', 'photoIds', 'fileIds'])
           && isShortText(request.resource.data.text, 0, 4000)
-          && request.resource.data.mentions is list && request.resource.data.photoIds is list && request.resource.data.photoIds.size() <= 6;
+          && request.resource.data.mentions is list && request.resource.data.photoIds is list && request.resource.data.photoIds.size() <= 6
+          && (!('fileIds' in request.resource.data) || (request.resource.data.fileIds is list && request.resource.data.fileIds.size() <= 5));
         allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin()
           || get(/databases/$(database)/documents/asks/$(id)).data.createdBy == request.auth.uid);
       }
@@ -500,6 +503,34 @@ service cloud.firestore {
           && request.resource.data.data.size() < 500000;
         allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin()
           || get(/databases/$(database)/documents/asks/$(id)).data.createdBy == request.auth.uid);
+      }
+      // Files (a PDF, a quote; apps/asks/src/files.js), up to 5 MB: what it is
+      // here, its contents in up to 10 parts below, written in the same batch.
+      // Never changed once added. Deleted like a photo, parts first.
+      match /files/{fid} {
+        allow read: if canSeeAsk(get(/databases/$(database)/documents/asks/$(id)).data);
+        allow create: if canSeeAsk(getAfter(/databases/$(database)/documents/asks/$(id)).data)
+          && (request.resource.data.uid == request.auth.uid || isAdmin())
+          && request.resource.data.keys().hasOnly(['uid', 'name', 'type', 'bytes', 'parts', 'atMs', 'commentId'])
+          && isShortText(request.resource.data.name, 1, 200) && isShortText(request.resource.data.type, 0, 120)
+          && request.resource.data.bytes is int && request.resource.data.bytes > 0 && request.resource.data.bytes <= 5242880
+          && request.resource.data.parts is int && request.resource.data.parts >= 1 && request.resource.data.parts <= 10
+          && request.resource.data.atMs is number && request.resource.data.commentId is string;
+        allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin()
+          || get(/databases/$(database)/documents/asks/$(id)).data.createdBy == request.auth.uid);
+
+        match /parts/{n} {
+          allow read: if canSeeAsk(get(/databases/$(database)/documents/asks/$(id)).data);
+          // Only by whoever is adding the file, and only the parts it says it has.
+          allow create: if canSeeAsk(get(/databases/$(database)/documents/asks/$(id)).data)
+            && getAfter(/databases/$(database)/documents/asks/$(id)/files/$(fid)).data.uid == request.auth.uid
+            && n.matches('[0-9]') && int(n) < getAfter(/databases/$(database)/documents/asks/$(id)/files/$(fid)).data.parts
+            && request.resource.data.keys().hasOnly(['data'])
+            && request.resource.data.data is string && request.resource.data.data.size() <= 700000;
+          allow delete: if isSignedIn() && (isAdmin()
+            || get(/databases/$(database)/documents/asks/$(id)/files/$(fid)).data.uid == request.auth.uid
+            || get(/databases/$(database)/documents/asks/$(id)).data.createdBy == request.auth.uid);
+        }
       }
     }
     match /askStats/{id} {

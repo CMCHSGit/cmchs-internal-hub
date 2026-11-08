@@ -89,6 +89,8 @@
  *     - Photos/<askId>-<photoId>.jpg — each photo saved once, the first night
  *       it exists, rather than in every nightly file (they're up to ~480 KB
  *       each). Removed only when its ask is gone and it's over a year old.
+ *     - Files/<askId>-<fileId>-<name> — each file on an ask (a PDF, a quote,
+ *       up to 5 MB) saved once the same way, and kept the same way.
  *   Same service account and IAM grant as the project tracker's backup;
  *   checkAsksBackup() says whether it can read. Independent of the others.
  *
@@ -717,6 +719,7 @@ function setupBackups() {
 
 const ASKS_FOLDER_NAME = 'CMCHS Asks Backups';
 const ASKS_PHOTOS_FOLDER_NAME = 'Photos';
+const ASKS_FILES_FOLDER_NAME = 'Files';
 
 // Every ask with its comments, and the counts copy. Photos come back as a
 // list ({ askId, id, ...fields }, data included) for asksBackup_ to file
@@ -729,6 +732,7 @@ function readAsks_() {
   const askStats = readCollection_(token, 'askStats');
   const comments = {};
   const photos = [];
+  const files = []; // { askId, id, name, parts, ... }: what each is, not its contents (asksBackup_ reads those)
   Object.keys(asks).forEach(function(id) {
     const a = asks[id];
     if (a.commentCount > 0) {
@@ -739,8 +743,12 @@ function readAsks_() {
       const p = readCollection_(token, 'asks/' + id + '/photos');
       Object.keys(p).forEach(function(pid) { photos.push(Object.assign({ askId: id, id: pid }, p[pid])); });
     }
+    if (a.fileCount > 0) {
+      const f = readCollection_(token, 'asks/' + id + '/files');
+      Object.keys(f).forEach(function(fid) { files.push(Object.assign({ askId: id, id: fid }, f[fid])); });
+    }
   });
-  return { asks: asks, askStats: askStats, comments: comments, photos: photos };
+  return { asks: asks, askStats: askStats, comments: comments, photos: photos, files: files, token: token };
 }
 
 function asksBackup_() {
@@ -769,6 +777,28 @@ function asksBackup_() {
       newPhotos++;
     });
 
+    // 1b. Each file (a PDF, a quote: apps/asks/src/files.js) once, the same
+    //     way, as <askId>-<fileId>-<its name>. Its parts are only read the
+    //     night it is first saved.
+    const fileSub = folder.getFoldersByName(ASKS_FILES_FOLDER_NAME);
+    const fileFolder = fileSub.hasNext() ? fileSub.next() : folder.createFolder(ASKS_FILES_FOLDER_NAME);
+    const haveFiles = {};
+    const existingFiles = fileFolder.getFiles();
+    while (existingFiles.hasNext()) haveFiles[existingFiles.next().getName().split('-').slice(0, 2).join('-')] = true;
+    let newFiles = 0;
+    r.files.forEach(function(f) {
+      const key = f.askId + '-' + f.id;
+      f.file = ASKS_FILES_FOLDER_NAME + '/' + key + '-' + String(f.name || 'file').replace(/[\/:*?"<>|]/g, '_');
+      if (haveFiles[key]) return;
+      const parts = readCollection_(r.token, 'asks/' + f.askId + '/files/' + f.id + '/parts');
+      const ids = Object.keys(parts);
+      if (ids.length < f.parts) return; // still uploading: tomorrow
+      const b64 = ids.sort(function(x, y) { return Number(x) - Number(y); }).map(function(n) { return parts[n].data || ''; }).join('');
+      fileFolder.createFile(Utilities.newBlob(Utilities.base64Decode(b64), f.type || 'application/octet-stream', f.file.split('/')[1]));
+      haveFiles[key] = true;
+      newFiles++;
+    });
+
     // 2. Everything else exactly as stored. Photos are listed without their
     //    data, with the file in Photos that holds each one.
     const backup = {
@@ -783,7 +813,8 @@ function asksBackup_() {
         Object.keys(p).forEach(function(k) { if (k !== 'data') out[k] = p[k]; });
         out.file = ASKS_PHOTOS_FOLDER_NAME + '/' + p.askId + '-' + p.id + '.jpg';
         return out;
-      })
+      }),
+      files: r.files
     };
     folder.createFile(Utilities.newBlob(JSON.stringify(backup), 'application/json', name + '.json'));
 
@@ -826,11 +857,16 @@ function asksBackup_() {
       const f = pics.next();
       if (f.getDateCreated() < cutoff && !r.asks[f.getName().split('-')[0]]) f.setTrashed(true);
     }
+    const saved = fileFolder.getFiles();
+    while (saved.hasNext()) {
+      const f = saved.next();
+      if (f.getDateCreated() < cutoff && !r.asks[f.getName().split('-')[0]]) f.setTrashed(true);
+    }
 
     const commentCount = Object.keys(r.comments).reduce(function(n, id) { return n + Object.keys(r.comments[id]).length; }, 0);
     reportJob_('backup-asks', true, 'Backup written: ' + list.length + ' asks, ' + commentCount + ' comments');
     console.log('Asks backup complete: ' + name + ' (' + list.length + ' asks, ' + commentCount + ' comments, ' +
-      r.photos.length + ' photos, ' + newPhotos + ' new)');
+      r.photos.length + ' photos, ' + newPhotos + ' new, ' + r.files.length + ' files, ' + newFiles + ' new)');
   } catch (err) {
     reportJob_('backup-asks', false, err.toString());
     console.error('Asks backup failed:', err.toString());

@@ -3,17 +3,20 @@
    optional. */
 
 import { useEffect, useRef, useState } from 'react'
-import { Camera, X } from 'lucide-react'
+import { Camera, FileText, Paperclip, X } from 'lucide-react'
 import { Alert, Button, Switch } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
+import { useUi } from './App.jsx'
 import { useOnline } from './online.js'
 import { CcPicker, Field, Modal, SendToPicker } from './ui.jsx'
 import { compressPhoto } from './photos.js'
+import { readFile, sizeLabel } from './files.js'
 import { LIMITS } from './model.js'
 import { shareWith, watchOwnLists } from '../../checklists/src/store.js'
 
 export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
   const s = useStore()
+  const ui = useUi()
   const editing = !!ask
   const [f, setF] = useState(() => ({
     title: ask?.title || prefill.title || '',
@@ -29,6 +32,7 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
   const [mine, setMine] = useState([])
   useEffect(() => { try { return watchOwnLists(s.me.uid, setMine, () => {}) } catch { return undefined } }, [s.me.uid]) // eslint-disable-line react-hooks/exhaustive-deps
   const [photos, setPhotos] = useState([])
+  const [files, setFiles] = useState([])
   const [busy, setBusy] = useState(false)
   const online = useOnline()
   const [err, setErr] = useState('')
@@ -47,11 +51,18 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
         await s.edit(ask, f)
         onSaved?.(ask.id)
       } else {
-        const id = await s.create(f, photos)
+        const id = await s.create(f, photos, files)
         onSaved?.(id)
       }
       onClose()
     } catch (e2) {
+      if (e2.sentId) {
+        // Sent and people told, but a file is missing: don't leave the form open to send it twice.
+        onSaved?.(e2.sentId)
+        onClose()
+        ui.toast(e2.message)
+        return
+      }
       setErr(e2.message || String(e2))
       setBusy(false)
     }
@@ -95,6 +106,7 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
           </div>
         </div>
         {!editing && <PhotoAdder photos={photos} setPhotos={setPhotos} max={LIMITS.photos} onError={setErr} />}
+        {!editing && <FileAdder files={files} setFiles={setFiles} max={LIMITS.files} onError={setErr} />}
         {err && <Alert tone="critical" title="Not sent">{err}</Alert>}
         {!online && (
           <Alert tone="warning" title="You’re offline">
@@ -104,7 +116,7 @@ export default function NewAsk({ ask, prefill = {}, onClose, onSaved }) {
         )}
         <div className="ak-formfoot">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" disabled={busy || (editing && !online)}>{busy ? 'Saving…' : editing ? 'Save' : online ? 'Send ask' : 'Save to send later'}</Button>
+          <Button type="submit" disabled={busy || (editing && !online)}>{busy ? (files.length ? 'Uploading…' : 'Saving…') : editing ? 'Save' : online ? 'Send ask' : 'Save to send later'}</Button>
         </div>
       </form>
     </Modal>
@@ -151,6 +163,69 @@ export function PhotoAdder({ photos, setPhotos, max, onError, compact = false })
         )}
       </div>
       <input ref={input} type="file" accept="image/*" multiple hidden onChange={(e) => add(e.target.files || [])} />
+    </div>
+  )
+}
+
+/** Files chosen but not sent yet, each with a remove button. */
+export function PendingFiles({ files, setFiles }) {
+  if (!files.length) return null
+  return (
+    <ul className="ak-files">
+      {files.map((f, i) => (
+        <li key={i}>
+          <span className="ak-file">
+            <FileText size={18} aria-hidden="true" />
+            <span className="ak-file-name" title={f.name}>{f.name}</span>
+            <span className="ak-file-size">{sizeLabel(f.bytes)}</span>
+            <button type="button" className="ak-file-x" aria-label={`Remove ${f.name}`} onClick={() => setFiles((x) => x.filter((_, j) => j !== i))}><X size={16} /></button>
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+/** Add files: a PDF, a quote, a spreadsheet, up to 5 MB each. compact: the button only, for the comment box. */
+export function FileAdder({ files, setFiles, max, onError, compact = false }) {
+  const input = useRef(null)
+  const [working, setWorking] = useState(false)
+  async function add(list) {
+    onError?.('')
+    setWorking(true)
+    const room = max - files.length
+    const out = []
+    let problem = list.length > room ? `Only ${max} files fit here; the rest were left out.` : ''
+    for (const file of [...list].slice(0, room)) {
+      try { out.push(await readFile(file)) } catch (e) { problem = e.message || String(e) }
+    }
+    setFiles((x) => [...x, ...out])
+    if (problem) onError?.(problem)
+    setWorking(false)
+    if (input.current) input.current.value = ''
+  }
+  const picker = <input ref={input} type="file" multiple hidden onChange={(e) => add(e.target.files || [])} />
+  if (compact) {
+    return (
+      <>
+        <button type="button" className="icon-btn icon-btn-md" onClick={() => input.current?.click()} disabled={working || files.length >= max}
+          aria-label="Add a file" title="Add a file (PDF, document, up to 5 MB)">
+          <Paperclip size={18} aria-hidden="true" />
+        </button>
+        {picker}
+      </>
+    )
+  }
+  return (
+    <div className="ak-fileadd">
+      <span className="field-label">Files <span className="text-muted ak-label-hint">PDFs, documents, spreadsheets, up to 5 MB each</span></span>
+      <PendingFiles files={files} setFiles={setFiles} />
+      {files.length < max && (
+        <Button variant="secondary" size="sm" iconLeft={<Paperclip size={16} />} onClick={() => input.current?.click()} disabled={working}>
+          {working ? 'Reading…' : 'Add file'}
+        </Button>
+      )}
+      {picker}
     </div>
   )
 }

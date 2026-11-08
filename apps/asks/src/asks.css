@@ -206,6 +206,23 @@ header.tool-header h1 { font-family: var(--font-display); font-weight: var(--wei
 .ak-addphoto { all: unset; box-sizing: border-box; cursor: pointer; width: 72px; height: 72px; border-radius: var(--radius-md); border: 1.5px dashed var(--border-strong); color: var(--text-muted); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: var(--type-caption); text-align: center; }
 .ak-addphoto:hover, .ak-addphoto:focus-visible { border-color: var(--chs-purple); color: var(--accent-fg); }
 
+/* Files: a chip each, name and size; on an ask, tapping one opens or downloads it (files.js) */
+.ak-fileadd { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.ak-files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+.ak-files.in-comment { margin-top: 6px; }
+.ak-files li { max-width: 100%; min-width: 0; }
+.ak-file { box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; max-width: 100%; min-height: 44px; padding: 6px 10px; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); background: var(--surface-card); color: var(--text-strong); font: var(--type-body-sm); font-family: var(--font-body); text-align: left; }
+button.ak-file { cursor: pointer; }
+button.ak-file:hover { border-color: var(--chs-purple); }
+button.ak-file:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+button.ak-file:disabled { cursor: progress; opacity: .7; }
+.ak-file > svg { flex: 0 0 auto; color: var(--accent-fg); }
+.ak-file-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-semibold); }
+.ak-file-size { flex: 0 0 auto; color: var(--text-muted); font: var(--type-caption); }
+.ak-file-x { all: unset; cursor: pointer; flex: 0 0 auto; width: 28px; height: 28px; margin-right: -4px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); }
+.ak-file-x:hover, .ak-file-x:focus-visible { background: var(--surface-subtle); color: var(--text-strong); }
+.ak-composer > .ak-files { margin-bottom: 8px; }
+
 /* ── phones ── */
 @media (max-width: 640px) {
   .ak-bar { padding: 8px 10px; position: static; }

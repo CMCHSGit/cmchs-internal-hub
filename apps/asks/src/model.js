@@ -21,6 +21,7 @@
      urgent, due                 an Urgent flag and an optional due date (YYYY-MM-DD)
      doneAtMs, doneBy
      photoCount, commentCount, lastCommentAtMs, lastCommentBy
+     fileCount                   files attached (files.js); only there once there are some
      event                       the last change that notifies people (see notify in
                                  backend-firebase.js): { id, type, by, atMs, to, teams, ref },
                                  and cc: [uid] for people newly copied in by an edit
@@ -41,7 +42,7 @@ export const STATUSES = [
 export const statusOf = (id) => STATUSES.find((s) => s.id === id) || STATUSES[0]
 
 // The same limits firestore.rules enforces.
-export const LIMITS = { title: 200, details: 4000, comment: 4000, waitingOn: 120, photos: 6, assignees: 40, cc: 40, people: 60 }
+export const LIMITS = { title: 200, details: 4000, comment: 4000, waitingOn: 120, photos: 6, files: 5, assignees: 40, cc: 40, people: 60 }
 
 const DAY = 86400000
 

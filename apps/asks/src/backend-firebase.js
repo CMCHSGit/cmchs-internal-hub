@@ -3,6 +3,7 @@
      asks/{id}                 one per ask (model.js lists the fields)
      asks/{id}/comments/{id}   the conversation on it
      asks/{id}/photos/{id}     photos, one compressed JPEG each (photos.js)
+     asks/{id}/files/{id}      files (a PDF, a quote), their parts below (files.js)
      askStats/{id}             the counting fields only, for the Company page
 
    Security rules for these live with the others in
@@ -38,6 +39,12 @@ function watchMerged(queries, cb, onError) {
   }, onError))
   return () => unsubs.forEach((u) => u())
 }
+
+/** Each file's parts, then the file: deleted in that order. */
+const fileRefs = (askId, files) => [
+  ...files.flatMap((f) => Array.from({ length: f.parts || 0 }, (_, i) => doc(db, 'asks', askId, 'files', f.id, 'parts', String(i)))),
+  ...files.map((f) => doc(db, 'asks', askId, 'files', f.id)),
+]
 
 export default {
   kind: 'firebase',
@@ -79,13 +86,29 @@ export default {
     ], cb, onError)
   },
 
-  /** One ask's comments and photos, live while it's open. */
+  /** One ask's comments, photos and files (not their contents), live while it's open. */
   watchThread(id, cb, onError) {
-    const got = { comments: null, photos: null }
-    const fire = () => { if (got.comments && got.photos) cb({ ...got }) }
+    const got = { comments: null, photos: null, files: null }
+    const fire = () => { if (got.comments && got.photos && got.files) cb({ ...got }) }
     const a = onSnapshot(collection(db, 'asks', id, 'comments'), (s) => { got.comments = s.docs.map(withId); fire() }, onError)
     const b = onSnapshot(collection(db, 'asks', id, 'photos'), (s) => { got.photos = s.docs.map(withId); fire() }, onError)
-    return () => { a(); b() }
+    const c = onSnapshot(collection(db, 'asks', id, 'files'), (s) => { got.files = s.docs.map(withId); fire() }, onError)
+    return () => { a(); b(); c() }
+  },
+
+  /** A file and its parts, all or nothing. f: { id, meta, parts }. Up to 7 MB, inside a batch's 10 MB. */
+  async addFile(askId, f) {
+    const b = writeBatch(db)
+    b.set(doc(db, 'asks', askId, 'files', f.id), clean(f.meta))
+    f.parts.forEach((data, i) => b.set(doc(db, 'asks', askId, 'files', f.id, 'parts', String(i)), { data }))
+    await b.commit()
+  },
+
+  /** A file's contents, as the base64 parts in order. */
+  async fileParts(askId, file) {
+    const s = await getDocs(collection(db, 'asks', askId, 'files', file.id, 'parts'))
+    if (s.size < file.parts) throw new Error('This file hasn’t finished uploading yet.')
+    return s.docs.sort((x, y) => Number(x.id) - Number(y.id)).map((d) => d.data().data)
   },
 
   newId: (path = 'asks') => doc(collection(db, path)).id,
@@ -120,10 +143,10 @@ export default {
     })
   },
 
-  /** The ask, its comments, photos and counts. */
+  /** The ask, its comments, photos, files and counts. A file's parts go before it: their rule reads it. */
   async remove(id) {
-    const [c, p] = await Promise.all([getDocs(collection(db, 'asks', id, 'comments')), getDocs(collection(db, 'asks', id, 'photos'))])
-    const refs = [...c.docs, ...p.docs].map((d) => d.ref)
+    const [c, p, f] = await Promise.all(['comments', 'photos', 'files'].map((k) => getDocs(collection(db, 'asks', id, k))))
+    const refs = [...fileRefs(id, f.docs.map(withId)), ...c.docs.map((d) => d.ref), ...p.docs.map((d) => d.ref)]
     for (let i = 0; i < refs.length; i += 400) {
       const b = writeBatch(db)
       refs.slice(i, i + 400).forEach((r) => b.delete(r))
@@ -135,10 +158,19 @@ export default {
     await b.commit()
   },
 
-  async removeComment(askId, comment) {
+  /** A comment with its photos and files (files: those whose commentId is this comment's). */
+  async removeComment(askId, comment, files = []) {
     const b = writeBatch(db)
+    for (const r of fileRefs(askId, files)) b.delete(r)
     b.delete(doc(db, 'asks', askId, 'comments', comment.id))
     for (const pid of comment.photoIds || []) b.delete(doc(db, 'asks', askId, 'photos', pid))
+    await b.commit()
+  },
+
+  /** Files whose comment didn't save. */
+  async removeFiles(askId, files) {
+    const b = writeBatch(db)
+    for (const r of fileRefs(askId, files)) b.delete(r)
     await b.commit()
   },
 

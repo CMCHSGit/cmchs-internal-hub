@@ -17,12 +17,13 @@ function seed() {
     asks: Object.fromEntries(asks.map((a) => [a.id, a])),
     comments: Object.fromEntries(comments.map((c) => [c.id, c])),
     photos: {},
+    files: {},
   }
 }
 function load() {
   try {
     const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw)
+    if (raw) return { files: {}, ...JSON.parse(raw) }
   } catch { /* fall through to a fresh copy */ }
   const fresh = seed()
   localStorage.setItem(KEY, JSON.stringify(fresh))
@@ -59,7 +60,17 @@ export default {
     return sub(() => cb({
       comments: Object.values(db.comments).filter((c) => c.askId === id),
       photos: Object.values(db.photos).filter((p) => p.askId === id),
+      files: Object.values(db.files).filter((f) => f.askId === id).map(({ data, ...f }) => f),
     }))
+  },
+  async addFile(askId, f) {
+    db.files[f.id] = { ...clean(f.meta), id: f.id, askId, data: f.parts }
+    save()
+  },
+  async fileParts(_askId, file) { return db.files[file.id]?.data || [] },
+  async removeFiles(_askId, files) {
+    for (const f of files) delete db.files[f.id]
+    save()
   },
 
   newId: () => Math.random().toString(36).slice(2, 12),
@@ -84,11 +95,12 @@ export default {
   },
   async remove(id) {
     delete db.asks[id]
-    for (const k of ['comments', 'photos']) for (const [x, v] of Object.entries(db[k])) if (v.askId === id) delete db[k][x]
+    for (const k of ['comments', 'photos', 'files']) for (const [x, v] of Object.entries(db[k])) if (v.askId === id) delete db[k][x]
     save()
   },
-  async removeComment(_askId, comment) {
+  async removeComment(_askId, comment, files = []) {
     delete db.comments[comment.id]
+    for (const f of files) delete db.files[f.id]
     for (const pid of comment.photoIds || []) delete db.photos[pid]
     save()
   },

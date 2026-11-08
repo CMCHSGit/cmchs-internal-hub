@@ -1279,7 +1279,8 @@ function askMessage_(ask, ev, actor, recipientUid, comment) {
     case 'waiting':  return { title: 'Waiting on ' + (ask.waitingOn || 'someone else'), body: what };
     case 'done':     return { title: 'Done: ' + what, body: who + ' finished it' };
     case 'reopened': return { title: who + ' reopened an ask', body: what };
-    case 'comment':  return { title: who + ' on “' + what.slice(0, 60) + '”', body: (comment && comment.text ? comment.text : 'Added a photo').slice(0, 160) };
+    case 'comment':  return { title: who + ' on “' + what.slice(0, 60) + '”', body: (comment && comment.text ? comment.text
+                                         : comment && (comment.fileIds || []).length && !(comment.photoIds || []).length ? 'Added a file' : 'Added a photo').slice(0, 160) };
   }
   return { title: 'Asks', body: what };
 }

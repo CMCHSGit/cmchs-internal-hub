@@ -1,6 +1,6 @@
 /* An ask as a row in a list: what, who asked, who has it, when it's due. */
 
-import { CalendarDays, Flame, Hand, MessageSquare, Camera } from 'lucide-react'
+import { CalendarDays, Flame, Hand, MessageSquare, Camera, Paperclip } from 'lucide-react'
 import { Badge } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
 import { useUi } from './App.jsx'
@@ -41,6 +41,7 @@ export function AskRow({ ask: a, showClaim = false }) {
             <span>{timeAgo(a.createdAtMs)}</span>
             {a.commentCount > 0 && <span className="ak-meta-icon" title={`${a.commentCount} comment${a.commentCount === 1 ? '' : 's'}`}><MessageSquare size={13} aria-hidden="true" /> {a.commentCount}</span>}
             {a.photoCount > 0 && <span className="ak-meta-icon" title={`${a.photoCount} photo${a.photoCount === 1 ? '' : 's'}`}><Camera size={13} aria-hidden="true" /> {a.photoCount}</span>}
+            {a.fileCount > 0 && <span className="ak-meta-icon" title={`${a.fileCount} file${a.fileCount === 1 ? '' : 's'}`}><Paperclip size={13} aria-hidden="true" /> {a.fileCount}</span>}
           </span>
         </span>
         <span className="ak-item-side">

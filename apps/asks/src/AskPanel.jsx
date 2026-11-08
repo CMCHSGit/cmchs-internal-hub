@@ -1,14 +1,15 @@
 /* One ask: what's needed, who has it, the buttons to pick it up, hand it
-   back or finish it, the photos and the conversation. A panel on the right
+   back or finish it, the photos, files and the conversation. A panel on the right
    on a computer; the whole screen on a phone. */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, Hand, Check, ClipboardCheck, ArrowRight, Clock, Undo2, UserPlus, Pencil, Trash2, RotateCcw, Send, Flame, CalendarDays, Play, MoreHorizontal } from 'lucide-react'
+import { X, Hand, Check, ClipboardCheck, ArrowRight, Clock, Undo2, UserPlus, Pencil, Trash2, RotateCcw, Send, Flame, CalendarDays, Play, MoreHorizontal, FileText, Download } from 'lucide-react'
 import { Alert, Badge, Button, Loading } from '../../schedule/src/components/ui'
 import { useStore } from './store.jsx'
 import { useUi } from './App.jsx'
 import { Avatar, Empty, Lightbox, Popover, RichText, StatusBadge, ccText, sentToText } from './ui.jsx'
-import { PhotoAdder } from './NewAsk.jsx'
+import { FileAdder, PendingFiles, PhotoAdder } from './NewAsk.jsx'
+import { canView, sizeLabel } from './files.js'
 import { canClaim, dueLabel, firstName, isOverdue, LIMITS, mentionAt, mentionMatches, sentTo, timeAgo } from './model.js'
 
 const WAITING_PICKS = ['Mindray', 'the customer', 'parts', 'a reply']
@@ -57,6 +58,11 @@ export default function AskPanel({ ask: a, onClose }) {
   const late = isOverdue(a, s.today)
   const photosTop = (thread?.photos || []).filter((p) => !p.commentId)
   const photoById = useMemo(() => new Map((thread?.photos || []).map((p) => [p.id, p])), [thread])
+  const filesFor = useMemo(() => {
+    const by = new Map()
+    for (const f of [...(thread?.files || [])].sort((x, y) => x.atMs - y.atMs)) by.set(f.commentId || '', [...(by.get(f.commentId || '') || []), f])
+    return (cid) => by.get(cid) || []
+  }, [thread])
   const comments = useMemo(() => [...(thread?.comments || [])].sort((x, y) => x.atMs - y.atMs), [thread])
   const names = useMemo(() => s.users.map((u) => u.name), [s.users])
 
@@ -142,7 +148,7 @@ export default function AskPanel({ ask: a, onClose }) {
               <button type="button" onClick={() => { setMenu(null); ui.editAsk(a) }}><Pencil size={16} aria-hidden="true" /> Edit</button>
               <button type="button" className="ak-danger" onClick={() => {
                 setMenu(null)
-                if (window.confirm('Delete this ask, its comments and photos? This can’t be undone.')) run(async () => { await s.remove(a); onClose() }, 'Ask deleted')()
+                if (window.confirm('Delete this ask, its comments, photos and files? This can’t be undone.')) run(async () => { await s.remove(a); onClose() }, 'Ask deleted')()
               }}><Trash2 size={16} aria-hidden="true" /> Delete</button>
             </Popover>
           </span>
@@ -164,6 +170,7 @@ export default function AskPanel({ ask: a, onClose }) {
             {photosTop.map((p) => <button key={p.id} type="button" className="ak-photo" onClick={() => setBig(p.data)} aria-label="Open photo"><img src={p.data} alt="" /></button>)}
           </div>
         )}
+        <FileLinks ask={a} files={filesFor('')} onError={setErr} />
 
         <h3 className="ak-h4">Conversation</h3>
         {threadErr && <Alert tone="critical" title="Couldn’t load the conversation">{threadErr}</Alert>}
@@ -179,7 +186,7 @@ export default function AskPanel({ ask: a, onClose }) {
                   <span className="text-sm text-muted">{timeAgo(c.atMs)}</span>
                   {(c.uid === me.uid || admin) && (
                     <button type="button" className="ak-comment-x" aria-label="Delete this comment"
-                      onClick={() => { if (window.confirm('Delete this comment?')) run(() => s.removeComment(a, c))() }}><Trash2 size={14} /></button>
+                      onClick={() => { if (window.confirm('Delete this comment?')) run(() => s.removeComment(a, c, filesFor(c.id)))() }}><Trash2 size={14} /></button>
                   )}
                 </div>
                 {c.text && <p><RichText text={c.text} names={names} /></p>}
@@ -190,6 +197,7 @@ export default function AskPanel({ ask: a, onClose }) {
                     ))}
                   </div>
                 )}
+                <FileLinks ask={a} files={filesFor(c.id)} onError={setErr} inComment />
               </div>
             </li>
           ))}
@@ -206,6 +214,7 @@ function Composer({ ask }) {
   const s = useStore()
   const [text, setText] = useState('')
   const [photos, setPhotos] = useState([])
+  const [files, setFiles] = useState([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [at, setAt] = useState(null) // { start, query }
@@ -230,13 +239,14 @@ function Composer({ ask }) {
     })
   }
   const send = async () => {
-    if (busy || (!text.trim() && !photos.length)) return
+    if (busy || (!text.trim() && !photos.length && !files.length)) return
     setBusy(true)
     setErr('')
     try {
-      await s.comment(ask, text, photos)
+      await s.comment(ask, text, photos, files)
       setText('')
       setPhotos([])
+      setFiles([])
     } catch (e) {
       setErr(e.message || String(e))
     } finally {
@@ -268,14 +278,66 @@ function Composer({ ask }) {
         </ul>
       )}
       {photos.length > 0 && <PhotoAdder photos={photos} setPhotos={setPhotos} max={LIMITS.photos} onError={setErr} />}
+      <PendingFiles files={files} setFiles={setFiles} />
       <div className="ak-composer-row">
         <textarea ref={ta} className="input" rows={2} value={text} onChange={onType} onKeyDown={key} onBlur={() => setTimeout(() => setAt(null), 150)}
           maxLength={LIMITS.comment} placeholder="Write a comment. Type @ to bring someone in." aria-label="Comment" />
         {photos.length === 0 && <PhotoAdder photos={photos} setPhotos={setPhotos} max={LIMITS.photos} onError={setErr} compact />}
-        <button type="button" className="ak-send" onClick={send} disabled={busy || (!text.trim() && !photos.length)} aria-label="Send comment" title="Send (Ctrl Enter)">
+        <FileAdder files={files} setFiles={setFiles} max={LIMITS.files} onError={setErr} compact />
+        <button type="button" className="ak-send" onClick={send} disabled={busy || (!text.trim() && !photos.length && !files.length)} aria-label={busy && files.length ? 'Uploading' : 'Send comment'} title="Send (Ctrl Enter)">
           <Send size={18} />
         </button>
       </div>
     </div>
+  )
+}
+
+/**
+ * An ask's files, one chip each. On a computer a PDF or picture opens in a new
+ * tab; anything else, and everything on a phone, downloads (the phone then
+ * offers to open it). The tab is opened before the file is fetched, while the
+ * click still counts as one, or the browser would block it as a pop-up.
+ */
+function FileLinks({ ask, files, onError, inComment = false }) {
+  const s = useStore()
+  const [opening, setOpening] = useState('')
+  if (!files.length) return null
+  async function open(f) {
+    const view = canView(f.type) && !window.matchMedia('(pointer: coarse)').matches
+    const tab = view ? window.open('', '_blank') : null
+    setOpening(f.id)
+    onError('')
+    try {
+      const url = URL.createObjectURL(await s.openFile(ask, f))
+      if (tab) tab.location.href = url
+      else {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = f.name
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (e) {
+      tab?.close()
+      onError(`Couldn’t open ${f.name}: ${e.message || e}`)
+    } finally {
+      setOpening('')
+    }
+  }
+  return (
+    <ul className={`ak-files${inComment ? ' in-comment' : ''}`} aria-label="Files">
+      {files.map((f) => (
+        <li key={f.id}>
+          <button type="button" className="ak-file" onClick={() => open(f)} disabled={opening === f.id} title={`Open ${f.name}`}>
+            <FileText size={18} aria-hidden="true" />
+            <span className="ak-file-name">{f.name}</span>
+            <span className="ak-file-size">{opening === f.id ? 'Opening…' : sizeLabel(f.bytes)}</span>
+            <Download size={16} aria-hidden="true" />
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 }

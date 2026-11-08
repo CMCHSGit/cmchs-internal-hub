@@ -6,6 +6,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { getBackend } from './backend.js'
 import { logActivity } from '../../../shared/activity.js'
 import { cleanAsk, cleanComment, eventOf, findMentions, myCount, peopleOf, todayISO, LIMITS } from './model.js'
+import { toBlob } from './files.js'
 
 const Ctx = createContext(null)
 export const useStore = () => useContext(Ctx)
@@ -118,15 +119,22 @@ export function StoreProvider({ children }) {
       id: be.newId(`asks/${askId}/photos`),
       data: { uid: me.uid, data: p.data, w: p.w, h: p.h, atMs: Date.now(), commentId },
     }))
+    // Files from files.js readFile: { name, type, bytes, parts }.
+    const fileDocs = (askId, files, commentId = '') => files.slice(0, LIMITS.files).map((f) => ({
+      id: be.newId(`asks/${askId}/files`),
+      meta: { uid: me.uid, name: f.name, type: f.type, bytes: f.bytes, parts: f.parts.length, atMs: Date.now(), commentId },
+      parts: f.parts,
+    }))
 
     return {
-      async create(input, photos = []) {
+      async create(input, photos = [], files = []) {
         const { cc, ...f } = cleanAsk(input)
         const copied = cc.filter((u) => u !== me.uid)
         const id = be.newId()
         const now = Date.now()
         const pics = photoDocs(id, photos.slice(0, LIMITS.photos))
-        const saving = be.create(id, {
+        const docs = fileDocs(id, files)
+        const asking = be.create(id, {
           ...f,
           // Only written when someone's copied in, so an ask without needs nothing new of the rules.
           ...(copied.length ? { cc: copied } : {}),
@@ -134,8 +142,18 @@ export function StoreProvider({ children }) {
           people: peopleOf({ createdBy: me.uid, assignees: f.assignees, cc: copied }),
           owner: '', ownerName: '', status: 'open', waitingOn: '', doneAtMs: 0, doneBy: '',
           photoCount: pics.length, commentCount: 0, lastCommentAtMs: 0, lastCommentBy: '',
+          // Only written when there are some, like cc.
+          ...(docs.length ? { fileCount: docs.length } : {}),
           event: eventOf('created', me),
         }, pics)
+        // Each file is its own write, queued straight after the ask's (so it also waits on this device when offline),
+        // and the people are told once they're all there.
+        const attaching = docs.map((f) => be.addFile(id, f))
+        attaching.forEach((p) => p.catch(() => {})) // reported below, once
+        const saving = asking.then(() => Promise.all(attaching)).catch(async (e) => {
+          await asking // the ask itself failed: that error, nothing was sent
+          throw Object.assign(new Error(`The ask was sent, but a file didn’t upload (${e?.message || e}). Open the ask and add it in a comment.`), { sentId: id })
+        })
         if (navigator.onLine === false) {
           // No connection: the ask is kept on this device and goes when it's back, which can be long after this form
           // closes, so don't wait for it. The people are told when it arrives: from here if it's quick (the server
@@ -144,10 +162,13 @@ export function StoreProvider({ children }) {
           markSeen(id)
           return id
         }
-        await saving
-        markSeen(id)
-        tell(id)
-        note('created')
+        try {
+          await saving
+        } finally {
+          // Sent, even if a file didn't make it (sentId): tell people about it either way.
+          const sent = await asking.then(() => true, () => false)
+          if (sent) { markSeen(id); tell(id); note('created') }
+        }
         return id
       },
 
@@ -211,34 +232,55 @@ export function StoreProvider({ children }) {
         }
       }),
 
-      /** A comment, with any photos taken for it. @mentioned people are told and can then see the ask. */
-      comment: (a, text, photos = []) => {
+      /**
+       * A comment, with any photos taken and files added for it. @mentioned people are told and can then see the ask.
+       * The files go first (too big for the comment's transaction), so they're there when people are told; if the
+       * comment then doesn't save, they're taken away again.
+       */
+      comment: async (a, text, photos = [], files = []) => {
         const body = cleanComment(text)
-        if (!body && !photos.length) return Promise.resolve(null)
+        if (!body && !photos.length && !files.length) return null
         const mentions = findMentions(body, users || []).filter((u) => u !== me.uid)
         const cid = be.newId(`asks/${a.id}/comments`)
         const pics = photoDocs(a.id, photos, cid)
-        return change(a, (cur) => {
-          if ((cur.photoCount || 0) + pics.length > LIMITS.photos * 3) throw new Error('This ask has as many photos as it can hold.')
-          return {
-            patch: {
-              commentCount: (cur.commentCount || 0) + 1, lastCommentAtMs: Date.now(), lastCommentBy: me.name,
-              photoCount: (cur.photoCount || 0) + pics.length,
-              people: union(cur.people, [me.uid], mentions),
-              event: eventOf('comment', me, { to: mentions, ref: cid }),
-            },
-            writes: [
-              { path: ['asks', a.id, 'comments', cid], data: { uid: me.uid, name: me.name, text: body, atMs: Date.now(), mentions, photoIds: pics.map((p) => p.id) } },
-              ...pics.map((p) => ({ path: ['asks', a.id, 'photos', p.id], data: p.data })),
-            ],
-          }
-        })
+        const docs = fileDocs(a.id, files, cid)
+        await Promise.all(docs.map((f) => be.addFile(a.id, f)))
+        try {
+          return await change(a, (cur) => {
+            if ((cur.photoCount || 0) + pics.length > LIMITS.photos * 3) throw new Error('This ask has as many photos as it can hold.')
+            return {
+              patch: {
+                commentCount: (cur.commentCount || 0) + 1, lastCommentAtMs: Date.now(), lastCommentBy: me.name,
+                photoCount: (cur.photoCount || 0) + pics.length,
+                ...(docs.length ? { fileCount: (cur.fileCount || 0) + docs.length } : {}),
+                people: union(cur.people, [me.uid], mentions),
+                event: eventOf('comment', me, { to: mentions, ref: cid }),
+              },
+              writes: [
+                { path: ['asks', a.id, 'comments', cid], data: { uid: me.uid, name: me.name, text: body, atMs: Date.now(), mentions, photoIds: pics.map((p) => p.id), ...(docs.length ? { fileIds: docs.map((f) => f.id) } : {}) } },
+                ...pics.map((p) => ({ path: ['asks', a.id, 'photos', p.id], data: p.data })),
+              ],
+            }
+          })
+        } catch (e) {
+          if (docs.length) await be.removeFiles(a.id, docs.map((f) => ({ id: f.id, parts: f.parts.length }))).catch(() => {})
+          throw e
+        }
       },
 
-      async removeComment(a, c) {
-        await be.removeComment(a.id, c)
-        await change(a, (cur) => ({ patch: { commentCount: Math.max(0, (cur.commentCount || 0) - 1), photoCount: Math.max(0, (cur.photoCount || 0) - (c.photoIds || []).length) } }))
+      /** files: the thread's files that belong to this comment. */
+      async removeComment(a, c, files = []) {
+        await be.removeComment(a.id, c, files)
+        await change(a, (cur) => ({
+          patch: {
+            commentCount: Math.max(0, (cur.commentCount || 0) - 1), photoCount: Math.max(0, (cur.photoCount || 0) - (c.photoIds || []).length),
+            ...(files.length ? { fileCount: Math.max(0, (cur.fileCount || 0) - files.length) } : {}),
+          },
+        }))
       },
+
+      /** A file's contents as a Blob (files.js decides what it may be opened as). */
+      openFile: async (a, file) => toBlob(await be.fileParts(a.id, file), file.type),
 
       remove: async (a) => { await be.remove(a.id); logActivity(me, 'Deleted an ask', { app: 'asks' }) },
 
