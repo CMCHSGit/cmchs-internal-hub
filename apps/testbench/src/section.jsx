@@ -199,7 +199,7 @@ function TestBench() {
           logActivity(null, 'Added a device to a customer’s pending asset rows (from the Test Bench)', { app: 'testbench' })
           return reply({ ok: true, customer: c.name, queued })
         } catch (err) {
-          return reply({ error: err?.code === 'permission-denied' ? 'Only the teams that use the Test Bench can add devices.' : (err?.message || 'Couldn’t add it.') })
+          return reply({ error: err?.code === 'permission-denied' ? 'The database refused it: the rules for pending rows (pendingAssets) haven’t been published yet (rules/README.md), or you aren’t on a team that can use the Test Bench.' : (err?.message || 'Couldn’t add it.') })
         }
       }
       if (m?.type === 'chs-bench:mtr' || m?.type === 'chs-bench:pdf') {   // the bench's answer to a request for an Ansur record or a PDF
