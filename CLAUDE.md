@@ -1,8 +1,8 @@
 # CMCHS Internal Hub — read this first
 
 internal.chsnz.co.nz: the hub home page and the tools under it (schedule,
-maintenance, service orders, SimproSync, Ansur, admin settings, and /demo/,
-which is the demo tracker built in from the `chs-equipment` repo). How it is put
+maintenance, service orders, SimproSync, Ansur, admin settings, and the demo
+tracker at /equipment/, `apps/equipment`, which has its own `CLAUDE.md`). How it is put
 together, run locally and deployed is in `README.md`; the wider history and
 traps are in `chs-equipment/PROJECT-CONTEXT.md`.
 
@@ -20,17 +20,18 @@ Several people work on these repos with Claude, often at the same time.
   Verified means `npm run build` passes, the tests pass
   (`npm test -w apps/schedule`, `npm test -w apps/hub`), and after deploying,
   the live page actually shows the change.
-- **Don't edit `/demo/`'s copy of the tracker.** It is generated on every deploy
-  from `chs-equipment/index.html`; change the tracker there. `apps/demo/embed.js`
-  is the only hub-side part.
+- **The demo tracker is `apps/equipment`** (read its `CLAUDE.md` first). `/demo/`
+  only forwards there (`apps/demo/build.mjs`); the old tracker in `chs-equipment`
+  is retired (tag `old-tracker-final`) and is never changed.
 - **Secrets never go in the repo, a commit message or the chat.** The repo is
   public. The `VITE_*` values live in Actions secrets and a local `.env`
   (never committed). Logs and messages give counts only — never names, emails
   or addresses.
 - **Keep the service worker's precache small.** Phones download all of it on
   install; big or rarely used files go in `globIgnores` in `scripts/build.mjs`.
-- **Database rules are in `rules/`** (Firestore: `rules/firestore.rules`; the demo
-  tracker's Realtime Database: `rules/database.rules.json`). A push does not
+- **Database rules are in `rules/`** (Firestore: `rules/firestore.rules`, which has the
+  demo tracker's data since 4 Nov 2026; its old, frozen Realtime Database:
+  `rules/database.rules.json`). A push does not
   publish them: they are pasted, whole, into the Firebase console. Say so when
   a change needs publishing (`rules/README.md`).
 - **The back end is in `backend/`** (the Apps Script proxy and nightly backup,
