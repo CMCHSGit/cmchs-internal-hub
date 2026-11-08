@@ -7,7 +7,7 @@
      askStats/{id}             the counting fields only, for the Company page
 
    Security rules for these live with the others in
-   chs-equipment/cmchs-staff-schedule/firestore.rules (canSeeAsk). They let
+   rules/firestore.rules (canSeeAsk). They let
    people see only the asks they're involved in, so this asks only for those:
    Firestore refuses a query its rules can't prove is all readable.
 

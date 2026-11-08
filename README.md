@@ -39,7 +39,7 @@ Instead of a text or another email: anyone raises an ask ("test the new mode on 
 - **Data**: `asks/{id}` with `comments` and `photos` subcollections, and `askStats/{id}`. Fields are described in `apps/asks/src/model.js`.
 - **Push for each change**: the browser sends the ask's id to the Apps Script in `backend/apps-script/proxy` (action `notifyAsk`; the same script that sends the hub's other pushes — Asks doesn't use Simpro). It reads the ask back, checks the change is the caller's and new, and pushes to the people concerned; anyone with no phone set up gets an email once `RESEND_API_KEY` and `RESEND_FROM` are in its Script Properties.
 - **8:30am weekday summary**: `.github/workflows/asks-summary.yml` runs `apps/asks/scripts/summary.mjs` (push, or email with the `RESEND_*` Actions secrets). Switch people off in Settings → Everyone's notifications (or they switch themselves off in Settings → Your notifications).
-- `npm run dev -w apps/asks` without a `.env` runs on a local stand-in with made-up people; add `?as=mike` (or jess, sam, lee) to be someone else. `npm test -w apps/asks` checks who sees and owns what, the counts and the summary.
+- `npm run dev` (the hub) without a `.env` runs Asks at `/asks/` on a local stand-in with made-up people; add `?as=mike` (or jess, sam, lee) to be someone else. `npm test -w apps/asks` checks who sees and owns what, the counts and the summary.
 
 ### Knowledge base
 

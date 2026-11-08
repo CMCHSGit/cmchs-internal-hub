@@ -35,13 +35,14 @@ function sandbox({ rows, props = {}, cached = [] }) {
     scheduleFirebaseProjectId_: () => 'p',
     loadAskUsers_: () => [{ uid: 'jess', name: 'Jess', team: 'Sales', pending: false, tokens: ['t1'], email: '' }, { uid: 'mike', name: 'Mike', team: 'Engineers', pending: false, tokens: ['t2'], email: '' }],
     askEmailOn_: () => false,
+    trackJob_: (id, fn) => fn(), // the timer's success/failure report (reportJob_) isn't what's tested here
     sendAskEmail_: () => false,
     sendHubPush_: (tokens, title) => { pushed.push([tokens.join(), title]); return tokens.map(() => ({ ok: true })) },
     UrlFetchApp: { fetch: () => ({ getResponseCode: () => 200, getContentText: () => JSON.stringify(rows) }) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => (k in store ? store[k] : null), setProperty: (k, v) => { store[k] = v } }) },
     CacheService: { getScriptCache: () => ({ get: (k) => (cache.has(k) ? '1' : null), put: (k) => cache.add(k) }) },
   })
-  vm.runInContext(['fsPlain_', 'fsFields_', 'askRecipients_', 'askMessage_', 'deliverAsk_', 'sweepAsks'].map(grab).join('\n'), ctx)
+  vm.runInContext(['fsPlain_', 'fsFields_', 'askRecipients_', 'askMessage_', 'deliverAsk_', 'sweepAsks', 'sweepAsksRun_'].map(grab).join('\n'), ctx)
   return { ctx, store, cache, pushed }
 }
 
