@@ -202,6 +202,8 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .sheet-gaps[hidden]{display:none}
 .sheet-alert{padding:10px 14px;border:1px solid;border-radius:var(--radius-md);font-size:14.5px;line-height:1.4}
 .sheet-alert.ok{border-color:#a9d35f;background:#f0f8e2;color:#37520a}
+.pa-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media (max-width:560px){.pa-grid{grid-template-columns:1fr}}
 .sheet-alert.bad{border-color:#e3a3a3;background:#fdeeee;color:#8c1c1c}
 .sheet-hits{display:flex;flex-direction:column;gap:6px}
 .sheet-hit{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;padding:8px 12px;border:1px solid var(--border-hairline);border-radius:var(--radius-md);background:#fff;text-align:left;cursor:pointer;font-size:14px}
@@ -2629,13 +2631,72 @@ const Sheet = {
   keyOf(r) { return [r['Serial Number'], r['CHS Asset Number'], r['Customer Asset Number'], r['Device/Monitor Name']].join('|'); },
   /** The red (mandatory) columns of the asset list that are empty for this device. */
   missing(row) { const si = row && this.info && this.info[row._sheet]; return si ? si.red.filter(c => !row[c]) : []; },
+  /** Asks the hub (which keeps the pending rows) and waits for its answer. */
+  hubAsk(msg) {
+    return new Promise((resolve, reject) => {
+      if (window.parent === window) { reject(new Error('This only works inside the hub.')); return; }
+      const reqId = uid(), t = setTimeout(() => { this.asks.delete(reqId); reject(new Error('The hub didn’t answer. Try again.')); }, 20000);
+      this.asks.set(reqId, { resolve: (v) => { clearTimeout(t); resolve(v); }, reject: (e) => { clearTimeout(t); reject(e); } });
+      window.parent.postMessage({ ...msg, reqId }, location.origin);
+    });
+  },
+  asks: new Map(),
+  /** The value most devices on a sheet have in a column (e.g. its Site ID), or ''. */
+  commonIn(sheet, col) {
+    const n = {}; for (const r of this.rows) if (r._sheet === sheet && r[col]) n[r[col]] = (n[r[col]] || 0) + 1;
+    return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+  },
+  /** "Not found": the device recorded as a pending row for the customer on the New equipment page (the hub keeps it; nothing is written into the workbook). */
+  async addPending() {
+    const btn = $('#sheetAddPending'); if (btn) btn.disabled = true;
+    const val = (col) => { const i = $$('#dutFields input').find(x => this.colForField(x.dataset.k) === col); return i ? i.value.trim() : ''; };
+    const reportCustomer = this.customer || val('@customer');
+    let who;
+    try { who = await this.hubAsk({ type: 'chs-bench:pending-customers', customer: reportCustomer, file: this.file }); }
+    catch (e) { if (btn) btn.disabled = false; dialog({ title: 'Couldn’t add it', body: `<p>${esc(e.message)}</p>` }); return; }
+    const model = val('Device Model'), like = model ? this.rows.find(r => (r['Device Model'] || '').toLowerCase() === model.toLowerCase()) : null;
+    const sheets = Object.keys(this.info || {}), sheet0 = (this.lastSheet && sheets.includes(this.lastSheet)) ? this.lastSheet : sheets[0] || '';
+    const f = { site: this.commonIn(sheet0, 'Site ID'), type: like?.['Device Type'] || '', manufacturer: val('Manufacturer') || like?.['Manufacturer'] || '', model,
+      description: like?.['Description'] || '', serial: val('Serial Number') || this.result?.q || '', asset: val('CHS Asset Number'), ward: val('Ward/Location') };
+    const box = (k, label) => `<div class="field"><label for="pa_${k}">${label}</label><input class="input" id="pa_${k}" data-pa="${k}" value="${esc(f[k])}"></div>`;
+    const body = `<p class="muted" style="margin-top:0">The device waits on the New equipment page as a pending row, to be pasted under the asset list’s last row (or sent through Simpro Asset Sync). Nothing is written into ${esc(this.file)} from here.</p>
+      <div class="field"><label for="pa_cust">Customer</label><select class="select" id="pa_cust"><option value="">Choose the customer…</option>${who.list.map(c => `<option value="${esc(c.id)}"${c.id === who.pick ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+      ${sheets.length > 1 ? `<div class="field"><label for="pa_sheet">Sheet it goes on</label><select class="select" id="pa_sheet">${sheets.map(n => `<option${n === sheet0 ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select><span class="hint">Fills in the Site ID most devices on that sheet have.</span></div>` : ''}
+      <div class="pa-grid">${box('serial', 'Serial number')}${box('site', 'Site ID')}${box('manufacturer', 'Manufacturer')}${box('model', 'Device model')}${box('type', 'Device type')}${box('description', 'Description')}${box('asset', 'CHS asset number')}${box('ward', 'Ward / location')}</div>`;
+    let siteTouched = false;
+    const res = await dialog({ title: 'Add to the asset list', body, wide: true, focus: who.pick ? '#pa_serial' : '#pa_cust',
+      buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Add as a pending row', value: true }],
+      onOpen: (ov) => {
+        $('#pa_site', ov)?.addEventListener('input', () => { siteTouched = true; });
+        $('#pa_sheet', ov)?.addEventListener('change', (e) => { if (!siteTouched) $('#pa_site', ov).value = this.commonIn(e.target.value, 'Site ID'); });
+      },
+      collect: (ov) => ({ customerId: $('#pa_cust', ov).value, row: Object.fromEntries($$('[data-pa]', ov).map(i => [i.dataset.pa, i.value.trim()])) }) });
+    if (btn) btn.disabled = false;
+    if (!res || !res.value) return;
+    if (!res.data.customerId) { toast('Choose the customer the device belongs to.', 4000); return this.addPending(); }
+    try {
+      const r = await this.hubAsk({ type: 'chs-bench:add-pending', customerId: res.data.customerId, file: this.file, row: res.data.row });
+      log('in', 'SHEET', `Added as a pending row${r.queued ? ' (waiting to go online)' : ''}`);
+      this.result = { kind: 'added', q: this.result?.q || res.data.row.serial, customer: r.customer, queued: !!r.queued }; this.renderAlert();
+      toast(`Added to ${r.customer}’s pending rows`, 4000);
+    } catch (e) { dialog({ title: 'Couldn’t add it', body: `<p>${esc(e.message)}</p>` }); }
+  },
   /** Under the details: whether the device was found in the asset list, and in red what the list is missing for it (nothing is filled in here: only the list itself can hold them). */
   renderAlert() {
     const box = $('#sheetGaps'); if (!box) return;
     const r = this.result, cur = this.cur;
     if (this.state !== 'ready' || !r) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
-    if (r.kind === 'none') { box.innerHTML = `<div class="sheet-alert bad" role="alert"><b>Not found.</b> “${esc(r.q)}” isn’t in ${esc(this.file)}. Check the number; if it is right, the device is not in the asset list yet.</div>`; return; }
+    if (r.kind === 'none') {
+      const add = typeof window !== 'undefined' && window.parent !== window ? `<div style="margin-top:8px"><button type="button" class="btn secondary sm" id="sheetAddPending">Add to the asset list…</button></div>` : '';
+      box.innerHTML = `<div class="sheet-alert bad" role="alert"><b>Not found.</b> “${esc(r.q)}” isn’t in ${esc(this.file)}. Check the number; if it is right, the device is not in the asset list yet.${add}</div>`;
+      $('#sheetAddPending', box)?.addEventListener('click', () => this.addPending());
+      return;
+    }
+    if (r.kind === 'added') {
+      box.innerHTML = `<div class="sheet-alert ok" role="status"><b>Added to the asset list’s pending rows</b> for ${esc(r.customer)}${r.queued ? ' (kept on this laptop until it is online)' : ''}. Someone pastes it under the list’s last row from the <a href="/new-equipment/" target="_top">New equipment</a> page.</div>`;
+      return;
+    }
     if (r.kind === 'many') { box.innerHTML = `<div class="sheet-alert bad" role="alert"><b>${r.n} devices</b> in ${esc(this.file)} have the number “${esc(r.q)}”. A number should belong to one device: check the asset list.</div>`; return; }
     const miss = this.missing(cur);
     box.innerHTML = `<div class="sheet-alert ok" role="status"><b>Found in the asset list</b> (${esc(cur._sheet)}, row ${cur._row}).</div>${miss.length ? `<div class="sheet-alert bad" role="alert"><b>Missing in the asset list:</b> ${miss.map(esc).join(', ')}. These are mandatory (red) there: add them in the asset list.</div>` : ''}`;
@@ -4632,6 +4693,7 @@ window.addEventListener('message', (e) => {
   if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
   const m = e.data; if (!m) return;
   if (m.type === 'chs-bench:shared-list') { Object.assign(SharedTests, { list: Array.isArray(m.list) ? m.list : [], me: m.me || '', admin: !!m.admin, ok: !!m.ok }); if (typeof Records !== 'undefined') Records.renderList(); return; }
+  if (m.type === 'chs-bench:pending-reply') { const p = Sheet.asks.get(m.reqId); Sheet.asks.delete(m.reqId); if (p) (m.error ? p.reject(new Error(m.error)) : p.resolve(m)); return; }
   if (m.type === 'chs-bench:run-data' || m.type === 'chs-bench:deleted') { const p = SharedTests.asks.get(m.reqId); SharedTests.asks.delete(m.reqId); if (p) (m.error ? p.reject(new Error(m.error)) : p.resolve(m)); }
 });
 const Results = {

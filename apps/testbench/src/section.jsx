@@ -25,6 +25,10 @@ import { watchOrders } from './orders-firebase.js'
 import { summaryLine } from './orders.js'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
+import { watchCustomers } from './newequip/customers-firebase.js'
+import { addPendingQueued, listPending } from './newequip/pending-firebase.js'
+import { clashes } from './newequip/pending.js'
+import { matchCustomer, rowFromBench } from './newequip/from-bench.js'
 import './testbench.css'
 
 const BENCH_URL = '/bench-app/index.html'
@@ -38,6 +42,9 @@ export default function TestBenchSection() {
 }
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
+const PENDING_FOR_FILE = 'testbench.pendingCustomer' // { asset list file name: New equipment customer id }, this laptop only
+const rememberedCustomers = () => { try { return JSON.parse(localStorage.getItem(PENDING_FOR_FILE) || '{}') || {} } catch { return {} } }
+const rememberCustomer = (file, id) => { try { localStorage.setItem(PENDING_FOR_FILE, JSON.stringify({ ...rememberedCustomers(), [file]: id })) } catch { /* asked again next time */ } }
 const safe = (fn) => { try { return fn() } catch { return null } }
 const useOnline = () => {
   const [on, setOn] = useState(() => navigator.onLine !== false)
@@ -136,6 +143,12 @@ function TestBench() {
     )
   }, [user])
   useEffect(() => { ordersRef.current = { orders, tests: testsList }; sendOrders() }, [orders, testsList, sendOrders])
+  // The New equipment customers, for a device the bench didn't find in the asset list ("Add to the asset list…": a pending row).
+  const customersRef = useRef({ list: [], error: '' })
+  useEffect(() => {
+    if (!user) { customersRef.current = { list: [], error: '' }; return undefined }
+    return watchCustomers(({ customers }) => { customersRef.current = { list: customers, error: '' } }, (e) => { customersRef.current = { list: [], error: e?.message || 'The customers couldn’t be loaded.' } })
+  }, [user])
 
   // What the bench saves arrives here and is kept.
   useEffect(() => {
@@ -163,6 +176,31 @@ function TestBench() {
         try { await removeTest(m.id); logActivity(null, 'Removed a shared test', { app: 'testbench' }); reply = { ok: true } } catch (err) { reply = { error: err?.code === 'permission-denied' ? 'Only the engineer who shared it, or an admin, can remove it.' : (err?.message || 'Couldn’t remove it.') } }
         toBench({ type: 'chs-bench:deleted', reqId: m.reqId, id: m.id, ...reply })
         return
+      }
+      if (m?.type === 'chs-bench:pending-customers' || m?.type === 'chs-bench:add-pending') {   // a device not in the asset list, added as a pending row
+        const reply = (x) => toBench({ type: 'chs-bench:pending-reply', reqId: m.reqId, ...x })
+        if (!user) return reply({ error: 'Sign in to the hub to add devices to the asset list.' })
+        const { list, error } = customersRef.current
+        if (m.type === 'chs-bench:pending-customers') {
+          if (!list.length) return reply({ error: error || 'There are no New equipment customers yet. Add the customer on the New equipment page first.' })
+          return reply(matchCustomer(list, { customer: m.customer, file: m.file }, rememberedCustomers()))
+        }
+        const c = list.find((x) => String(x.id) === String(m.customerId))
+        if (!c) return reply({ error: 'Choose the customer this device belongs to.' })
+        const { row, errors } = rowFromBench(m.row)
+        if (errors.length) return reply({ error: errors.join(' ') })
+        try {
+          let waiting = []
+          try { waiting = await listPending(c.id) } catch { /* offline: checked again on the New equipment page */ }
+          const clash = clashes(row, [], waiting)
+          if (clash.length) return reply({ error: clash.join(' '), customer: c.name, already: true })
+          const { queued } = await addPendingQueued(c.id, row)
+          if (m.file) rememberCustomer(m.file, c.id)
+          logActivity(null, 'Added a device to a customer’s pending asset rows (from the Test Bench)', { app: 'testbench' })
+          return reply({ ok: true, customer: c.name, queued })
+        } catch (err) {
+          return reply({ error: err?.code === 'permission-denied' ? 'Only the teams that use the Test Bench can add devices.' : (err?.message || 'Couldn’t add it.') })
+        }
       }
       if (m?.type === 'chs-bench:mtr' || m?.type === 'chs-bench:pdf') {   // the bench's answer to a request for an Ansur record or a PDF
         const p = asks.current.get(m.id); asks.current.delete(m.id)
