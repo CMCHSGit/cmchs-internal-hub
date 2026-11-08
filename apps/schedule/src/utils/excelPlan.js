@@ -248,10 +248,26 @@ function planPersonWeek({ person, existing, excelWins }) {
  *  mapping:        from buildMapping
  *  existing:       Map(`${weekStart}_${uid}` → the schedule already in the app)
  *  existingOnCall: Map(weekStart → on-call doc already in the app)
+ *  skipCopiesFrom: the current week's Monday, or null. A week AFTER it whose days for a person are exactly what that person's
+ *                  sheet says in the current week or any week between (a pasted copy) is left out and counted in
+ *                  `stats.copies`, so a week pasted forward in the Excel doesn't become people's entries. Nothing already in
+ *                  the app is touched. (See copiedFrom the other way: the app's own "Copy last week" marks what it copies.)
  * → { schedules, onCall, newPeople, userUpdates, weekRows, conflicts, stats, warnings }
  */
-export function planImport({ weeks, selected, mapping, users, existing, existingOnCall, excelWins = false }) {
-  const plan = { schedules: [], onCall: [], newPeople: new Map(), userUpdates: new Map(), weekRows: [], conflicts: [], stats: { ...emptyCounts(), weeks: 0, people: 0, writes: 0 }, warnings: [] }
+/** A person's five days as one comparable string, '' when nothing is written. */
+export const daysSignature = days => (days.some(d => squash(d)) ? days.map(d => squash(d).toLowerCase()).join('|') : '')
+
+export function planImport({ weeks, selected, mapping, users, existing, existingOnCall, excelWins = false, skipCopiesFrom = null }) {
+  const plan = { schedules: [], onCall: [], newPeople: new Map(), userUpdates: new Map(), weekRows: [], conflicts: [], stats: { ...emptyCounts(), weeks: 0, people: 0, writes: 0, copies: 0 }, warnings: [] }
+  const sigs = new Map() // weekStart → Map(nameKey → days signature), to tell a pasted copy from an entry
+  if (skipCopiesFrom) for (const [w, people] of weeks) sigs.set(w, new Map(people.map(p => [nameKey(p.name), daysSignature(p.days)])))
+  const isCopy = (weekStart, key, p) => {
+    if (!skipCopiesFrom || weekStart <= skipCopiesFrom) return false
+    const sig = daysSignature(p.days)
+    if (!sig) return false
+    for (const [w, m] of sigs) if (w >= skipCopiesFrom && w < weekStart && m.get(key) === sig) return true
+    return false
+  }
   const visibleName = shortNames(users)
   const usersById = new Map(users.map(u => [u.uid, u]))
   const peopleSeen = new Set()
@@ -268,6 +284,7 @@ export function planImport({ weeks, selected, mapping, users, existing, existing
       const uid = target.kind === 'user' ? target.uid : target.id
       if (usedThisWeek.has(uid)) { plan.warnings.push(`Two rows for the same person in the week of ${weekStart} — the first was used.`); continue }
 
+      if (isCopy(weekStart, key, p)) { plan.stats.copies++; continue }
       const id = `${weekStart}_${uid}`
       const item = planPersonWeek({ person: p, existing: existing.get(id), excelWins })
       if (!item) continue

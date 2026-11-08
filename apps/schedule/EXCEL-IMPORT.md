@@ -26,6 +26,13 @@ One direction only: Excel → app. Nothing is written to the Excel.
 - Logs counts only, never names: `%USERPROFILE%\.cmchs\excel-import.log`. Runs that change something
   also add a line to the activity log in Admin settings ("Excel import (automatic)").
 
+- **Pasted copies of a week are left out (9 Nov 2026).** A week after the current one whose days for a person are exactly what the Excel says
+  for that person in the current week, or in any week between (typed in the sheet, or pasted from it), is treated as a copy, not as that person's entry:
+  it isn't brought into the app, and the log says "N future-week entries left out". What the app already holds for those weeks is never changed, and
+  once the week is the current one it imports as usual. This only applies to this automatic import (the Admin → Excel screen imports what you pick);
+  `"ignoreCopiedWeeks": false` in the config turns it off. The app's own "Copy last week" button marks what it copies (`copiedFrom` on the schedule).
+  Code: `daysSignature` and `planImport`'s `skipCopiesFrom` in `src/utils/excelPlan.js`, tests `tests/excelCopyGuard.test.mjs`.
+
 Code: `scripts/excel-import.mjs` (the PC side), `scripts/excelImportJob.mjs` (one run, tested in
 `tests/excelImportJob.test.mjs`), `src/utils/excelImportOps.js` (what gets written — shared with
 Admin → Excel, so both write exactly the same thing).

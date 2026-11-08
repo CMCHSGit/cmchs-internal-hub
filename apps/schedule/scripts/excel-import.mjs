@@ -114,7 +114,9 @@ async function main() {
   const weeksBack = Number(option('--weeks-back') ?? config.weeksBack ?? 2)
   const maxChanges = Number(option('--max-changes') ?? config.maxChanges ?? 150)
   const workbook = await readWorkbook(config.workbook)
-  const result = await runImport({ workbook, store: firestoreStore(config.serviceAccount), fromWeek: getCurrentWeekStart(-weeksBack), apply, maxChanges })
+  const result = await runImport({ workbook, store: firestoreStore(config.serviceAccount), fromWeek: getCurrentWeekStart(-weeksBack), apply, maxChanges,
+    skipCopiesFrom: config.ignoreCopiedWeeks === false ? null : getCurrentWeekStart(0), // a later week pasted from this one isn't imported (EXCEL-IMPORT.md)
+  })
 
   if (result.status === 'too-many') {
     log(`REFUSED — ${result.changes} changes is more than the limit of ${maxChanges}. Nothing written. Check the workbook, then run once by hand with --max-changes ${result.changes} if it's right. (${result.summary})`)

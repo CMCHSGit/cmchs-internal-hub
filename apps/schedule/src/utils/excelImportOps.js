@@ -61,7 +61,7 @@ export function importOps(plan, { editorUid = null, now }) {
  * in the app ({ uid, ...doc }), `existing` / `existingOnCall` what the app holds for those weeks (see planImport).
  * → { plan, selected, left: { ambiguous, maybe, none } } — `left` counts the Excel names left out, by reason.
  */
-export function autoImportPlan({ index, fromWeek, users, existing, existingOnCall }) {
+export function autoImportPlan({ index, fromWeek, users, existing, existingOnCall, skipCopiesFrom = null }) {
   const allWeeks = [...index.weeks.keys()].sort()
   const selected = allWeeks.filter(w => w >= fromWeek)
   const read = w => readPeople(index.weeks.get(w).ws, index.weeks.get(w).layout)
@@ -75,7 +75,7 @@ export function autoImportPlan({ index, fromWeek, users, existing, existingOnCal
     const m = matching.get(p.key)
     if (m && m.status !== 'matched' && mapping.get(p.key)?.kind !== 'user') left[m.status]++
   }
-  const plan = planImport({ weeks, selected, mapping, users, existing, existingOnCall, excelWins: false })
+  const plan = planImport({ weeks, selected, mapping, users, existing, existingOnCall, excelWins: false, skipCopiesFrom })
   return { plan, selected, left }
 }
 
@@ -86,6 +86,7 @@ export function describeRun({ plan, selected, left }) {
   const leftOut = left.ambiguous + left.maybe + left.none
   return [
     `${entries} ${entries === 1 ? 'entry' : 'entries'} brought in for ${s.people} ${s.people === 1 ? 'person' : 'people'} across ${selected.length} ${selected.length === 1 ? 'week' : 'weeks'}`,
+    s.copies ? `${s.copies} future-week ${s.copies === 1 ? 'entry' : 'entries'} left out (the same as an earlier week: a pasted copy)` : null,
     s.cleared ? `${s.cleared} cleared (cleared in the Excel, not edited in the app)` : null,
     `${s.conflict} kept as the app has them (changed in both)`,
     plan.onCall.length ? `${plan.onCall.length} on-call set` : null,

@@ -42,13 +42,13 @@ export async function readWorkbook(file) {
  *   `maxChanges` — nothing written, so a damaged or wrongly-edited file can't overwrite the schedule wholesale).
  *   changes: entries, on-call and Excel names that would change; writes: documents written (or that would be).
  */
-export async function runImport({ workbook, store, fromWeek, apply = false, maxChanges = 150 }) {
+export async function runImport({ workbook, store, fromWeek, apply = false, maxChanges = 150, skipCopiesFrom = null }) {
   const index = indexWorkbook(workbook)
   if (!index.weeks.size) throw new Error('No weekly schedule sheets found in the workbook.')
   const weeks = [...index.weeks.keys()].filter(w => w >= fromWeek).sort()
   const [users, existing, existingOnCall] = await Promise.all([store.loadUsers(), store.loadSchedules(weeks), store.loadOnCall(weeks)])
 
-  const run = autoImportPlan({ index, fromWeek, users, existing, existingOnCall })
+  const run = autoImportPlan({ index, fromWeek, users, existing, existingOnCall, skipCopiesFrom })
   const { plan } = run
   const ops = importOps(plan, { editorUid: null, now: store.now })
   const changes = plan.schedules.filter(s => s.isNew || s.contentChanged).length + plan.onCall.length + plan.userUpdates.size
