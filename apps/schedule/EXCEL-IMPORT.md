@@ -106,6 +106,8 @@ scheduled task runs that).
   Cost: a change made in the app reaches the Excel on the next 5-minute run as before, but a cell the app and Excel
   disagree on and can't be written (a "partial" run) is retried when something changes or every 30 minutes, not every 5.
   `--force` or a dry run always does the whole pass.
+- **OFF since 9 Nov 2026 (`"newWeekSheets": true` in the config turns it on).** It made sheets for weeks people had copied forward or
+  filled in by mistake, up to 6 weeks ahead, and people then filled in the wrong weeks. Sheets already made stay. Below is how it works if it is ever turned back on.
 - **Next week's sheet is made for you (5 Nov 2026).** People fill the schedule in the hub and nobody makes the week's tab by hand any
   more, so when the app has an entry (a day with a place, or the week's comment) for a week the workbook has no sheet for, the
   write-back starts the sheet and fills it in the same run, the way a person would: a **copy of the newest week's sheet** (so the people

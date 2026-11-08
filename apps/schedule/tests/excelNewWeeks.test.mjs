@@ -28,7 +28,7 @@ test('a day with a place, or a comment, is an entry; blanks are not', () => {
 
 test('planNewWeeks: weeks with entries, with no gap before them, never more than the cap', () => {
   const doc = weekStart => ({ weekStart, days: [{ location: 'Cass Office' }] })
-  const base = { newestWeek: '2026-11-02', currentWeek: '2026-11-02' }
+  const base = { newestWeek: '2026-11-02', newWeeks: true, currentWeek: '2026-11-02' }
   assert.deepEqual(planNewWeeks({ ...base, schedules: [] }), [])
   assert.deepEqual(planNewWeeks({ ...base, schedules: [doc('2026-11-09')] }), ['2026-11-09'])
   assert.deepEqual(planNewWeeks({ ...base, schedules: [doc('2026-11-16')] }), ['2026-11-09', '2026-11-16']) // the week between is made too
@@ -90,7 +90,7 @@ test('export starts next week\'s sheet when the app has entries for it, and fill
   const s = store([doc('u1', '2026-11-09', ['Wellington', '', 'Leave', '', ''], 'back Monday'), doc('u2', '2026-11-02', ['Cass Office', 'Cass Office', 'Cass Office', 'Cass Office', 'Cass Office'])])
   let got
   const r = await runExport({
-    workbook: newest(), store: s, fromWeek: '2026-10-26', currentWeek: '2026-11-02', apply: true,
+    workbook: newest(), store: s, fromWeek: '2026-10-26', newWeeks: true, currentWeek: '2026-11-02', apply: true,
     applyEdits: async (edits, newSheets) => { got = { edits, newSheets }; return { state: 'ok', statuses: edits.map(() => 'written') } },
   })
   assert.equal(r.status, 'done')
@@ -109,7 +109,7 @@ test('export starts next week\'s sheet when the app has entries for it, and fill
 
 test('dry run: says which sheets it would start and starts none', async () => {
   const s = store([doc('u1', '2026-11-09', ['Wellington', '', '', '', ''])])
-  const r = await runExport({ workbook: newest(), store: s, fromWeek: '2026-10-26', currentWeek: '2026-11-02', applyEdits: async () => assert.fail('dry run') })
+  const r = await runExport({ workbook: newest(), store: s, fromWeek: '2026-10-26', newWeeks: true, currentWeek: '2026-11-02', applyEdits: async () => assert.fail('dry run') })
   assert.equal(r.status, 'dry-run')
   assert.deepEqual(r.newSheets, [{ name: '9-Nov', weekStart: '2026-11-09' }])
   assert.match(r.summary, /1 new week sheet to start \(9-Nov\)/)
@@ -117,21 +117,29 @@ test('dry run: says which sheets it would start and starts none', async () => {
 })
 
 test('nothing is started when the app has no entries for a later week; a week with a sheet is not started again', async () => {
-  const none = await runExport({ workbook: newest(), store: store([doc('u1', '2026-11-09', ['', '', '', '', ''])]), fromWeek: '2026-10-26', currentWeek: '2026-11-02', apply: true, applyEdits: async () => assert.fail('nothing to do') })
+  const none = await runExport({ workbook: newest(), store: store([doc('u1', '2026-11-09', ['', '', '', '', ''])]), fromWeek: '2026-10-26', newWeeks: true, currentWeek: '2026-11-02', apply: true, applyEdits: async () => assert.fail('nothing to do') })
   assert.equal(none.status, 'nothing')
   const wb = newest()
   const ws = wb.addWorksheet('9-Nov')
   ws.getCell(1, 3).value = new Date(Date.UTC(2026, 10, 9))
   ws.getCell(3, 1).value = 'Engineers'; ws.getCell(3, 2).value = 'Ana Smith'; ws.getCell(3, 3).value = 'AM'; ws.getCell(4, 3).value = 'PM'
-  const again = await runExport({ workbook: wb, store: store([doc('u1', '2026-11-09', ['Wellington', '', '', '', ''])]), fromWeek: '2026-10-26', currentWeek: '2026-11-09', apply: false, applyEdits: async () => assert.fail('dry') })
+  const again = await runExport({ workbook: wb, store: store([doc('u1', '2026-11-09', ['Wellington', '', '', '', ''])]), fromWeek: '2026-10-26', newWeeks: true, currentWeek: '2026-11-09', apply: false, applyEdits: async () => assert.fail('dry') })
   assert.deepEqual(again.newSheets, [])
   assert.ok(again.edits.every(e => e.sheet === '9-Nov' && !e.fresh))
 })
 
 test('a new sheet\'s cells have their own limit and do not count against the ordinary one', async () => {
   const s = store([doc('u1', '2026-11-09', ['A', 'B', 'C', 'D', 'E'])])
-  const base = { workbook: newest(), store: s, fromWeek: '2026-10-26', currentWeek: '2026-11-02', apply: true, maxCells: 4, applyEdits: async edits => ({ state: 'ok', statuses: edits.map(() => 'written') }) }
+  const base = { workbook: newest(), store: s, fromWeek: '2026-10-26', newWeeks: true, currentWeek: '2026-11-02', apply: true, maxCells: 4, applyEdits: async edits => ({ state: 'ok', statuses: edits.map(() => 'written') }) }
   assert.equal((await runExport(base)).status, 'done') // 10 cells onto a new sheet, over maxCells 4
   const capped = await runExport({ ...base, workbook: newest(), maxNewCells: 9, applyEdits: async () => assert.fail('refused') })
   assert.equal(capped.status, 'too-many')
+})
+
+test('starting new week sheets is off unless asked for: nothing is started and the future weeks are not even read', async () => {
+  const s = store([doc('u1', '2026-11-09', ['Wellington', '', '', '', ''])])
+  const r = await runExport({ workbook: newest(), store: s, fromWeek: '2026-10-26', currentWeek: '2026-11-02', apply: true, applyEdits: async () => assert.fail('nothing to write') })
+  assert.equal(r.status, 'nothing')
+  assert.deepEqual(r.newSheets, [])
+  assert.ok(s.calls.weeks.every(w => !w.includes('2026-11-09')))
 })

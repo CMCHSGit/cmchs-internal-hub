@@ -141,6 +141,7 @@ async function main() {
   const workbook = await readWorkbook(config.workbook)
   const result = await runExport({
     workbook, store, fromWeek: getCurrentWeekStart(-weeksBack), apply, maxCells,
+    newWeeks: config.newWeekSheets === true, // off by default: see excelExportJob.mjs
     applyEdits: async (edits, newSheets) => applyInExcel(config.workbook, edits, newSheets),
   })
   // Remember the workbook as the pass left it (its own writes included) and when it began.

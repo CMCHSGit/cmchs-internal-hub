@@ -25,7 +25,7 @@ import { candidateWeeks, planNewWeeks, weekSheetName, blankWeek, newSheetSteps, 
  * week is about 300 cells, onto blank cells, so there is nothing to overwrite); `maxNewCells` is their own, higher limit.
  * applyEdits(edits, newSheets) makes the sheets, then the edits, in one go.
  */
-export async function runExport({ workbook, store, fromWeek, currentWeek = getCurrentWeekStart(0), apply = false, maxCells = 60, maxNewCells = 1500, applyEdits }) {
+export async function runExport({ workbook, store, fromWeek, currentWeek = getCurrentWeekStart(0), apply = false, maxCells = 60, maxNewCells = 1500, newWeeks = false, applyEdits }) {
   const index = indexWorkbook(workbook)
   if (!index.weeks.size) throw new Error('No weekly schedule sheets found in the workbook.')
   const allWeeks = [...index.weeks.keys()].sort()
@@ -35,7 +35,9 @@ export async function runExport({ workbook, store, fromWeek, currentWeek = getCu
   const newestWeek = allWeeks.at(-1)
   const newest = read(newestWeek)
 
-  const ahead = candidateWeeks(newestWeek, currentWeek) // weeks the workbook has no sheet for yet, that could get one
+  // Starting next week's sheet is OFF unless asked for (`newWeeks`, the config's "newWeekSheets": true): it made people's copied
+  // and mistyped weeks into sheets, several weeks ahead, and people filled in the wrong weeks.
+  const ahead = newWeeks ? candidateWeeks(newestWeek, currentWeek) : [] // weeks the workbook has no sheet for yet, that could get one
   const [users, existing] = await Promise.all([store.loadUsers(), store.loadSchedules([...selected, ...ahead])])
   const people = excelPeople(new Map([...weeks].map(([w, v]) => [w, v.people])), newest)
   const matching = matchPeople(people, users)
@@ -45,7 +47,7 @@ export async function runExport({ workbook, store, fromWeek, currentWeek = getCu
   const newSheets = []
   const taken = workbook.worksheets.map(ws => ws.name)
   const source = { layout: index.weeks.get(newestWeek).layout, people: newest }
-  for (const weekStart of planNewWeeks({ newestWeek, currentWeek, schedules: [...existing.values()] })) {
+  for (const weekStart of newWeeks ? planNewWeeks({ newestWeek, currentWeek, schedules: [...existing.values()] }) : []) {
     const name = weekSheetName(weekStart, taken)
     taken.push(name)
     weeks.set(weekStart, blankWeek({ name, source }))
