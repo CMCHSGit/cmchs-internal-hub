@@ -2504,6 +2504,12 @@ const Sheet = {
   },
   forget() { this.handle = null; this.rows = []; this.state = 'none'; DB.delKV('sheetHandle'); DB.delKV('sheetCustomer'); this.render(); },
   async reload() { await this.load(); },
+  /** After the list is read again: look up the serial (or asset number) already in the form, as if it had just been entered. */
+  relookup() {
+    if ($('#dutCard').hidden) return;
+    const i = $$('#dutFields input').find(x => /^(serial|chs asset|customer asset)/i.test(x.dataset.k.trim()) && x.value.trim());
+    if (i) this.onTyped(i);
+  },
   /** Reads the file again (it may have changed). Quiet when it is the automatic load at start-up. */
   async load(quiet) {
     try {
@@ -2511,6 +2517,7 @@ const Sheet = {
       this.rows = this.parse(await XlsxLite.read(await f.arrayBuffer())); this.state = 'ready'; this.error = ''; this.cur = null; this.result = null; this.renderAlert();
       log('in', 'SHEET', `Read ${this.file}: ${this.rows.length} devices`);
       if (!quiet) toast(`${this.rows.length} devices read from ${this.file}`);
+      this.relookup();   // the serial number already in the form is looked up again, without retyping it
     } catch (e) {
       this.state = 'error'; this.error = e.message; this.rows = [];
       log('er', 'SHEET', `Couldn’t read ${this.file}: ${e.message}`);

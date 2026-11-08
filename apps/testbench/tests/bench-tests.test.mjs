@@ -330,3 +330,10 @@ test('the Ansur PVT Report Builder and the Test Bench make the same PDF: the lay
   for (const line of same) { assert.ok(bPdf.includes(line), 'bench has: ' + line.slice(0, 70)); assert.ok(aPdf.includes(line), 'Ansur has: ' + line.slice(0, 70)) }
   assert.ok(!aPdf.includes('Signatures') && !aPdf.includes("'Device under test'"), 'no layout of its own left in the Ansur builder')
 })
+
+test('Read again looks the serial already in the form up again by itself', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /relookup\(\) \{\s*\n\s*if \(\$\('#dutCard'\)\.hidden\) return;/, 'not while a test is running (the form is hidden)')
+  assert.match(html, /Read \$\{this\.file\}: \$\{this\.rows\.length\} devices`\);\s*\n\s*if \(!quiet\) toast\([^\n]*\n\s*this\.relookup\(\);/, 'right after the list is read')
+  assert.ok(html.includes("/^(serial|chs asset|customer asset)/i.test(x.dataset.k.trim()) && x.value.trim()") && html.includes('if (i) this.onTyped(i);'))
+})
