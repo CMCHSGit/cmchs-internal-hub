@@ -873,7 +873,7 @@ const ACTIVITY_HEADERS = ['When (NZ)', 'Who', 'Email', 'Tool', 'What', 'Entry id
 const ACTIVITY_TOOLS = {
   hub: 'Hub', schedule: 'Schedule', oncall: 'On call', maintenance: 'Maintenance', 'service-orders': 'Service orders',
   equipment: 'Equipment', projects: 'Projects', asks: 'Asks', checklists: 'Checklists', admin: 'Admin',
-  settings: 'Settings', 'pdf-editor': 'PDF editor', simprosync: 'SimproSync', ansurtopdf: 'Ansur', testbench: 'Test Bench'
+  settings: 'Settings', 'pdf-editor': 'PDF editor', simprosync: 'SimproSync', simprosearch: 'Simpro Deep Search', ansurtopdf: 'Ansur', testbench: 'Test Bench'
 };
 
 // Lines with fromMs <= at < toMs, oldest first: [{ id, uid, name, email, app, summary, atMs }]. Throws if Firestore refuses.

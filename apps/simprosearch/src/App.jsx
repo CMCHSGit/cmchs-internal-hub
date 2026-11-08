@@ -8,6 +8,7 @@ import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from
 import { GROUPS, MAX_PAGES, PAGE_SIZE, STAGES, VERDICT_TEXT, checkSearch, customerName, loadJob, parseTerms, searchAssets, searchJobs, statusName, whereFound } from './search.js'
 import { htmlToText, splitByTerms } from './html.js'
 import SafeHtml from './SafeHtml.jsx'
+import ExportPanel from './ExportPanel.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
 const jobFromHash = () => (/^#\/job\/(\d+)/.exec(location.hash) || [])[1] || ''
@@ -78,7 +79,7 @@ export default function SimproSearch() {
         groups.includes('assets') ? searchAssets(call, companyId, text).catch(() => ({ assets: [], filters: [], failed: true })) : { assets: [], filters: [] },
       ])
       if (mine !== searchId.current) return
-      setResult({ text, terms: parseTerms(text), jobs: jobsAnswer.jobs, fields: jobsAnswer.fields, assets: assetsAnswer.assets, assetFilters: assetsAnswer.filters })
+      setResult({ id: mine, text, terms: parseTerms(text), jobs: jobsAnswer.jobs, fields: jobsAnswer.fields, assets: assetsAnswer.assets, assetFilters: assetsAnswer.filters })
     } catch (err) {
       if (mine === searchId.current) setNote(err.message || String(err))
     } finally {
@@ -145,7 +146,7 @@ export default function SimproSearch() {
 
             {note && <p className="ds-note" role="status">{note}</p>}
             {busy && <Loading />}
-            {result && <Results result={result} stage={stage} onOpen={open} />}
+            {result && <Results key={result.id} result={result} stage={stage} onOpen={open} call={call} companyId={companyId} />}
 
             <details className="ds-card ds-check">
               <summary>What can Simpro search?</summary>
@@ -159,8 +160,12 @@ export default function SimproSearch() {
   )
 }
 
-function Results({ result, stage, onOpen }) {
+function Results({ result, stage, onOpen, call, companyId }) {
   const { text, terms, jobs, fields, assets, assetFilters } = result
+  // Which jobs go in an export: all of them until some are unticked.
+  const [picked, setPicked] = useState(() => new Set(jobs.map((j) => String(j.job.ID))))
+  const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  const chosen = jobs.filter((j) => picked.has(String(j.job.ID))).map((j) => j.job)
   const refused = fields.filter((f) => f.status !== 'ok')
   const more = fields.filter((f) => f.more)
   return (
@@ -192,8 +197,18 @@ function Results({ result, stage, onOpen }) {
         </div>
       )}
 
+      {jobs.length > 0 && (
+        <>
+          <div className="ds-row ds-pick">
+            <span className="ds-muted">{picked.size} of {jobs.length} ticked for export</span>
+            <button type="button" className="link-btn" onClick={() => setPicked(new Set(jobs.map((j) => String(j.job.ID))))}>Tick all</button>
+            <button type="button" className="link-btn" onClick={() => setPicked(new Set())}>Tick none</button>
+          </div>
+          <ExportPanel call={call} companyId={companyId} jobs={chosen} searched={terms.join(' ')} />
+        </>
+      )}
       <ul className="ds-hits">
-        {jobs.map(({ job, found }) => <Hit key={job.ID} job={job} found={found} terms={terms} onOpen={onOpen} />)}
+        {jobs.map(({ job, found }) => <Hit key={job.ID} job={job} found={found} terms={terms} onOpen={onOpen} checked={picked.has(String(job.ID))} onToggle={() => toggle(String(job.ID))} />)}
       </ul>
       {jobs.length === 0 && assets.length === 0 && <p className="ds-muted">Nothing matched {terms.length > 1 ? 'all of those words together' : `“${text}”`}. Try fewer words, or one distinctive piece such as a serial number.</p>}
     </section>
@@ -204,11 +219,12 @@ function HighlightText({ text, terms }) {
   return splitByTerms(text, terms).map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>))
 }
 
-function Hit({ job, found, terms, onOpen }) {
+function Hit({ job, found, terms, onOpen, checked, onToggle }) {
   const places = whereFound(job, terms)
   return (
     <li className="ds-card ds-hit">
       <div className="ds-hit-head">
+        <input type="checkbox" className="ds-tick" checked={checked} onChange={onToggle} aria-label={`Include job ${job.ID} in the export`} />
         <button type="button" className="ds-hit-title" onClick={() => onOpen(job.ID)}>Job {job.ID}{job.Name ? ` · ${job.Name}` : ''}</button>
         {job.Stage && <Badge tone={stageTone(job.Stage)}>{job.Stage}</Badge>}
         {statusName(job) && <Badge tone="neutral">{statusName(job)}</Badge>}
@@ -299,6 +315,7 @@ function JobView({ call, companyId, id, term: terms, onBack }) {
                 {job.DateIssued && <><div className="overline">Issued</div><div>{String(job.DateIssued).slice(0, 10)}</div></>}
                 {job.DueDate && <><div className="overline">Due</div><div>{String(job.DueDate).slice(0, 10)}</div></>}
               </section>
+              <ExportPanel call={call} companyId={companyId} jobs={[job]} one />
               <p className="ds-muted">Attachments and the job’s change log aren’t shown yet. They need a small addition to the Simpro relay, which waits for your say-so.</p>
             </aside>
           </div>

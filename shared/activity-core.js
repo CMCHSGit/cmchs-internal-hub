@@ -18,6 +18,7 @@ export const APP_LABELS = {
   settings: 'Settings',
   'pdf-editor': 'PDF editor',
   simprosync: 'SimproSync',
+  simprosearch: 'Simpro Deep Search',
   ansurtopdf: 'Ansur',
   testbench: 'Test Bench',
   'new-equipment': 'New equipment testing',

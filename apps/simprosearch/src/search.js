@@ -312,3 +312,26 @@ export async function loadJob(call, companyId, id) {
   const assets = [...new Map(attached.map((a) => { const aid = a.Asset?.ID ?? a.ID; return [aid, { id: aid, name: a.Asset?.Name || a.Name || '', ...(facts.get(aid) || {}) }] })).values()]
   return { job, centres, assets }
 }
+
+/**
+ * Jobs with their whole description and notes, for exporting. A job row from a search already has them when Simpro puts Notes in
+ * a list row; any that don't are read one by one (a few at a time, so Simpro isn't flooded). Read only.
+ *   onProgress(done, total), isCancelled(): called as it goes.   Returns { jobs, failed } (failed: how many could not be read).
+ */
+export async function completeJobs(call, companyId, jobs, { concurrency = 4, onProgress = () => {}, isCancelled = () => false } = {}) {
+  const out = jobs.map((j) => j)
+  const need = out.map((j, i) => [j, i]).filter(([j]) => j.Description === undefined || j.Notes === undefined)
+  let next = 0, done = 0, failed = 0
+  onProgress(0, need.length)
+  const worker = async () => {
+    while (next < need.length && !isCancelled()) {
+      const [job, i] = need[next++]
+      const r = await settle(call, 'GET', `/companies/${companyId}/jobs/${job.ID}`)
+      if (ok(r) && r.data && typeof r.data === 'object') out[i] = { ...job, ...r.data }
+      else failed++
+      onProgress(++done, need.length)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, need.length) }, worker))
+  return { jobs: out, failed, cancelled: isCancelled() }
+}

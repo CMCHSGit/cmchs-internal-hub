@@ -62,3 +62,12 @@
 .ds-table-scroll { overflow-x: auto; margin-bottom: 8px; }
 .ds-rich table { border-collapse: collapse; }
 .ds-rich td, .ds-rich th { border: 1px solid var(--border-subtle); padding: 4px 8px; text-align: left; vertical-align: top; }
+
+/* Export to a file */
+.ds-export { display: flex; flex-direction: column; gap: 10px; }
+.ds-export-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.ds-export-head .ds-h2 { margin: 0; }
+.ds-check-line { display: flex; align-items: center; gap: 8px; min-height: 42px; font: var(--type-body-sm); color: var(--text-strong); cursor: pointer; }
+.ds-check-line input, .ds-tick { width: 18px; height: 18px; accent-color: var(--chs-purple); flex: 0 0 auto; }
+.ds-pick { align-items: center; gap: 14px; }
+.ds-hit-head .ds-tick { align-self: center; }
