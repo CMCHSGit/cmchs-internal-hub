@@ -585,6 +585,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
             <label class="check"><input type="checkbox" data-pref="zeroLead"> Zero the earth-resistance test lead before measuring</label>
             <label class="check" style="margin-top:6px"><input type="checkbox" data-pref="confirmPower"> Ask before applying voltage when running a single test</label>
             <label class="check" style="margin-top:6px"><input type="checkbox" data-pref="chargeAfter"> Power the device from the ESA612 outlet when its electrical tests are done, so it charges (not if a safety test failed)</label>
+            <label class="check" style="margin-top:6px"><input type="checkbox" data-pref="autoSave"> Save a passed test to Saved reports by itself when it finishes (the files chosen beside Save on the summary)</label>
             <span class="hint">Off by default to save clicks: earth resistance measures straight away (results are marked “lead not zeroed”), and Start runs insulation and leakage tests without asking. The auto sequence always asks once before it starts. Also on each test step.</span></div>
           <div id="esaLive" hidden style="margin-top:18px">
             <span class="overline">Mains supply</span>
@@ -733,7 +734,7 @@ function enterToNext(inputs, onLast) {
 }
 /** Bench settings, kept in this browser. */
 const Prefs = {
-  d: { zeroLead: false, confirmPower: false, chargeAfter: true, saveKinds: 'both' },
+  d: { zeroLead: false, confirmPower: false, chargeAfter: true, autoSave: true, saveKinds: 'both' },
   load() { try { Object.assign(this.d, JSON.parse(localStorage.getItem('chsBench.prefs') || '{}')); } catch {} },
   get(k) { return this.d[k]; },
   set(k, v) { this.d[k] = v; try { localStorage.setItem('chsBench.prefs', JSON.stringify(this.d)); } catch {} log('in', 'APP', `Setting changed: ${k} = ${typeof v === 'object' ? JSON.stringify(v) : v}`); },
@@ -3312,7 +3313,15 @@ const Runner = {
     SharedTests.share(run);
     $('#runActive').hidden = true; $('#runSummary').hidden = false;
     this.renderSummary(); window.scrollTo({ top: 0 }); Records.renderList();
+    if (!stopped && run.overall === 'pass') this.autoSave(run);   // not awaited either
     if (!stopped && !Power.on) this.chargeAfterTests();   // not awaited: the summary is already showing
+  },
+  /** A test that finishes with a pass goes into Saved reports by itself (Devices page: "Save a passed test…"), the same as pressing Save.
+      Only inside the hub (Saved reports live there) and once per test: Save again replaces it, since the hub keeps one copy of each kind. */
+  autoSave(run) {
+    if (!Prefs.get('autoSave') || window.parent === window || run.imported || run.autoSaved) return;
+    run.autoSaved = new Date().toISOString();
+    return saveReportFiles(run, 'save');
   },
   /** Show a saved, reopened or imported test on the summary page. */
   open(run) {
@@ -3332,6 +3341,7 @@ const Runner = {
     DB.put('runs', clone({ ...run, template: { ...run.template, steps: run.template.steps.map(s => ({ ...s, images: [] })) } })).catch(() => {});
     log('in', 'RUN', `${left.length} step(s) not done, left out as skipped: ${run.overall.toUpperCase()}`); SharedTests.share(run);
     this.renderSummary(); Records.renderList(); toast(`${left.length} step${left.length === 1 ? '' : 's'} left out as skipped`);
+    if (run.finished && run.overall === 'pass') this.autoSave(run);
   },
   /** Reload test: swap in the latest version of this test's template, keeping every result already recorded.
       Steps are matched by id, then by type and title; checklist answers by item wording (then position, for reworded items).

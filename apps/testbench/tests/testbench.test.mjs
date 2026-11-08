@@ -373,3 +373,16 @@ test('job search looks anywhere in the name, description, notes, site and custom
   const picker = readFileSync(new URL('../src/JobPicker.jsx', import.meta.url), 'utf8')
   assert.ok(picker.includes('jobs.notesSearched') && picker.includes('words from the description or notes'))
 })
+
+test('a passed test saves itself to Saved reports when it finishes (setting on the Devices page, on by default)', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /autoSave: true/, 'on by default')
+  assert.match(html, /data-pref="autoSave"/, 'can be switched off on the Devices page')
+  assert.match(html, /if \(!stopped && run\.overall === 'pass'\) this\.autoSave\(run\)/, 'only a pass, never a stopped test')
+  assert.match(html, /run\.overall === 'pass'\) this\.autoSave\(run\);/, 'also when the steps left are skipped and the test then passes')
+  const body = html.slice(html.indexOf('  autoSave(run) {'), html.indexOf('  open(run) {'))
+  assert.match(body, /window\.parent === window/, 'only inside the hub, where Saved reports are')
+  assert.match(body, /run\.imported/, 'not for imported records')
+  assert.match(body, /run\.autoSaved\) return/, 'once per test')
+  assert.match(body, /saveReportFiles\(run, 'save'\)/, 'the same as pressing Save')
+})
