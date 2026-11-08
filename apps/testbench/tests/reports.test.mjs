@@ -269,3 +269,16 @@ test('saving shows how many are done and how many are left', () => {
   assert.ok(ui.includes('<progress max={progress.total || 1} value={progress.done} />') && ui.includes('{progress.done} of {progress.total}') && ui.includes('left'))
   assert.ok(ui.includes('setProgress({ done: ++n, total: list.length'), 'advances after every file')
 })
+
+test('Remove takes every file of the ticked tests, so a test with only a results file can be removed', async () => {
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('const removable = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.files), [visible, chosen])'), 'all files, not just the included kinds')
+  assert.ok(ui.includes('disabled={busy || !removable.length}') && ui.includes('remove([...removable, ...stale]'), 'the button and the removal use it')
+  // the case from the bug: a test with only a results file, with the default Include (PDF and Ansur record)
+  const { memoryReports, saveReport, groupReports, pickFiles } = await import('../src/reports.js')
+  const store = memoryReports()
+  await saveReport(store, { name: 'FP5-6A036791 - BeneHeart D30 03.11.2026.json', mime: 'application/json', buffer: new ArrayBuffer(100), meta: { customer: 'Waitemata', serial: 'FP5-6A036791', testedAt: '2026-11-03T08:58:00+13:00' } })
+  const groups = groupReports(await store.all())
+  assert.equal(pickFiles(groups, [groups[0].base], ['pdf', 'mtr']).length, 0, 'nothing is included by default, which is why Remove was greyed out')
+  assert.equal(groups.flatMap((g) => g.files).length, 1, 'but the test has a file to remove')
+})

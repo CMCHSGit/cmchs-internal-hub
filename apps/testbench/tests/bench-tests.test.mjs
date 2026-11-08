@@ -72,7 +72,7 @@ test('Save keeps the PDF and Ansur record in Saved reports, Download writes both
   assert.match(reports, /const needPdf = /)
   assert.match(reports, /await makePdf\(g\)/)
   assert.match(reports, /showDirectoryPicker\(\{ id: 'chs-test-bench-save'/, 'Saved reports asks where too (the first time)')
-  assert.match(reports, /remove\(\[\.\.\.files, \.\.\.stale\]/, 'removing a test removes the older copies of it too')
+  assert.match(reports, /remove\(\[\.\.\.removable, \.\.\.stale\]/, 'removing a test removes the older copies of it too')
   assert.match(section, /'chs-bench:build-pdf'/)
 })
 

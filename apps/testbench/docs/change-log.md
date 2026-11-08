@@ -232,3 +232,6 @@ After **Read again** (or any re-read of the asset list), the serial number alrea
 
 ## A refresh in the middle of typing brings you back to the device (09/11/2026)
 While the Device under test form is open, the template picked and everything typed (and the order chosen) is kept on this PC as it is typed (`Draft` in the bench page). When the page opens again, a refresh or a reload for an update, the bench goes back to that template with the details filled in, looks the serial up in the asset list again, and says "Back to where you were". It is dropped when the test starts, when you go back to choose a template, or after twelve hours, and it never replaces a test in progress. If the templates are still loading it tries again after three seconds.
+
+## Remove works on every ticked test (09/11/2026)
+**Remove** was greyed out for a test that only had its results file (the Include choices are PDF and Ansur record by default, so such a test had "no files" and could never be removed, downloaded or not). It now removes every file of the ticked tests whatever Include says, and the confirmation names the tests and the number of files.

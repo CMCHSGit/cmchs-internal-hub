@@ -88,6 +88,8 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   // Ticked tests that have no PDF: made from the results file or the Ansur record, so a download always has the PDF and the Ansur record.
   const needPdf = useMemo(() => (exts.includes('pdf') ? visible.filter((g) => chosen.has(g.base) && !g.files.some((f) => f.ext === 'pdf') && g.files.some((f) => f.ext === 'json' || f.ext === 'mtr')) : []), [visible, chosen, exts])
   // Older copies of the same test saved under another name: removed along with it.
+  // Remove takes every file of the ticked tests, whatever "Include" says: that only chooses what is downloaded or attached (a test with only a results file has nothing in it by default, and could never be removed).
+  const removable = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.files), [visible, chosen])
   const stale = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.stale || []), [visible, chosen])
   const count = files.length + needMtr.length + needPdf.length
   // What goes to a Simpro job is the PDF of each ticked test and nothing else (a PDF is made for a test that has only its results file or Ansur record).
@@ -339,7 +341,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
               <Button variant="secondary" disabled={busy || !count} onClick={() => download()} title={folderName ? 'Saves straight to the folder used last time' : 'Choose the folder to save into'}>{canPickFolder ? (folderName ? `Save to “${folderName}”` : 'Save to a folder…') : count > 1 ? 'Download as zip' : 'Download'}</Button>
               {canPickFolder && folderName && <Button variant="ghost" disabled={busy || !count} onClick={() => download(false, true)} title="Choose a different folder to save into">Other folder…</Button>}
               {canPickFolder && <Button variant="ghost" disabled={busy || !count} onClick={() => download(true)} title="All the ticked files in one zip, with nothing written into a synced folder">Download as zip</Button>}
-              <Button variant="ghost" disabled={busy || !files.length} onClick={() => remove([...files, ...stale], `${files.length} file${files.length === 1 ? '' : 's'}`)}>Remove</Button>
+              <Button variant="ghost" disabled={busy || !removable.length} onClick={() => remove([...removable, ...stale], `${picked} test${picked === 1 ? '' : 's'} (${removable.length + stale.length} file${removable.length + stale.length === 1 ? '' : 's'})`)} title="Clears the ticked tests from this laptop, whatever files are included above">Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
               <span>Attach the PDFs to Simpro job:</span>
