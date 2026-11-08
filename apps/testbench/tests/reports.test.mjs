@@ -273,7 +273,7 @@ test('saving shows how many are done and how many are left', () => {
 test('Remove takes every file of the ticked tests, so a test with only a results file can be removed', async () => {
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('const removable = useMemo(() => visible.filter((g) => chosen.has(g.base)).flatMap((g) => g.files), [visible, chosen])'), 'all files, not just the included kinds')
-  assert.ok(ui.includes('disabled={busy || !removable.length}') && ui.includes('remove([...removable, ...stale]'), 'the button and the removal use it')
+  assert.ok(ui.includes('disabled={busy || !(removable.length || sharedPicked.length)}') && ui.includes('remove([...removable, ...stale]'), 'the button and the removal use it')
   // the case from the bug: a test with only a results file, with the default Include (PDF and Ansur record)
   const { memoryReports, saveReport, groupReports, pickFiles } = await import('../src/reports.js')
   const store = memoryReports()
@@ -298,8 +298,17 @@ test('tests other engineers finished are listed in Saved reports too, unless thi
   assert.equal(nzDmy('2026-11-09T12:30:00Z'), '10.11.2026')
   assert.equal(filt([...group(await store.all()), ...g], { customer: 'Waitemata', text: 'fp5-1' }).length, 1, 'they filter and search like the others')
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
-  assert.ok(ui.includes('sharedGroups(reports, sharedTests)') && ui.includes('onFetchShared(g)') && ui.includes('made when needed') && ui.includes('Tested by {g.sharedBy'), 'listed, fetched when needed, and says who tested it')
+  assert.ok(ui.includes('sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))') && ui.includes('onFetchShared(g)') && ui.includes('made when needed') && ui.includes('Tested by {g.sharedBy'), 'listed, fetched when needed, and says who tested it')
   assert.match(ui, /for \(const g of sharedPicked\) \{ try \{ const json = await onFetchShared\(g\); made\.push\(await makePdf/, 'attaching sends their PDFs too')
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.ok(section.includes('sharedTests={testsList} onFetchShared={fetchShared}') && section.includes("format: 'chs-test-bench-results'") && section.includes('loadTest(g.sharedId)'))
+})
+
+test('a test someone shared can be removed from this list (hidden on this laptop only), and removing a test here hides its shared copy so it does not come back', () => {
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes("const HIDDEN_KEY = 'chsBench.hiddenShared'") && ui.includes('sharedTests.filter((t) => !hidden.has(t.id))'), 'hidden ids are kept on this laptop and left out of the list')
+  assert.ok(ui.includes('disabled={busy || !(removable.length || sharedPicked.length)}') && ui.includes('stay under Previous tests and in Orders'), 'Remove works on shared tests, and says they are only hidden')
+  assert.ok(ui.includes('sharedTests.filter((t) => started.has(t.started)).map((t) => t.id)'), 'removing a test that was also shared hides the shared copy')
+  assert.ok(ui.includes('again</button>') && ui.includes('setHidden(new Set()); putHidden(new Set())'), 'and they can be shown again')
+  assert.ok(!ui.includes('removeTest') && !ui.includes('deleteDoc'), 'nothing is deleted from the shared tests')
 })

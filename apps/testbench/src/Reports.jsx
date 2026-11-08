@@ -34,6 +34,11 @@ async function chooseFolder(change) {
   if (!h) { h = await window.showDirectoryPicker({ id: 'chs-test-bench-save', mode: 'readwrite', startIn: 'documents' }); putFolder(h) }
   return h
 }
+/* Tests other engineers shared that this person has cleared from their list: hidden here only, on this laptop (the shared test stays for everyone,
+   under Previous tests and in Orders). Removing a test from here also hides its shared copy, or it would simply come back. */
+const HIDDEN_KEY = 'chsBench.hiddenShared'
+const getHidden = () => { try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')) } catch { return new Set() } }
+const putHidden = (set) => { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set].slice(-3000))) } catch { /* private mode: they come back next time */ } }
 const KINDS = [['pdf', 'Reports (PDF)'], ['json', 'Results files'], ['mtr', 'Ansur records']]
 const kb = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB')
 const timeOf = (g) => new Intl.DateTimeFormat('en-NZ', { hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.testedAt || g.savedAt))
@@ -76,7 +81,9 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   useEffect(() => { let live = true; getFolder().then((h) => { if (live && h) setFolderName(h.name) }); return () => { live = false } }, [])
 
   // This laptop's own files, and the tests other engineers have finished that it has no files for yet (made when downloaded or attached).
-  const groups = useMemo(() => [...groupReports(reports), ...sharedGroups(reports, sharedTests)].sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [reports, sharedTests])
+  const [hidden, setHidden] = useState(getHidden)
+  const hiddenCount = useMemo(() => sharedGroups(reports, sharedTests.filter((t) => hidden.has(t.id))).length, [reports, sharedTests, hidden])
+  const groups = useMemo(() => [...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))].sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [reports, sharedTests, hidden])
   const customers = useMemo(() => customersIn(groups), [groups])
   const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
@@ -188,9 +195,13 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
     } catch (e) { setNote({ text: 'No Ansur record: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
-  async function remove(list, label) {
-    if (!list.length || !window.confirm(`Remove ${label} from this laptop? Reports already attached to Simpro stay there; this only clears them from this list.`)) return
-    await onDelete(list.map((f) => f.id))
+  async function remove(list, label, shared = []) {
+    if (!(list.length || shared.length) || !window.confirm(`Remove ${label} from this laptop? Reports already attached to Simpro stay there${shared.length ? '; tests other engineers shared are only hidden from this list (they stay under Previous tests and in Orders)' : ''}; this only clears them from this list.`)) return
+    const started = new Set(list.map((f) => f.meta && f.meta.testedAt).filter(Boolean))
+    if (list.length) await onDelete(list.map((f) => f.id))
+    // Their shared copies are hidden too, or they would just be listed again as "made when needed".
+    const ids = new Set([...shared.map((g) => g.sharedId), ...sharedTests.filter((t) => started.has(t.started)).map((t) => t.id)])
+    if (ids.size) { const n = new Set([...hidden, ...ids]); setHidden(n); putHidden(n) }
     setChosen(new Set())
   }
   const sentFiles = () => groups.flatMap((g) => g.files).filter((f) => f.sent.length)
@@ -349,7 +360,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
               <Button variant="secondary" disabled={busy || !count} onClick={() => download()} title={folderName ? 'Saves straight to the folder used last time' : 'Choose the folder to save into'}>{canPickFolder ? (folderName ? `Save to “${folderName}”` : 'Save to a folder…') : count > 1 ? 'Download as zip' : 'Download'}</Button>
               {canPickFolder && folderName && <Button variant="ghost" disabled={busy || !count} onClick={() => download(false, true)} title="Choose a different folder to save into">Other folder…</Button>}
               {canPickFolder && <Button variant="ghost" disabled={busy || !count} onClick={() => download(true)} title="All the ticked files in one zip, with nothing written into a synced folder">Download as zip</Button>}
-              <Button variant="ghost" disabled={busy || !removable.length} onClick={() => remove([...removable, ...stale], `${picked} test${picked === 1 ? '' : 's'} (${removable.length + stale.length} file${removable.length + stale.length === 1 ? '' : 's'})`)} title="Clears the ticked tests from this laptop, whatever files are included above">Remove</Button>
+              <Button variant="ghost" disabled={busy || !(removable.length || sharedPicked.length)} onClick={() => remove([...removable, ...stale], `${picked} test${picked === 1 ? '' : 's'}${removable.length + stale.length ? ` (${removable.length + stale.length} file${removable.length + stale.length === 1 ? '' : 's'})` : ''}`, sharedPicked)} title="Clears the ticked tests from this laptop, whatever files are included above. Tests other engineers shared are only hidden from this list.">Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
               <span>Attach the PDFs to Simpro job:</span>
@@ -365,6 +376,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
             {note.text && <p className={`tb-note tb-note-${note.tone}`} role="status">{note.text}</p>}
             {sim.access && <Alert tone="warning" title="Simpro isn’t switched on for you">{sim.access} Ask an admin to turn on Simpro access for you in Settings → People and access. Files you queue wait in the outbox.</Alert>}
             {!user && <Alert tone="warning" title="Sign in to send">Sign in to the hub (while online) to send files to Simpro.</Alert>}
+            {hiddenCount > 0 && <button type="button" className="tb-link" onClick={() => { setHidden(new Set()); putHidden(new Set()) }}>Show the {hiddenCount} shared test{hiddenCount === 1 ? '' : 's'} you removed again</button>}
             {sentFiles().length > 0 && <button type="button" className="tb-link" onClick={() => remove(sentFiles(), `the ${sentFiles().length} files already sent`)}>Clear out the files already sent to Simpro</button>}
           </div>
         </>
