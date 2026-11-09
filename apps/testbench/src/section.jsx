@@ -16,13 +16,14 @@ import { auth } from '../../schedule/src/firebase.js'
 import { Badge, Button } from '../../../shared/ui/index.jsx'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
-import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, listCompanies, makeCall } from './simpro-api.js'
+import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, customerOf, getJob, listCompanies, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
 import { groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
-import { watchOrders } from './orders-firebase.js'
-import { summaryLine } from './orders.js'
+import { saveOrder, watchOrders } from './orders-firebase.js'
+import { jobClosesOrder, jobNumber, summaryLine } from './orders.js'
+import { splitSerials } from './bench-tests.js'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
 import { handoffUrl, idbHandoff, putHandoff } from './newequip/handoff.js'
@@ -363,6 +364,28 @@ function TestBench() {
   }, [])
 
   const sim = { call, companies, companyId, setCompanyId, access }
+
+  // An order closes by itself once its Simpro job is marked Complete (or Archived): each open order's job is looked at once each time
+  // the hub opens with Simpro access, and again straight after its stage is changed from Saved reports (onJobUpdated).
+  const checkedJobs = useRef(new Set())
+  const closeDoneOrders = useCallback(async (list, again = false) => {
+    for (const o of list.slice(0, 40)) {
+      if (o.status === 'closed' || (!again && checkedJobs.current.has(o.id))) continue
+      checkedJobs.current.add(o.id)
+      const id = jobNumber(o.number); if (!/^\d+$/.test(id)) continue
+      let job = null
+      try { job = await getJob(call, companyId, id) } catch { continue }
+      if (!jobClosesOrder(o, job, job ? customerOf(job) : '')) continue
+      try {
+        await saveOrder({ ...o, status: 'closed', closedAt: Date.now(), closedBy: who.current.email }, who.current)
+        logActivity(null, `Closed a Test Bench order (its Simpro job is ${String(job.Stage).toLowerCase()})`, { app: 'testbench' })
+      } catch { /* not allowed or offline: it stays open, and is looked at again next time */ }
+    }
+  }, [call, companyId])
+  useEffect(() => {
+    if (!online || !user || access || !companies.length) return
+    closeDoneOrders(orders.filter((o) => o.status !== 'closed'))
+  }, [orders, online, user, access, companies, closeDoneOrders])
   const tests = useMemo(() => groupReports(reports), [reports])
   const unsent = tests.filter((g) => g.unsent).length
   // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
@@ -401,12 +424,13 @@ function TestBench() {
       {tab === 'orders' && (
         <Orders
           orders={orders} ordersError={ordersError} tests={testsList} who={who.current} user={user} online={online} sim={sim}
-          onReview={(order, p) => { setOnlySerials(p.devices.map((d) => d.serial).filter(Boolean)); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); setTab('reports') }}
+          onReview={(order, p) => { setOnlySerials(p.devices.flatMap((d) => splitSerials(d.serial))); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); setTab('reports') }}
         />
       )}
       {tab === 'reports' && (
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
+          onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
           onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
           sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}

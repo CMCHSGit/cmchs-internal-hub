@@ -122,3 +122,18 @@ export function orderProblem(o) {
   if (!expectedTotal(o.expected)) return 'Enter how many of each model are to be tested, e.g. 15 D30, 2 D60.'
   return ''
 }
+
+/** The Simpro job stages that mean the job is finished, so its order closes by itself. */
+export const DONE_STAGES = ['Complete', 'Archived']
+/**
+ * Whether this Simpro job (as getJob returns it) closes this open order: it is the order's job number, its stage is Complete or Archived,
+ * and its customer agrees with the order's (a job of that number in another Simpro company is not this order's job). `jobCustomer` is
+ * simpro-api's customerOf(job).
+ */
+export function jobClosesOrder(order, job, jobCustomer = '') {
+  if (!order || order.status === 'closed' || !job) return false
+  if (String(job.ID ?? '') !== jobNumber(order.number)) return false
+  if (!DONE_STAGES.includes(job.Stage)) return false
+  if (!norm(jobCustomer) || !norm(order.customer)) return true
+  return sameCustomer(order.customer, jobCustomer) || norm(order.jobLabel).includes(norm(jobCustomer))
+}

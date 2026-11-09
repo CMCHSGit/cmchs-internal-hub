@@ -215,6 +215,8 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   sheet) they are listed in red; nothing is typed in or written back here (the bench only reads the workbook; `XlsxLite.write` is kept but
   unused). The customer is the file name, changeable on the bar; the browser remembers the file and **Read again** picks up edits. The mapping
   is `Sheet.colForField` in `apps/testbench/bench/index.html`.
+- **Orders close themselves** when their Simpro job is marked **Complete** (or Archived), in Simpro or from Saved reports → Update the
+  job: the hub looks at each open order's job when it opens with Simpro access. **Close order** / **Reopen** still work by hand.
 - **Other devices in this test** (start screen, under the device's details): a set tested together, such as a monitor with its dock
   and handle, gets **one report**. **+ Another device in this test** adds a line (serial number, model, asset #); each is looked up in
   the asset list by itself (Found / Not found, with **Add to the asset list…** inside the hub). They are kept on the test (`run.devices`),

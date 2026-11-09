@@ -269,3 +269,11 @@ So a model or device type is spelt the way the asset list already spells it:
   fills in its device type, description and manufacturer where those are still empty (`choicesFor`, `fillFromModel` in `pending.js`).
 - The start screen's **Model** box (and the other devices' Model boxes) drops down the template's models, then the asset list's.
 
+## An order closes when its Simpro job is Complete (10/11/2026)
+Orders only closed when someone pressed **Close order**. Now the hub closes an open order by itself once its Simpro job's stage is
+**Complete** (or Archived): each open order's job is looked up once each time the hub opens with Simpro access (online, signed in), and
+again straight after the job's stage is changed from Saved reports → Update the job. Only the order's own job closes it: the same job
+number in the Simpro company chosen, and a customer that agrees with the order's (`jobClosesOrder` in `src/orders.js`). It is recorded
+as closed by whoever's hub noticed, with one activity line; **Reopen** still works. Also fixed: **Review and attach PDFs** on an order
+now finds a set's report by any of its serials.
+

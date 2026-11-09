@@ -61,7 +61,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ reports, fresh, sim, onJobUpdated, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -209,6 +209,7 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
           upd = await updateJob(sim.call, { companyId: sim.companyId, jobId: job.id, notes, stage, statusId })
           if (upd.done.length) logActivity(null, `Updated a Simpro job from the Test Bench (${upd.done.join(', ')})`, { app: 'testbench' })
           if (!upd.failed.length) { setNotes(''); setStage(''); setStatusId(''); getJob(sim.call, sim.companyId, job.id).then(setJobInfo).catch(() => {}) }
+          if (upd.done.includes('stage') && onJobUpdated) onJobUpdated(job.id)   // marked Complete: its order closes
         }
       }
       const locked = upd && upd.failed.some((f) => / 422\b/.test(f) && !/already|exist|duplicate|unique/i.test(f)) ? ' If the job is open in Simpro, close it and try again.' : ''
