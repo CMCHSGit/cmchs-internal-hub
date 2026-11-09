@@ -28,7 +28,8 @@ links to them under "Until this page does it all". Add steps here one at a time;
 3. **Pending rows** — assets recorded while testing that aren't in the workbook yet (Firestore `pendingAssets`). Add from the form here
    (site, manufacturer, ward, service, job carry over to the next one), or from the bench's **Not found → Add to the asset list…**
    (`from-bench.js`, handled in `../section.jsx`). Out as **Copy rows for the workbook** or a row's own **Copy** (tab-separated, in the
-   chosen sheet's own column order, to paste under the last row), **Download .csv**, or **Send to Simpro Asset Sync**. A serial already on the list or already pending is refused.
+   chosen sheet's own column order, to paste under the last row), **Download .csv**, or **Send to Simpro Asset Sync**. A serial already on the list or already pending is refused. **Edit** on a row opens the same form filled in and corrects it in
+   place (keeps its place, who recorded it and when; stamps `editedBy`/`editedAt`); an unchanged serial never clashes.
 4. **Simpro** (admins or `simproAccess`) — **Preview this list in Simpro** hands the workbook (or the pending rows as .csv) to Asset
    Sync. Nothing changes in Simpro until someone presses **Apply** there.
 5. **Test reports** — zip of the PDFs saved on this PC for the list's units, and **Attach to a Simpro job…** (opens the bench's Saved
@@ -44,7 +45,7 @@ links to them under "Until this page does it all". Add steps here one at a time;
 | `assetlist.js` | Pure: workbook → units, using **Asset Sync's own reader and rules** (`apps/simprosync/reader.js`, `core.js`) so both tools agree on what a row is. `benchByUnit`, `reportsByUnit`, `summary`, `filterUnits`, `duplicateSerials`. |
 | `graph.js` / `graph-auth.js` | Graph read via the shares API (`shareId`, `fetchWorkbook`, 25 MB max, `GraphError` codes). Token: `reauthenticateWithPopup` asking `Files.Read.All`, **memory only**, ~50 min, from a click. |
 | `filehandle.js` | Remembered file handles per customer, IndexedDB `chs-newequip-files`, read permission only. |
-| `Pending.jsx` / `pending.js` / `pending-firebase.js` | Pending rows UI; pure `FIELDS` (key, heading, other names, loose match), `cleanPending`, `clashes`, `mapHeaders`, `toTsv`, `toCsv` (formula-safe), `testLink`, `missingSite`; Firestore watch/add/remove, `addPendingQueued` for offline laptops. |
+| `Pending.jsx` / `pending.js` / `pending-firebase.js` | Pending rows UI; pure `FIELDS` (key, heading, other names, loose match), `cleanPending`, `clashes`, `mapHeaders`, `toTsv`, `toCsv` (formula-safe), `testLink`, `missingSite`; `editClashes`, `changedFields`; Firestore watch/add/edit/remove, `addPendingQueued` for offline laptops. |
 | `from-bench.js` | Pure: which New equipment customer a bench request means (`matchCustomer`: remembered file → exact name → one fuzzy match → ask), `fileStem`, `rowFromBench`. |
 | `handoff.js` / `toSimpro.js` | One file left in IndexedDB `chs-newequip-handoff`, taken **once**, **10 minutes** max, by `/simprosync/?from=new-equipment` (`apps/simprosync/app.js` imports `takeHandoff`/`wantsHandoff`). |
 | `newequip.css` | `ne-*` classes. |
@@ -55,8 +56,9 @@ Shared with the bench section: `../reports.js`, `../zip.js`, `../bench-tests-fir
 
 - **Firestore**: `projectSettings/main` (customers — **owned by the project tracker**; change its model in `apps/projects/src/customers.js`,
   not here) and `pendingAssets` (`{ customerId, row, by, createdAt }`, `row` only the `FIELDS` keys; the Bench's teams read/add/delete,
-  never edit; `by` must be your own email). Rules in `rules/firestore.rules` (`isPendingAsset`). **The `pendingAssets` rules were not yet
-  published** as of 9 Nov 2026 (`rules/README.md`): until they are, adding a row is refused and the page says so. Publishing = paste the
+  edit only `row` + `editedBy`/`editedAt`; `by` and `editedBy` must be your own email). Rules in `rules/firestore.rules` (`isPendingAsset`). **The `pendingAssets` rules (create, and
+  edit since 9 Nov 2026) were not yet published** as of 9 Nov 2026 (`rules/README.md`): until they are, adding or editing a row is refused
+  and the page says so. Rules tests: `rules/tests/pending-rules.test.mjs` (emulator, needs Java). Publishing = paste the
   whole file into the Firebase console; ask first. If you add a field to `FIELDS`, change `isPendingAsset`'s key list too, and say it
   needs publishing.
 - **This PC**: localStorage `newEquip.customer`; IndexedDB `chs-newequip-files` (file handles), `chs-newequip-handoff` (the one hand-off);

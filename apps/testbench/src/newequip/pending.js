@@ -49,6 +49,18 @@ export function clashes(row, units = [], pending = []) {
   return out
 }
 
+/**
+ * What stops an edit being saved: [] when fine. The row's own entry (`original`, with its `id`) isn't a clash with itself; with the serial
+ * number unchanged nothing clashes (it may be in the workbook by now, and the other details still want correcting).
+ */
+export function editClashes(row, original, units = [], pending = []) {
+  if (serialKey(row.serial) === serialKey(original?.serial)) return []
+  return clashes(row, units, pending.filter((p) => p.id !== original?.id))
+}
+
+/** The fields of a row that an edit changed, by their usual heading (for the confirmation, never the values). */
+export const changedFields = (before, after) => FIELDS.filter(([k]) => String(before?.[k] ?? '') !== String(after?.[k] ?? '')).map(([, label]) => label)
+
 /** The pending row as stored (from a form): the fields only. */
 export const rowOf = (doc) => { const r = {}; for (const k of FIELD_KEYS) r[k] = String(doc?.[k] ?? ''); return r }
 

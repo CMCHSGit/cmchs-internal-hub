@@ -1,7 +1,7 @@
 // npm test --prefix apps/testbench — assets recorded on the new-equipment page (src/newequip/pending.js). Invented serials only.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { FIELD_KEYS, cleanPending, clashes, rowOf, mapHeaders, toTsv, toCsv, testLink, MAX_VALUE } from '../src/newequip/pending.js'
+import { FIELD_KEYS, cleanPending, clashes, editClashes, changedFields, rowOf, mapHeaders, toTsv, toCsv, testLink, MAX_VALUE } from '../src/newequip/pending.js'
 import { deviceFromSearch } from '../src/device-link.js'
 
 const row = (over = {}) => ({ ...cleanPending({ serial: 'EX3-000519', model: 'D30', manufacturer: 'Mindray', site: '2350', ward: 'ED', asset: 'CHS-0415', ...over }).row })
@@ -86,4 +86,18 @@ test('Asset Sync is opened with the hand-over address, and recognises it', () =>
 test('pending rows with no Site ID cannot be placed in Simpro: they are named', () => {
   assert.deepEqual(missingSite([row(), row({ serial: 'B', site: '' }), row({ serial: 'C', site: ' ' })]), ['B', 'C'])
   assert.deepEqual(missingSite([row()]), [])
+})
+
+test('correcting a recorded asset: it never clashes with itself, and an unchanged serial never clashes', () => {
+  const me = { id: 'a', ...row() }, other = { id: 'b', ...row({ serial: 'EX3-000777' }) }
+  assert.deepEqual(editClashes(row({ model: 'D3' }), me, [], [me, other]), [])
+  assert.deepEqual(editClashes(row({ serial: 'ex3-000519 ' }), me, [{ key: 'EX3-000519' }], [me]), [], 'same serial, even if it is in the workbook by now')
+  assert.match(editClashes(row({ serial: 'EX3-000777' }), me, [], [me, other])[0], /already waiting/)
+  assert.match(editClashes(row({ serial: 'EX3-000888' }), me, [{ key: 'EX3-000888' }], [me])[0], /already on the asset list/)
+  assert.deepEqual(editClashes(row({ serial: 'EX3-000999' }), me, [], [me, other]), [])
+})
+
+test('an edit names the fields it changed, by heading', () => {
+  assert.deepEqual(changedFields(row(), row()), [])
+  assert.deepEqual(changedFields(row(), row({ model: 'D3', ward: 'ICU' })), ['Device Model', 'Ward/Location'])
 })

@@ -1,6 +1,6 @@
-/* The Firestore side of the pending assets (see pending.js). Rules: rules/firestore.rules, `pendingAssets`: the Bench's teams read, add
-   and remove; nobody adds one under another person's email. One query by customer (a single equality: no index needed). */
-import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
+/* The Firestore side of the pending assets (see pending.js). Rules: rules/firestore.rules, `pendingAssets`: the Bench's teams read, add,
+   correct and remove; nobody adds or edits one under another person's email. One query by customer (a single equality: no index needed). */
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { auth } from '../../../../shared/firebase.js'
 import { firestore } from '../../../../shared/firestore.js'
 import { rowOf } from './pending.js'
@@ -38,6 +38,12 @@ export async function addPendingQueued(customerId, row, waitMs = 5000) {
   write.catch(() => {}) // a refusal after the wait has nobody left to tell
   const queued = await Promise.race([write.then(() => false), new Promise((r) => setTimeout(() => r(true), waitMs))])
   return { id: ref.id, queued }
+}
+
+/** Corrects a recorded asset's details (`row` from cleanPending, the whole row). The customer, who recorded it and when stay as they were. */
+export function editPending(id, row) {
+  const editedBy = (auth?.currentUser?.email || '').toLowerCase()
+  return updateDoc(doc(firestore(), 'pendingAssets', String(id)), { row, editedBy, editedAt: serverTimestamp() })
 }
 
 export const removePending = (id) => deleteDoc(doc(firestore(), 'pendingAssets', String(id)))

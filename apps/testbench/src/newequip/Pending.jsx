@@ -2,12 +2,12 @@
    asset-list template), test it on the bench straight away, and when the day's done copy the rows to paste under the asset list's last
    row (in that sheet's own column order) or download them as a .csv, then clear them. NOTHING is written to the workbook or to Simpro. */
 import { useEffect, useMemo, useState } from 'react'
-import { ClipboardCopy, Download, FlaskConical, Plus, Trash2 } from 'lucide-react'
+import { ClipboardCopy, Download, FlaskConical, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Toast, useConfirm, useToast } from '../../../../shared/ui/index.jsx'
 import { logActivity } from '../../../../shared/activity.js'
-import { CHOICE_KEYS, FIELDS, choicesFor, clashes, fillFromModel, cleanPending, missingSite, testLink, toCsv, toTsv } from './pending.js'
+import { CHOICE_KEYS, FIELDS, choicesFor, clashes, editClashes, changedFields, fillFromModel, cleanPending, missingSite, testLink, toCsv, toTsv } from './pending.js'
 import { sendToSimpro } from './toSimpro.js'
-import { addPending, removePending, watchPending } from './pending-firebase.js'
+import { addPending, editPending, removePending, watchPending } from './pending-firebase.js'
 
 const PLACEHOLDER = { installed: 'd/mm/yyyy', manufactured: 'e.g. 3/2026', warranty: 'd/mm/yyyy', site: 'Simpro site ID' }
 const KEEP = ['site', 'manufacturer', 'ward', 'service', 'job'] // carried to the next asset: the same visit, usually the same ward and job
@@ -17,7 +17,7 @@ const saveBlob = (name, blob) => { const a = document.createElement('a'); a.href
 export default function Pending({ customer, units, sheets, canSimpro }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
-  const [adding, setAdding] = useState(null) // null | { start: form }
+  const [adding, setAdding] = useState(null) // null | { start: form } | { start: form, original: the row being corrected }
   const [sheet, setSheet] = useState('')
   const [toast, say] = useToast()
   const [confirmDialog, confirm] = useConfirm()
@@ -77,6 +77,7 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
                     <td>{r.site || '–'}</td><td>{r.ward || '–'}</td>
                     <td className="ne-actions">
                       <Button variant="ghost" size="sm" aria-label={`Copy ${r.serial} for the workbook`} title="Copy this row to paste into the asset list" iconLeft={<ClipboardCopy size={14} aria-hidden="true" />} onClick={() => copy(r)}>Copy</Button>
+                      <Button variant="ghost" size="sm" aria-label={`Edit ${r.serial}`} iconLeft={<Pencil size={14} aria-hidden="true" />} onClick={() => setAdding({ start: { ...r }, original: r })}>Edit</Button>
                       <a className="btn btn-sm btn-secondary" href={testLink(r, customer.name)}><FlaskConical size={14} aria-hidden="true" /> Test this device</a>
                       <Button variant="ghost" size="sm" aria-label={`Remove ${r.serial}`} iconLeft={<Trash2 size={14} aria-hidden="true" />} onClick={() => remove(r)}>Remove</Button>
                     </td>
@@ -102,15 +103,16 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
       )}
       {list.length === 0 && !error && rows && <p className="ne-note">Nothing waiting.</p>}
 
-      {adding && <RecordForm customer={customer} units={units} pending={list} start={adding.start} onClose={() => setAdding(null)}
-        onSaved={(more) => { say('Recorded'); if (!more) setAdding(null) }} />}
+      {adding && <RecordForm key={adding.original?.id || 'new'} customer={customer} units={units} pending={list} start={adding.start} original={adding.original} onClose={() => setAdding(null)}
+        onSaved={(more, msg) => { say(msg || 'Recorded'); if (!more) setAdding(null) }} />}
       {confirmDialog}
       <Toast message={toast} />
     </section>
   )
 }
 
-function RecordForm({ customer, units, pending, start, onClose, onSaved }) {
+/** Record a new asset, or (with `original`) correct one already recorded: the same form, filled in with its details. */
+function RecordForm({ customer, units, pending, start, original, onClose, onSaved }) {
   const [f, setF] = useState(start)
   const [errors, setErrors] = useState([])
   const [busy, setBusy] = useState(false)
@@ -119,9 +121,24 @@ function RecordForm({ customer, units, pending, start, onClose, onSaved }) {
 
   const save = async (then) => {
     const { row, errors: errs } = cleanPending(f)
-    const all = [...errs, ...clashes(row, units, pending)]
+    const all = [...errs, ...(original ? editClashes(row, original, units, pending) : clashes(row, units, pending))]
     setErrors(all)
     if (all.length) return
+    if (original) {
+      const changed = changedFields(original, row)
+      if (!changed.length) { if (then === 'test') location.href = testLink(row, customer.name); else onClose(); return }
+      setBusy(true)
+      try {
+        await editPending(original.id, row)
+        logActivity(null, `Corrected a recorded asset (${changed.length} field${changed.length === 1 ? '' : 's'})`, { app: 'new-equipment' })
+        if (then === 'test') { location.href = testLink(row, customer.name); return }
+        onSaved(false, 'Saved')
+      } catch (err) {
+        setErrors([err?.code === 'permission-denied' ? 'The database refused the change: the rules that allow editing recorded assets may not be published yet (rules/README.md), or this account can’t use the Test Bench.' : (err?.message || 'Couldn’t save it.')])
+        setBusy(false)
+      }
+      return
+    }
     setBusy(true)
     try {
       await addPending(customer.id, row)
@@ -136,7 +153,7 @@ function RecordForm({ customer, units, pending, start, onClose, onSaved }) {
   }
 
   return (
-    <Dialog title="Record an asset" description={`${customer.name}. Only the serial number is needed; fill in what you have.`} onClose={onClose} width={680}>
+    <Dialog title={original ? `Edit ${original.serial}` : 'Record an asset'} description={original ? `${customer.name}. Correct what was recorded; it keeps its place in the list.` : `${customer.name}. Only the serial number is needed; fill in what you have.`} onClose={onClose} width={680}>
       <form className="ne-form" onSubmit={(e) => { e.preventDefault(); save('close') }}>
         <div className="ne-grid2">
           {FIELDS.map(([k, label]) => (
@@ -146,10 +163,10 @@ function RecordForm({ customer, units, pending, start, onClose, onSaved }) {
           ))}
         </div>
         {CHOICE_KEYS.map((k) => choices[k].length > 0 && <datalist key={k} id={`ne-choices-${k}`}>{choices[k].map((v) => <option key={v} value={v} />)}</datalist>)}
-        {errors.length > 0 && <Alert tone="critical" title="Not recorded yet">{errors.map((x) => <div key={x}>{x}</div>)}</Alert>}
+        {errors.length > 0 && <Alert tone="critical" title={original ? 'Not saved yet' : 'Not recorded yet'}>{errors.map((x) => <div key={x}>{x}</div>)}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Close</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => save('more')}>Save and add another</Button>
+          {!original && <Button variant="secondary" disabled={busy} onClick={() => save('more')}>Save and add another</Button>}
           <Button variant="secondary" disabled={busy} onClick={() => save('test')}>Save and test it</Button>
           <Button type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
         </div>
