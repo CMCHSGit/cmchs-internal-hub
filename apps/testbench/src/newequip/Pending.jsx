@@ -5,16 +5,26 @@ import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCopy, Download, FlaskConical, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Toast, useConfirm, useToast } from '../../../../shared/ui/index.jsx'
 import { logActivity } from '../../../../shared/activity.js'
-import { CHOICE_KEYS, FIELDS, choicesFor, clashes, editClashes, changedFields, fillFromModel, cleanPending, missingSite, testLink, toCsv, toTsv } from './pending.js'
+import { CHOICE_KEYS, FIELDS, choicesFor, clashes, editClashes, changedFields, fillFromModel, cleanPending, missingSite, testLink, toCsv, toHtml, toTsv, sheetsToRemember } from './pending.js'
 import { sendToSimpro } from './toSimpro.js'
 import { addPending, editPending, removePending, watchPending } from './pending-firebase.js'
 
 const PLACEHOLDER = { installed: 'd/mm/yyyy', manufactured: 'e.g. 3/2026', warranty: 'd/mm/yyyy', site: 'Simpro site ID' }
 const KEEP = ['site', 'manufacturer', 'ward', 'service', 'job'] // carried to the next asset: the same visit, usually the same ward and job
 
+// Each customer's sheet columns (names and header rows only), remembered on this PC when its asset list is loaded, so Copy lays the
+// rows out in the right columns on a later day too. AssetList saves them; read here.
+const SHEETS_KEY = 'newEquip.sheets'
+export function rememberSheets(customerId, sheets) {
+  try { const all = JSON.parse(localStorage.getItem(SHEETS_KEY) || '{}'); all[customerId] = sheetsToRemember(sheets); localStorage.setItem(SHEETS_KEY, JSON.stringify(all)) } catch { /* not remembered */ }
+}
+function rememberedSheets(customerId) {
+  try { const v = JSON.parse(localStorage.getItem(SHEETS_KEY) || '{}')[customerId]; return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
 const saveBlob = (name, blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }
 
-export default function Pending({ customer, units, sheets, canSimpro }) {
+export default function Pending({ customer, units, sheets: loaded, canSimpro }) {
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(null) // null | { start: form } | { start: form, original: the row being corrected }
@@ -27,13 +37,25 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
     return watchPending(customer.id, setRows, (e) => { setRows([]); setError(e?.code === 'permission-denied' ? 'The pending rows can’t be read with this account, or the database rules for them aren’t published yet.' : (e?.message || 'The pending rows can’t be read.')) })
   }, [customer.id])
 
+  const remembered = useMemo(() => rememberedSheets(customer.id), [customer.id, loaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  const sheets = loaded.length ? loaded : remembered
   const headers = useMemo(() => (sheets.find((s) => s.name === sheet) || sheets[0])?.header || null, [sheets, sheet])
   const list = rows || []
 
   // All the rows, or one (`only`): tab-separated in the sheet's column order, to paste under the asset list's last row.
+  // Text and an HTML table: Excel pastes the table, which marks asset numbers, serials and the like as text and sends dates as yyyy-mm-dd.
   const copy = async (only) => {
     const these = only ? [only] : list
-    try { await navigator.clipboard.writeText(toTsv(these, headers)); say(only ? `${only.serial} copied` : `${these.length} row${these.length === 1 ? '' : 's'} copied`) } catch { say('Couldn’t copy: use Download instead.') }
+    if (!headers && !await confirm({ title: 'The asset list’s columns aren’t known yet', message: 'Load the asset list first (Asset list, below) so the rows are laid out in its own columns; it is remembered on this PC after that. Copied now, they are in the new template’s usual order, which may not match this customer’s sheet.', confirmLabel: 'Copy in the usual order' })) return
+    const text = toTsv(these, headers)
+    try {
+      if (typeof ClipboardItem === 'function' && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([toHtml(these, headers)], { type: 'text/html' }) })])
+      } else await navigator.clipboard.writeText(text)
+      say(only ? `${only.serial} copied` : `${these.length} row${these.length === 1 ? '' : 's'} copied`)
+    } catch {
+      try { await navigator.clipboard.writeText(text); say('Copied as plain text') } catch { say('Couldn’t copy: use Download instead.') }
+    }
   }
   const download = () => saveBlob(`${customer.name} new assets.csv`, new Blob(['﻿' + toCsv(list, headers)], { type: 'text/csv;charset=utf-8' }))
   const noSite = useMemo(() => missingSite(list), [list])
@@ -98,7 +120,7 @@ export default function Pending({ customer, units, sheets, canSimpro }) {
           </div>
           {canSimpro && noSite.length > 0 && <p className="ne-note">To preview these in Simpro, each needs a Site ID (Simpro matches an asset within its site): {noSite.slice(0, 4).join(', ')}{noSite.length > 4 ? '…' : ''}.</p>}
           {canSimpro && <p className="ne-note">“Preview these in Simpro” opens Simpro Asset Sync with just these rows. It reads Simpro and shows what would be created; nothing changes until you press Apply there.</p>}
-          <p className="ne-note">{headers ? 'Laid out in the columns of the asset list you loaded.' : 'Load the asset list to lay the rows out in its columns; until then they use the new template’s usual order.'} Paste under the sheet’s last row (Copy on a row copies just that one), then clear them.</p>
+          <p className="ne-note">{loaded.length ? 'Laid out in the columns of the asset list you loaded.' : headers ? 'Laid out in the columns of this customer’s asset list as it was when last loaded on this PC.' : 'Load the asset list to lay the rows out in its columns; until then they use the new template’s usual order.'} Dates go out as year-month-day, which Excel reads the same whatever its date order. Paste under the sheet’s last row (Copy on a row copies just that one), then clear them.</p>
         </>
       )}
       {list.length === 0 && !error && rows && <p className="ne-note">Nothing waiting.</p>}

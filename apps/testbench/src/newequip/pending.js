@@ -79,27 +79,78 @@ export function mapHeaders(headers) {
 
 const cellText = (v) => String(v ?? '').replace(/[\t\r\n]+/g, ' ')
 
+/** The date fields. Recorded as typed (d/mm/yyyy, or m/yyyy for a manufacture month); they go out as yyyy-mm-dd (isoDate). */
+export const DATE_KEYS = ['installed', 'manufactured', 'warranty']
+/** The fields the asset lists keep as numbers (Simpro's site ID and job number): pasted as they are, so Excel keeps them numbers. */
+export const NUMBER_KEYS = ['site', 'job']
+
+/**
+ * A recorded date as yyyy-mm-dd, which every Excel reads as the same date whatever its date order (a US-style Excel reads
+ * 01/04/2024 as 4 January), and which Simpro Asset Sync accepts. d/mm/yyyy (also with - or .), m/yyyy (the 1st of that month) and
+ * yyyy-mm-dd; null when it isn't one of those, or isn't a real day.
+ */
+export function isoDate(v) {
+  const s = String(v ?? '').trim()
+  let y, m, d, x
+  if ((x = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) [y, m, d] = [+x[1], +x[2], +x[3]]
+  else if ((x = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/))) [y, m, d] = [+x[3], +x[2], +x[1]]
+  else if ((x = s.match(/^(\d{1,2})[/.-](\d{4})$/))) [y, m, d] = [+x[2], +x[1], 1]
+  else return null
+  const t = new Date(Date.UTC(y, m - 1, d))
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d) return null
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+/** A field's value as it goes out: dates as yyyy-mm-dd when they read as one, everything else as recorded. */
+export const outValue = (k, v) => (DATE_KEYS.includes(k) && isoDate(v)) || String(v ?? '')
+
+/** The columns and their headings for a sheet's headers, or the usual order when there are none. */
+function layout(headers) {
+  const has = headers && headers.length
+  return { cols: has ? mapHeaders(headers) : FIELD_KEYS, names: has ? headers : FIELDS.map(([, label]) => label) }
+}
+
 /**
  * The rows laid out for pasting under a sheet's last row: tab-separated, one line per row, in that sheet's own column order (a column
  * the sheet has and the page doesn't record is left blank). With no `headers`, the usual order. `withHeader` puts the headings first.
  */
 export function toTsv(rows, headers = null, withHeader = false) {
-  const cols = headers && headers.length ? mapHeaders(headers) : FIELD_KEYS
-  const names = headers && headers.length ? headers : FIELDS.map(([, label]) => label)
-  const lines = rows.map((r) => cols.map((k) => (k ? cellText(r[k]) : '')).join('\t'))
+  const { cols, names } = layout(headers)
+  const lines = rows.map((r) => cols.map((k) => (k ? cellText(outValue(k, r[k])) : '')).join('\t'))
   return (withHeader ? [names.map(cellText).join('\t'), ...lines] : lines).join('\n')
+}
+
+const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+/**
+ * The same rows as an HTML table, put on the clipboard beside the text: Excel pastes this one, and takes each cell's format from it.
+ * Every cell but a date and Simpro's site ID / job number is marked as text, so an asset number (8886) isn't shown as a date by a cell
+ * formatted as one, an ECG "3/5" isn't read as a date, and a long serial isn't turned into 1.2E+11. Tested in Excel by pasting.
+ */
+export function toHtml(rows, headers = null) {
+  const { cols } = layout(headers)
+  const td = (k, v) => {
+    const out = k ? outValue(k, v) : ''
+    const plain = !k || NUMBER_KEYS.includes(k) || (DATE_KEYS.includes(k) && isoDate(v)) || out === ''
+    return plain ? `<td>${esc(cellText(out))}</td>` : `<td style="mso-number-format:'\@'">${esc(cellText(out))}</td>`
+  }
+  return '<table>' + rows.map((r) => '<tr>' + cols.map((k) => td(k, k ? r[k] : '')).join('') + '</tr>').join('') + '</table>'
 }
 
 /** The same as a .csv file's text (headings first; quoted where needed; a leading = + - @ is made safe against being read as a formula). */
 export function toCsv(rows, headers = null) {
-  const cols = headers && headers.length ? mapHeaders(headers) : FIELD_KEYS
-  const names = headers && headers.length ? headers : FIELDS.map(([, label]) => label)
+  const { cols, names } = layout(headers)
   const q = (v) => {
     let s = String(v ?? '')
     if (/^[=+\-@]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = "'" + s
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
   }
-  return [names.map(q).join(','), ...rows.map((r) => cols.map((k) => (k ? q(r[k]) : '')).join(','))].join('\r\n') + '\r\n'
+  return [names.map(q).join(','), ...rows.map((r) => cols.map((k) => (k ? q(outValue(k, r[k])) : '')).join(','))].join('\r\n') + '\r\n'
+}
+
+/** A customer's sheets (name and header row only, no devices) as remembered on this PC, so Copy can use the columns before the list is loaded again. */
+export function sheetsToRemember(sheets) {
+  return (sheets || []).filter((x) => x && Array.isArray(x.header) && x.header.length).map((x) => ({ name: String(x.name ?? ''), header: x.header.map((h) => String(h ?? '')) }))
 }
 
 /** The address of the Test Bench for a unit, as the asset list's "Test this device" links make it (device-link.js): device facts only. */

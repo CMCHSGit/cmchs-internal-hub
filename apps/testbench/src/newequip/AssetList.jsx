@@ -10,7 +10,7 @@ import { makeZip } from '../zip.js'
 import { watchTests } from '../bench-tests-firebase.js'
 import { benchByUnit, duplicateSerials, filterUnits, readAssetList, reportsByUnit, serialKey, summary } from './assetlist.js'
 import { testLink } from './pending.js'
-import Pending from './Pending.jsx'
+import Pending, { rememberSheets } from './Pending.jsx'
 import { sendToSimpro } from './toSimpro.js'
 import { fetchWorkbook, GraphError } from './graph.js'
 import { forgetGraphToken, graphToken } from './graph-auth.js'
@@ -57,9 +57,10 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
     const got = await readAssetList(buffer, name)
     if (!got.units.length) throw new GraphError('notbook', got.sheets.length || got.skipped.length ? 'No sheet in that workbook has a Serial Number column with devices in it.' : 'That workbook has no sheets.')
     setBook({ ...got, name, modified, via, buffer })
+    rememberSheets(customer.id, got.sheets)
     setState('ready'); setError('')
     logActivity(null, `Loaded an asset list (${got.units.length} units, ${got.sheets.length} sheet${got.sheets.length === 1 ? '' : 's'}, ${via})`, { app: 'new-equipment' })
-  }, [])
+  }, [customer?.id])
 
   const fail = (e) => { setState(book ? 'ready' : 'idle'); if (e?.code === 'token' || e?.code === 'denied') { forgetGraphToken(); setGraphFailed(true) } setError(e?.message || 'Couldn’t read that file.') }
 

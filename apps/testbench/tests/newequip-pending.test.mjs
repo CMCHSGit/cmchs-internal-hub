@@ -1,7 +1,7 @@
 // npm test --prefix apps/testbench — assets recorded on the new-equipment page (src/newequip/pending.js). Invented serials only.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { FIELD_KEYS, cleanPending, clashes, editClashes, changedFields, rowOf, mapHeaders, toTsv, toCsv, testLink, MAX_VALUE } from '../src/newequip/pending.js'
+import { FIELD_KEYS, cleanPending, clashes, editClashes, changedFields, rowOf, mapHeaders, toTsv, toCsv, toHtml, isoDate, sheetsToRemember, testLink, MAX_VALUE } from '../src/newequip/pending.js'
 import { deviceFromSearch } from '../src/device-link.js'
 
 const row = (over = {}) => ({ ...cleanPending({ serial: 'EX3-000519', model: 'D30', manufacturer: 'Mindray', site: '2350', ward: 'ED', asset: 'CHS-0415', ...over }).row })
@@ -100,4 +100,30 @@ test('correcting a recorded asset: it never clashes with itself, and an unchange
 test('an edit names the fields it changed, by heading', () => {
   assert.deepEqual(changedFields(row(), row()), [])
   assert.deepEqual(changedFields(row(), row({ model: 'D3', ward: 'ICU' })), ['Device Model', 'Ward/Location'])
+})
+
+test('dates go out as yyyy-mm-dd, which a US-style Excel reads as the same day (01/04/2024 is 1 April, not 4 January)', () => {
+  assert.equal(isoDate('01/04/2024'), '2024-04-01')
+  assert.equal(isoDate('9/11/2026'), '2026-11-09')
+  assert.equal(isoDate('1.8.2025'), '2025-08-01')
+  assert.equal(isoDate('3/2026'), '2026-03-01')
+  assert.equal(isoDate('2027-10-01'), '2027-10-01')
+  assert.equal(isoDate('31/02/2026'), null)
+  assert.equal(isoDate('soon'), null)
+  assert.equal(isoDate(''), null)
+  const r = row({ installed: '09/11/2026', manufactured: '01/08/2025', warranty: 'see invoice', asset: '8886' })
+  assert.equal(toTsv([r], ['Install Date', 'Manufacture Date', 'Warranty Expiry', 'CHS Asset Number']), '2026-11-09\t2025-08-01\tsee invoice\t8886')
+  assert.match(toCsv([r], ['Install Date', 'Serial Number']), /\r\n2026-11-09,EX3-000519\r\n$/)
+})
+
+test('the HTML copy marks every cell as text except dates and Simpro site ID / job (so 8886 and ECG 3/5 stay as typed)', () => {
+  const r = row({ asset: '8886', ecg: '3/5', installed: '09/11/2026', warranty: 'see invoice', job: '209949', model: 'A<B' })
+  const html = toHtml([r], ['Serial Number', 'CHS Asset Number', 'ECG Configuration', 'Install Date', 'Warranty Expiry', 'Site ID', 'Simpro Job', 'MAC', 'Device Model'])
+  const T = (v) => `<td style="mso-number-format:'\@'">${v}</td>`
+  assert.equal(html, '<table><tr>' + T('EX3-000519') + T('8886') + T('3/5') + '<td>2026-11-09</td>' + T('see invoice') + '<td>2350</td><td>209949</td><td></td>' + T('A&lt;B') + '</tr></table>')
+})
+
+test('only the sheet names and header rows are remembered, never devices', () => {
+  assert.deepEqual(sheetsToRemember([{ name: 'Main', header: ['Serial Number', null, 'Device Model'], count: 3, units: [{ serial: 'X' }] }, { name: 'Empty', header: [] }]),
+    [{ name: 'Main', header: ['Serial Number', '', 'Device Model'] }])
 })

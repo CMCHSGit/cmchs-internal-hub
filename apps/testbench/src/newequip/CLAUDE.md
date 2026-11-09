@@ -45,7 +45,7 @@ links to them under "Until this page does it all". Add steps here one at a time;
 | `assetlist.js` | Pure: workbook → units, using **Asset Sync's own reader and rules** (`apps/simprosync/reader.js`, `core.js`) so both tools agree on what a row is. `benchByUnit`, `reportsByUnit`, `summary`, `filterUnits`, `duplicateSerials`. |
 | `graph.js` / `graph-auth.js` | Graph read via the shares API (`shareId`, `fetchWorkbook`, 25 MB max, `GraphError` codes). Token: `reauthenticateWithPopup` asking `Files.Read.All`, **memory only**, ~50 min, from a click. |
 | `filehandle.js` | Remembered file handles per customer, IndexedDB `chs-newequip-files`, read permission only. |
-| `Pending.jsx` / `pending.js` / `pending-firebase.js` | Pending rows UI; pure `FIELDS` (key, heading, other names, loose match), `cleanPending`, `clashes`, `mapHeaders`, `toTsv`, `toCsv` (formula-safe), `testLink`, `missingSite`; `editClashes`, `changedFields`; Firestore watch/add/edit/remove, `addPendingQueued` for offline laptops. |
+| `Pending.jsx` / `pending.js` / `pending-firebase.js` | Pending rows UI; pure `FIELDS` (key, heading, other names, loose match), `cleanPending`, `clashes`, `mapHeaders`, `toTsv`, `toHtml` (Excel paste: text format on all but dates and site/job), `toCsv` (formula-safe), `isoDate`, `sheetsToRemember`, `testLink`, `missingSite`; `editClashes`, `changedFields`; Firestore watch/add/edit/remove, `addPendingQueued` for offline laptops. |
 | `from-bench.js` | Pure: which New equipment customer a bench request means (`matchCustomer`: remembered file → exact name → one fuzzy match → ask), `fileStem`, `rowFromBench`. |
 | `handoff.js` / `toSimpro.js` | One file left in IndexedDB `chs-newequip-handoff`, taken **once**, **10 minutes** max, by `/simprosync/?from=new-equipment` (`apps/simprosync/app.js` imports `takeHandoff`/`wantsHandoff`). |
 | `newequip.css` | `ne-*` classes. |
@@ -65,6 +65,13 @@ Shared with the bench section: `../reports.js`, `../zip.js`, `../bench-tests-fir
 - **Customer workbooks** in OneDrive/SharePoint: read only, never written, never copied anywhere but memory.
 
 ## Rules for changes
+
+- **Copy puts an HTML table on the clipboard beside the text**, and Excel pastes the table: cells are marked text (`mso-number-format:'\@'`)
+  except dates and Simpro site ID / job. Without it, an asset number pasted into a date-formatted cell showed as a date (8886 →
+  4/29/1924) and ECG "3/5" became a date. **Dates go out as yyyy-mm-dd**: engineers' Excel reads d/mm/yyyy month-first. Both were
+  checked by pasting into Excel; check that way again after changing `toHtml`/`toTsv`.
+- **Copy uses the sheet's own column order** (`mapHeaders`), from the loaded list or the header rows remembered on this PC
+  (localStorage `newEquip.sheets`, names and headers only). With neither, it warns before using the template order.
 
 - **Never write to a customer's workbook.** Writing into the synced file was tried and didn't sync; pending rows exist because of that.
   Graph is asked for `Files.Read.All` only. A write scope needs an IT admin's consent: raise it with Peter, don't add it.
