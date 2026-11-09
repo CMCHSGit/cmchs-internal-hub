@@ -101,3 +101,20 @@ export function testLink(u, customerName = '') {
 
 /** Serial numbers of rows with no Site ID: Simpro Asset Sync matches an asset within its site, so these can't be placed. */
 export const missingSite = (rows) => rows.filter((r) => !String(r.site || '').trim()).map((r) => r.serial)
+
+/** The boxes that drop down what the asset list (and the pending rows) already have, so a model or type is spelt the same way. */
+export const CHOICE_KEYS = ['model', 'type', 'manufacturer']
+/** The different values of one field across the asset list's units and the pending rows, sorted: ['BeneVision N1', 'TDS', …]. */
+export function choicesFor(key, units = [], pending = []) {
+  const seen = new Map()
+  for (const r of [...units, ...pending]) { const v = oneLine(r && r[key]); if (v && v !== '-' && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v) }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b)).slice(0, 400)
+}
+/** A model picked that the list already has: the device type, description and manufacturer of one of them, for the boxes still empty. */
+export function fillFromModel(form, units = []) {
+  const m = oneLine(form && form.model).toLowerCase(); if (!m) return form
+  const like = units.find((u) => oneLine(u.model).toLowerCase() === m); if (!like) return form
+  const out = { ...form }
+  for (const k of ['type', 'description', 'manufacturer']) if (!oneLine(out[k]) && oneLine(like[k]) && oneLine(like[k]) !== '-') out[k] = oneLine(like[k])
+  return out
+}

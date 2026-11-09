@@ -60,3 +60,16 @@ test('the bench offers "Add to the asset list…" on Not found and asks the hub,
   assert.match(section, /clashes\(row, \[\], waiting\)/, 'a serial already waiting is not added twice')
   assert.match(section, /logActivity\(null, 'Added a device to a customer.{1,2}s pending asset rows/, 'one activity line, no names')
 })
+
+test('the model and type boxes drop down what the list already has; a known model fills in its type and description', async () => {
+  const { choicesFor, fillFromModel } = await import('../src/newequip/pending.js')
+  const units = [{ model: 'BeneVision N1', type: 'Patient Monitor', description: 'Transport monitor', manufacturer: 'Mindray' }, { model: 'TDS', type: 'Docking station' }, { model: ' benevision n1 ' }, { model: '-' }]
+  assert.deepEqual(choicesFor('model', units, [{ model: 'Handle' }]), ['BeneVision N1', 'Handle', 'TDS'], 'no repeats (whatever the case), no "-"')
+  assert.deepEqual(choicesFor('type', units), ['Docking station', 'Patient Monitor'])
+  assert.deepEqual(fillFromModel({ model: 'benevision n1', serial: 'X1', type: '' }, units), { model: 'benevision n1', serial: 'X1', type: 'Patient Monitor', description: 'Transport monitor', manufacturer: 'Mindray' })
+  assert.equal(fillFromModel({ model: 'TDS', type: 'Mine' }, units).type, 'Mine', 'what was typed stays')
+  assert.deepEqual(fillFromModel({ model: 'Unknown' }, units), { model: 'Unknown' })
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /lists = \{ model: listOf\('Device Model'\), type: listOf\('Device Type'\) \}/, 'the bench’s Add to the asset list form too')
+  assert.match(html, /\$\('#pa_model', ov\)\?\.addEventListener\('change'/)
+})

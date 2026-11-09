@@ -261,3 +261,11 @@ test**: one line per extra device (serial number, model, asset #), each looked u
   Firestore rules allow no new field, so nothing needs publishing. New equipment (`benchByUnit`, `reportsByUnit`) and Saved reports
   (`filterGroups`) split it; file names use the main device's serial.
 - Not checked on the live hub with a real asset list: the hub's Add to the asset list… for an extra device uses the same path as the main one.
+
+## Model and type drop-downs (09/11/2026)
+So a model or device type is spelt the way the asset list already spells it:
+- **Add to the asset list…** (bench) and **Record an asset** (New equipment): Device model and Device type (and Manufacturer on New
+  equipment) drop down the values the customer's list already has; any other value can still be typed. Picking a model the list has
+  fills in its device type, description and manufacturer where those are still empty (`choicesFor`, `fillFromModel` in `pending.js`).
+- The start screen's **Model** box (and the other devices' Model boxes) drops down the template's models, then the asset list's.
+

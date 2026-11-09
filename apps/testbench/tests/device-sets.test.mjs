@@ -53,3 +53,14 @@ test('the bench: other devices on the start screen, the report header and the An
   assert.match(html, /devices: Extras\.collect\(\)/, 'the draft keeps them')
   assert.match(html, /Sheet\.addPending\(\{ serial:/, 'a device not found can be added as a pending row')
 })
+
+test('the Model boxes drop down the template’s models, then the asset list’s, and still take anything typed', () => {
+  const a = html.indexOf('function modelOptions('), b = html.indexOf('function refreshModelOptions(')
+  const { modelOptions } = vm.runInNewContext('const tplModels = (t) => (t && Array.isArray(t.models) ? t.models.filter(Boolean) : []);' + html.slice(a, b) + '; ({ modelOptions })')
+  const rows = [{ 'Device Model': 'TDS' }, { 'Device Model': ' N1 ' }, { 'Device Model': '-' }, { 'Device Model': 'Handle' }, {}]
+  assert.deepEqual([...modelOptions({ models: ['N1', 'N17'] }, rows)], ['N1', 'N17', 'Handle', 'TDS'], 'template first, no repeats or blanks')
+  assert.deepEqual([...modelOptions(null, [])], [])
+  assert.match(html, /<datalist id="modelOptions"><\/datalist>/)
+  assert.match(html, /i\.setAttribute\('list', 'modelOptions'\)/, 'the template’s Model box')
+  assert.match(html, /f === 'model' \? ' list="modelOptions"' : ''/, 'the other devices’ Model boxes')
+})

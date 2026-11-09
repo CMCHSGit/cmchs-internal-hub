@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCopy, Download, FlaskConical, Plus, Trash2 } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Toast, useConfirm, useToast } from '../../../../shared/ui/index.jsx'
 import { logActivity } from '../../../../shared/activity.js'
-import { FIELDS, clashes, cleanPending, missingSite, testLink, toCsv, toTsv } from './pending.js'
+import { CHOICE_KEYS, FIELDS, choicesFor, clashes, fillFromModel, cleanPending, missingSite, testLink, toCsv, toTsv } from './pending.js'
 import { sendToSimpro } from './toSimpro.js'
 import { addPending, removePending, watchPending } from './pending-firebase.js'
 
@@ -115,6 +115,7 @@ function RecordForm({ customer, units, pending, start, onClose, onSaved }) {
   const [errors, setErrors] = useState([])
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
+  const choices = useMemo(() => Object.fromEntries(CHOICE_KEYS.map((k) => [k, choicesFor(k, units, pending)])), [units, pending])
 
   const save = async (then) => {
     const { row, errors: errs } = cleanPending(f)
@@ -140,9 +141,11 @@ function RecordForm({ customer, units, pending, start, onClose, onSaved }) {
         <div className="ne-grid2">
           {FIELDS.map(([k, label]) => (
             <label key={k} className="field"><span className="field-label">{label}{k === 'serial' ? ' *' : ''}</span>
-              <input className="input" value={f[k] || ''} onChange={set(k)} placeholder={PLACEHOLDER[k] || ''} autoComplete="off" autoFocus={k === 'serial'} /></label>
+              <input className="input" value={f[k] || ''} onChange={set(k)} placeholder={PLACEHOLDER[k] || ''} autoComplete="off" autoFocus={k === 'serial'}
+                list={choices[k]?.length ? `ne-choices-${k}` : undefined} onBlur={k === 'model' ? () => setF((x) => fillFromModel(x, units)) : undefined} /></label>
           ))}
         </div>
+        {CHOICE_KEYS.map((k) => choices[k].length > 0 && <datalist key={k} id={`ne-choices-${k}`}>{choices[k].map((v) => <option key={v} value={v} />)}</datalist>)}
         {errors.length > 0 && <Alert tone="critical" title="Not recorded yet">{errors.map((x) => <div key={x}>{x}</div>)}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Close</Button>

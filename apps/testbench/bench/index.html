@@ -448,6 +448,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         <div class="sheet-bar" id="sheetBar" hidden></div>
         <div class="grid2" id="dutFields"></div>
         <div class="xd" id="extraDevs"></div>
+        <datalist id="modelOptions"></datalist>
         <div class="field" id="orderField" hidden style="margin-top:12px;max-width:560px"><label for="dutOrder">Order</label><select class="select" id="dutOrder" aria-label="Order this test counts toward"></select><span class="hint" id="orderHint"></span></div>
         <div class="sheet-gaps" id="sheetGaps" hidden></div>
         <div class="row" style="margin-top:16px">
@@ -1488,6 +1489,19 @@ function applyChecklistAnswers(run, rows, setStatus) {
 /* Model variants: a template can cover several models (e.g. D30 and D60); a step can be limited to some of them. */
 const tplModels = (t) => (t && Array.isArray(t.models) ? t.models.filter(Boolean) : []);
 const stepForModel = (s, model) => !model || !Array.isArray(s.models) || !s.models.length || s.models.includes(model);
+/** The Model boxes' drop-down: the picked template's models first, then every model in the loaded asset list (typing anything else still works). */
+function modelOptions(t, rows) {
+  const seen = new Set(), out = [];
+  const add = (m) => { const v = String(m ?? '').trim(), k = v.toLowerCase(); if (v && v !== '-' && !seen.has(k)) { seen.add(k); out.push(v); } };
+  tplModels(t).forEach(add);
+  [...new Set((rows || []).map(r => String(r['Device Model'] ?? '').trim()))].sort((a, b) => a.localeCompare(b)).forEach(add);
+  return out.slice(0, 400);
+}
+function refreshModelOptions() {
+  const dl = $('#modelOptions'); if (!dl) return;
+  const t = App.picked && Store.get(App.picked);
+  dl.innerHTML = modelOptions(t, Sheet.state === 'ready' ? Sheet.rows : []).map(m => `<option value="${esc(m)}"></option>`).join('');
+}
 const modelBadge = (t, s) => { const all = tplModels(t); return all.length > 1 && Array.isArray(s.models) && s.models.length && s.models.length < all.length ? `${s.models.join(', ')} only` : ''; };
 /* Template groups: the headings on the Run a test page (Anaesthesia, Monitoring…). A template's own group (Templates page)
    wins; without one it is worked out from the name and description. */
@@ -2530,7 +2544,7 @@ const Sheet = {
       this.rows = this.parse(await XlsxLite.read(await f.arrayBuffer())); this.state = 'ready'; this.error = ''; this.cur = null; this.result = null; this.renderAlert();
       log('in', 'SHEET', `Read ${this.file}: ${this.rows.length} devices`);
       if (!quiet) toast(`${this.rows.length} devices read from ${this.file}`);
-      this.relookup();   // the serial number already in the form is looked up again, without retyping it
+      this.relookup(); refreshModelOptions();   // the serial number already in the form is looked up again, without retyping it
     } catch (e) {
       this.state = 'error'; this.error = e.message; this.rows = [];
       log('er', 'SHEET', `Couldn’t read ${this.file}: ${e.message}`);
@@ -2669,17 +2683,25 @@ const Sheet = {
     const sheets = Object.keys(this.info || {}), sheet0 = (this.lastSheet && sheets.includes(this.lastSheet)) ? this.lastSheet : sheets[0] || '';
     const f = { site: this.commonIn(sheet0, 'Site ID'), type: like?.['Device Type'] || '', manufacturer: val('Manufacturer') || like?.['Manufacturer'] || '', model,
       description: like?.['Description'] || '', serial: pre ? pre.serial : (val('Serial Number') || this.result?.q || ''), asset: pre ? pre.asset : val('CHS Asset Number'), ward: val('Ward/Location') };
-    const box = (k, label) => `<div class="field"><label for="pa_${k}">${label}</label><input class="input" id="pa_${k}" data-pa="${k}" value="${esc(f[k])}"></div>`;
+    const listOf = (col) => [...new Set(this.rows.map(r => String(r[col] ?? '').trim()).filter(v => v && v !== '-'))].sort((a, b) => a.localeCompare(b)).slice(0, 400);
+    const lists = { model: listOf('Device Model'), type: listOf('Device Type') };
+    const box = (k, label) => `<div class="field"><label for="pa_${k}">${label}</label><input class="input" id="pa_${k}" data-pa="${k}" value="${esc(f[k])}"${lists[k] ? ` list="pa_${k}_list" autocomplete="off"` : ''}></div>`;
     const body = `<p class="muted" style="margin-top:0">The device waits on the New equipment page as a pending row, to be pasted under the asset list’s last row (or sent through Simpro Asset Sync). Nothing is written into ${esc(this.file)} from here.</p>
       <div class="field"><label for="pa_cust">Customer</label><select class="select" id="pa_cust"><option value="">Choose the customer…</option>${who.list.map(c => `<option value="${esc(c.id)}"${c.id === who.pick ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
       ${sheets.length > 1 ? `<div class="field"><label for="pa_sheet">Sheet it goes on</label><select class="select" id="pa_sheet">${sheets.map(n => `<option${n === sheet0 ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select><span class="hint">Fills in the Site ID most devices on that sheet have.</span></div>` : ''}
-      <div class="pa-grid">${box('serial', 'Serial number')}${box('site', 'Site ID')}${box('manufacturer', 'Manufacturer')}${box('model', 'Device model')}${box('type', 'Device type')}${box('description', 'Description')}${box('asset', 'CHS asset number')}${box('ward', 'Ward / location')}</div>`;
+      <div class="pa-grid">${box('serial', 'Serial number')}${box('site', 'Site ID')}${box('manufacturer', 'Manufacturer')}${box('model', 'Device model')}${box('type', 'Device type')}${box('description', 'Description')}${box('asset', 'CHS asset number')}${box('ward', 'Ward / location')}</div>
+      ${Object.entries(lists).map(([k, l]) => `<datalist id="pa_${k}_list">${l.map(v => `<option value="${esc(v)}"></option>`).join('')}</datalist>`).join('')}`;
     let siteTouched = false;
     const res = await dialog({ title: 'Add to the asset list', body, wide: true, focus: who.pick ? '#pa_serial' : '#pa_cust',
       buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Add as a pending row', value: true }],
       onOpen: (ov) => {
         $('#pa_site', ov)?.addEventListener('input', () => { siteTouched = true; });
         $('#pa_sheet', ov)?.addEventListener('change', (e) => { if (!siteTouched) $('#pa_site', ov).value = this.commonIn(e.target.value, 'Site ID'); });
+        // A model picked (or typed) that the list already has: its device type, description and manufacturer, where still empty.
+        $('#pa_model', ov)?.addEventListener('change', (e) => {
+          const m = e.target.value.trim().toLowerCase(), r = m && this.rows.find(x => String(x['Device Model'] ?? '').trim().toLowerCase() === m); if (!r) return;
+          for (const [k, col] of [['type', 'Device Type'], ['description', 'Description'], ['manufacturer', 'Manufacturer']]) { const el = $(`#pa_${k}`, ov); if (el && !el.value.trim() && r[col]) el.value = r[col]; }
+        });
       },
       collect: (ov) => ({ customerId: $('#pa_cust', ov).value, row: Object.fromEntries($$('[data-pa]', ov).map(i => [i.dataset.pa, i.value.trim()])) }) });
     if (btn) btn.disabled = false;
@@ -2752,8 +2774,8 @@ const Runner = {
     const run = this.run; if (!run) return;
     const keys = [...new Set([...(run.template.dut || []), ...Object.keys(run.dut)])];
     const devs = otherDevices(run);
-    const devBox = (d, j) => ['serial', 'model', 'asset'].map(f => `<div class="field"><label for="ex${j}${f}">${f === 'serial' ? `Device ${j + 2} serial number` : f === 'model' ? 'Model' : 'Asset #'}</label><input class="input" id="ex${j}${f}" data-dj="${j}" data-df="${f}" value="${esc(d[f])}"></div>`).join('');
-    const res = await dialog({ title: 'Device details', body: `<div class="grid2" style="margin-top:4px">${keys.map((k, i) => `<div class="field"><label for="ed${i}">${esc(k)}</label><input class="input" id="ed${i}" data-k="${esc(k)}" value="${esc(run.dut[k] || '')}"></div>`).join('')}</div>
+    const devBox = (d, j) => ['serial', 'model', 'asset'].map(f => `<div class="field"><label for="ex${j}${f}">${f === 'serial' ? `Device ${j + 2} serial number` : f === 'model' ? 'Model' : 'Asset #'}</label><input class="input" id="ex${j}${f}" data-dj="${j}" data-df="${f}" value="${esc(d[f])}"${f === 'model' ? ' list="modelOptions" autocomplete="off"' : ''}></div>`).join('');
+    const res = await dialog({ title: 'Device details', body: `<div class="grid2" style="margin-top:4px">${keys.map((k, i) => `<div class="field"><label for="ed${i}">${esc(k)}</label><input class="input" id="ed${i}" data-k="${esc(k)}" value="${esc(run.dut[k] || '')}"${/^model$/i.test(k.trim()) ? ' list="modelOptions" autocomplete="off"' : ''}></div>`).join('')}</div>
         ${devs.length ? `<div class="xd-head" style="margin-top:14px">Other devices in this test</div><div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px">${devs.map(devBox).join('')}</div><p class="hint" style="margin:6px 0 0">Clear a device’s boxes to take it off this test.</p>` : ''}
         <p class="hint" style="margin-top:10px">Changes apply to this test’s summary, report and results file.</p>`,
       buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Save details', value: true }],
@@ -4675,7 +4697,7 @@ const Extras = {
   collect() { return otherDevices({ devices: this.list }); },
   render() {
     const box = $('#extraDevs'); if (!box) return;
-    const inp = (i, f, label) => `<div class="field"><label for="xd${i}${f}">${label}</label><input class="input" id="xd${i}${f}" data-xd="${f}" value="${esc(this.list[i][f])}" autocomplete="off"></div>`;
+    const inp = (i, f, label) => `<div class="field"><label for="xd${i}${f}">${label}</label><input class="input" id="xd${i}${f}" data-xd="${f}" value="${esc(this.list[i][f])}" autocomplete="off"${f === 'model' ? ' list="modelOptions"' : ''}></div>`;
     box.innerHTML = (this.list.length ? `<div class="xd-head">Other devices in this test</div>` : '')
       + this.list.map((d, i) => `<div class="xd-row" data-i="${i}">${inp(i, 'serial', `Device ${i + 2} serial number`)}${inp(i, 'model', 'Model')}${inp(i, 'asset', 'Asset #')}
         <button type="button" class="btn quiet sm" data-xd-del aria-label="Remove device ${i + 2}">Remove</button><div class="xd-note" aria-live="polite"></div></div>`).join('')
@@ -5118,6 +5140,8 @@ const App = {
     $('#pickedName').textContent = t.name;
     const prev = {}; $$('#dutFields input').forEach(i => prev[i.dataset.k] = i.value);
     $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || (/^testing engineer$/i.test(k) ? 'Jonathan Nasrun' : ''))}" ${i === 0 ? 'required' : ''}></div>`).join('');
+    $$('#dutFields input').filter(i => /^model$/i.test(i.dataset.k.trim())).forEach(i => { i.setAttribute('list', 'modelOptions'); i.autocomplete = 'off'; });
+    refreshModelOptions();
     Extras.render();
     $('#dutCard').hidden = false; delete $('#dutOrder').dataset.touched; BenchOrders.render(); this.updateStartHint(); Draft.save();
     enterToNext($$('#dutFields input'), () => this.startRun());
