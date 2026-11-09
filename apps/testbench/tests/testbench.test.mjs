@@ -425,3 +425,9 @@ test('Saved reports can update the job (notes, stage, status) and hand the loade
   const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.ok(bench.includes("m.type !== 'chs-bench:get-sheet'") && /await Sheet\.load\(true\);\s*\/\/ read it again/.test(bench) && bench.includes("type: 'chs-bench:sheet-state'") && bench.includes("type: 'chs-bench:sheet-file'"), 'the bench reads the list again before handing it over, and reports what is loaded')
 })
+
+test('a step already answered (a Pass clicked by mistake) can be skipped: asked first, its result cleared, left out of the report', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(html.includes(`id="stSkip" \${r.status === 'skipped' ? 'hidden' : ''}`) && html.includes(`sk.hidden = st === 'skipped'`), 'Skip is offered on every step that is not already skipped, and follows the step as it changes')
+  assert.ok(html.includes('Skip this step?') && html.includes(`r.rows = []; log('in', 'RUN', 'A recorded step was skipped`), 'it asks, then clears what was recorded')
+})

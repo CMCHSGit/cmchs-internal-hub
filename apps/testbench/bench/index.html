@@ -2883,6 +2883,8 @@ const Runner = {
         ${st !== 'pending' ? `<span class="badge ${STATUS_BADGE[st]}">${STATUS_LABEL[st]}</span>` : ''}</button></li>`;
     }).join('');
     $$('#runSteps button').forEach(b => b.addEventListener('click', () => this.go(+b.dataset.i)));
+    // The Skip button follows the step: offered while it isn't skipped, and worded for one already answered.
+    const sk = $('#stSkip'); if (sk) { const st = this.res().status; sk.hidden = st === 'skipped'; sk.textContent = st === 'pending' ? 'Skip step' : 'Skip this step'; }
   },
 
   go(i) {
@@ -2911,7 +2913,7 @@ const Runner = {
       <div class="stage-foot">
         <button type="button" class="btn quiet" id="stBack" ${i === 0 ? 'disabled' : ''}>${icon('arrow-left')}Back</button>
         <div class="row">
-          ${r.status === 'pending' ? '<button type="button" class="btn ghost" id="stSkip">Skip step</button>' : ''}
+          <button type="button" class="btn ghost" id="stSkip" ${r.status === 'skipped' ? 'hidden' : ''}>${r.status === 'pending' ? 'Skip step' : 'Skip this step'}</button>
           <button type="button" class="btn lg" id="stNext">${i === n - 1 ? 'Finish' : 'Next step'}${icon('arrow-right')}</button>
         </div>
       </div>`;
@@ -2920,7 +2922,17 @@ const Runner = {
     $$('#stage [data-goto]').forEach(a => a.addEventListener('click', (e) => { e.preventDefault(); App.show('devices'); }));
     if (this.autoRunning) { $('#stBack').disabled = true; $('#stNext').disabled = true; $('#stSkip')?.setAttribute('disabled', ''); }
     $('#stBack').addEventListener('click', () => this.go(this.run.idx - 1));
-    $('#stSkip')?.addEventListener('click', () => { this.res().status = 'skipped'; this.next(); });
+    $('#stSkip')?.addEventListener('click', async () => {
+      const r = this.res();
+      // A step already answered (a Pass clicked by mistake, say): say what will happen, then clear what was recorded so it can't reach the report.
+      if (r.status !== 'pending') {
+        const ok = await dialog({ title: 'Skip this step?', body: `<p>It is marked <b>${esc(STATUS_LABEL[r.status] || r.status)}</b>. Skipping clears what was recorded for it and leaves it out of the report. You can come back and do it again from the step list.</p>`,
+          buttons: [{ label: 'Keep it', value: false, cls: 'quiet', cancel: true }, { label: 'Skip it', value: true }] });
+        if (!ok) return;
+        r.rows = []; log('in', 'RUN', 'A recorded step was skipped and its result cleared');
+      }
+      r.status = 'skipped'; this.next();
+    });
     $('#stNext').addEventListener('click', () => this.next(true));
     this.bindBody(s);
   },

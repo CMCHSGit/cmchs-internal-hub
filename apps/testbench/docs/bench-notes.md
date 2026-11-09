@@ -91,6 +91,7 @@ T = { id, name, desc, updated, dut: ['Serial number','Manufacturer','Model','Cus
 
 **Checklists**
 - Pass / Fail / N/A items and typed readings. **Mark all as pass and next** is on checklist and simulator steps.
+- **Skip this step** (10 Nov 2026): the Skip button is on every step that isn't already skipped, so a Pass clicked by mistake can be undone. On a step already answered it asks first, then clears that step's `rows` and sets `status: 'skipped'` (it drops out of the report). The button's wording and visibility follow the step (`renderList`), so it changes as checks are answered. Skipped steps can be redone from the step list.
 - Item text states the setting and target, e.g. "VCV adult: Vt 500 mL ±35 mL (465–535 mL)".
 
 **Templates and models**
