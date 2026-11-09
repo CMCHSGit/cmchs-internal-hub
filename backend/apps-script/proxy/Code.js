@@ -1786,8 +1786,9 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/$/],
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/],
   [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/\d+\/assets\/$/],
-  // Attach a generated PDF to a job (Ansur PVT reports).
-  [['post'],       /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/]
+  // Attach a generated PDF to a job (Ansur PVT reports), and list the files a job has (names only matter: the Test Bench shows a
+  // test as sent when its report is already on the job, wherever it was attached from). Plain query only (pageSize).
+  [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/]
 ];
 // Methods only a role:'admin' user may relay. A simproAccess grant (below)
 // covers reading and syncing, never deleting.
@@ -2137,7 +2138,7 @@ function simproSyncProxy_(payload) {
       const why = simproSyncJobPatchError_(r.body);
       if (why) return respond({ success: false, error: 'Request ' + i + ' ' + why });
     }
-    if (/^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {
+    if (method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {   // a GET only lists the job's files
       const body = r.body || {};
       if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {
         return respond({ success: false, error: 'Request ' + i + ' sets an attachment field that is not allowed' });

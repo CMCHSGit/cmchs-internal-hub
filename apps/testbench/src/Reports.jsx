@@ -5,7 +5,7 @@ import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
-import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
 
 /** Downloaded PDFs go in a folder of their own (inside the folder chosen, or in the zip); the Ansur records stay beside it. */
@@ -61,7 +61,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, onJobUpdated, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -84,6 +84,7 @@ export default function Reports({ reports, fresh, sim, onJobUpdated, outbox, onl
     if (!job || !canSimpro) return undefined
     let live = true
     getJob(sim.call, sim.companyId, job.id).then((j) => { if (live) setJobInfo(j) }).catch(() => {})
+    if (onJobFiles) onJobFiles(job.id).catch(() => {})   // what the job already has (from anywhere) shows as sent
     listStatusCodes(sim.call, sim.companyId).then((c) => { if (live) setStatusCodes(c) }).catch(() => {})
     return () => { live = false }
   }, [job?.id, sim.companyId, canSimpro]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -101,7 +102,7 @@ export default function Reports({ reports, fresh, sim, onJobUpdated, outbox, onl
   // This laptop's own files, and the tests other engineers have finished that it has no files for yet (made when downloaded or attached).
   const [hidden, setHidden] = useState(getHidden)
   const hiddenCount = useMemo(() => sharedGroups(reports, sharedTests.filter((t) => hidden.has(t.id))).length, [reports, sharedTests, hidden])
-  const groups = useMemo(() => [...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))].sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [reports, sharedTests, hidden])
+  const groups = useMemo(() => withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))], onJob).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, hidden])
   const customers = useMemo(() => customersIn(groups), [groups])
   const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])

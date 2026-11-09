@@ -106,6 +106,13 @@ export async function attachFile(call, { companyId, jobId, name, bytes }) {
   throw new SendError(r.status === 404 ? `Job ${jobId} was not found in Simpro` : simproErr(r), r.status >= 500 || r.status === 429)
 }
 
+/** The names of the files attached to a job (however they got there: this hub, another laptop, Simpro itself). Throws SendError. */
+export async function listJobFiles(call, companyId, jobId) {
+  const r = await call('GET', `/companies/${companyId}/jobs/${jobId}/attachments/files/?pageSize=250`)   // the proxy allows a plain query only here
+  if (!ok(r)) throw new SendError(`Job ${jobId} files: ${simproErr(r)}`, r.status >= 500 || r.status === 429)
+  return (Array.isArray(r.data) ? r.data : []).map((f) => String(f.Filename || '')).filter(Boolean)
+}
+
 /** Simpro's four job stages. Status codes are per company and fetched. */
 export const JOB_STAGES = ['Pending', 'Progress', 'Complete', 'Archived']
 

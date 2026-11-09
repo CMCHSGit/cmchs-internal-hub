@@ -65,8 +65,8 @@ test('sent is remembered per file, so "not yet sent" and bulk attach pick the ri
   let groups = groupReports(await store.all())
   const a = groups.find((g) => g.serial === 'A'), b = groups.find((g) => g.serial === 'B')
   assert.deepEqual(a.sentTo, ['#77'])
-  assert.equal(a.unsent, true, 'its results file has not gone')
-  assert.equal(filterGroups(groups, { unsentOnly: true }).length, 2)
+  assert.equal(a.unsent, false, 'its results file never goes to Simpro, so it doesn’t count')
+  assert.equal(filterGroups(groups, { unsentOnly: true }).length, 1)
   assert.deepEqual(pickFiles(groups, [a.base, b.base], ['pdf']).map((f) => f.name).sort(), ['A - M 02.11.2026.pdf', 'B - M 02.11.2026.pdf'], 'only the kinds asked for')
   await saveReport(store, { name: 'A - M 02.11.2026.pdf', buffer: buf(12) }, 5) // saved again: a new file, not yet sent
   groups = groupReports(await store.all())

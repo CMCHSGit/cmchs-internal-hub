@@ -148,3 +148,11 @@ test('deleting still needs the admin role, and is recorded when it happens', () 
   assert.equal(a.call(del).success, true)
   assert.equal(JSON.parse(a.sent.firestore[0].opts.payload).writes[0].update.fields.summary.stringValue, 'Simpro: deleted an asset on site 5')
 })
+
+test('a job’s attached files may be listed (the Test Bench shows a report already on the job as sent), with a plain query only', () => {
+  const { call, sent } = relay()
+  assert.equal(call({ method: 'get', path: '/companies/0/jobs/7/attachments/files/?pageSize=250' }).success, true)
+  assert.equal(call({ method: 'get', path: '/companies/0/jobs/7/attachments/files/?columns=ID,Filename' }).success, false, 'no wider query')
+  assert.equal(call({ method: 'get', path: '/companies/0/jobs/7/attachments/files/12' }).success, false, 'not one file’s contents')
+  assert.equal(sent.simpro.length, 1)
+})

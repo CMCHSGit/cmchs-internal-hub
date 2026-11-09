@@ -16,9 +16,9 @@ import { auth } from '../../schedule/src/firebase.js'
 import { Badge, Button } from '../../../shared/ui/index.jsx'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
-import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, customerOf, getJob, listCompanies, makeCall } from './simpro-api.js'
+import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, customerOf, getJob, listCompanies, listJobFiles, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
+import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import { saveOrder, watchOrders } from './orders-firebase.js'
@@ -368,25 +368,33 @@ function TestBench() {
   // An order closes by itself once its Simpro job is marked Complete (or Archived): each open order's job is looked at once each time
   // the hub opens with Simpro access, and again straight after its stage is changed from Saved reports (onJobUpdated).
   const checkedJobs = useRef(new Set())
+  // The files a job has in Simpro, however they got there (another laptop, Simpro itself): those tests count as sent to it here.
+  const [onJob, setOnJob] = useState(loadOnJob)
+  const noteJobFiles = useCallback(async (jobId) => {
+    const names = await listJobFiles(call, companyId, jobId)
+    setOnJob((k) => { const n = addOnJob(k, `#${jobId}`, names); saveOnJob(n); return n })
+    return names.length
+  }, [call, companyId])
   const closeDoneOrders = useCallback(async (list, again = false) => {
     for (const o of list.slice(0, 40)) {
-      if (o.status === 'closed' || (!again && checkedJobs.current.has(o.id))) continue
+      if (!again && checkedJobs.current.has(o.id)) continue
       checkedJobs.current.add(o.id)
       const id = jobNumber(o.number); if (!/^\d+$/.test(id)) continue
       let job = null
       try { job = await getJob(call, companyId, id) } catch { continue }
+      if (job && String(job.ID) === id) await noteJobFiles(id).catch(() => {})   // its reports already on the job show as sent
       if (!jobClosesOrder(o, job, job ? customerOf(job) : '')) continue
       try {
         await saveOrder({ ...o, status: 'closed', closedAt: Date.now(), closedBy: who.current.email }, who.current)
         logActivity(null, `Closed a Test Bench order (its Simpro job is ${String(job.Stage).toLowerCase()})`, { app: 'testbench' })
       } catch { /* not allowed or offline: it stays open, and is looked at again next time */ }
     }
-  }, [call, companyId])
+  }, [call, companyId, noteJobFiles])
   useEffect(() => {
     if (!online || !user || access || !companies.length) return
-    closeDoneOrders(orders.filter((o) => o.status !== 'closed'))
+    closeDoneOrders(orders.filter((o) => o.status !== 'closed' || Date.now() - (+o.closedAt || 0) < 30 * 864e5))   // closed in the last 30 days: only its files are looked at
   }, [orders, online, user, access, companies, closeDoneOrders])
-  const tests = useMemo(() => groupReports(reports), [reports])
+  const tests = useMemo(() => withOnJob(groupReports(reports), onJob), [reports, onJob])
   const unsent = tests.filter((g) => g.unsent).length
   // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
   const modelKey = useMemo(() => [...new Set(tests.map(modelOf))].sort().join('\n'), [tests])
@@ -430,6 +438,7 @@ function TestBench() {
       {tab === 'reports' && (
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
+          onJob={onJob} onJobFiles={noteJobFiles}
           onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
           onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
           sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}

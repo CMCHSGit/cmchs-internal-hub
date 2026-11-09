@@ -277,3 +277,12 @@ number in the Simpro company chosen, and a customer that agrees with the order's
 as closed by whoever's hub noticed, with one activity line; **Reopen** still works. Also fixed: **Review and attach PDFs** on an order
 now finds a set's report by any of its serials.
 
+## "Sent" counts what Simpro already has, from anywhere (10/11/2026)
+A test showed **Sent to #job** only when its file went to Simpro through this laptop's hub, so reports attached from another laptop, by
+another engineer, or straight in Simpro stayed **Not sent**. Now the hub reads the job's attached files (`listJobFiles`, a new read-only
+route in the Apps Script proxy: GET `/jobs/{id}/attachments/files/`, plain query) and every test whose file is there (same serial, same
+test day, from the file name "SERIAL - model dd.mm.yyyy") shows as sent to that job. It looks when a job is chosen in Saved reports
+(including from an order's **Review and attach PDFs**), and for each open order, and each order closed in the last 30 days, when the hub
+opens with Simpro access. Kept on this laptop in localStorage `testbench.onJob` (`addOnJob`, `withOnJob` in `src/reports.js`).
+Also: a results file never goes to Simpro, so it no longer keeps a sent test "Not sent".
+

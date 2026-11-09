@@ -156,7 +156,7 @@ export function groupReports(list) {
     g.files.sort((a, b) => (order[a.ext] ?? 9) - (order[b.ext] ?? 9) || a.name.localeCompare(b.name))
     g.day = nzDay(g.testedAt || g.savedAt)
     g.sentTo = [...new Set(g.files.flatMap((f) => f.sent.map((s) => s.job)))]
-    g.unsent = g.files.some((f) => !f.sent.length)
+    g.unsent = !g.sentTo.length || g.files.some((f) => f.ext !== 'json' && !f.sent.length)   // a results file never goes to Simpro
     g.uploaded = g.files.some((f) => f.meta && f.meta.uploaded)
   }
   return oneCustomerPerDevice(mergeSameTest([...m.values()])).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt))
@@ -187,7 +187,7 @@ function mergeSameTest(groups) {
     merged.savedAt = Math.max(...list.map((g) => g.savedAt))
     merged.downloadedAt = Math.max(0, ...merged.files.map((f) => f.downloadedAt || 0))
     merged.sentTo = [...new Set(merged.files.flatMap((f) => f.sent.map((s) => s.job)))]
-    merged.unsent = merged.files.some((f) => !f.sent.length)
+    merged.unsent = !merged.sentTo.length || merged.files.some((f) => f.ext !== 'json' && !f.sent.length)
     merged.uploaded = merged.files.some((f) => f.meta && f.meta.uploaded)
     for (const g of rest) { if (!merged.serial) merged.serial = g.serial; if (!merged.model) merged.model = g.model; if (merged.customer === NO_CUSTOMER) merged.customer = g.customer; if (!merged.template) merged.template = g.template }
     out.push(merged)
@@ -339,3 +339,35 @@ export function reportsFromSearch(search) {
     unsent: p.get('unsent') === '1',
   }
 }
+
+/* ---- What Simpro already has: "Sent" is otherwise only known for files sent from this laptop's hub. A job's attached files are read
+   (listJobFiles) and every test whose file is there counts as sent to that job, however it got there. Kept on this laptop by serial
+   number and test day ("TP1-1|09.11.2026", or "TP1-1|" for a file name with no date), in localStorage `testbench.onJob`. ---- */
+export const ON_JOB_KEY = 'testbench.onJob'
+const ON_JOB_MAX = 3000
+const onJobKey = (serial, date) => `${String(serial ?? '').trim().toUpperCase()}|${date || ''}`
+/** The job's file names -> keys of the tests they are ("SERIAL|dd.mm.yyyy"). */
+export function testsInFiles(names) {
+  const out = new Set()
+  for (const n of names || []) { const d = describeFile(n); for (const s of splitSerials(d.serial)) if (s) out.add(onJobKey(s, d.date)) }
+  return out
+}
+/** `known` ({ key: ['#209653'] }) with a job's files added; the oldest entries go past ON_JOB_MAX. */
+export function addOnJob(known, job, names) {
+  const out = { ...(known || {}) }
+  for (const k of testsInFiles(names)) { const jobs = out[k] || []; delete out[k]; out[k] = jobs.includes(job) ? jobs : [...jobs, job] }
+  const keys = Object.keys(out)
+  for (const k of keys.slice(0, Math.max(0, keys.length - ON_JOB_MAX))) delete out[k]
+  return out
+}
+/** Groups with what Simpro is known to have: such a test is sent to that job, and is no longer "not sent". */
+export function withOnJob(groups, known) {
+  if (!known || !Object.keys(known).length) return groups
+  return groups.map((g) => {
+    const jobs = splitSerials(g.serial).flatMap((s) => [...(known[onJobKey(s, g.date)] || []), ...(known[onJobKey(s, '')] || [])])
+    if (!jobs.length) return g
+    return { ...g, sentTo: [...new Set([...(g.sentTo || []), ...jobs])], unsent: false }
+  })
+}
+export function loadOnJob() { try { return JSON.parse(localStorage.getItem(ON_JOB_KEY) || '{}') || {} } catch { return {} } }
+export function saveOnJob(known) { try { localStorage.setItem(ON_JOB_KEY, JSON.stringify(known)) } catch { /* private mode: known this session only */ } }
