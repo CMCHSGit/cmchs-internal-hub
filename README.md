@@ -17,7 +17,7 @@
 | `/service-orders/` | Service Orders: the service order spreadsheet, with the parser built in | `apps/service-orders`: its data and parsing modules, and `src/` the page (React on the kit), a section of the hub's one app (no build of its own) |
 | `/demo/` | Forwards to `/equipment/`, keeping old links working (`?return=`, `?extend=`, `?reassign=`, `?newLoan=`) | `apps/demo` |
 | `/projects/` | Project tracker: the project team's job register and weekly timeline in one, with demo equipment availability, an archive and Ctrl+K search | `apps/projects`, a section of the hub's one app (no build of its own) |
-| `/knowledge/` | Knowledge base (under Service): part numbers and the other names for them, faults and fixes, what is installed where (counts by site, department, model, any column), and what was done on past jobs, with one search box | `apps/knowledge`, a section of the hub's one app (no build of its own). Rules: not yet published |
+| `/knowledge/` | Knowledge base (under Service): part numbers and the other names for them, faults and fixes, what is installed where (counts by site, department, model, any column), and what was done on past jobs, with one search box | `apps/knowledge`, a section of the hub's one app (no build of its own). Rules: published 9 Nov 2026 |
 | `/asks/` | Asks: quick requests between staff. Send to people or whole teams; the first to pick it up has it, and everyone involved sees who | `apps/asks`, a section of the hub's one app (no build of its own) |
 
 Also here, not web pages: `backend/` (the Apps Script proxy and nightly backup, Tile sync; see `backend/README.md`) and `rules/` (the Firestore and Realtime Database rules; see `rules/README.md`). Everything is being merged into one app: `INTEGRATION-PLAN.md`.

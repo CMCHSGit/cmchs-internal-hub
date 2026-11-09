@@ -56,9 +56,8 @@ Shared with the bench section: `../reports.js`, `../zip.js`, `../bench-tests-fir
 
 - **Firestore**: `projectSettings/main` (customers — **owned by the project tracker**; change its model in `apps/projects/src/customers.js`,
   not here) and `pendingAssets` (`{ customerId, row, by, createdAt }`, `row` only the `FIELDS` keys; the Bench's teams read/add/delete,
-  edit only `row` + `editedBy`/`editedAt`; `by` and `editedBy` must be your own email). Rules in `rules/firestore.rules` (`isPendingAsset`). **The `pendingAssets` rules (create, and
-  edit since 9 Nov 2026) were not yet published** as of 9 Nov 2026 (`rules/README.md`): until they are, adding or editing a row is refused
-  and the page says so. Rules tests: `rules/tests/pending-rules.test.mjs` (emulator, needs Java). Publishing = paste the
+  edit only `row` + `editedBy`/`editedAt`; `by` and `editedBy` must be your own email). Rules in `rules/firestore.rules` (`isPendingAsset`). The `pendingAssets` rules (create and edit) were
+  published on 9 Nov 2026 (`rules/README.md`); a later change to them needs publishing again, and the page says so when one is refused. Rules tests: `rules/tests/pending-rules.test.mjs` (emulator, needs Java). Publishing = paste the
   whole file into the Firebase console; ask first. If you add a field to `FIELDS`, change `isPendingAsset`'s key list too, and say it
   needs publishing.
 - **This PC**: localStorage `newEquip.customer`; IndexedDB `chs-newequip-files` (file handles), `chs-newequip-handoff` (the one hand-off);
