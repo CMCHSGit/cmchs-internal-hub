@@ -15,6 +15,17 @@ const pick = (dut, re, not) => {
   return k ? String(dut[k] ?? '').trim().slice(0, 200) : ''
 }
 
+/** A set of devices tested together (the bench's "Other devices in this test") shares one test: its serial numbers are kept in the
+    one `serial` field, joined by " + " (the rules allow no other field), the main device first. */
+export const SERIAL_JOIN = ' + '
+/** The serial numbers in a `serial` field: ["FS6-1"] for one device, every one for a set. */
+export const splitSerials = (s) => String(s ?? '').split(/\s\+\s/).map((x) => x.trim()).filter(Boolean)
+/** Every serial number of a test (the main device's, then the other devices'), as one `serial` field. */
+export function serialsOf(run) {
+  const others = Array.isArray(run && run.devices) ? run.devices.map((d) => String((d && d.serial) ?? '').trim().slice(0, 120)) : []
+  return [pick((run && run.dut) || {}, /^serial/i), ...others].filter(Boolean).join(SERIAL_JOIN).slice(0, 600)
+}
+
 /** The one-line record for a test. `who` is { email, name } of the engineer sharing it. */
 export function summaryOf(run, who, now = Date.now()) {
   const dut = run.dut || {}
@@ -23,7 +34,7 @@ export function summaryOf(run, who, now = Date.now()) {
     by: String(who.email || '').toLowerCase(),
     byName: String(who.name || who.email || '').slice(0, 120),
     template: String((run.template && run.template.name) || '').slice(0, 200),
-    serial: pick(dut, /^serial/i),
+    serial: serialsOf(run),
     model: pick(dut, /^model$/i),
     customer: pick(dut, /^(customer|client|hospital|site|owner)\b/i, /^customer asset/i),
     ...(run.order ? { order: String(run.order).slice(0, 40) } : {}),   // the order (job number) it was tested for, when one was chosen

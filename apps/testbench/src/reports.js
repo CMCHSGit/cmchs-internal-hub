@@ -3,6 +3,8 @@
    instead of one file at a time as each test finishes. Kept until someone removes them. Plain functions over a small
    store, so the tests run them with an in-memory one. */
 
+import { splitSerials } from './bench-tests.js'
+
 /** A record: { id (= name), name, mime, buffer, size, savedAt, meta: { customer, serial, model, template, testedAt }, sent: [{ job, at }] } */
 
 export function memoryReports() {
@@ -61,7 +63,7 @@ export async function saveReport(store, { name, mime, buffer, meta }, now = Date
   const m = meta && typeof meta === 'object' ? meta : {}
   const text = (v) => String(v ?? '').trim().slice(0, 200)
   const rec = { id: name, name, mime: mime || '', buffer, size: buffer.byteLength, savedAt: now, sent: [],
-    meta: { customer: text(m.customer), serial: text(m.serial), model: text(m.model), template: text(m.template), testedAt: text(m.testedAt), ...(m.uploaded ? { uploaded: true } : {}) } }
+    meta: { customer: text(m.customer), serial: String(m.serial ?? '').trim().slice(0, 600), model: text(m.model), template: text(m.template), testedAt: text(m.testedAt), ...(m.uploaded ? { uploaded: true } : {}) } }
   await store.put(rec)
   // The same test saved again under another name (a serial or model corrected, a copy kept) is that test, not a second one: its older copy of this kind goes.
   // (Not for a file someone added themselves: that never deletes what the bench saved.)
@@ -210,8 +212,8 @@ function oneCustomerPerDevice(groups) {
 /** "03.11.2026" for a moment, as the New Zealand day it was. */
 export const nzDmy = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; const p = Object.fromEntries(new Intl.DateTimeFormat('en-NZ', { timeZone: NZ, day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d).map((x) => [x.type, x.value])); return `${p.day}.${p.month}.${p.year}` }
 const safeName = (x) => String(x ?? '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim()
-/** The name the files of a shared test get here, as the bench names its own: "serial - model dd.mm.yyyy" (the day it was finished). */
-export const sharedFileBase = (s) => `${safeName(s.serial) || 'Device'}${s.model ? ` - ${safeName(s.model)}` : ''} ${nzDmy(s.finished || s.started)}`
+/** The name the files of a shared test get here, as the bench names its own: "serial - model dd.mm.yyyy" (the day it was finished; a set: its main device's serial). */
+export const sharedFileBase = (s) => `${safeName(splitSerials(s.serial)[0]) || 'Device'}${s.model ? ` - ${safeName(s.model)}` : ''} ${nzDmy(s.finished || s.started)}`
 
 /**
  * Groups for the tests that other engineers (or this one, on another laptop) have finished and shared, and that this laptop has no files
@@ -246,7 +248,7 @@ export function filterGroups(groups, { text = '', unsentOnly = false, notDownloa
   const q = text.trim().toLowerCase()
   const only = serials && serials.length ? new Set(serials.map((s) => String(s).trim().toUpperCase())) : null   // an asset list's devices
   return groups.filter((g) => (!unsentOnly || g.unsent) && (!notDownloaded || !g.downloadedAt) && (!customer || g.customer === customer) && inPeriod(g.day, period, now)
-    && (!only || only.has(String(g.serial).trim().toUpperCase()))
+    && (!only || splitSerials(g.serial).some((s) => only.has(s.toUpperCase())))   // a set's report: any of its devices
     && (!q || `${g.serial} ${g.model} ${g.customer} ${g.date} ${g.template}`.toLowerCase().includes(q)))
 }
 

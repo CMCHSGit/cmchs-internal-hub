@@ -250,3 +250,14 @@ Under the red **Not found** box the bench (inside the hub) offers **Add to the a
 ## Saved reports: update the job, and sync the loaded asset list to Simpro (09/11/2026)
 - **Update the job** (under the Attach row, once a job is chosen): add **notes** (to the end of the job's existing notes, re-read first, so nothing is overwritten), set its **stage** (Pending, Progress, Complete, Archived) and **status** (the company's own list), as the Ansur report builder does. The job's current stage and status are shown. One button does both: "Attach 3 PDFs to #209653 and update it", or just "Update #209653" with nothing ticked. Each change is its own request, so one Simpro refuses doesn't stop the others; an open job is locked in Simpro (422), and the message says to close it. Needs a connection and Simpro access.
 - **Read it again and sync to Simpro…** (the Asset list row): the asset list loaded in the bench is read again first, then handed to Simpro Asset Sync, which opens on it. Asset Sync reads Simpro and previews what would change; nothing changes in Simpro until Apply is pressed there (the same hand-off the New equipment page uses). The bench tells Saved reports which list is loaded (`chs-bench:sheet-state`); the hub asks for the file with `chs-bench:get-sheet`, answered by `chs-bench:sheet-file`. If the bench needs your OK to read the file again, the row says to click Reconnect on its asset list bar. The page changes to Asset Sync, so a test in progress is kept by the bench's autosave and offered back.
+
+## One test for a set of devices (09/11/2026)
+A test often covers several devices (a monitor with its dock and handle, a set of modules), but the bench took one serial number, so
+the others looked untested on New equipment and couldn't be added from Not found. The start screen now has **Other devices in this
+test**: one line per extra device (serial number, model, asset #), each looked up in the asset list by itself. One report lists them all
+(Device 2, 3… after the main device's details, in the PDF and the Ansur record); they can be corrected under Device details.
+- **Stored** on the test as `run.devices = [{ serial, model, asset }]` (results file too, as `devices`).
+- **Shared:** `benchTests.serial` holds every serial joined by " + " (`serialsOf`, `splitSerials` in `src/bench-tests.js`). The
+  Firestore rules allow no new field, so nothing needs publishing. New equipment (`benchByUnit`, `reportsByUnit`) and Saved reports
+  (`filterGroups`) split it; file names use the main device's serial.
+- Not checked on the live hub with a real asset list: the hub's Add to the asset list… for an extra device uses the same path as the main one.

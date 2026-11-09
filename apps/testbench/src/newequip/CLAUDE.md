@@ -68,7 +68,8 @@ Shared with the bench section: `../reports.js`, `../zip.js`, `../bench-tests-fir
 - **Never write to a customer's workbook.** Writing into the synced file was tried and didn't sync; pending rows exist because of that.
   Graph is asked for `Files.Read.All` only. A write scope needs an IT admin's consent: raise it with Peter, don't add it.
 - **Read workbooks only through Asset Sync's `reader.js` / `core.js`**, never a spreadsheet library (it could damage customers' tables,
-  and the two tools must agree on rows). Serial number is the key; match it with `serialKey` (trim, upper case) everywhere.
+  and the two tools must agree on rows). Serial number is the key; match it with `serialKey` (trim, upper case) everywhere. A shared test's `serial` can be a set
+  ("A + B + C"): split it with `splitSerials` first.
 - **Nothing reaches Simpro from this page.** It only hands a file to Asset Sync, whose preview + Apply is the only way in. Keep the
   hand-off once-only and short-lived.
 - **Pickers, `requestPermission` and the Graph pop-up must run straight from the click**, before any long `await`, or the browser drops them.

@@ -198,6 +198,14 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 @media (max-width:640px){.sheet-find{grid-template-columns:1fr}}
 .sum-kinds{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--text-muted)}
 .sum-kinds select{height:40px;min-width:0;font-size:14px}
+.xd{margin:14px 0 0;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.xd-head{font-weight:700;font-size:14px;margin-top:4px}
+.xd-row{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;width:100%;padding:10px 12px;border:1px solid var(--line, #ddd);border-radius:10px}
+.xd-row .field{margin:0}
+.xd-note{grid-column:1/-1;font-size:13.5px}
+.xd-note:empty{display:none}
+.xd-note.ok{color:#2d6a2d}.xd-note.bad{color:#9b2c2c}
+@media (max-width:700px){.xd-row{grid-template-columns:1fr}}
 .sheet-gaps{margin:16px 0 0;display:flex;flex-direction:column;gap:8px}
 .sheet-gaps[hidden]{display:none}
 .sheet-alert{padding:10px 14px;border:1px solid;border-radius:var(--radius-md);font-size:14.5px;line-height:1.4}
@@ -439,6 +447,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         <div class="section-title"><h2>Device under test</h2><span class="badge info" id="pickedName"></span></div>
         <div class="sheet-bar" id="sheetBar" hidden></div>
         <div class="grid2" id="dutFields"></div>
+        <div class="xd" id="extraDevs"></div>
         <div class="field" id="orderField" hidden style="margin-top:12px;max-width:560px"><label for="dutOrder">Order</label><select class="select" id="dutOrder" aria-label="Order this test counts toward"></select><span class="hint" id="orderHint"></span></div>
         <div class="sheet-gaps" id="sheetGaps" hidden></div>
         <div class="row" style="margin-top:16px">
@@ -2649,17 +2658,17 @@ const Sheet = {
     return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
   },
   /** "Not found": the device recorded as a pending row for the customer on the New equipment page (the hub keeps it; nothing is written into the workbook). */
-  async addPending() {
-    const btn = $('#sheetAddPending'); if (btn) btn.disabled = true;
+  async addPending(pre) {   // pre: one of the other devices in this test ({ serial, model, asset }); otherwise the main device's fields
+    const btn = pre ? null : $('#sheetAddPending'); if (btn) btn.disabled = true;
     const val = (col) => { const i = $$('#dutFields input').find(x => this.colForField(x.dataset.k) === col); return i ? i.value.trim() : ''; };
     const reportCustomer = this.customer || val('@customer');
     let who;
     try { who = await this.hubAsk({ type: 'chs-bench:pending-customers', customer: reportCustomer, file: this.file }); }
     catch (e) { if (btn) btn.disabled = false; dialog({ title: 'Couldn’t add it', body: `<p>${esc(e.message)}</p>` }); return; }
-    const model = val('Device Model'), like = model ? this.rows.find(r => (r['Device Model'] || '').toLowerCase() === model.toLowerCase()) : null;
+    const model = pre ? pre.model : val('Device Model'), like = model ? this.rows.find(r => (r['Device Model'] || '').toLowerCase() === model.toLowerCase()) : null;
     const sheets = Object.keys(this.info || {}), sheet0 = (this.lastSheet && sheets.includes(this.lastSheet)) ? this.lastSheet : sheets[0] || '';
     const f = { site: this.commonIn(sheet0, 'Site ID'), type: like?.['Device Type'] || '', manufacturer: val('Manufacturer') || like?.['Manufacturer'] || '', model,
-      description: like?.['Description'] || '', serial: val('Serial Number') || this.result?.q || '', asset: val('CHS Asset Number'), ward: val('Ward/Location') };
+      description: like?.['Description'] || '', serial: pre ? pre.serial : (val('Serial Number') || this.result?.q || ''), asset: pre ? pre.asset : val('CHS Asset Number'), ward: val('Ward/Location') };
     const box = (k, label) => `<div class="field"><label for="pa_${k}">${label}</label><input class="input" id="pa_${k}" data-pa="${k}" value="${esc(f[k])}"></div>`;
     const body = `<p class="muted" style="margin-top:0">The device waits on the New equipment page as a pending row, to be pasted under the asset list’s last row (or sent through Simpro Asset Sync). Nothing is written into ${esc(this.file)} from here.</p>
       <div class="field"><label for="pa_cust">Customer</label><select class="select" id="pa_cust"><option value="">Choose the customer…</option>${who.list.map(c => `<option value="${esc(c.id)}"${c.id === who.pick ? ' selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
@@ -2675,10 +2684,11 @@ const Sheet = {
       collect: (ov) => ({ customerId: $('#pa_cust', ov).value, row: Object.fromEntries($$('[data-pa]', ov).map(i => [i.dataset.pa, i.value.trim()])) }) });
     if (btn) btn.disabled = false;
     if (!res || !res.value) return;
-    if (!res.data.customerId) { toast('Choose the customer the device belongs to.', 4000); return this.addPending(); }
+    if (!res.data.customerId) { toast('Choose the customer the device belongs to.', 4000); return this.addPending(pre); }
     try {
       const r = await this.hubAsk({ type: 'chs-bench:add-pending', customerId: res.data.customerId, file: this.file, row: res.data.row });
       log('in', 'SHEET', `Added as a pending row${r.queued ? ' (waiting to go online)' : ''}`);
+      if (pre) { toast(`Added to ${r.customer}’s pending rows`, 4000); return r; }
       this.result = { kind: 'added', q: this.result?.q || res.data.row.serial, customer: r.customer, queued: !!r.queued }; this.renderAlert();
       toast(`Added to ${r.customer}’s pending rows`, 4000);
     } catch (e) { dialog({ title: 'Couldn’t add it', body: `<p>${esc(e.message)}</p>` }); }
@@ -2737,16 +2747,24 @@ const Runner = {
     if (kept) toast(`Kept ${kept} checklist answer${kept === 1 ? '' : 's'} from the last device. Change any that differ.`, 5000);
   },
   get steps() { return this.run.template.steps; },
-  dutText() { return Object.entries(this.run.dut).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('  ·  '); },
+  dutText() { const o = otherDevices(this.run); return Object.entries(this.run.dut).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('  ·  ') + (o.length ? `  ·  Also in this test: ${o.map(deviceLine).join('; ')}` : ''); },
   async editDetails() {
     const run = this.run; if (!run) return;
     const keys = [...new Set([...(run.template.dut || []), ...Object.keys(run.dut)])];
+    const devs = otherDevices(run);
+    const devBox = (d, j) => ['serial', 'model', 'asset'].map(f => `<div class="field"><label for="ex${j}${f}">${f === 'serial' ? `Device ${j + 2} serial number` : f === 'model' ? 'Model' : 'Asset #'}</label><input class="input" id="ex${j}${f}" data-dj="${j}" data-df="${f}" value="${esc(d[f])}"></div>`).join('');
     const res = await dialog({ title: 'Device details', body: `<div class="grid2" style="margin-top:4px">${keys.map((k, i) => `<div class="field"><label for="ed${i}">${esc(k)}</label><input class="input" id="ed${i}" data-k="${esc(k)}" value="${esc(run.dut[k] || '')}"></div>`).join('')}</div>
+        ${devs.length ? `<div class="xd-head" style="margin-top:14px">Other devices in this test</div><div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px">${devs.map(devBox).join('')}</div><p class="hint" style="margin:6px 0 0">Clear a device’s boxes to take it off this test.</p>` : ''}
         <p class="hint" style="margin-top:10px">Changes apply to this test’s summary, report and results file.</p>`,
       buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Save details', value: true }],
-      collect: (el) => Object.fromEntries($$('input[data-k]', el).map(i => [i.dataset.k, i.value.trim()])), focus: 'input', enterNext: true });
+      collect: (el) => {
+        const devices = devs.map(() => ({}));
+        $$('input[data-dj]', el).forEach(i => { devices[+i.dataset.dj][i.dataset.df] = i.value.trim(); });
+        return { dut: Object.fromEntries($$('input[data-k]', el).map(i => [i.dataset.k, i.value.trim()])), devices };
+      }, focus: 'input', enterNext: true });
     if (!res || !res.value) return;
-    const before = this.dutText(); run.dut = res.data;
+    const before = this.dutText(); run.dut = res.data.dut;
+    const kept = otherDevices({ devices: res.data.devices }); if (kept.length || run.devices) run.devices = kept;
     $('#runDut').textContent = this.dutText(); if (!$('#runSummary').hidden) this.renderSummary(); else this.autosave();
     if (before !== this.dutText()) log('in', 'RUN', `Device details changed: ${this.dutText()}`);
     toast('Details updated');
@@ -3504,7 +3522,7 @@ const Runner = {
   renderSummary() {
     const run = this.run, o = run.overall = overallOf(run);
     $('#sumTitle').textContent = run.template.name;
-    $('#sumDut').textContent = Object.entries(run.dut).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('  ·  ');
+    $('#sumDut').textContent = this.dutText();
     $('#sumResult').className = 'big-result ' + (o === 'pass' ? 'pass' : o === 'fail' ? 'fail' : '');
     $('#sumResult').textContent = o === 'pass' ? 'Test passed' : o === 'fail' ? 'Test failed' : run.stopped ? 'Test stopped – incomplete' : 'Incomplete';
     $('#sumWhen').textContent = new Date(run.finished || run.saved || run.started).toLocaleString('en-NZ') + (run.imported ? ` · imported from ${run.imported.source === 'Ansur' ? 'an Ansur record' : 'a results file'}` : '');
@@ -3519,7 +3537,7 @@ const Runner = {
   },
   exportResults() {
     const run = this.run; const sn = run.dut['Serial number'] || run.dut[Object.keys(run.dut)[0]] || 'device';
-    const out = { format: 'chs-test-bench-results', version: 2, template: run.template.name, dut: run.dut, started: run.started, finished: run.finished, overall: run.overall,
+    const out = { format: 'chs-test-bench-results', version: 2, template: run.template.name, dut: run.dut, ...(otherDevices(run).length ? { devices: otherDevices(run) } : {}), started: run.started, finished: run.finished, overall: run.overall,
       appliedParts: usesAP(run.template) ? getAP(run.template).map(({ name, apclass, leads }) => ({ name, type: apclass, typeName: apTypeName(apclass), posts: leads })) : undefined,
       equipment: { esa612: run.equipment?.esa ? { ident: run.equipment.esa.ident, sn: run.equipment.esa.sn, simulated: run.equipment.esa.sim } : null, prosim8: run.equipment?.ps ? { ident: run.equipment.ps.ident, sn: run.equipment.ps.sn, simulated: run.equipment.ps.sim } : null },
       steps: run.template.steps.map(s => ({ title: s.title, type: TYPES[s.type].label, status: run.results[s.id].status, results: run.results[s.id].rows.filter(Boolean) })),
@@ -3640,6 +3658,8 @@ function reportInfo(run) {
   const rows = dut.filter(([k, v]) => !(/^customer asset/i.test(k.trim()) && !String(v ?? '').trim()))
     .map(([k, v], i) => [/^chs asset/i.test(k.trim()) ? 'Asset #' : k, String(v ?? '').trim() || '—', rank(k), i])
     .sort((a, b) => a[2] - b[2] || a[3] - b[3]).map(([k, v]) => [k, v]);
+  const others = otherDevices(run);
+  if (others.length) { const at = rows.findIndex(([k]) => /^testing/i.test(k.trim())); rows.splice(at < 0 ? rows.length : at, 0, ...others.map((d, i) => [`Device ${i + 2}`, deviceLine(d)])); }
   if (!dut.some(([k]) => /^testing company/i.test(k.trim()))) rows.push(['Testing company', 'CHS']);
   const eqp = run.equipment || {};
   if (eqp.esa) rows.push(['Safety analyser', `${eqp.esa.ident}${eqp.esa.sn ? ` · S/N ${eqp.esa.sn}` : ''}`]);
@@ -4186,7 +4206,7 @@ function buildMtr(run) {
 
   const now = new Date(), fin = new Date(run.finished || run.started || now);
   const o = overallOf(run);
-  const dutKeys = Object.keys(run.dut || {});
+  const dutKeys = Object.keys(run.dut || {}), others = otherDevices(run).map((d, i) => [`Device ${i + 2}`, deviceLine(d)]).filter(([k]) => !dutKeys.includes(k));
   const head = ['<?xml version="1.0" encoding="iso8859-1"?>', '', '<FLUKEFile Type="Record" Version="2.0.2">', `${ind(1)}<Application Name="Ansur" Version="3.1.4">`,
     `${ind(2)}<Kernel Name="CTestExecutive" Version="1.2.0"/>`, `${ind(2)}<Interface Name="XML Parser" Version="2.0.2"/>`, `${ind(2)}<PlugIn Name="AVPI" Version="2.4.11"/>`, `${ind(1)}</Application>`];
   const tplName = `${run.template.name}.mtt`.replace(/[–—]/g, '-').replace(/[\\/:*?"<>|]/g, '-');
@@ -4194,6 +4214,7 @@ function buildMtr(run) {
     `${ind(2)}<TemplateData>`, ...tpl.map(l => ind(2) + l), `${ind(2)}</TemplateData>`, `${ind(1)}</Template>`,
     `${ind(1)}<Setup>`, `${ind(2)}<ServiceEvents/>`, `${ind(2)}<Standard AlphaName="Ansur" CompleteName="User defined"/>`, `${ind(2)}<DUT>`,
     ...dutKeys.map((k, i) => { const v = run.dut[k]; const a = `Name="${x(k)}" Ord="${i + 1}" Caption="${x(k)}"${i === 0 ? ' Required="True" Key="True"' : ''}`; return v ? `${ind(3)}<Item ${a}>${x(v)}</Item>` : `${ind(3)}<Item ${a}/>`; }),
+    ...others.map(([k, v], j) => `${ind(3)}<Item Name="${x(k)}" Ord="${dutKeys.length + j + 1}" Caption="${x(k)}">${x(v)}</Item>`),
     `${ind(2)}</DUT>`, `${ind(1)}</Setup>`, `${ind(1)}<Record>`, `${ind(2)}<TestData>`, `${ind(3)}<Status>${o === 'pass' ? 'Passed' : o === 'fail' ? 'Failed' : 'Not Completed'}</Status>`,
     `${ind(3)}${date(fin)}`, `${ind(2)}</TestData>`, `${ind(2)}<ResultData>`, ...res.map(l => ind(2) + l), `${ind(2)}</ResultData>`, `${ind(1)}</Record>`, '</FLUKEFile>', ''];
   const without = toCp1252(head.join(NL) + NL + body.join(NL));
@@ -4539,7 +4560,7 @@ function offerToHub(name, blob, only) {   // only: just this file (the summary's
   try {
     const run = Runner.run, dut = (run && run.dut) || {};
     const pick = (re) => { const k = Object.keys(dut).find(k => re.test(k.trim())); return k ? String(dut[k] || '').trim() : ''; };
-    if (run) meta = { customer: pick(/^(customer|client|hospital|site|owner)/i), serial: pick(/^serial/i), model: pick(/^model$/i), template: (run.template && run.template.name) || '', testedAt: run.started || '' };
+    if (run) meta = { customer: pick(/^(customer|client|hospital|site|owner)/i), serial: allSerials(run), model: pick(/^model$/i), template: (run.template && run.template.name) || '', testedAt: run.started || '' };
   } catch {}
   blob.arrayBuffer().then((buffer) => window.parent.postMessage({ type: 'chs-bench:file', name, mime: blob.type, buffer, meta }, location.origin)).catch(() => {});
   // Simpro won't take a results file (.json), so every test saved as a PDF or results file also gets its Ansur record (.mtr) in
@@ -4635,13 +4656,89 @@ window.addEventListener('message', (e) => {
 /** The template picked and the details typed (and the order chosen) are kept on this PC while the Device under test form is open, and put back
     when the page opens again, so a refresh in the middle of typing doesn't lose the place. Dropped once the test starts or the form is closed,
     and after twelve hours. */
+/* ----- other devices in this test: a set tested together (a monitor with its dock and handle) gets one report. The main device is
+   the template's fields (run.dut); the others are run.devices = [{ serial, model, asset }]. Each is looked up in the asset list by
+   itself. When shared, every serial goes in the one benchTests `serial` field, joined by " + " (src/bench-tests.js serialsOf). ----- */
+function otherDevices(run) {
+  const t = (v) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 120);
+  return (Array.isArray(run && run.devices) ? run.devices : []).map(d => ({ serial: t(d && d.serial), model: t(d && d.model), asset: t(d && d.asset) })).filter(d => d.serial || d.model || d.asset);
+}
+function deviceLine(d) { return [d.model || 'Device', d.serial ? `S/N ${d.serial}` : '', d.asset ? `Asset # ${d.asset}` : ''].filter(Boolean).join(' · '); }
+/** Every serial number of a test, the main device's first, joined as the hub keeps them. */
+function allSerials(run) {
+  const dut = (run && run.dut) || {}, k = Object.keys(dut).find(k => /^serial/i.test(k.trim()));
+  return [k ? String(dut[k] || '').trim() : '', ...otherDevices(run).map(d => d.serial)].filter(Boolean).join(' + ');
+}
+const Extras = {
+  list: [],   // the start screen's other devices: [{ serial, model, asset, look }]; look = what the asset list said
+  set(devs) { this.list = (devs || []).map(d => ({ serial: d.serial || '', model: d.model || '', asset: d.asset || '' })); this.render(); },
+  collect() { return otherDevices({ devices: this.list }); },
+  render() {
+    const box = $('#extraDevs'); if (!box) return;
+    const inp = (i, f, label) => `<div class="field"><label for="xd${i}${f}">${label}</label><input class="input" id="xd${i}${f}" data-xd="${f}" value="${esc(this.list[i][f])}" autocomplete="off"></div>`;
+    box.innerHTML = (this.list.length ? `<div class="xd-head">Other devices in this test</div>` : '')
+      + this.list.map((d, i) => `<div class="xd-row" data-i="${i}">${inp(i, 'serial', `Device ${i + 2} serial number`)}${inp(i, 'model', 'Model')}${inp(i, 'asset', 'Asset #')}
+        <button type="button" class="btn quiet sm" data-xd-del aria-label="Remove device ${i + 2}">Remove</button><div class="xd-note" aria-live="polite"></div></div>`).join('')
+      + `<button type="button" class="btn secondary sm" id="xdAdd">${icon('plus')} Another device in this test</button>`
+      + (this.list.length ? '' : `<span class="hint">For a set tested together, such as a monitor with its dock and handle: one report lists every device.</span>`);
+    $('#xdAdd', box).addEventListener('click', () => { this.list.push({ serial: '', model: '', asset: '' }); this.render(); Draft.save(); $(`#xd${this.list.length - 1}serial`)?.focus(); });
+    $$('.xd-row', box).forEach(row => {
+      const i = +row.dataset.i, d = this.list[i];
+      $('[data-xd-del]', row).addEventListener('click', () => { this.list.splice(i, 1); this.render(); Draft.save(); });
+      $$('input[data-xd]', row).forEach(el => {
+        let tm;
+        el.addEventListener('input', () => { d[el.dataset.xd] = el.value; Draft.save(); clearTimeout(tm); if (el.dataset.xd !== 'model') tm = setTimeout(() => { if (el.value.trim().length >= 4) this.lookup(i, el); }, 800); });
+        el.addEventListener('change', () => { clearTimeout(tm); if (el.dataset.xd !== 'model') this.lookup(i, el); });
+      });
+      this.note(i);
+    });
+  },
+  /** A serial or asset number typed for device i: looked up in the asset list by itself, its model and asset number filled in. */
+  lookup(i, el) {
+    const d = this.list[i]; if (!d) return;
+    d[el.dataset.xd] = el.value;   // what is in the box, even when only 'change' fired
+    const q = el.value.trim().toLowerCase(); d.look = null;
+    if (Sheet.state === 'ready' && q) {
+      const same = Sheet.rows.filter(r => [r['Serial Number'], r['CHS Asset Number'], r['Customer Asset Number']].some(x => x && x.toLowerCase() === q));
+      if (same.length === 1) {
+        const r = same[0], row = $(`#extraDevs .xd-row[data-i="${i}"]`);
+        if (r['Serial Number']) d.serial = r['Serial Number']; else if (el.dataset.xd !== 'serial') d.serial = '';
+        if (r['Device Model']) d.model = r['Device Model'];
+        if (r['CHS Asset Number']) d.asset = r['CHS Asset Number'];
+        if (row) for (const f of ['serial', 'model', 'asset']) $(`[data-xd="${f}"]`, row).value = d[f];
+        d.look = { kind: 'found', sheet: r._sheet || '' };
+        log('in', 'SHEET', `Device ${i + 2} found in the spreadsheet`);
+      } else {
+        d.look = same.length ? { kind: 'many', n: same.length, q: el.value.trim() } : { kind: 'none', q: el.value.trim() };
+        log('in', 'SHEET', same.length ? `Device ${i + 2}: ${same.length} devices have that number` : `Device ${i + 2}: not in the spreadsheet`);
+      }
+    }
+    this.note(i); Draft.save();
+  },
+  note(i) {
+    const d = this.list[i], el = $(`#extraDevs .xd-row[data-i="${i}"] .xd-note`); if (!el || !d) return;
+    const l = d.look; el.className = 'xd-note'; el.innerHTML = '';
+    if (!l) return;
+    if (l.kind === 'found') { el.classList.add('ok'); el.textContent = `Found in the asset list${l.sheet ? ` (${l.sheet})` : ''}.`; return; }
+    if (l.kind === 'added') { el.classList.add('ok'); el.textContent = `Added to ${l.customer}’s pending rows${l.queued ? ' (it goes up when this laptop is back online)' : ''}.`; return; }
+    el.classList.add('bad');
+    if (l.kind === 'many') { el.textContent = `${l.n} devices in ${Sheet.file} have “${l.q}”. Enter the serial number instead.`; return; }
+    el.innerHTML = `<b>Not found.</b> “${esc(l.q)}” isn’t in ${esc(Sheet.file)}.${window.parent !== window ? ' <button type="button" class="btn secondary sm" data-xd-add>Add to the asset list…</button>' : ''}`;
+    $('[data-xd-add]', el)?.addEventListener('click', async (e) => {
+      e.target.disabled = true;
+      const r = await Sheet.addPending({ serial: d.serial.trim() || l.q, model: d.model.trim(), asset: d.asset.trim() });
+      e.target.disabled = false;
+      if (r) { d.look = { kind: 'added', customer: r.customer, queued: !!r.queued }; this.note(i); }
+    });
+  },
+};
 const Draft = {
   key: 'chsBench.draft', done: false,
   save() {
     try {
       if ($('#dutCard').hidden || !App.picked) return;
       const t = Store.get(App.picked), values = {}; $$('#dutFields input').forEach(i => { values[i.dataset.k] = i.value; });
-      localStorage.setItem(this.key, JSON.stringify({ id: App.picked, name: t && t.name, values, order: $('#dutOrder').value || '', touched: $('#dutOrder').dataset.touched === '1', at: Date.now() }));
+      localStorage.setItem(this.key, JSON.stringify({ id: App.picked, name: t && t.name, values, devices: Extras.collect(), order: $('#dutOrder').value || '', touched: $('#dutOrder').dataset.touched === '1', at: Date.now() }));
     } catch {}
   },
   clear() { try { localStorage.removeItem(this.key); } catch {} },
@@ -4654,6 +4751,7 @@ const Draft = {
     this.done = true;
     App.show('run'); App.pick(t.id);
     $$('#dutFields input').forEach(i => { if (d.values[i.dataset.k] !== undefined) i.value = d.values[i.dataset.k]; });
+    Extras.set(d.devices);
     BenchOrders.pending = { value: d.order, touched: d.touched }; BenchOrders.render();
     ($$('#dutFields input').find(i => !i.value) || $('#startRun'))?.focus();
     toast(`Back to where you were: ${t.name}`, 3500);
@@ -5020,6 +5118,7 @@ const App = {
     $('#pickedName').textContent = t.name;
     const prev = {}; $$('#dutFields input').forEach(i => prev[i.dataset.k] = i.value);
     $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || (/^testing engineer$/i.test(k) ? 'Jonathan Nasrun' : ''))}" ${i === 0 ? 'required' : ''}></div>`).join('');
+    Extras.render();
     $('#dutCard').hidden = false; delete $('#dutOrder').dataset.touched; BenchOrders.render(); this.updateStartHint(); Draft.save();
     enterToNext($$('#dutFields input'), () => this.startRun());
     $$('#dutFields input').filter(i => /^(serial|chs asset|customer asset)/i.test(i.dataset.k.trim())).forEach(i => { let tm; i.addEventListener('change', () => { clearTimeout(tm); Sheet.onTyped(i); Draft.save(); }); i.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(() => { if (i.value.trim().length >= 4) { Sheet.onTyped(i); Draft.save(); } }, 800); }); });   // (the details the list fills in are kept too)   // in the customer's spreadsheet: fill the rest
@@ -5034,7 +5133,7 @@ const App = {
     if (e) e.preventDefault();
     if (!$('#runActive').hidden) { this.show('run'); return; }
     if (!$('#runSummary').hidden) { if (Power.on) Power.off(true); $('#runSummary').hidden = true; $('#runSetup').hidden = false; }
-    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true; Draft.clear();
+    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true; Extras.set([]); Draft.clear();
     this.show('run'); this.refreshRunPicker(); window.scrollTo({ top: 0 });
   },
   /** Run the test again on the same device: a new test that starts with every result of the last one kept exactly as it was (statuses, readings,
@@ -5048,6 +5147,7 @@ const App = {
     const r = Runner.run;
     r.template = clone(prev.template); r.results = clone(prev.results); r.stdSet = prev.stdSet; r.rerunOf = prev.id; if (prev.order) r.order = prev.order;   // the same steps (same ids) and every result as it was
     if (prev.extra) r.extra = clone(prev.extra);
+    if (prev.devices) r.devices = clone(prev.devices);
     $('#editAp').hidden = !usesAP(r.template);
     const left = r.template.steps.findIndex((s) => !['pass', 'done', 'info', 'na'].includes((r.results[s.id] || {}).status));
     Runner.go(left < 0 ? 0 : left); Runner.autosave();
@@ -5062,6 +5162,7 @@ const App = {
     this.carry = { templateId: t.id, rows: checklistAnswers(run) };
     const inputs = $$('#dutFields input'), isSerial = (i) => /serial/i.test(i.dataset.k);
     inputs.forEach(i => { i.value = isSerial(i) ? '' : (run.dut && run.dut[i.dataset.k] != null ? run.dut[i.dataset.k] : i.value); });
+    Extras.set(otherDevices(run).map(d => ({ serial: '', model: d.model, asset: '' })));   // the next set: the same kinds of device, new numbers
     $('#nextName').textContent = t.name; $('#runSetup').classList.add('next-device');
     (inputs.find(isSerial) || inputs.find(i => !i.value) || inputs[0])?.focus();
     window.scrollTo({ top: 0 });
@@ -5081,7 +5182,9 @@ const App = {
     Sheet.cur = null; Sheet.result = null; Sheet.renderAlert();
     const dut = {}; inputs.forEach(i => dut[i.dataset.k] = i.value.trim());
     const order = BenchOrders.chosen();   // the order this test counts toward, or '' for automatic
-    const go = (...a) => { Runner.start(...a); if (Runner.run && order) Runner.run.order = order; Draft.clear(); };
+    const devices = Extras.collect(), noSerial = devices.findIndex(d => !d.serial);
+    if (noSerial >= 0) { toast(`Enter device ${noSerial + 2}’s serial number, or remove it.`, 4500); $(`#xd${Extras.list.findIndex(d => (d.model || d.asset) && !d.serial.trim())}serial`)?.focus(); return; }
+    const go = (...a) => { Runner.start(...a); if (Runner.run) { if (order) Runner.run.order = order; if (devices.length) { Runner.run.devices = devices; $('#runDut').textContent = Runner.dutText(); Runner.autosave(); } } Draft.clear(); };
     const models = tplModels(t);
     if (models.length > 1) {
       const mk = Object.keys(dut).find(k => /^model$/i.test(k.trim()));

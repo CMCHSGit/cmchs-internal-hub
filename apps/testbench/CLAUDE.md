@@ -52,6 +52,8 @@ until it does everything, those keep working as they are. Its own map and rules:
 - **Imported Ansur records pass through unformatted.** Encodings: `.mtr` is cp1252 + CRLF; the PDF font is WinAnsi (Ω→Ohm, ≤/≥→max/min).
 - **Folder pickers / `requestPermission` must run before any long `await`**, or the click is lost.
 - **Keep the page offline-capable:** local fonts in `bench/fonts/`, no CDN. Templates are never precached (`scripts/build.mjs`).
+- **A set of devices is one test** (`run.devices`, "Other devices in this test"): every serial is in the one `benchTests.serial`
+  field joined by " + ". Anything that matches tests or reports by serial must use `splitSerials` (`src/bench-tests.js`).
 - **Activity log:** hub-side data changes (sharing/removing tests, orders, sends to Simpro, pending assets) log one line with counts only,
   never names, emails or content (`shared/activity.js`).
 - To replace the whole bench from another file: `node scripts/update-bench.mjs "<file>" --force` (swaps in local fonts and the hub hook).

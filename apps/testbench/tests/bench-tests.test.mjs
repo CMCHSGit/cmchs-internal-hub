@@ -344,6 +344,6 @@ test('the device form is kept as it is typed and put back after a refresh, then 
   assert.match(html, /\$\('#dutFields'\)\.addEventListener\('input', \(\) => \{ BenchOrders\.render\(\); Draft\.save\(\); \}\)/, 'saved as each field is typed')
   assert.ok(html.includes('this.updateStartHint(); Draft.save();') && html.includes('Sheet.onTyped(i); Draft.save();') && html.includes("if (typeof Draft !== 'undefined') Draft.save();"), 'on picking a template, and when the asset list fills details in')
   assert.ok(html.includes('Runner.offerRestore();\n    if (!Draft.restore()) setTimeout(() => Draft.restore(), 3000);') || /Runner\.offerRestore\(\);\s*\n\s*if \(!Draft\.restore\(\)\) setTimeout\(\(\) => Draft\.restore\(\), 3000\)/.test(html), 'restored when the page opens, again if the templates were still loading')
-  assert.ok(html.includes('Runner.run.order = order; Draft.clear(); }') && /\$\('#dutCard'\)\.hidden = true; Draft\.clear\(\);/.test(html), 'dropped when the test starts, or the form is closed')
+  assert.ok(/Runner\.run\.order = order;[^\n]*\} Draft\.clear\(\); \};/.test(html) && /\$\('#dutCard'\)\.hidden = true; Extras\.set\(\[\]\); Draft\.clear\(\);/.test(html), 'dropped when the test starts, or the form is closed')
   assert.ok(html.includes('if (this.done || Runner.run || !$(\'#runActive\').hidden) return false;'), 'not on top of a test in progress')
 })

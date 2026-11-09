@@ -4,6 +4,7 @@
    Sync always agree on what a row is: the serial number is the key, blank cells are blank, Excel errors are not values. */
 import { XLSXLite } from '../../../simprosync/reader.js'
 import { SyncCore } from '../../../simprosync/core.js'
+import { splitSerials } from '../bench-tests.js'
 
 const norm = (h) => String(h ?? '').trim().toLowerCase()
 export const serialKey = (s) => String(s ?? '').trim().toUpperCase()
@@ -72,11 +73,12 @@ export function duplicateSerials(units) {
 export function benchByUnit(units, tests) {
   const want = new Set(units.map((u) => u.key)), out = new Map()
   for (const t of tests || []) {
-    const k = serialKey(t.serial)
-    if (!k || !want.has(k)) continue
-    const cur = out.get(k), when = Date.parse(t.finished || t.started || '') || 0
-    if (!cur) out.set(k, { overall: t.overall, finished: t.finished || t.started || '', when, count: 1 })
-    else { cur.count++; if (when >= cur.when) { cur.overall = t.overall; cur.finished = t.finished || t.started || ''; cur.when = when } }
+    for (const k of new Set(splitSerials(t.serial).map(serialKey))) {   // a set tested together counts for each of its devices
+      if (!k || !want.has(k)) continue
+      const cur = out.get(k), when = Date.parse(t.finished || t.started || '') || 0
+      if (!cur) out.set(k, { overall: t.overall, finished: t.finished || t.started || '', when, count: 1 })
+      else { cur.count++; if (when >= cur.when) { cur.overall = t.overall; cur.finished = t.finished || t.started || ''; cur.when = when } }
+    }
   }
   for (const v of out.values()) delete v.when
   return out
@@ -86,12 +88,13 @@ export function benchByUnit(units, tests) {
 export function reportsByUnit(units, groups) {
   const want = new Set(units.map((u) => u.key)), out = new Map()
   for (const g of groups || []) {
-    const k = serialKey(g.serial)
-    if (!k || !want.has(k)) continue
-    const cur = out.get(k) || { tests: 0, unsent: false, sentTo: [] }
-    cur.tests++; cur.unsent = cur.unsent || Boolean(g.unsent)
-    for (const j of g.sentTo || []) if (!cur.sentTo.includes(j)) cur.sentTo.push(j)
-    out.set(k, cur)
+    for (const k of new Set(splitSerials(g.serial).map(serialKey))) {   // one report for a set counts for each of its devices
+      if (!k || !want.has(k)) continue
+      const cur = out.get(k) || { tests: 0, unsent: false, sentTo: [] }
+      cur.tests++; cur.unsent = cur.unsent || Boolean(g.unsent)
+      for (const j of g.sentTo || []) if (!cur.sentTo.includes(j)) cur.sentTo.push(j)
+      out.set(k, cur)
+    }
   }
   return out
 }
