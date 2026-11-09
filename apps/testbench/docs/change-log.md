@@ -286,3 +286,10 @@ test day, from the file name "SERIAL - model dd.mm.yyyy") shows as sent to that 
 opens with Simpro access. Kept on this laptop in localStorage `testbench.onJob` (`addOnJob`, `withOnJob` in `src/reports.js`).
 Also: a results file never goes to Simpro, so it no longer keeps a sent test "Not sent".
 
+## Start-screen defaults, and every serial in a set's file name (10/11/2026)
+- Empty **Manufacturer** starts as Mindray, **Testing company** as CHS, **Testing engineer** as the engineer signed in to the hub (the
+  hub sends `meName` with `chs-bench:shared-list`; kept in localStorage `chsBench.engineer` for offline). Replaces the built-in name.
+- A set's files are named with every serial, comma separated ("AA3F46248926, AA3D58264234 - N1 Handle 10.11.2026.pdf"); past about
+  110 characters the rest become "and N more" (Simpro takes 180). `splitSerials` reads ", " as well as " + "; shared tests' files are
+  named the same way (`sharedFileBase`).
+

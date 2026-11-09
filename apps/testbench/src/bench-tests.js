@@ -19,7 +19,7 @@ const pick = (dut, re, not) => {
     one `serial` field, joined by " + " (the rules allow no other field), the main device first. */
 export const SERIAL_JOIN = ' + '
 /** The serial numbers in a `serial` field: ["FS6-1"] for one device, every one for a set. */
-export const splitSerials = (s) => String(s ?? '').split(/\s\+\s/).map((x) => x.trim()).filter(Boolean)
+export const splitSerials = (s) => String(s ?? '').split(/\s\+\s|,\s*/).map((x) => x.trim()).filter(Boolean)   // " + " in the hub, ", " in file names
 /** Every serial number of a test (the main device's, then the other devices'), as one `serial` field. */
 export function serialsOf(run) {
   const others = Array.isArray(run && run.devices) ? run.devices.map((d) => String((d && d.serial) ?? '').trim().slice(0, 120)) : []

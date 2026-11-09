@@ -128,7 +128,7 @@ function TestBench() {
     const { orders: os, tests } = ordersRef.current
     toBench({ type: 'chs-bench:orders', list: os.filter((o) => o.status !== 'closed').map((o) => ({ number: o.number, customer: o.customer, label: `#${o.number} · ${o.customer}`, summary: summaryLine(o, tests) })) })
   }, [toBench])
-  const sendShared = useCallback(() => toBench({ type: 'chs-bench:shared-list', me: who.current.email, admin: who.current.admin, ok: shared.current.ok, list: shared.current.list }), [toBench])
+  const sendShared = useCallback(() => toBench({ type: 'chs-bench:shared-list', me: who.current.email, meName: who.current.name, admin: who.current.admin, ok: shared.current.ok, list: shared.current.list }), [toBench])
   useEffect(() => {
     if (!user) { shared.current = { list: [], ok: false }; sendShared(); return undefined }
     return watchTests(

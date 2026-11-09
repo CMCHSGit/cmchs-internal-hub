@@ -4830,7 +4830,7 @@ const SharedTests = {
 window.addEventListener('message', (e) => {
   if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
   const m = e.data; if (!m) return;
-  if (m.type === 'chs-bench:shared-list') { Object.assign(SharedTests, { list: Array.isArray(m.list) ? m.list : [], me: m.me || '', admin: !!m.admin, ok: !!m.ok }); if (typeof Records !== 'undefined') Records.renderList(); return; }
+  if (m.type === 'chs-bench:shared-list') { Object.assign(SharedTests, { list: Array.isArray(m.list) ? m.list : [], me: m.me || '', admin: !!m.admin, ok: !!m.ok }); setEngineer(m.meName); if (typeof Records !== 'undefined') Records.renderList(); return; }
   if (m.type === 'chs-bench:pending-reply') { const p = Sheet.asks.get(m.reqId); Sheet.asks.delete(m.reqId); if (p) (m.error ? p.reject(new Error(m.error)) : p.resolve(m)); return; }
   if (m.type === 'chs-bench:run-data' || m.type === 'chs-bench:deleted') { const p = SharedTests.asks.get(m.reqId); SharedTests.asks.delete(m.reqId); if (p) (m.error ? p.reject(new Error(m.error)) : p.resolve(m)); }
 });
@@ -4887,9 +4887,26 @@ const Results = {
   },
 };
 /** "FS6-47000856 - A7 27.10.2026.pdf": serial number and model with today's date, the same for every output. */
+/** What an empty start-screen field starts with: Mindray as the manufacturer, CHS as the testing company, and the engineer signed in
+    to the hub as the testing engineer (remembered on this laptop, so it is there offline too). The asset list still overwrites them. */
+function dutDefault(k) {
+  const x = String(k).trim().toLowerCase();
+  if (/^manufacturer/.test(x)) return 'Mindray';
+  if (/^testing company/.test(x)) return 'CHS';
+  if (/^testing engineer/.test(x)) { try { return localStorage.getItem('chsBench.engineer') || ''; } catch { return ''; } }
+  return '';
+}
+/** The signed-in engineer's name arrived from the hub: kept, and put in an empty Testing engineer box on the start screen. */
+function setEngineer(name) {
+  const n = String(name || '').trim(); if (!n || n.includes('@')) return;   // an email address is not a name
+  try { localStorage.setItem('chsBench.engineer', n); } catch {}
+  $$('#dutFields input').filter(i => /^testing engineer/i.test(i.dataset.k.trim()) && !i.value.trim()).forEach(i => { i.value = n; });
+}
 function outName(run, ext) {
   const dut = run.dut || {}, pick = (re) => { const k = Object.keys(dut).find(k => re.test(k.trim())); return k ? String(dut[k] || '').trim() : ''; };
-  const sn = pick(/^serial/i) || String(dut[Object.keys(dut)[0]] || '').trim() || 'Device', model = pick(/^model$/i);
+  const all = [pick(/^serial/i), ...otherDevices(run).map(d => d.serial)].filter(Boolean);
+  let sn = all[0] || String(dut[Object.keys(dut)[0]] || '').trim() || 'Device', model = pick(/^model$/i);
+  for (let i = 1; i < all.length; i++) { const more = `${sn}, ${all[i]}`; if (more.length > 110) { sn += ` and ${all.length - i} more`; break; } sn = more; }   // a set: "AA3F46248926, AA3D58264234 - N1 Handle …"
   const d = new Date(), dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   return `${safeName(sn)}${model ? ` - ${safeName(model)}` : ''} ${dd}${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}`;   // a rerun has its own files, so the first test's are not replaced
 }
@@ -5139,7 +5156,7 @@ const App = {
     $$('#tplPick .tpl-tile').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
     $('#pickedName').textContent = t.name;
     const prev = {}; $$('#dutFields input').forEach(i => prev[i.dataset.k] = i.value);
-    $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || (/^testing engineer$/i.test(k) ? 'Jonathan Nasrun' : ''))}" ${i === 0 ? 'required' : ''}></div>`).join('');
+    $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || dutDefault(k))}" ${i === 0 ? 'required' : ''}></div>`).join('');
     $$('#dutFields input').filter(i => /^model$/i.test(i.dataset.k.trim())).forEach(i => { i.setAttribute('list', 'modelOptions'); i.autocomplete = 'off'; });
     refreshModelOptions();
     Extras.render();

@@ -213,7 +213,7 @@ function oneCustomerPerDevice(groups) {
 export const nzDmy = (iso) => { const d = new Date(iso); if (isNaN(d)) return ''; const p = Object.fromEntries(new Intl.DateTimeFormat('en-NZ', { timeZone: NZ, day: '2-digit', month: '2-digit', year: 'numeric' }).formatToParts(d).map((x) => [x.type, x.value])); return `${p.day}.${p.month}.${p.year}` }
 const safeName = (x) => String(x ?? '').replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim()
 /** The name the files of a shared test get here, as the bench names its own: "serial - model dd.mm.yyyy" (the day it was finished; a set: its main device's serial). */
-export const sharedFileBase = (s) => `${safeName(splitSerials(s.serial)[0]) || 'Device'}${s.model ? ` - ${safeName(s.model)}` : ''} ${nzDmy(s.finished || s.started)}`
+export const sharedFileBase = (s) => `${safeName(splitSerials(s.serial).join(', ')) || 'Device'}${s.model ? ` - ${safeName(s.model)}` : ''} ${nzDmy(s.finished || s.started)}`
 
 /**
  * Groups for the tests that other engineers (or this one, on another laptop) have finished and shared, and that this laptop has no files
