@@ -2,7 +2,7 @@
 //
 // One line per action in Firestore's `activity` collection (rules: anyone
 // signed in can add a line about themselves; only admins read; nobody edits or
-// deletes, not even admins). Read on Settings → Staff schedule → Activity log,
+// deletes, not even admins). Read on Settings → Admin → Activity log,
 // and copied nightly to Google Drive by backend/apps-script/backup (activityBackup_).
 //
 // Fire-and-forget: a logging failure (offline, rules not yet published) never

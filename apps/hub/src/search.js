@@ -62,7 +62,8 @@ export const PAGES = [
   { title: 'Your notifications', sub: 'Settings', href: '/settings/you/notifications', also: 'push phone reminders alerts turn on off' },
   { title: 'People and access', sub: 'Settings · admins', href: '/settings/people', also: 'admin roles teams simpro access users' },
   { title: 'Everyone’s notifications', sub: 'Settings · admins', href: '/settings/notifications', also: 'admin push reminders who gets' },
-  { title: 'Staff schedule settings', sub: 'Settings · admins', href: '/settings/schedule', also: 'schedule locations excel import activity log' },
+  { title: 'Staff schedule settings', sub: 'Settings · admins', href: '/settings/schedule', also: 'schedule locations excel import' },
+  { title: 'Activity log', sub: 'Settings · admins', href: '/settings/activity', also: 'audit who did what history log changes' },
   { title: 'Project tracker settings', sub: 'Settings', href: '/settings/projects', also: 'projects categories statuses staff equipment pool backup' },
   { title: 'PM types', sub: 'Settings · Maintenance', href: '/settings/maintenance', also: 'maintenance settings first second third pm' },
 ]

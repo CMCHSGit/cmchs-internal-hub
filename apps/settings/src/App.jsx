@@ -3,7 +3,8 @@
    menu). Three groups down the side:
 
      You       Appearance, Notifications: anyone, about themselves.
-     Admin     People and access, Everyone's notifications: admins only, behind
+     Admin     People and access, Everyone's notifications, Background jobs and the
+               Activity log: admins only, behind
                the admin password, as Admin settings at /admin/ was.
      Sections  each section's own settings: the staff schedule's (admins), the
                project tracker's and Maintenance's (its PM types).
@@ -17,7 +18,7 @@
    /settings/appearance. */
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { Activity, Bell, CalendarDays, ChevronLeft, ChevronRight, FolderKanban, Palette, ShieldCheck, Users, Wrench } from 'lucide-react'
+import { Activity, Bell, CalendarDays, ChevronLeft, ChevronRight, FolderKanban, Palette, ScrollText, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import AdminLock, { isUnlocked } from '../../schedule/src/components/AdminLock'
 import { Loading } from '../../../shared/ui/index.jsx'
@@ -29,6 +30,7 @@ const NotificationsTab = lazy(() => import('../../admin/src/Admin.jsx').then(m =
 const ScheduleSettings = lazy(() => import('../../schedule/src/pages/Settings.jsx'))
 const TrackerSettings = lazy(() => import('../../projects/src/settings-page.jsx'))
 const Jobs = lazy(() => import('./Jobs.jsx'))
+const ActivityLog = lazy(() => import('./ActivityLog.jsx'))
 const PmTypes = lazy(() => import('../../maintenance/src/PmTypes.jsx'))
 
 const PAGES = [
@@ -37,7 +39,8 @@ const PAGES = [
   { group: 'Admin', admin: true, to: '/people', label: 'People and access', Icon: Users, title: 'People and access', sub: 'Teams, roles, Simpro access and demo tracker roles, for every tool.' },
   { group: 'Admin', admin: true, to: '/notifications', label: 'Everyone’s notifications', Icon: ShieldCheck, title: 'Everyone’s notifications', sub: 'Who gets which reminders, across the tools.' },
   { group: 'Admin', admin: true, to: '/jobs', label: 'Background jobs', Icon: Activity, title: 'Background jobs', sub: 'Backups, reminders and the Excel copies: when each last ran, and which have failed.' },
-  { group: 'Sections', admin: true, to: '/schedule', label: 'Staff schedule', Icon: CalendarDays, title: 'Staff schedule', sub: 'Location suggestions, the Excel import and the activity log.' },
+  { group: 'Admin', admin: true, to: '/activity', label: 'Activity log', Icon: ScrollText, title: 'Activity log', sub: 'Who did what and when, across the whole hub.' },
+  { group: 'Sections', admin: true, to: '/schedule', label: 'Staff schedule', Icon: CalendarDays, title: 'Staff schedule', sub: 'Location suggestions and the Excel import.' },
   { group: 'Sections', to: '/projects', label: 'Project tracker', Icon: FolderKanban, title: 'Project tracker', sub: 'Staff, categories, statuses, demo equipment and backups.' },
   { group: 'Sections', to: '/maintenance', label: 'Maintenance', Icon: Wrench, title: 'Maintenance', sub: 'The PM types a site can be scheduled for.' },
 ]
@@ -116,10 +119,11 @@ function Layout() {
             <Route path="/people" element={<Page p={PAGES[2]}><AdminOnly><div className="page admin-page"><UsersTab /></div></AdminOnly></Page>} />
             <Route path="/notifications" element={<Page p={PAGES[3]}><AdminOnly><div className="page admin-page"><NotificationsTab /></div></AdminOnly></Page>} />
             <Route path="/jobs" element={<Page p={PAGES[4]}><AdminOnly><Jobs /></AdminOnly></Page>} />
+            <Route path="/activity" element={<Page p={PAGES[5]}><AdminOnly><ActivityLog /></AdminOnly></Page>} />
             {/* Has its own admin check and password, as it always had. */}
-            <Route path="/schedule" element={<Page p={PAGES[5]}><ScheduleSettings /></Page>} />
-            <Route path="/projects" element={<Page p={PAGES[6]}><TrackerSettings /></Page>} />
-            <Route path="/maintenance" element={<Page p={PAGES[7]}><PmTypes /></Page>} />
+            <Route path="/schedule" element={<Page p={PAGES[6]}><ScheduleSettings /></Page>} />
+            <Route path="/projects" element={<Page p={PAGES[7]}><TrackerSettings /></Page>} />
+            <Route path="/maintenance" element={<Page p={PAGES[8]}><PmTypes /></Page>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

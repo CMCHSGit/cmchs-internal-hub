@@ -44,10 +44,11 @@ export function movedTo(path, hash = '') {
   if (path === '/admin' || path.startsWith('/admin/')) {
     const tab = hash.replace(/^#\/?/, '')
     if (tab === 'notifications') return '/settings/notifications'
-    if (['locations', 'excel', 'activity'].includes(tab)) return '/settings/schedule' + (tab === 'locations' ? '' : '#' + tab)
+    if (tab === 'activity') return '/settings/activity'
+    if (['locations', 'excel'].includes(tab)) return '/settings/schedule' + (tab === 'locations' ? '' : '#' + tab)
     return '/settings/people'
   }
-  if (path === '/schedule/settings' || path === '/schedule/settings/') return '/settings/schedule' + hash
+  if (path === '/schedule/settings' || path === '/schedule/settings/') return hash === '#activity' ? '/settings/activity' : '/settings/schedule' + hash
   return null
 }
 

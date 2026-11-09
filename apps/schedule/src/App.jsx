@@ -125,6 +125,6 @@ function Views() {
 /** An old /schedule/settings (or /schedule/admin) address: on to Settings, keeping its #tab. */
 function ToSettings() {
   const { hash } = useLocation()
-  useEffect(() => { navigate('/settings/schedule' + hash, { replace: true }) }, [hash])
+  useEffect(() => { navigate(hash === '#activity' ? '/settings/activity' : '/settings/schedule' + hash, { replace: true }) }, [hash])
   return <Loading />
 }
