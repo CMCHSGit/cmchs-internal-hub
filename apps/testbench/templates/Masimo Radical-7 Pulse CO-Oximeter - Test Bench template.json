@@ -1,0 +1,201 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Masimo Radical-7 Pulse CO-Oximeter",
+  "desc": "Masimo Radical-7 (Class I, SpO2). From the CHS Ansur template “Radical 7 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template had 500/1000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. SpO2 reading keeps the Ansur limits.",
+  "category": "Monitoring",
+  "manufacturer": "Masimo",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "ap1",
+    "name": "SpO2",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "visual",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Inspect the monitor, cables and accessories.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+      "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+      "The external connectors are not loose and their pins are not bent.",
+      "The safety labels and data plate are clearly legible.",
+      "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+     ]
+    }
+   },
+   {
+    "id": "mains",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "pe",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "ins-mins",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "encl",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the monitor.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earthl",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "pat",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Connect the SpO2 sensor (wrapped in foil, or its cable connector pins linked) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "map",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Connect the SpO2 sensor (wrapped in foil, or its cable connector pins linked) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "spo2",
+    "type": "check",
+    "title": "SpO2",
+    "instructions": "Measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "A Pleth wave and PR value are displayed.",
+      "The SpO2 alarms work correctly."
+     ],
+     "readings": [
+      {
+       "label": "Displayed SpO2 on a healthy finger (95–100 %)",
+       "unit": "%",
+       "lo": 94,
+       "hi": 101
+      }
+     ]
+    }
+   },
+   {
+    "id": "battery",
+    "type": "check",
+    "title": "Battery",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The monitor operates correctly from battery power when external AC power fails.",
+      "The operating time of the battery meets the product specification."
+     ]
+    }
+   }
+  ]
+ }
+}

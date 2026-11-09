@@ -1,0 +1,453 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray N1 with N1 TDS and N1 Handle",
+  "desc": "Mindray BeneVision N1 transport monitor tested as one set with its N1 TDS (transport docking station, which takes the mains lead) and N1 Handle: one test and one report for all three serial numbers (add the TDS and Handle under “Other devices in this test”). Class I, applied parts type CF (SpO2, ECG, Temp) on RA. From the CHS Ansur template “Patient Monitor AS-NZS 3551 EST and PVT” as used for the N1 set on 09.10.2026. Electrical limits from AS/NZS 3551:2012+A2 (earth leakage 5000/10000 µA, B11.6). ECG, respiration, temperature and IBP are ProSim 8 steps, as in the Patient Monitor template. The TDS and Handle checks are new: the Ansur template had none.",
+  "category": "Monitoring",
+  "highlight": true,
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "ap1",
+    "name": "SpO2, ECG, Temp",
+    "apclass": "CF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "visual",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Inspect the N1, the N1 TDS, the N1 Handle, cables and accessories.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+      "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+      "The external connectors are not loose and their pins are not bent.",
+      "The safety labels and data plate are clearly legible.",
+      "The power-on test is passed. The power indicator and alarm system works correctly and the monitor starts up properly."
+     ]
+    }
+   },
+   {
+    "id": "mains",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Set up for the electrical safety tests:\n1. Plug the ESA612 into the mains supply.\n2. Dock the N1 in the N1 TDS and plug the TDS’s mains lead into the ESA612 equipment outlet.\n3. Fit the N1 Handle as it is used.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "pe",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part of the N1 TDS.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "ins-mins",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "ins-apins",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "APINS",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "ins-mains-ap",
+    "type": "esa_ins",
+    "title": "Insulation: mains to applied parts",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_AP",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "ins-mains-ne",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "ins-ap-ne",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to non-earth accessible conductive part",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "AP_NE",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "encl",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the N1, the TDS or the Handle.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earthl",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "pat",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Connect the N1’s ECG leads, SpO2 sensor and temperature probe (all on the RA post) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "map",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Connect the N1’s ECG leads, SpO2 sensor and temperature probe (all on the RA post) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "ecg",
+    "type": "ps_nsr",
+    "title": "ECG: heart rate, waveform and lead off",
+    "instructions": "Connect the ECG leads to the ProSim 8. The simulator is set to ECG sinus rhythm, 60 bpm, 1 mV.\n1. Enter the HR shown on the monitor (60±1 bpm).\n2. Check the ECG waves are displayed correctly without noise.\n3. Disconnect each lead in turn and check the matching lead off message appears. Reconnect all leads.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "who": "A",
+     "rate": 60,
+     "ampl": "1.00",
+     "monitor": {
+      "enabled": true,
+      "label": "Heart rate on monitor",
+      "unit": "bpm",
+      "lo": 59,
+      "hi": 61
+     },
+     "extra": [
+      {
+       "label": "ECG waves are displayed correctly without noise.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      },
+      {
+       "label": "ECG Lead Off alarm appears correctly for each lead.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "ecg-cal",
+    "type": "ps_perf",
+    "title": "ECG: calibration square wave",
+    "instructions": "The simulator outputs a square wave (performance). Set the ECG filter on the monitor to Diagnostic and verify the wave scale difference does not exceed 5%.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "wave": "SQUARE=2.0",
+     "monitor": {
+      "enabled": true,
+      "label": "The difference between the amplitude of the ECG calibration square wave and that of the wave scale is not greater than 5%.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "ecg-paced",
+    "type": "ps_paced",
+    "title": "ECG: paced signals",
+    "instructions": "The simulator outputs a paced signal. Set Paced to Yes on the monitor and check the pace pulse marks on the screen.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "wave": "ASY",
+     "ampl": "",
+     "monitor": {
+      "enabled": true,
+      "label": "Paced signals are detected and pace pulse marks are displayed when [Paced] is set to [Yes].",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "resp",
+    "type": "ps_resp",
+    "title": "Respiration",
+    "instructions": "The simulator outputs respiration at 20 rpm. Verify the Resp wave is not distorted and enter the Resp rate shown on the monitor (20±2).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "rate": 20,
+     "monitor": {
+      "enabled": true,
+      "label": "Resp rate on monitor",
+      "unit": "rpm",
+      "lo": 18,
+      "hi": 22
+     },
+     "extra": [
+      {
+       "label": "The Resp wave is not distorted.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "temp",
+    "type": "ps_temp",
+    "title": "Temperature",
+    "instructions": "The simulator outputs 37.0 °C. Check every temperature channel on the monitor.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "t": "37.0",
+     "monitor": {
+      "enabled": true,
+      "label": "The value displayed for each Temp channel of the monitor is within 37±0.1 °C",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "ibp-static",
+    "type": "ps_custom",
+    "title": "IBP: static pressure, both channels",
+    "instructions": "Zero the IBP on the monitor first. The simulator sets channels 1 and 2 to 200 mmHg. Enter what the monitor shows (196–204 mmHg). Mark channel 2 N/A if the monitor has only one IBP channel.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPS=1,+200\nIBPS=2,+200",
+     "monitor": {
+      "enabled": true,
+      "label": "IBP channel 1 on monitor",
+      "unit": "mmHg",
+      "lo": 196,
+      "hi": 204
+     },
+     "extra": [
+      {
+       "label": "IBP channel 2 on monitor",
+       "unit": "mmHg",
+       "lo": 196,
+       "hi": 204
+      }
+     ]
+    }
+   },
+   {
+    "id": "ibp-waves",
+    "type": "ps_custom",
+    "title": "IBP: ART and LV waveforms",
+    "instructions": "The simulator outputs ART on channel 1 and LV on channel 2. Swap the channels with a second run if needed, so each channel is checked with both waves.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPW=1,ART\nIBPW=2,LV",
+     "monitor": {
+      "enabled": true,
+      "label": "The ART and LV waves for each IBP channel are displayed correctly.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "spo2-nibp",
+    "type": "check",
+    "title": "SpO2 and NIBP",
+    "instructions": "SpO2: measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.\nNIBP: check accuracy against the simulator, the leak test and the overpressure test (Adult/Peds and Neo).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "A Pleth wave and PR value are displayed.",
+      "NIBP: the accuracy difference between the monitor and the simulator is within ±3 mmHg.",
+      "NIBP: there is no leakage, or the manual leakage test result does not exceed 6 mmHg/min.",
+      "NIBP overpressure: test passes for Adult and Peds.",
+      "NIBP overpressure: test passes for Neo."
+     ],
+     "readings": [
+      {
+       "label": "Displayed SpO2",
+       "unit": "%",
+       "lo": 95,
+       "hi": 100
+      }
+     ]
+    }
+   },
+   {
+    "id": "co2",
+    "type": "check",
+    "title": "Sidestream CO2",
+    "instructions": "Only if sidestream CO2 is fitted; otherwise skip this step.\n1. Block the gas inlet of the module or watertrap and check for the CO2 Filterline Err alarm.\n2. Apply the calibration gas and enter the displayed CO2.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Leak test: with the gas inlet blocked, the sidestream CO2 flowrate is slower than 10 ml/min and a CO2 Filterline Err alarm is given (no leakage)."
+     ],
+     "readings": [
+      {
+       "label": "Displayed CO2 (6.0 ±0.3 %)",
+       "unit": "%",
+       "lo": 5.7,
+       "hi": 6.3
+      }
+     ]
+    }
+   },
+   {
+    "id": "tds-handle",
+    "type": "check",
+    "title": "N1 TDS and N1 Handle",
+    "instructions": "Undock and redock the N1 with mains connected to the TDS.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The N1 locks into the N1 TDS, and is powered and charged from it when docked (AC power and battery charging indicators).",
+      "The N1 Handle is secure on the N1 and its latches and release work."
+     ]
+    }
+   },
+   {
+    "id": "network-battery",
+    "type": "check",
+    "title": "Network, battery and production test",
+    "instructions": "Run the production test under factory maintenance.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Network: the monitor can print over the network.",
+      "Network: the network printer correctly prints ECG reports.",
+      "Battery: the monitor operates correctly from battery power when external AC power fails (undocked from the TDS).",
+      "Battery: the operating time of the battery meets the product specification.",
+      "Production test: all tests pass."
+     ]
+    }
+   }
+  ]
+ }
+}

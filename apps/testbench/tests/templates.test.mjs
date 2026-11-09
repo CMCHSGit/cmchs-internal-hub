@@ -10,7 +10,7 @@ const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8
 const files = readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
 
 test('there are templates for the monitors, modules, vital signs monitors and BeneHeart defibrillators', () => {
-  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20']) {
+  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle']) {
     assert.ok(files.some((f) => f.includes(want)), `a template for ${want}`)
   }
 })

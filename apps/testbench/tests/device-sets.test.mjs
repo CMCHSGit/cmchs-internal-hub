@@ -2,7 +2,7 @@
 // every serial number counted. Invented serial numbers only.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import vm from 'node:vm'
 import { splitSerials, serialsOf, summaryOf } from '../src/bench-tests.js'
 import { benchByUnit, reportsByUnit } from '../src/newequip/assetlist.js'
@@ -90,6 +90,10 @@ test('empty start-screen fields: Mindray, CHS, and the engineer signed in to the
   assert.equal(L.dutDefault('Testing Company'), 'CHS')
   assert.equal(L.dutDefault('Testing Engineer'), '', 'nobody known yet')
   assert.equal(L.dutDefault('Model'), '')
+  assert.equal(L.dutDefault('Manufacturer', { manufacturer: 'Masimo' }), 'Masimo', 'a template can name its manufacturer')
+  assert.match(html, /manufacturer: String\(raw\.manufacturer \|\| ''\)\.trim\(\) \|\| undefined/, 'kept when a template is loaded')
+  assert.match(html, /prev\[k\] !== dutDefault\(k, was\)/, 'switching template swaps a default that was not typed')
+  for (const f of readdirSync(new URL('../templates/', import.meta.url)).filter((f) => f.startsWith('Masimo '))) assert.equal(JSON.parse(readFileSync(new URL(`../templates/${f}`, import.meta.url), 'utf8')).template.manufacturer, 'Masimo', f)
   L.setEngineer('someone@example.com')
   assert.equal(inputs[0].value, '', 'an email address is not a name')
   L.setEngineer('Pat Example')

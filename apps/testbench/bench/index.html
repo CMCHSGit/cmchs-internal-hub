@@ -1666,7 +1666,7 @@ function groupTemplates(list) {
 }
 /** Build a clean Test Bench template from imported JSON (file, shared folder or copy). */
 function templateFromRaw(raw, fallbackName) {
-  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), highlight: !!raw.highlight, color: HL_COLOURS[raw.color] || raw.color === 'none' ? raw.color : undefined, updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
+  return { id: uid(), name: String(raw.name || fallbackName || 'Template'), desc: String(raw.desc || ''), category: String(raw.category || '').trim(), highlight: !!raw.highlight, manufacturer: String(raw.manufacturer || '').trim() || undefined, color: HL_COLOURS[raw.color] || raw.color === 'none' ? raw.color : undefined, updated: Date.now(), models: Array.isArray(raw.models) ? raw.models.map(String) : undefined, showNA: !!raw.showNA, esaAuto: raw.esaAuto !== false, esaHalt: raw.esaHalt !== false, appliedParts: Array.isArray(raw.appliedParts) ? raw.appliedParts.map(g => ({ id: uid(), name: String(g.name || 'Applied part'), apclass: ['B', 'BF', 'CF'].includes(g.apclass) ? g.apclass : 'CF', leads: (g.leads || []).filter(l => LEADS.includes(l)) })) : undefined, dut: Array.isArray(raw.dut) ? raw.dut.map(String) : ['Serial number', 'Model'],
     steps: raw.steps.filter(s => s && TYPES[s.type]).map(s => newStep(s.type, { title: String(s.title || TYPES[s.type].label), instructions: String(s.instructions || ''), hold: Math.max(0, +s.hold || 0), images: Array.isArray(s.images) ? s.images.filter(i => i && /^data:image\//.test(i.src)) : [], params: s.params || {}, models: Array.isArray(s.models) && s.models.length ? s.models.map(String) : undefined })) };
 }
 function newStep(type, over = {}) {
@@ -2088,6 +2088,7 @@ const Builder = {
       box.innerHTML = `<div class="panel-head"><h3>Template settings</h3></div><div class="panel-body insp">
         <div class="field"><label>Device details asked at the start</label>${this.itemsEditor(t.dut, 'dut')}<span class="hint">These fields appear on the start screen and in the report.</span></div>
         <div class="field"><label for="tplModels">Models this template covers</label><input class="input" id="tplModels" data-tplmodels value="${esc(tplModels(t).join(', '))}" placeholder="e.g. D30, D60 (leave empty for one model)"><span class="hint">With two or more models, each step can be limited to some of them, and a test only shows the steps for the model being tested.</span></div>
+        <div class="field"><label for="tplManuf">Manufacturer</label><input class="input" id="tplManuf" data-tplmanuf value="${esc(t.manufacturer || '')}" placeholder="Mindray"><span class="hint">Starts in an empty Manufacturer box when this template is picked. Leave empty for Mindray.</span></div>
         ${usesAP(t) ? `<div class="field"><span class="lbl">Applied parts</span><div class="apBox">${apEditorHtml(getAP(t))}</div><span class="hint">Used by patient leakage and mains on applied parts. Can be changed during a test.</span></div>` : ''}
         <div class="field"><span class="lbl">Electrical safety</span>
           <label class="check"><input type="checkbox" data-tpl="esaAuto" ${t.esaAuto !== false ? 'checked' : ''}> Run neighbouring ESA612 steps as one auto sequence</label>
@@ -2177,6 +2178,7 @@ const Builder = {
     box.addEventListener('input', (e) => {
       const el = e.target; const s = this.sel;
       if (el.dataset.tpl) { this.tpl[el.dataset.tpl] = el.checked; Store.save(this.tpl); this.renderCanvas(); return; }
+      if (el.hasAttribute('data-tplmanuf')) { this.tpl.manufacturer = el.value.trim() || undefined; Store.save(this.tpl); return; }
       if (el.hasAttribute('data-tplmodels')) { this.tpl.models = [...new Set(el.value.split(',').map(x => x.trim()).filter(Boolean))]; Store.save(this.tpl); this.renderCanvas(); return; }
       if (el.hasAttribute('data-stepmodel') && s) { const all = tplModels(this.tpl); const on = $$('[data-stepmodel]', box).filter(c => c.checked).map(c => c.value); s.models = on.length === all.length ? undefined : on; if (!on.length) toast('This step now applies to no model.'); this.changed(true); return; }
       if (el.dataset.li != null) { listOf(el)[+el.dataset.li] = el.value; Store.save(this.tpl); if (s) this.refreshCard(); return; }
@@ -4889,9 +4891,9 @@ const Results = {
 /** "FS6-47000856 - A7 27.10.2026.pdf": serial number and model with today's date, the same for every output. */
 /** What an empty start-screen field starts with: Mindray as the manufacturer, CHS as the testing company, and the engineer signed in
     to the hub as the testing engineer (remembered on this laptop, so it is there offline too). The asset list still overwrites them. */
-function dutDefault(k) {
+function dutDefault(k, t) {
   const x = String(k).trim().toLowerCase();
-  if (/^manufacturer/.test(x)) return 'Mindray';
+  if (/^manufacturer/.test(x)) return (t && t.manufacturer) || 'Mindray';
   if (/^testing company/.test(x)) return 'CHS';
   if (/^testing engineer/.test(x)) { try { return localStorage.getItem('chsBench.engineer') || ''; } catch { return ''; } }
   return '';
@@ -5152,11 +5154,12 @@ const App = {
   },
   pick(id) {
     if (this.carry && this.carry.templateId !== id) this.carry = null;   // checklist answers only go to the same template
+    const was = this.picked ? Store.get(this.picked) : null;
     this.picked = id; const t = Store.get(id);
     $$('#tplPick .tpl-tile').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.id === id)));
     $('#pickedName').textContent = t.name;
     const prev = {}; $$('#dutFields input').forEach(i => prev[i.dataset.k] = i.value);
-    $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] || dutDefault(k))}" ${i === 0 ? 'required' : ''}></div>`).join('');
+    $('#dutFields').innerHTML = (t.dut || []).map((k, i) => `<div class="field"><label for="dut${i}">${esc(k)}</label><input class="input" id="dut${i}" data-k="${esc(k)}" value="${esc(prev[k] && prev[k] !== dutDefault(k, was) ? prev[k] : dutDefault(k, t))}" ${i === 0 ? 'required' : ''}></div>`).join('');
     $$('#dutFields input').filter(i => /^model$/i.test(i.dataset.k.trim())).forEach(i => { i.setAttribute('list', 'modelOptions'); i.autocomplete = 'off'; });
     refreshModelOptions();
     Extras.render();

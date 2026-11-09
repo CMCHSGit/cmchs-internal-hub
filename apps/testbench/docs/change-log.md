@@ -293,3 +293,21 @@ Also: a results file never goes to Simpro, so it no longer keeps a sent test "No
   110 characters the rest become "and N more" (Simpro takes 180). `splitSerials` reads ", " as well as " + "; shared tests' files are
   named the same way (`sharedFileBase`).
 
+## Masimo templates and the N1 set (10/11/2026)
+Made by `tools/make-masimo-n1-templates.mjs` from the CHS Ansur templates carried in completed records; copied into the SharePoint Templates folder.
+- **Masimo Rad-97** (12 steps), **Radical-7** (10), **Root** (17), **Rad-G** (9), group Monitoring, `manufacturer: Masimo`. Each follows its Ansur
+  template: visual; ESA612 block; SpO2 on a healthy finger (Pleth and PR shown, alarms) with the Ansur limits (94–101 % Rad-97 / Radical-7 / Rad-G,
+  95–100 % Root); Rad-97 touchscreen gestures, NIBP (module vs manometer ≤3 mmHg, leak ≤6 mmHg, overpressure) and battery; Root temperature,
+  NIBP (≤3 mmHg, ≤6 mmHg/min, release ≤15 s), SedLine / O3 and battery capacity ≥4000 mAh; Rad-G simulator at 95 % (94–96 %), temperature,
+  battery, touchscreen and speaker.
+- Electrical: Rad-97, Radical-7, Root Class I (PE 0.2 ohm; Rad-97 / Radical-7 insulation mains–PE only, as in Ansur; Root all five, mains to
+  applied parts over 1 Mohm); Rad-G Class II on its charger (Ansur "CL2"): insulation mains–accessible parts, no PE or earth leakage. Enclosure
+  100/500/500 µA. **Where they differ from Ansur:** earth leakage 5000/10000 µA (B11.6, as the other templates; Ansur Radical-7 and Root had
+  500/1000); applied parts **type BF** on RA (the records' ESA612 module measured BF; some Ansur templates also listed CF limits 10/50 that were
+  never applied) — for Jonathan to confirm against the Masimo labels; patient auxiliary current left out (no bench step).
+- **Mindray N1 with N1 TDS and N1 Handle** (23 steps): the N1 set as one test (TDS and Handle under "Other devices in this test"); CF "SpO2, ECG, Temp"
+  on RA; mains lead on the TDS; five insulation tests, enclosure, earth 5000/10000 µA; ProSim ECG / paced / resp / temp / IBP steps copied from the
+  Patient Monitor template; SpO2 95–100 % and NIBP; sidestream CO2 (skip if not fitted); a new TDS and Handle check (docking, power and charging,
+  handle latches; not in the Ansur template); network, battery, production test.
+- **Manufacturer per template:** `manufacturer` on a template (Templates page field) fills an empty Manufacturer box instead of Mindray. Switching
+  templates swaps a value that was only the last template's default; anything typed is kept.
