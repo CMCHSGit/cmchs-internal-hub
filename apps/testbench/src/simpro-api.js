@@ -105,3 +105,50 @@ export async function attachFile(call, { companyId, jobId, name, bytes }) {
   // A missing job or a refused name won't get better by waiting; a server error might.
   throw new SendError(r.status === 404 ? `Job ${jobId} was not found in Simpro` : simproErr(r), r.status >= 500 || r.status === 429)
 }
+
+/** Simpro's four job stages. Status codes are per company and fetched. */
+export const JOB_STAGES = ['Pending', 'Progress', 'Complete', 'Archived']
+
+/** One job, as Simpro returns it (stage, status, notes), or null. */
+export async function getJob(call, companyId, jobId) {
+  const r = await call('GET', `/companies/${companyId}/jobs/${jobId}`)
+  return ok(r) && r.data ? r.data : null
+}
+
+/** The company's job status codes: [{ ID, Name }], or [] when Simpro won't say. */
+export async function listStatusCodes(call, companyId) {
+  const r = await call('GET', `/companies/${companyId}/setup/statusCodes/projects/`)
+  return ok(r) && Array.isArray(r.data) ? r.data : []
+}
+
+const escHtml = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+
+/** Text as Simpro's notes (HTML) want it: escaped, each line break a <br />. */
+export const notesHtml = (text) => String(text ?? '').split(/\r?\n/).map(escHtml).join('<br />')
+
+/**
+ * Updates a job: adds notes to the END of its existing notes (re-read first, so a note someone added in Simpro since is kept), and sets its
+ * stage and status. Each is its own request, so one refused doesn't stop the others. Returns { done: [what was done], failed: [why] }.
+ * An open job is locked in Simpro and every change to it comes back 422 (the caller says so).
+ */
+export async function updateJob(call, { companyId, jobId, notes, stage, statusId }) {
+  const done = [], failed = []
+  const patch = (body) => call('PATCH', `/companies/${companyId}/jobs/${jobId}`, body)
+  if (String(notes || '').trim()) {
+    const fresh = await call('GET', `/companies/${companyId}/jobs/${jobId}`)
+    const existing = ok(fresh) && fresh.data ? String(fresh.data.Notes || '').trim() : ''
+    const html = notesHtml(String(notes).trim())
+    const r = await patch({ Notes: existing ? `${existing}<br /><br />${html}` : html })
+    if (ok(r)) done.push('notes'); else failed.push(`Notes: ${simproErr(r)}`)
+  }
+  if (stage) {
+    const r = await patch({ Stage: stage })
+    if (ok(r)) done.push('stage'); else failed.push(`Stage: ${simproErr(r)}`)
+  }
+  if (statusId) {
+    const id = Number(statusId)
+    if (!Number.isFinite(id)) failed.push(`Status: "${statusId}" is not a numeric status id`)
+    else { const r = await patch({ Status: id }); if (ok(r)) done.push('status'); else failed.push(`Status: ${simproErr(r)}`) }   // a bare integer: Simpro refuses { Status: { ID } }
+  }
+  return { done, failed }
+}

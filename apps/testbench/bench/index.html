@@ -2615,6 +2615,7 @@ const Sheet = {
     this.renderAlert();
   },
   render() {
+    try { if (window.parent !== window) window.parent.postMessage({ type: 'chs-bench:sheet-state', name: this.file || '', state: this.state, devices: this.rows.length }, location.origin); } catch {}   // so the hub's Saved reports knows a list is loaded
     const bar = $('#sheetBar'); if (!bar) return;
     if (this.state === 'unsupported') { bar.hidden = true; return; }
     bar.hidden = false;
@@ -4661,6 +4662,19 @@ const Draft = {
     return true;
   },
 };
+/** Inside the hub: the loaded asset list, read again first, as a file (for Simpro Asset Sync). Replies with the bytes, or why it can't. */
+window.addEventListener('message', async (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  const m = e.data; if (!m || m.type !== 'chs-bench:get-sheet') return;
+  const reply = (o) => window.parent.postMessage({ type: 'chs-bench:sheet-file', id: m.id, ...o }, location.origin);
+  try {
+    if (!Sheet.handle) throw new Error('No asset list is loaded in the bench. Choose one under Device under test first.');
+    await Sheet.load(true);   // read it again: it may have changed since it was loaded
+    if (Sheet.state !== 'ready') throw new Error(Sheet.state === 'needs-permission' ? 'The bench needs your OK to read the asset list again: click Reconnect on its asset list bar, then try again.' : (Sheet.error || 'The asset list couldn’t be read.'));
+    const f = await Sheet.handle.getFile();
+    reply({ name: f.name, mime: f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: await f.arrayBuffer(), devices: Sheet.rows.length });
+  } catch (err) { reply({ error: err.message }); }
+});
 /* ----- shared previous tests: inside the hub, finished tests are kept in Firestore for every engineer (apps/testbench/src/bench-tests.js) ----- */
 const SharedTests = {
   list: [], me: '', admin: false, ok: false, asks: new Map(), timers: {},

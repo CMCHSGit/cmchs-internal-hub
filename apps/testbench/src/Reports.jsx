@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
+import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
 import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups } from './reports.js'
 import { makeZip } from './zip.js'
 
@@ -60,7 +61,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ reports, fresh, sim, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -70,6 +71,23 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   const [exts, setExts] = useState(['pdf', 'mtr']) // not the results file by default: Simpro won't take it, and the Ansur record says the same
   const [chosen, setChosen] = useState(() => new Set())
   const [job, setJob] = useState(startJob)
+  // Updating the job as well as attaching (as the Ansur report builder does): notes added to the end of its notes, its stage and its status.
+  const [notes, setNotes] = useState('')
+  const [stage, setStage] = useState('')
+  const [statusId, setStatusId] = useState('')
+  const [statusCodes, setStatusCodes] = useState([])
+  const [jobInfo, setJobInfo] = useState(null) // the job as Simpro has it now: its stage and status
+  const [syncing, setSyncing] = useState(false)
+  const canSimpro = !!(online && user && !sim.access)
+  useEffect(() => {
+    setJobInfo(null)
+    if (!job || !canSimpro) return undefined
+    let live = true
+    getJob(sim.call, sim.companyId, job.id).then((j) => { if (live) setJobInfo(j) }).catch(() => {})
+    listStatusCodes(sim.call, sim.companyId).then((c) => { if (live) setStatusCodes(c) }).catch(() => {})
+    return () => { live = false }
+  }, [job?.id, sim.companyId, canSimpro]) // eslint-disable-line react-hooks/exhaustive-deps
+  const hasUpdate = !!(notes.trim() || stage || statusId)
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(null) // { done, total, label } while files are being saved
   const [note, setNote] = useState({ text: '', tone: 'info' })
@@ -172,16 +190,37 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
   }
 
   async function attach() {
-    if (!job || !attachCount) return
+    if (!job || !(attachCount || hasUpdate)) return
     setBusy(true)
     try {
-      const made = []; let skipped = 0
-      for (const g of attachMake) { try { made.push(await makePdf(g)) } catch { skipped++ } }
-      for (const g of sharedPicked) { try { const json = await onFetchShared(g); made.push(await makePdf({ base: describeFile(json.name).base, files: [json] })) } catch { skipped++ } }
-      const list = [...attachPdfs, ...made]
-      if (!list.length) throw new Error('There is no PDF to attach.' + skippedNote(skipped))
-      const n = await onAttach(list, job); setNote(skipped ? { ...n, text: n.text + skippedNote(skipped) } : n)
-    } catch (e) { setNote({ text: 'Not queued: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+      let n = null, skipped = 0
+      if (attachCount) {
+        const made = []
+        for (const g of attachMake) { try { made.push(await makePdf(g)) } catch { skipped++ } }
+        for (const g of sharedPicked) { try { const json = await onFetchShared(g); made.push(await makePdf({ base: describeFile(json.name).base, files: [json] })) } catch { skipped++ } }
+        const list = [...attachPdfs, ...made]
+        if (!list.length && !hasUpdate) throw new Error('There is no PDF to attach.' + skippedNote(skipped))
+        if (list.length) n = await onAttach(list, job)
+      }
+      let upd = null
+      if (hasUpdate) {
+        if (!canSimpro) upd = { done: [], failed: ['updating the job needs a connection and Simpro access, so nothing was changed on it'] }
+        else {
+          upd = await updateJob(sim.call, { companyId: sim.companyId, jobId: job.id, notes, stage, statusId })
+          if (upd.done.length) logActivity(null, `Updated a Simpro job from the Test Bench (${upd.done.join(', ')})`, { app: 'testbench' })
+          if (!upd.failed.length) { setNotes(''); setStage(''); setStatusId(''); getJob(sim.call, sim.companyId, job.id).then(setJobInfo).catch(() => {}) }
+        }
+      }
+      const locked = upd && upd.failed.some((f) => / 422\b/.test(f) && !/already|exist|duplicate|unique/i.test(f)) ? ' If the job is open in Simpro, close it and try again.' : ''
+      const text = [n && n.text, upd && upd.done.length ? `Updated job ${job.label.split(' ')[0]}: ${upd.done.join(', ')}.` : '', upd && upd.failed.length ? `Not updated: ${upd.failed.join('; ')}.${locked}` : ''].filter(Boolean).join(' ')
+      setNote({ text: (text || 'Done.') + skippedNote(skipped), tone: (upd && upd.failed.length) || (n && n.tone === 'warning') || skipped ? 'warning' : (n ? n.tone : 'success') })
+    } catch (e) { setNote({ text: 'Not done: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
+  }
+
+  /** Hands the asset list loaded in the bench, read again first, to Simpro Asset Sync (which previews it; nothing changes until Apply there). */
+  async function syncSheet() {
+    setSyncing(true)
+    try { await onSyncSheet() } catch (e) { setNote({ text: 'Not synced: ' + (e.message || e), tone: 'warning' }); setSyncing(false) }
   }
 
   /** One test's Ansur record, made on the spot if it has only a results file. */
@@ -365,8 +404,29 @@ export default function Reports({ reports, fresh, sim, outbox, online, onAttach,
             <div className="tb-actionbar-row tb-attach">
               <span>Attach the PDFs to Simpro job:</span>
               <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} job={job} onJob={setJob} disabled={!!sim.access} />
-              <Button disabled={busy || !job || !attachCount} onClick={attach} title="Only the PDF reports go to the job">{online_ok ? `Attach ${attachCount ? attachCount + ' PDF' + (attachCount === 1 ? '' : 's') : 'PDFs'} to ${job ? job.label.split(' ')[0] : 'job'}` : `Queue ${attachCount ? attachCount + ' PDF' + (attachCount === 1 ? '' : 's') : 'PDFs'} for ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
+              <Button disabled={busy || !job || !(attachCount || hasUpdate)} onClick={attach} title="Only the PDF reports go to the job; the notes, stage and status below are added to it as well">{attachCount ? `${canSimpro ? 'Attach' : 'Queue'} ${attachCount} PDF${attachCount === 1 ? '' : 's'} ${canSimpro ? 'to' : 'for'} ${job ? job.label.split(' ')[0] : 'job'}${hasUpdate ? ' and update it' : ''}` : hasUpdate ? `Update ${job ? job.label.split(' ')[0] : 'job'}` : `${canSimpro ? 'Attach PDFs to' : 'Queue PDFs for'} ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
             </div>
+            {job && (
+              <details className="tb-jobupd" open={hasUpdate || undefined}>
+                <summary>Update the job: notes, stage and status <span className="tb-muted">(optional){jobInfo ? ' · now ' + [jobInfo.Stage, jobInfo.Status?.Name].filter(Boolean).join(' · ') : ''}</span></summary>
+                <label className="tb-orderq">Notes to add to the job
+                  <textarea rows="3" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Added to the end of the job’s existing notes: nothing is overwritten." />
+                </label>
+                <div className="tb-orderrow">
+                  <label>Stage<select value={stage} onChange={(e) => setStage(e.target.value)}><option value="">Leave unchanged</option>{JOB_STAGES.map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
+                  <label>Status<select value={statusId} onChange={(e) => setStatusId(e.target.value)}><option value="">Leave unchanged</option>{statusCodes.map((x) => <option key={x.ID} value={x.ID}>{x.Name}</option>)}</select></label>
+                </div>
+                {!canSimpro && <p className="tb-muted">Needs a connection and Simpro access. Notes, stage and status are done together with the attach, once it can reach Simpro.</p>}
+              </details>
+            )}
+            {onSyncSheet && (
+              <div className="tb-actionbar-row tb-sheetrow">
+                <span>Asset list:</span>
+                {sheet && sheet.state === 'ready' ? <strong>{sheet.name} <span className="tb-muted">({sheet.devices} devices)</span></strong> : <span className="tb-muted">{sheet && sheet.name ? `${sheet.name} isn’t ready (${sheet.state === 'needs-permission' ? 'the bench needs your OK to read it: click Reconnect on its asset list bar' : sheet.state})` : 'none loaded in the bench (choose one under Device under test)'}</span>}
+                <Button variant="secondary" disabled={busy || syncing || !canSimpro || !sheet || sheet.state !== 'ready'} onClick={syncSheet} title="Reads the asset list again, then opens Simpro Asset Sync with it">{syncing ? 'Opening Asset Sync…' : 'Read it again and sync to Simpro…'}</Button>
+                <span className="tb-muted">Opens Simpro Asset Sync with the list as it is now. Nothing changes in Simpro until you press Apply there.</span>
+              </div>
+            )}
             {progress && (
               <div className="tb-progress" role="status" aria-live="polite">
                 <progress max={progress.total || 1} value={progress.done} />

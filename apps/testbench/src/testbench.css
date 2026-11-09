@@ -108,3 +108,9 @@
 .tb-rowx:disabled { opacity: .3; cursor: default; }
 .tb-rowx:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .tb-chip.is-made { cursor: default; font-style: italic; color: var(--text-muted); }
+.tb-jobupd { display: flex; flex-direction: column; gap: 8px; padding: 8px 12px; background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.tb-jobupd[open] { max-height: 40vh; overflow-y: auto; }
+.tb-jobupd summary { cursor: pointer; color: var(--text-strong); font: var(--type-body-strong); }
+.tb-jobupd textarea { width: 100%; min-height: 70px; font: inherit; }
+.tb-jobupd select { min-height: 38px; }
+.tb-sheetrow > span:first-child { color: var(--text-muted); }

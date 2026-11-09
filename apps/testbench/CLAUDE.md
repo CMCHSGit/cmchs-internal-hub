@@ -21,7 +21,7 @@ Electrical-safety and performance testing (AS/NZS 3551) of medical equipment, dr
 | **The hub section** | `src/section.jsx` (React, under the hub header, frames the bench with `allow="serial"`) | Saved reports (`reports.js`, IndexedDB `chs-bench-reports`), zip download (`zip.js`), Simpro attach via the outbox (`outbox.js`, `simpro-api.js`, `JobPicker.jsx`), shared previous tests (`bench-tests*.js`), Orders (`orders*.js`, `Orders.jsx`), "Test this device" links (`device-link.js`). |
 
 Messages are all `chs-bench:*` (`hello`, `file`, `run`, `run-data`, `shared-list`, `get-run`, `delete-run`, `deleted`, `build-pdf`/`pdf`,
-`build-mtr`/`mtr`, `pending-customers`/`add-pending`/`pending-reply`, `open-device`, `orders`, `model-colours`/`-reply`, `home`). Change both sides together, and search both files for the
+`build-mtr`/`mtr`, `sheet-state`/`get-sheet`/`sheet-file`, `pending-customers`/`add-pending`/`pending-reply`, `open-device`, `orders`, `model-colours`/`-reply`, `home`). Change both sides together, and search both files for the
 name. The bench's hand-off point is `offerToHub()`. The bench stays loaded (hidden) behind the other tabs so a test and the USB link survive.
 
 Also here: **`src/newequip/`** — the New equipment page at `/new-equipment/` (customer picker, asset list read via Microsoft Graph,

@@ -25,6 +25,7 @@ import { watchOrders } from './orders-firebase.js'
 import { summaryLine } from './orders.js'
 import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
+import { handoffUrl, idbHandoff, putHandoff } from './newequip/handoff.js'
 import { watchCustomers } from './newequip/customers-firebase.js'
 import { addPendingQueued, listPending } from './newequip/pending-firebase.js'
 import { clashes } from './newequip/pending.js'
@@ -77,6 +78,7 @@ function TestBench() {
   const [orders, setOrders] = useState([])
   const [ordersError, setOrdersError] = useState('')
   const [testsList, setTestsList] = useState([]) // the shared finished tests (what the orders count)
+  const [sheet, setSheet] = useState(null) // the asset list loaded in the bench: { name, state, devices }
   const [startJob, setStartJob] = useState(null) // the Simpro job Saved reports opens with (from an order)
   const [onlySerials, setOnlySerials] = useState(link.serials)
   const [top, setTop] = useState(0)
@@ -201,6 +203,12 @@ function TestBench() {
         } catch (err) {
           return reply({ error: err?.code === 'permission-denied' ? 'The database refused it: the rules for pending rows (pendingAssets) haven’t been published yet (rules/README.md), or you aren’t on a team that can use the Test Bench.' : (err?.message || 'Couldn’t add it.') })
         }
+      }
+      if (m?.type === 'chs-bench:sheet-state') { setSheet({ name: m.name, state: m.state, devices: m.devices }); return }
+      if (m?.type === 'chs-bench:sheet-file') {   // the bench's answer to a request for the loaded asset list
+        const p = asks.current.get(m.id); asks.current.delete(m.id)
+        if (p) m.error || !(m.buffer instanceof ArrayBuffer) ? p.reject(new Error(m.error || 'The bench sent nothing back.')) : p.resolve({ name: m.name, mime: m.mime, buffer: m.buffer, devices: m.devices })
+        return
       }
       if (m?.type === 'chs-bench:mtr' || m?.type === 'chs-bench:pdf') {   // the bench's answer to a request for an Ansur record or a PDF
         const p = asks.current.get(m.id); asks.current.delete(m.id)
@@ -339,6 +347,21 @@ function TestBench() {
     return { ...rec, ext: 'json', kind: 'Results file' }
   }, [reportStore])
 
+  /** The asset list loaded in the bench, read again first (the bench does that), left for Simpro Asset Sync, which is then opened: it shows the preview and waits for Apply. */
+  const syncSheet = useCallback(async () => {
+    const win = frame.current?.contentWindow
+    if (!win) throw new Error('The Test Bench isn’t loaded yet. Open the Test Bench tab once, then try again.')
+    const f = await new Promise((resolve, reject) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const timer = setTimeout(() => { asks.current.delete(id); reject(new Error('The Test Bench didn’t answer. Reload the page and try again.')) }, 30000)
+      asks.current.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v) }, reject: (e) => { clearTimeout(timer); reject(e) } })
+      win.postMessage({ type: 'chs-bench:get-sheet', id }, location.origin)
+    })
+    await putHandoff(idbHandoff(), { name: f.name, mime: f.mime, buffer: f.buffer })
+    logActivity(null, `Handed the asset list (${f.devices} devices) to Simpro Asset Sync from Saved reports`, { app: 'testbench' })
+    location.assign(handoffUrl())
+  }, [])
+
   const sim = { call, companies, companyId, setCompanyId, access }
   const tests = useMemo(() => groupReports(reports), [reports])
   const unsent = tests.filter((g) => g.unsent).length
@@ -385,7 +408,7 @@ function TestBench() {
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
           onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
-          sharedTests={testsList} onFetchShared={fetchShared} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
+          sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
           onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
           onSendWaiting={() => sendWaiting()}

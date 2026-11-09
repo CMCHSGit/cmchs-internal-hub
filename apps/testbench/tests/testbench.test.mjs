@@ -390,3 +390,38 @@ test('a passed test saves itself to Saved reports when it finishes (setting on t
   assert.match(body, /run\.autoSaved\) return/, 'once per test')
   assert.match(body, /saveReportFiles\(run, 'save'\)/, 'the same as pressing Save')
 })
+
+test('updating a job: notes go to the end of the existing notes (re-read first), stage and status are separate requests, and one refused does not stop the others', async () => {
+  const { JOB_STAGES, getJob, listStatusCodes, updateJob, notesHtml } = await import('../src/simpro-api.js')
+  assert.deepEqual(JOB_STAGES, ['Pending', 'Progress', 'Complete', 'Archived'])
+  assert.equal(notesHtml('line <1>\nline 2 & "3"'), 'line &lt;1&gt;<br />line 2 &amp; &quot;3&quot;', 'plain text as Simpro\'s HTML notes')
+  const sent = []
+  const call = callWith(async (m, p, body) => {
+    sent.push([m, p, body])
+    if (m === 'GET' && p === '/companies/3/jobs/555') return { status: 200, data: { ID: 555, Stage: 'Progress', Status: { ID: 4, Name: 'In progress' }, Notes: '<p>Existing note</p>' } }
+    if (m === 'GET' && p.includes('statusCodes')) return { status: 200, data: [{ ID: 4, Name: 'In progress' }, { ID: 9, Name: 'Complete' }] }
+    if (m === 'PATCH' && body.Stage) return { status: 422, data: { errors: [{ message: 'job is open' }] } }
+    return { status: 200, data: {} }
+  })
+  assert.equal((await getJob(call, 3, 555)).Stage, 'Progress')
+  assert.deepEqual((await listStatusCodes(call, 3)).map((x) => x.Name), ['In progress', 'Complete'])
+  sent.length = 0
+  const r = await updateJob(call, { companyId: 3, jobId: 555, notes: 'All 17 tested\nSee reports', stage: 'Complete', statusId: '9' })
+  assert.deepEqual(r.done, ['notes', 'status'], 'the stage was refused, the others went')
+  assert.match(r.failed[0], /^Stage: .*422/)
+  const patches = sent.filter((x) => x[0] === 'PATCH').map((x) => x[2])
+  assert.equal(patches[0].Notes, '<p>Existing note</p><br /><br />All 17 tested<br />See reports', 'added after what was there')
+  assert.deepEqual(patches[2], { Status: 9 }, 'status is a bare number')
+  assert.deepEqual(await updateJob(call, { companyId: 3, jobId: 555, notes: '  ', stage: '', statusId: '' }), { done: [], failed: [] }, 'nothing to change, nothing sent')
+})
+
+test('Saved reports can update the job (notes, stage, status) and hand the loaded asset list to Simpro Asset Sync after reading it again', () => {
+  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
+  assert.ok(ui.includes('updateJob(sim.call, { companyId: sim.companyId, jobId: job.id, notes, stage, statusId })') && ui.includes('Update the job: notes, stage and status') && ui.includes('JOB_STAGES.map') && ui.includes('statusCodes.map'), 'the panel and what it sends')
+  assert.ok(ui.includes('disabled={busy || !job || !(attachCount || hasUpdate)}'), 'the job can be updated with nothing to attach')
+  assert.ok(ui.includes('Read it again and sync to Simpro…') && ui.includes('Nothing changes in Simpro until you press Apply there'), 'the asset list button')
+  const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
+  assert.ok(section.includes("type: 'chs-bench:get-sheet'") && section.includes("m?.type === 'chs-bench:sheet-state'") && section.includes('putHandoff(idbHandoff()') && section.includes('location.assign(handoffUrl())'), 'asks the bench, hands the file over, opens Asset Sync')
+  const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.ok(bench.includes("m.type !== 'chs-bench:get-sheet'") && /await Sheet\.load\(true\);\s*\/\/ read it again/.test(bench) && bench.includes("type: 'chs-bench:sheet-state'") && bench.includes("type: 'chs-bench:sheet-file'"), 'the bench reads the list again before handing it over, and reports what is loaded')
+})
