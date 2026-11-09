@@ -22,6 +22,17 @@ function rememberedSheets(customerId) {
   try { const v = JSON.parse(localStorage.getItem(SHEETS_KEY) || '{}')[customerId]; return Array.isArray(v) ? v : [] } catch { return [] }
 }
 
+/**
+ * Puts the text and the HTML on the clipboard through a copy event, which writes the HTML exactly as given. (navigator.clipboard.write
+ * cleans HTML up first, and that may drop the mso-number-format Excel needs.) True when it worked; it must run from a click.
+ */
+function copyBoth(text, html) {
+  let handled = false
+  const on = (e) => { e.clipboardData.setData('text/plain', text); e.clipboardData.setData('text/html', html); e.preventDefault(); handled = true }
+  document.addEventListener('copy', on)
+  try { return document.execCommand('copy') && handled } catch { return false } finally { document.removeEventListener('copy', on) }
+}
+
 const saveBlob = (name, blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }
 
 export default function Pending({ customer, units, sheets: loaded, canSimpro }) {
@@ -48,11 +59,11 @@ export default function Pending({ customer, units, sheets: loaded, canSimpro }) 
     const these = only ? [only] : list
     if (!headers && !await confirm({ title: 'The asset list’s columns aren’t known yet', message: 'Load the asset list first (Asset list, below) so the rows are laid out in its own columns; it is remembered on this PC after that. Copied now, they are in the new template’s usual order, which may not match this customer’s sheet.', confirmLabel: 'Copy in the usual order' })) return
     const text = toTsv(these, headers)
+    const done = () => say(only ? `${only.serial} copied` : `${these.length} row${these.length === 1 ? '' : 's'} copied`)
+    if (copyBoth(text, toHtml(these, headers))) return done()
     try {
-      if (typeof ClipboardItem === 'function' && navigator.clipboard?.write) {
-        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([toHtml(these, headers)], { type: 'text/html' }) })])
-      } else await navigator.clipboard.writeText(text)
-      say(only ? `${only.serial} copied` : `${these.length} row${these.length === 1 ? '' : 's'} copied`)
+      await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([toHtml(these, headers)], { type: 'text/html' }) })])
+      done()
     } catch {
       try { await navigator.clipboard.writeText(text); say('Copied as plain text') } catch { say('Couldn’t copy: use Download instead.') }
     }
