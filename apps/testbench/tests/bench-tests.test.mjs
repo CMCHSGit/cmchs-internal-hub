@@ -225,7 +225,8 @@ test('the PDF report keeps the bench\'s layout, with Performance Verification Te
 test('only the PDFs are attached to a Simpro job, and downloaded PDFs go in a folder of their own', () => {
   const jsx = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   const attach = jsx.slice(jsx.indexOf('async function attach()'), jsx.indexOf('/** One test\'s Ansur record'))
-  assert.ok(attach.includes('attachPdfs') && !attach.includes('withMtr()'), 'attach sends the PDFs, not the Ansur records')
+  const picked = jsx.slice(jsx.indexOf('async function pickedPdfs()'), jsx.indexOf('async function print()'))
+  assert.ok(attach.includes('pickedPdfs()') && picked.includes('attachPdfs') && !attach.includes('withMtr()') && !picked.includes('withMtr()'), 'attach sends the PDFs, not the Ansur records')
   assert.ok(jsx.includes("pickFiles(visible, [...chosen], ['pdf'])"))
   assert.ok(jsx.includes("export const PDF_FOLDER = 'PDF reports'") && jsx.includes('getDirectoryHandle(PDF_FOLDER') && jsx.includes('`${PDF_FOLDER}/${f.name}`'), 'in the chosen folder, and in the zip')
   const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')

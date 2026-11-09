@@ -311,3 +311,10 @@ Made by `tools/make-masimo-n1-templates.mjs` from the CHS Ansur templates carrie
   handle latches; not in the Ansur template); network, battery, production test.
 - **Manufacturer per template:** `manufacturer` on a template (Templates page field) fills an empty Manufacturer box instead of Mindray. Switching
   templates swaps a value that was only the last template's default; anything typed is kept.
+
+## Print from Saved reports (10/11/2026)
+- **Print** prints the report (PDF) of each ticked test: several are joined into one PDF (pdf-lib, loaded only then), so there is one print
+  dialog. A report is made first for a test that has only its results file or Ansur record, as for attaching. `src/print.js`.
+- **Print as booklet**: the browser's print dialog has no booklet option (that is Acrobat's), so the hub lays the pages out itself: two to each
+  side of a landscape sheet of the same paper (A4 reports become A5 halves), in fold order, padded with blank pages to a multiple of 4.
+  Print on both sides, flipping on the short edge, and fold. Logged with a count only.

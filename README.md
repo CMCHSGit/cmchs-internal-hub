@@ -239,6 +239,7 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   VS8 / VS9, VS-600 / VS-900 (one template, two models), Exergen, eleven modules (sidestream CO2, AG + O2, NMT+, NMT / BIS / BeneLink, rSO2, C.O.,
   CCO / SvO2, CO2 + O2, EEG, IBP, PiCCO), and the BeneHeart D1 (Pro / Public) and C / S series AED. Where each came from, the limits chosen and what
   wasn't checked against a manual is in `apps/testbench/docs/change-log.md`.
+- **Print from Saved reports:** tick tests, then **Print** (one print dialog for all their reports) or **Print as booklet** (two pages to each side of a landscape sheet, in fold order; print on both sides, flipping on the short edge).
 - **Templates for the Masimo monitors and the N1 set** (10 Nov 2026, made by `apps/testbench/tools/make-masimo-n1-templates.mjs` from the CHS
   Ansur records): Masimo Rad-97, Radical-7, Root and Rad-G (Promed), and the Mindray N1 with its N1 TDS and N1 Handle as one set. A template can
   name its **manufacturer** (Templates page, next to the models; the Masimo ones say Masimo), which fills an empty Manufacturer box instead of Mindray.
