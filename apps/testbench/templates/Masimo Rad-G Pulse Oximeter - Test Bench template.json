@@ -4,7 +4,7 @@
  "template": {
   "name": "Masimo Rad-G Pulse Oximeter",
   "desc": "Masimo Rad-G handheld pulse oximeter, tested on its charger as Class II (the Ansur template is “AS/NZS 3551 - CL2”): no protective earth or earth leakage. From the CHS Ansur template “Masimo Rad-G AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: insulation mains–accessible parts over 1 Mohm, enclosure 100/500/500 µA. Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. SpO2 readings keep the Ansur limits.",
-  "category": "Monitoring",
+  "category": "Promed",
   "manufacturer": "Masimo",
   "dut": [
    "Serial number",

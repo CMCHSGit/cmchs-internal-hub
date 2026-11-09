@@ -4,7 +4,7 @@
  "template": {
   "name": "Masimo Radical-7 Pulse CO-Oximeter",
   "desc": "Masimo Radical-7 (Class I, SpO2). From the CHS Ansur template “Radical 7 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template had 500/1000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. SpO2 reading keeps the Ansur limits.",
-  "category": "Monitoring",
+  "category": "Promed",
   "manufacturer": "Masimo",
   "dut": [
    "Serial number",

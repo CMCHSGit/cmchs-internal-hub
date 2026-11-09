@@ -295,7 +295,7 @@ Also: a results file never goes to Simpro, so it no longer keeps a sent test "No
 
 ## Masimo templates and the N1 set (10/11/2026)
 Made by `tools/make-masimo-n1-templates.mjs` from the CHS Ansur templates carried in completed records; copied into the SharePoint Templates folder.
-- **Masimo Rad-97** (12 steps), **Radical-7** (10), **Root** (17), **Rad-G** (9), group Monitoring, `manufacturer: Masimo`. Each follows its Ansur
+- **Masimo Rad-97** (12 steps), **Radical-7** (10), **Root** (17), **Rad-G** (9), in their own group Promed, `manufacturer: Masimo`. Each follows its Ansur
   template: visual; ESA612 block; SpO2 on a healthy finger (Pleth and PR shown, alarms) with the Ansur limits (94–101 % Rad-97 / Radical-7 / Rad-G,
   95–100 % Root); Rad-97 touchscreen gestures, NIBP (module vs manometer ≤3 mmHg, leak ≤6 mmHg, overpressure) and battery; Root temperature,
   NIBP (≤3 mmHg, ≤6 mmHg/min, release ≤15 s), SedLine / O3 and battery capacity ≥4000 mAh; Rad-G simulator at 95 % (94–96 %), temperature,

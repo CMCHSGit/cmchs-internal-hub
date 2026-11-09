@@ -4,7 +4,7 @@
  "template": {
   "name": "Masimo Root Patient Monitoring Platform",
   "desc": "Masimo Root with Radical-7 docked, and its SedLine / O3 modules where fitted (Class I). From the CHS Ansur template “Root + Rad 7 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE and mains–non-earthed parts over 1 Mohm, mains to applied parts over 1 Mohm (B9.3; no limit in Ansur), the other two recorded; enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template had 500/1000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. Readings keep the Ansur limits.",
-  "category": "Monitoring",
+  "category": "Promed",
   "manufacturer": "Masimo",
   "dut": [
    "Serial number",

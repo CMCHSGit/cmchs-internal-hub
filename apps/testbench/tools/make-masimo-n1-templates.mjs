@@ -49,7 +49,7 @@ const spo2Finger = (lo, hi) => step('spo2', 'check', 'SpO2', 'Measure SpO2 on a 
   readings: [reading('Displayed SpO2 on a healthy finger (95–100 %)', '%', lo, hi)] })
 
 const masimo = (name, desc, apName, steps) => ({
-  name, desc, category: 'Monitoring', manufacturer: 'Masimo', dut: DUT, esaAuto: true, esaHalt: true,
+  name, desc, category: 'Promed', manufacturer: 'Masimo', dut: DUT, esaAuto: true, esaHalt: true,
   appliedParts: [{ id: 'ap1', name: apName, apclass: 'BF', leads: ['RA'] }], steps,
 })
 const COMMON = 'Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out.'
