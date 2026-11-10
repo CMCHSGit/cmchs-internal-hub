@@ -10,6 +10,7 @@ import '../../../shared/ui/ui.css'
 import '../../../shared/tokens/base.css'
 import './hub.css'
 import './shell.css'
+import './service-dense.css'
 import App from './App.jsx'
 
 // A deep link that came via 404.html (/?redirect=/asks/…): put it back first;
