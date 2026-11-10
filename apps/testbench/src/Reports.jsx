@@ -6,7 +6,7 @@ import { belongs, jobNumber } from './orders.js'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
-import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, clearableIds, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
 import { bookletPdf, mergePdfs, printPdf } from './print.js'
 
@@ -120,10 +120,7 @@ export default function Reports({ orders = [], onClearShared, reports, fresh, si
   const groups = useMemo(() => allGroups.filter((g) => !isOthers(g) || lookingFor || forJob(g)), [allGroups, lookingFor, job?.id, orders, me]) // eslint-disable-line react-hooks/exhaustive-deps
   const othersHidden = allGroups.length - groups.length
   // This engineer's own shared tests whose files are all here, downloaded and sent to Simpro: their stored record can be cleared (they can be dragged back in).
-  const clearable = useMemo(() => {
-    const mine = new Map(sharedTests.filter((t) => t && t.size !== 0 && t.started && t.by === me).map((t) => [Date.parse(t.started), t.id]))
-    return withOnJob(groupReports(reports), onJob).filter((g) => !g.uploaded && g.testedAt && g.downloadedAt && !g.unsent && mine.has(g.testedAt)).map((g) => mine.get(g.testedAt))
-  }, [reports, sharedTests, onJob, me])
+  const clearable = useMemo(() => clearableIds(withOnJob(groupReports(reports), onJob), sharedTests, me), [reports, sharedTests, onJob, me])
   async function clearStored() {
     if (!clearable.length || !window.confirm(`Free up storage: delete the stored details of ${clearable.length} of your test${clearable.length === 1 ? '' : 's'} whose files are already downloaded and sent to Simpro?
 

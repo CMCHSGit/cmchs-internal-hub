@@ -18,7 +18,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, customerOf, getJob, listCompanies, listJobFiles, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
+import { addOnJob, clearableIds, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import { saveOrder, watchOrders } from './orders-firebase.js'
@@ -403,6 +403,16 @@ function TestBench() {
   }, [orders, online, user, access, companies, closeDoneOrders])
   const tests = useMemo(() => withOnJob(groupReports(reports), onJob), [reports, onJob])
   const unsent = tests.filter((g) => g.unsent).length
+  // Tests this engineer ran whose files are downloaded and on a Simpro job have their stored record cleared by themselves (the summary stays; Saved
+  // reports has the same as a button). Each is tried once while this page is open; a failure (offline, rules) is tried again when the list changes.
+  const autoCleared = useRef(new Set())
+  useEffect(() => {
+    if (!online || !user || !testsList.length) return
+    const ids = clearableIds(tests, testsList, who.current.email).filter((id) => !autoCleared.current.has(id))
+    if (!ids.length) return
+    ids.forEach((id) => autoCleared.current.add(id))
+    clearShared(ids).catch(() => ids.forEach((id) => autoCleared.current.delete(id)))
+  }, [tests, testsList, online, user, clearShared])
   // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
   const modelKey = useMemo(() => [...new Set(tests.map(modelOf))].sort().join('\n'), [tests])
   askColours.current = () => { if (modelKey) toBench({ type: 'chs-bench:model-colours', id: String(Date.now()), models: modelKey.split('\n') }) }

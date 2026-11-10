@@ -333,4 +333,5 @@ already sent and downloaded** when this laptop holds the files of tests the sign
 a Simpro job. After a confirmation it deletes those `benchTestData` documents and sets the one-line `benchTests` summary's `size` to 0 (`clearTestData`):
 the summary stays so Orders still count the test and **no rules change is needed**. A test with `size: 0` is no longer listed in Saved reports or Previous
 tests (nothing to make a report from); drag its results file or Ansur record into the bench or Saved reports to open it again. Only your own tests (or an
-admin's, by the rules) can be cleared; nothing is cleared automatically. Logged with a count only.
+admin's, by the rules) can be cleared. **It also happens by itself**: while the hub is open, signed in and online, section.jsx clears every test that
+qualifies (`clearableIds`, each tried once per page load), so the button only shows what that could not clear. Logged with a count only.
