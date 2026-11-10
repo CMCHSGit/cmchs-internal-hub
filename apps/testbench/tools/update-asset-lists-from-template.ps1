@@ -105,7 +105,13 @@ try {
       $target = Join-Path $tmpDir $file.Name
       Copy-Item -LiteralPath $file.FullName -Destination $target -Force
     }
-    $wb = $xl.Workbooks.Open($target, 0, $false)
+    try { $wb = $xl.Workbooks.Open($target, 0, $false) }
+    catch {
+      Write-Host '  could not be opened (open in Excel or being synced): skipped. Close it and run again.'
+      $row.Notes = 'SKIPPED: open elsewhere'; $summary.Add([pscustomobject]$row)
+      if (-not $keep) { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
+      continue
+    }
     try {
       if ($Apply -and $wb.ReadOnly) { Write-Host '  open elsewhere (read-only): skipped'; $row.Notes = 'SKIPPED: open elsewhere'; $summary.Add([pscustomobject]$row); continue }
       foreach ($ws in $wb.Worksheets) {
@@ -166,7 +172,10 @@ try {
           }
         }
       }
-      if ($keep) { $wb.Save() }
+      if ($keep) {
+        try { $wb.Save() }
+        catch { Write-Host "  NOT SAVED: $($_.Exception.Message) (the list is unchanged; close it elsewhere and run again)"; $notes += 'NOT SAVED'; $row.FormulasChanged = 0 }
+      }
     } finally { $wb.Close($false) }
     $row.Notes = ($notes -join '; ')
     $summary.Add([pscustomobject]$row)
