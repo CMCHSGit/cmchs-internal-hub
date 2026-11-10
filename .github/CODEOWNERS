@@ -1,0 +1,13 @@
+# Who must approve a pull request that touches these paths (branch ruleset on main).
+# Anything that can run with the repo's secrets, or change who can read the data,
+# needs the owner's approval. Everything else needs one approval from a person
+# with write access. The admin account can still push to main directly.
+/.github/            @CMCHSGit
+/rules/              @CMCHSGit
+/backend/            @CMCHSGit
+/scripts/            @CMCHSGit
+/shared/firebase.js  @CMCHSGit
+/package.json        @CMCHSGit
+/package-lock.json   @CMCHSGit
+/apps/*/package.json @CMCHSGit
+/apps/*/package-lock.json @CMCHSGit
