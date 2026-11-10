@@ -129,12 +129,6 @@ export function MyNotifications() {
                 <Switch checked={prefs[key] !== false} onChange={on => setMine(key, on)} label={label} />
               </div>
             ))}
-            <div className="st-row">
-              <div className="st-row-text">
-                <span className="st-row-label">Demo tracker reminders</span>
-                <span className="st-note">Loans starting, due back, overdue or needing action. An admin sets these in Everyone’s notifications.</span>
-              </div>
-            </div>
           </div>
         )}
       </section>

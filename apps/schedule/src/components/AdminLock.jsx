@@ -6,7 +6,8 @@ const emulators = typeof import.meta.env !== 'undefined' && import.meta.env.DEV 
 /**
  * The admin password — a second step on top of the admin role, useful on an
  * admin's unlocked phone or computer. Asked by the admin pages of Settings
- * (/settings/people, /settings/notifications, /settings/schedule); one origin,
+ * (/settings/people, /settings/notifications, /settings/jobs, /settings/activity,
+ * /settings/schedule); one origin,
  * one sessionStorage, so unlocking one unlocks all until the tab/app is closed.
  *
  * Only its SHA-256 is kept here (this repo is public), but this is a lock on
