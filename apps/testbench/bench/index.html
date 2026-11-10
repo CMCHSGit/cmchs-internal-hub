@@ -3928,7 +3928,10 @@ const Records = {
     const q = ($('#prevSearch')?.value || '').trim().toLowerCase();
     const local = await this.list(), have = new Set(local.map(r => r.id));
     // Tests other engineers (or another laptop) have shared, that aren't on this PC yet, are listed after the same fashion; opening one fetches it.
-    const sharedOnly = SharedTests.list.filter(s => !have.has(s.id)).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
+    // Other engineers' tests stay out of the list until searched for (this engineer's own, from another laptop, are listed).
+    const mine = (s) => !s.by || !SharedTests.me || s.by === SharedTests.me;
+    const othersHidden = q ? 0 : SharedTests.list.filter(s => !have.has(s.id) && !mine(s)).length;
+    const sharedOnly = SharedTests.list.filter(s => !have.has(s.id) && (q || mine(s))).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
     const when = (r) => String(r.finished || r.saved || r.started);
     const runs = [...local, ...sharedOnly].sort((a, b) => when(b).localeCompare(when(a)))
       .filter(r => !q || [r.template?.name, ...Object.values(r.dut || {}), r.shared ? r.shared.byName : ''].join(' ').toLowerCase().includes(q));
@@ -3939,6 +3942,7 @@ const Records = {
       return `<tr><td>${esc(isNaN(d) ? '—' : d.toLocaleDateString('en-NZ'))}</td><td>${esc(dev)}${r.dut?.Model ? ` <span class="muted">${esc(r.dut.Model)}</span>` : ''}${r.shared ? `<br><span class="muted" style="font-size:12.5px">Shared by ${esc(r.shared.byName || r.shared.by)}</span>` : ''}</td><td>${esc(r.template?.name || '')}${r.imported ? ` <span class="badge info">${esc(r.imported.source)}</span>` : ''}</td><td>${badge(r.shared ? r.shared.overall : overallOf(r), r)}</td>
         <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button>${!r.shared || canRemoveShared(r.id) ? `<button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>${runs.length > 30 ? `<p class="hint">Showing the 30 most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
       : `<div class="empty">${q ? 'No tests match.' : 'Finished tests appear here. You can also open a results file or an Ansur record.'}</div>`;
+    if (othersHidden) box.insertAdjacentHTML('beforeend', `<p class="hint">${othersHidden} test${othersHidden === 1 ? '' : 's'} by other engineers ${othersHidden === 1 ? 'is' : 'are'} hidden. Search by serial, model, customer or engineer to find ${othersHidden === 1 ? 'it' : 'one'}.</p>`);
     $$('[data-open]', box).forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.open, r = (await this.list()).find(x => x.id === id);
       if (r) { Runner.open(r); return; }

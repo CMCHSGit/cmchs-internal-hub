@@ -318,3 +318,11 @@ Made by `tools/make-masimo-n1-templates.mjs` from the CHS Ansur templates carrie
 - **Print as booklet**: the browser's print dialog has no booklet option (that is Acrobat's), so the hub lays the pages out itself: two to each
   side of a landscape sheet of the same paper (A4 reports become A5 halves), in fold order, padded with blank pages to a multiple of 4.
   Print on both sides, flipping on the short edge, and fold. Logged with a count only.
+
+## Other engineers' tests are hidden until looked for (10/11/2026)
+Saved reports and the bench's Previous tests no longer list everyone's finished tests. They show this laptop's tests and the signed-in engineer's own
+(from any laptop). Another engineer's tests appear when: you **search** (Saved reports: serial, model, customer, date; Previous tests: also the engineer's
+name), you open Saved reports from a Simpro Asset Sync list (its devices), you tick **Include other engineers' tests**, or you **choose a Simpro job** in
+Saved reports — then every test for that job is listed whoever ran it (tests started against that job number, and tests an order for that job counts by
+customer), so the job can be closed and the reports attached. A line says how many are hidden. Nothing is deleted or changed in Firestore, and Orders
+still counts everyone's tests. `sharedGroups` now carries `order` and `rawCustomer`; `Reports` takes `orders`.

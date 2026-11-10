@@ -225,7 +225,7 @@ export function sharedGroups(reports, shared) {
   return (shared || []).filter((t) => t && t.id && t.started && !here.has(t.started)).map((t) => {
     const finished = Date.parse(t.finished || t.started) || 0, tested = Date.parse(t.started) || finished
     return {
-      base: 'shared:' + t.id, shared: true, sharedId: t.id, sharedBy: t.byName || t.by || '', sharedByEmail: t.by || '', overall: t.overall,
+      base: 'shared:' + t.id, shared: true, sharedId: t.id, sharedBy: t.byName || t.by || '', sharedByEmail: t.by || '', order: t.order || '', rawCustomer: t.customer || '', overall: t.overall,
       serial: t.serial || t.id, model: t.model || '', date: nzDmy(t.finished || t.started), rerun: 0, customer: t.customer || NO_CUSTOMER, template: t.template || '',
       files: [], savedAt: finished, testedAt: tested, downloadedAt: 0, day: nzDay(tested || finished), sentTo: [], unsent: true, uploaded: false, started: t.started, finished: t.finished,
     }

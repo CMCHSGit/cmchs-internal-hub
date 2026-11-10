@@ -8,7 +8,7 @@ import { splitSerials, serialsOf, summaryOf } from '../src/bench-tests.js'
 import { benchByUnit, reportsByUnit } from '../src/newequip/assetlist.js'
 import { filterGroups, sharedFileBase } from '../src/reports.js'
 
-const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8').replace(/\r\n/g, '\n')   // a Windows checkout has CRLF; the slicing below looks for "\n}\n"
 const run = { id: 'r1', dut: { 'Serial number': 'N1A-0001', Model: 'N1' }, devices: [{ serial: 'TDS-0002', model: 'TDS' }, { serial: ' HDL-0003 ', model: 'Handle', asset: 'CHS9' }, { serial: '', model: '' }], template: { name: 'N1 TDS and Handle', steps: [] }, overall: 'pass' }
 
 test('every serial number of a set goes in the one serial field, the main device first', () => {

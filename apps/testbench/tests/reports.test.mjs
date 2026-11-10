@@ -300,6 +300,11 @@ test('tests other engineers finished are listed in Saved reports too, unless thi
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))') && ui.includes('onFetchShared(g)') && ui.includes('made when needed') && ui.includes('Tested by {g.sharedBy'), 'listed, fetched when needed, and says who tested it')
   assert.match(ui, /for \(const g of sharedPicked\) \{ try \{ const json = await onFetchShared\(g\); made\.push\(await makePdf/, 'attaching sends their PDFs too')
+  // Other engineers' tests stay out of the list until looked for; their job's tests are listed whoever ran them.
+  const others = sharedGroups([], [{ ...shared[0], order: '12345' }])[0]
+  assert.deepEqual([others.sharedByEmail, others.order, others.rawCustomer], ['peter@cass.co.nz', '12345', 'Waitemata'])
+  assert.ok(ui.includes('const isOthers = (g) => g.shared && !!g.sharedByEmail && g.sharedByEmail !== me') && ui.includes('!isOthers(g) || lookingFor || forJob(g)') && ui.includes('text.trim() || onlySerials.length || showOthers') && ui.includes('Include other engineers’ tests'), 'hidden unless searched, job-linked or switched on')
+  assert.ok(ui.includes('belongs(o, t)') && readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').includes('orders={orders} onJobUpdated'), 'a job’s orders decide which tests belong to it')
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.ok(section.includes('sharedTests={testsList} onFetchShared={fetchShared}') && section.includes("format: 'chs-test-bench-results'") && section.includes('loadTest(g.sharedId)'))
 })

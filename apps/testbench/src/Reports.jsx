@@ -2,6 +2,7 @@
    day, to download together (one zip) or attach together to a Simpro job. Plus the outbox of files waiting to go. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
+import { belongs, jobNumber } from './orders.js'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
@@ -62,7 +63,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ orders = [], reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -103,7 +104,21 @@ export default function Reports({ reports, fresh, sim, onJobUpdated, onJob = nul
   // This laptop's own files, and the tests other engineers have finished that it has no files for yet (made when downloaded or attached).
   const [hidden, setHidden] = useState(getHidden)
   const hiddenCount = useMemo(() => sharedGroups(reports, sharedTests.filter((t) => hidden.has(t.id))).length, [reports, sharedTests, hidden])
-  const groups = useMemo(() => withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))], onJob).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, hidden])
+  // Another engineer's tests are left out of the list (it shows this laptop's tests and this engineer's own, from any laptop) until they are
+  // looked for: a search, the devices of an Asset Sync link, "Include other engineers' tests", or the job chosen below, whose tests are
+  // listed whoever ran them, so a job can be closed and its reports attached.
+  const [showOthers, setShowOthers] = useState(false)
+  const me = String(user?.email || '').toLowerCase()
+  const lookingFor = !!(text.trim() || onlySerials.length || showOthers)
+  const allGroups = useMemo(() => withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))], onJob).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, hidden])
+  const isOthers = (g) => g.shared && !!g.sharedByEmail && g.sharedByEmail !== me
+  const forJob = (g) => {
+    if (!job) return false
+    const n = jobNumber(job.id), t = { order: g.order, customer: g.rawCustomer, finished: g.finished }
+    return (!!g.order && jobNumber(g.order) === n) || orders.some((o) => jobNumber(o.number) === n && belongs(o, t))
+  }
+  const groups = useMemo(() => allGroups.filter((g) => !isOthers(g) || lookingFor || forJob(g)), [allGroups, lookingFor, job?.id, orders, me]) // eslint-disable-line react-hooks/exhaustive-deps
+  const othersHidden = allGroups.length - groups.length
   const customers = useMemo(() => customersIn(groups), [groups])
   const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
@@ -343,8 +358,10 @@ export default function Reports({ reports, fresh, sim, onJobUpdated, onJob = nul
         <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search serial, model, customer" aria-label="Search saved reports" />
         <label className="tb-check"><input type="checkbox" checked={unsentOnly} onChange={(e) => setUnsentOnly(e.target.checked)} /> Not yet sent</label>
         <label className="tb-check"><input type="checkbox" checked={notDownloaded} onChange={(e) => setNotDownloaded(e.target.checked)} /> Not yet downloaded</label>
+        <label className="tb-check" title="Tests other engineers ran are listed only when you search, choose their job, or tick this"><input type="checkbox" checked={showOthers} onChange={(e) => setShowOthers(e.target.checked)} /> Include other engineers’ tests</label>
       </div>
 
+      {othersHidden > 0 && <p className="tb-muted">{othersHidden} test{othersHidden === 1 ? '' : 's'} by other engineers {othersHidden === 1 ? 'is' : 'are'} hidden. Search for one, choose its job, or tick “Include other engineers’ tests” to see {othersHidden === 1 ? 'it' : 'them'}.</p>}
       {groups.length === 0 ? (
         <p className="tb-empty">Nothing saved yet. Save a report in the Test Bench, or add your own files above, and it appears here.</p>
       ) : (
