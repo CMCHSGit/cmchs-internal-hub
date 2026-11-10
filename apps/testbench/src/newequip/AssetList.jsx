@@ -1,4 +1,4 @@
-/* The customer's asset list on the new-equipment page: loaded straight from its stored link (Microsoft Graph, as the signed-in person,
+/* The customer’s asset list in the Test Bench’s Customers tab: loaded straight from its stored link (Microsoft Graph, as the signed-in person,
    graph.js) or from a file chosen on this PC, then shown as one row per unit with what is known of it: its shared bench test and the
    report saved on this PC. READ ONLY: nothing is written to the workbook, to Simpro or anywhere else. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -10,6 +10,7 @@ import { makeZip } from '../zip.js'
 import { watchTests } from '../bench-tests-firebase.js'
 import { benchByUnit, duplicateSerials, filterUnits, readAssetList, reportsByUnit, serialKey, summary } from './assetlist.js'
 import { testLink } from './pending.js'
+import { useTestLink } from './open-device.js'
 import Pending, { rememberSheets } from './Pending.jsx'
 import { sendToSimpro } from './toSimpro.js'
 import { fetchWorkbook, GraphError } from './graph.js'
@@ -202,6 +203,7 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
 const Tile = ({ n, label }) => <div className="ne-tile"><strong>{n}</strong><span>{label}</span></div>
 
 function Row({ u, b, r, benchOk, sheets, customerName }) {
+  const { onClick: openTest } = useTestLink()
   const bench = b
     ? <Badge tone={b.overall === 'pass' ? 'green' : b.overall === 'fail' ? 'red' : 'orange'}>{b.overall === 'pass' ? 'Pass' : b.overall === 'fail' ? 'Fail' : 'Incomplete'}{nz(b.finished) ? ` ${nz(b.finished)}` : ''}</Badge>
     : <Badge tone="grey">{benchOk === false ? 'Not available' : 'Not tested'}</Badge>
@@ -217,7 +219,7 @@ function Row({ u, b, r, benchOk, sheets, customerName }) {
       {sheets && <td>{u.sheet}</td>}
       <td>{bench}</td>
       <td>{report}</td>
-      <td className="ne-actions"><a className="btn btn-sm btn-ghost" href={testLink(u, customerName)}><FlaskConical size={14} aria-hidden="true" /> {b ? 'Test again' : 'Test this device'}</a></td>
+      <td className="ne-actions"><a className="btn btn-sm btn-ghost" href={testLink(u, customerName)} onClick={openTest(testLink(u, customerName))}><FlaskConical size={14} aria-hidden="true" /> {b ? 'Test again' : 'Test this device'}</a></td>
     </tr>
   )
 }

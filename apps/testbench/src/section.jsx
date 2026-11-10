@@ -21,6 +21,7 @@ import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
 import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
+import Customers from './newequip/Customers.jsx'
 import { saveOrder, watchOrders } from './orders-firebase.js'
 import { jobClosesOrder, jobNumber, summaryLine } from './orders.js'
 import { splitSerials } from './bench-tests.js'
@@ -77,7 +78,8 @@ function TestBench() {
 
   // Opened from Simpro Asset Sync's "Reports to add" (reports.js, reportsLink): straight onto Saved reports, showing that asset list's devices.
   const link = useMemo(() => reportsFromSearch(location.search), [])
-  const [tab, setTab] = useState(link.open ? 'reports' : 'bench') // 'bench' | 'reports' | 'orders'
+  // 'customers' is also where the old /new-equipment/ page sends people (newequip/section.jsx).
+  const [tab, setTab] = useState(link.open ? 'reports' : new URLSearchParams(location.search).get('tab') === 'customers' ? 'customers' : 'bench') // 'bench' | 'reports' | 'orders' | 'customers'
   const [orders, setOrders] = useState([])
   const [ordersError, setOrdersError] = useState('')
   const [status, setStatus] = useState({}) // { testId: { sentJobs, downloadedAt } } (bench-status.js)
@@ -194,7 +196,7 @@ function TestBench() {
         if (!user) return reply({ error: 'Sign in to the hub to add devices to the asset list.' })
         const { list, error } = customersRef.current
         if (m.type === 'chs-bench:pending-customers') {
-          if (!list.length) return reply({ error: error || 'There are no New equipment customers yet. Add the customer on the New equipment page first.' })
+          if (!list.length) return reply({ error: error || 'There are no New equipment customers yet. Add the customer in the Customers tab first.' })
           return reply(matchCustomer(list, { customer: m.customer, file: m.file }, rememberedCustomers()))
         }
         const c = list.find((x) => String(x.id) === String(m.customerId))
@@ -459,6 +461,7 @@ function TestBench() {
           Orders
           {orders.some((o) => o.status !== 'closed') && <Badge tone="purple">{orders.filter((o) => o.status !== 'closed').length} open</Badge>}
         </button>
+        <button type="button" role="tab" aria-selected={tab === 'customers'} className={tab === 'customers' ? 'is-on' : ''} onClick={() => setTab('customers')}>Customers</button>
       </div>
 
       {/* Kept loaded while Saved reports is showing: a test in progress and the USB connection stay as they are. */}
@@ -475,6 +478,11 @@ function TestBench() {
           orders={orders} ordersError={ordersError} tests={testsList} who={who.current} user={user} online={online} sim={sim}
           onReview={(order, p) => { setOnlySerials(p.devices.flatMap((d) => splitSerials(d.serial))); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); setTab('reports') }}
         />
+      )}
+      {tab === 'customers' && (
+        <div className="tb-reports">
+          <Customers user={user} profile={profile} onOpenDevice={(device) => { if (device) toBench({ type: 'chs-bench:open-device', device }); setTab('bench') }} />
+        </div>
       )}
       {tab === 'reports' && (
         <Reports

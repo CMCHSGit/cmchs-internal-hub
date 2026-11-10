@@ -24,8 +24,9 @@ Messages are all `chs-bench:*` (`hello`, `file`, `run`, `run-data`, `shared-list
 `build-mtr`/`mtr`, `sheet-state`/`get-sheet`/`sheet-file`, `pending-customers`/`add-pending`/`pending-reply`, `open-device`, `orders`, `model-colours`/`-reply`, `home`). Change both sides together, and search both files for the
 name. The bench's hand-off point is `offerToHub()`. The bench stays loaded (hidden) behind the other tabs so a test and the USB link survive.
 
-Also here: **`src/newequip/`** — the New equipment page at `/new-equipment/` (customer picker, asset list read via Microsoft Graph,
-pending assets, hand-off to Simpro Asset Sync). It is being built to replace the bench + Asset Sync + Ansur report builder eventually;
+Also here: **`src/newequip/`** — the **Customers tab** of this section (customer picker and links, asset list read via Microsoft Graph,
+recorded/pending assets, hand-off to Simpro Asset Sync). It was the New equipment page; `/new-equipment/` now only forwards to
+`/testbench/?tab=customers` (11 Nov 2026). It is being built to replace the bench + Asset Sync + Ansur report builder eventually;
 until it does everything, those keep working as they are. Its own map and rules: `src/newequip/CLAUDE.md`.
 
 ## Where data lives

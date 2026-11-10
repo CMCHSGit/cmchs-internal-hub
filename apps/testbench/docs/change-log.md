@@ -351,3 +351,12 @@ qualifies (`clearableIds`, each tried once per page load), so the button only sh
   record are in `rules/tests/bench-rules.test.mjs` (run by the Rules tests workflow on the pull request).
 - **CI.** The Rules tests workflow already ran every rules test file, orders included, on the emulator; its failure on 9 Nov was a syntax slip (an unescaped
   apostrophe) in `pending-rules.test.mjs`, fixed here.
+
+## Customers tab: the New equipment page moved into the Test Bench (11/11/2026)
+- **New Customers tab** beside Test Bench, Saved reports and Orders. It is the old New equipment page's body, unchanged in behaviour: the customer
+  picker (add a customer, set its **Asset list** and **Reports folder** links with Edit links), **Recorded assets** (rows not in the workbook yet,
+  Copy / Download .csv / Preview in Simpro), and the asset list with each unit's bench test and report. Code: `src/newequip/Customers.jsx`.
+- **`/new-equipment/` now only forwards** to `/testbench/?tab=customers` (old links, bookmarks and the Service menu entry keep working).
+- **Test this device** from this tab hands the device to the bench and switches to the Test Bench tab in the same page (`open-device.js`), so a test in
+  progress and the USB link are not lost (the old page reloaded `/testbench/`).
+- The bench's "Not found → Add to the asset list…" now points at the Customers tab. No data, rules or storage changed.

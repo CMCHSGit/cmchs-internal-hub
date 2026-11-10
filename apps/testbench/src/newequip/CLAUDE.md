@@ -5,10 +5,11 @@ applies too: read it first. This file is the short map of the New equipment page
 
 ## What it is
 
-One page for the whole job on a customer's new equipment, from recording each asset to filing its test report. Live at
-`internal.chsnz.co.nz/new-equipment/`, a **section of the hub's one app** (no build of its own): `section.jsx` is lazy-loaded by
-`apps/hub/src/App.jsx` (`section === 'new-equipment'`); route in `apps/hub/src/router.js`, Service menu in `apps/hub/src/tools.js`,
-service-worker match in `apps/hub/src/sw.js`, activity-log app name `'new-equipment'` in `shared/activity-core.js`.
+The **Customers tab of the Test Bench** (since 11 Nov 2026): the whole job on a customer's new equipment, from recording each asset to filing
+its test report. `Customers.jsx` is rendered by `../section.jsx` (`tab === 'customers'`, opened by `/testbench/?tab=customers`). The old page's
+address `/new-equipment/` stays routed (`apps/hub/src/App.jsx`, `router.js`, `tools.js`, `sw.js`) but `section.jsx` here is only a redirect to
+the tab. Activity-log app name stays `'new-equipment'` (`shared/activity-core.js`). **"Test this device" links must go through `open-device.js`**
+(`useTestLink`): inside the tab they hand the device to the bench frame instead of reloading `/testbench/`, which would lose a test in progress.
 
 It is being built **beside** the three tools it will replace — the Test Bench (`/testbench/`), Simpro Asset Sync (`/simprosync/`) and
 the Ansur report builder (`/ansurtopdf/`). Those keep working exactly as they are until this page does everything they do; the page
@@ -39,7 +40,9 @@ links to them under "Until this page does it all". Add steps here one at a time;
 
 | File | What it owns |
 |---|---|
-| `section.jsx` | The page: auth wrapper, customer picker, Add/Edit customer dialog, links, the "other tools" card. `canEdit` / `canSimpro` live here. |
+| `Customers.jsx` | The tab: customer picker, Add/Edit customer dialog, links, related-tools card. `canEdit` / `canSimpro` live here. Takes `user`, `profile`, `onOpenDevice`. |
+| `section.jsx` | Redirect from the old `/new-equipment/` address to the Customers tab. |
+| `open-device.js` | `OpenDevice` context and `useTestLink`: a test link opens the bench in this page (`deviceOf` reads the device from the link). |
 | `customers.js` / `customers-firebase.js` | Pure: sub-folder names (`ASSET_LIST`, `REPORTS`), links, search, drafts. Firestore: `watchCustomers`, `saveCustomer` (transaction). |
 | `AssetList.jsx` | Loading (link / remembered file / chosen file), the table, tiles, Simpro hand-off, reports zip. Renders `Pending`. |
 | `assetlist.js` | Pure: workbook → units, using **Asset Sync's own reader and rules** (`apps/simprosync/reader.js`, `core.js`) so both tools agree on what a row is. `benchByUnit`, `reportsByUnit`, `summary`, `filterUnits`, `duplicateSerials`. |

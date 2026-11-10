@@ -114,3 +114,7 @@
 .tb-jobupd textarea { width: 100%; min-height: 70px; font: inherit; }
 .tb-jobupd select { min-height: 38px; }
 .tb-sheetrow > span:first-child { color: var(--text-muted); }
+
+/* The Customers tab (newequip/Customers.jsx) sits in the same scrolling area as Saved reports. */
+.tb-reports > .ne-host { width: 100%; padding: 0; }
+.tb-reports .ne-title { font: var(--type-h3); }

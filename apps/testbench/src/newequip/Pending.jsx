@@ -7,6 +7,7 @@ import { Alert, Badge, Button, Dialog, Toast, useConfirm, useToast } from '../..
 import { logActivity } from '../../../../shared/activity.js'
 import { CHOICE_KEYS, FIELDS, choicesFor, clashes, editClashes, changedFields, fillFromModel, cleanPending, missingSite, testLink, toCsv, toHtml, toTsv, sheetsToRemember } from './pending.js'
 import { sendToSimpro } from './toSimpro.js'
+import { useTestLink } from './open-device.js'
 import { addPending, editPending, removePending, watchPending } from './pending-firebase.js'
 
 const PLACEHOLDER = { installed: 'd/mm/yyyy', manufactured: 'e.g. 3/2026', warranty: 'd/mm/yyyy', site: 'Simpro site ID' }
@@ -37,6 +38,7 @@ const saveBlob = (name, blob) => { const a = document.createElement('a'); a.href
 
 export default function Pending({ customer, units, sheets: loaded, canSimpro }) {
   const [rows, setRows] = useState(null)
+  const { onClick: openTest } = useTestLink()
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(null) // null | { start: form } | { start: form, original: the row being corrected }
   const [sheet, setSheet] = useState('')
@@ -111,7 +113,7 @@ export default function Pending({ customer, units, sheets: loaded, canSimpro }) 
                     <td className="ne-actions">
                       <Button variant="ghost" size="sm" aria-label={`Copy ${r.serial} for the workbook`} title="Copy this row to paste into the asset list" iconLeft={<ClipboardCopy size={14} aria-hidden="true" />} onClick={() => copy(r)}>Copy</Button>
                       <Button variant="ghost" size="sm" aria-label={`Edit ${r.serial}`} iconLeft={<Pencil size={14} aria-hidden="true" />} onClick={() => setAdding({ start: { ...r }, original: r })}>Edit</Button>
-                      <a className="btn btn-sm btn-secondary" href={testLink(r, customer.name)}><FlaskConical size={14} aria-hidden="true" /> Test this device</a>
+                      <a className="btn btn-sm btn-secondary" href={testLink(r, customer.name)} onClick={openTest(testLink(r, customer.name))}><FlaskConical size={14} aria-hidden="true" /> Test this device</a>
                       <Button variant="ghost" size="sm" aria-label={`Remove ${r.serial}`} iconLeft={<Trash2 size={14} aria-hidden="true" />} onClick={() => remove(r)}>Remove</Button>
                     </td>
                   </tr>
@@ -149,6 +151,7 @@ function RecordForm({ customer, units, pending, start, original, onClose, onSave
   const [f, setF] = useState(start)
   const [errors, setErrors] = useState([])
   const [busy, setBusy] = useState(false)
+  const { go } = useTestLink()
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const choices = useMemo(() => Object.fromEntries(CHOICE_KEYS.map((k) => [k, choicesFor(k, units, pending)])), [units, pending])
 
@@ -159,12 +162,12 @@ function RecordForm({ customer, units, pending, start, original, onClose, onSave
     if (all.length) return
     if (original) {
       const changed = changedFields(original, row)
-      if (!changed.length) { if (then === 'test') location.href = testLink(row, customer.name); else onClose(); return }
+      if (!changed.length) { if (then === 'test') go(testLink(row, customer.name)); else onClose(); return }
       setBusy(true)
       try {
         await editPending(original.id, row)
         logActivity(null, `Corrected a recorded asset (${changed.length} field${changed.length === 1 ? '' : 's'})`, { app: 'new-equipment' })
-        if (then === 'test') { location.href = testLink(row, customer.name); return }
+        if (then === 'test') { go(testLink(row, customer.name)); return }
         onSaved(false, 'Saved')
       } catch (err) {
         setErrors([err?.code === 'permission-denied' ? 'The database refused the change: the rules that allow editing recorded assets may not be published yet (rules/README.md), or this account can’t use the Test Bench.' : (err?.message || 'Couldn’t save it.')])
@@ -176,7 +179,7 @@ function RecordForm({ customer, units, pending, start, original, onClose, onSave
     try {
       await addPending(customer.id, row)
       logActivity(null, 'Recorded a new asset (pending)', { app: 'new-equipment' })
-      if (then === 'test') { location.href = testLink(row, customer.name); return }
+      if (then === 'test') { go(testLink(row, customer.name)); return }
       if (then === 'more') { const keep = {}; for (const k of KEEP) keep[k] = row[k]; setF(keep); setBusy(false); onSaved(true); return }
       onSaved(false)
     } catch (err) {

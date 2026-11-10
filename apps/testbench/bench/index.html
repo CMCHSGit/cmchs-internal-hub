@@ -2733,7 +2733,7 @@ const Sheet = {
       return;
     }
     if (r.kind === 'added') {
-      box.innerHTML = `<div class="sheet-alert ok" role="status"><b>Added to the asset list’s pending rows</b> for ${esc(r.customer)}${r.queued ? ' (kept on this laptop until it is online)' : ''}. Someone pastes it under the list’s last row from the <a href="/new-equipment/" target="_top">New equipment</a> page.</div>`;
+      box.innerHTML = `<div class="sheet-alert ok" role="status"><b>Added to the asset list’s pending rows</b> for ${esc(r.customer)}${r.queued ? ' (kept on this laptop until it is online)' : ''}. Someone pastes it under the list’s last row from the <a href="/testbench/?tab=customers" target="_top">Customers</a> tab.</div>`;
       return;
     }
     if (r.kind === 'many') { box.innerHTML = `<div class="sheet-alert bad" role="alert"><b>${r.n} devices</b> in ${esc(this.file)} have the number “${esc(r.q)}”. A number should belong to one device: check the asset list.</div>`; return; }

@@ -163,6 +163,10 @@ logActivity(null, 'Added a PM for Hutt (First PM)') // ...then say what happened
 The electrical-safety and performance test app (AS/NZS 3551, ESA612 and ProSim over USB), moved in 2 Nov 2026 from the
 SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Serial and the folder picker need it).
 
+**Tabs:** Test Bench, Saved reports, Orders and **Customers** (11 Nov 2026: the old New equipment page, `/new-equipment/`, which now forwards to
+`/testbench/?tab=customers`): pick a customer, set its asset list and reports folder links (Edit links), record assets that are not in the asset
+list yet, and see which units have been tested.
+
 - **The bench is its own page**, `apps/testbench/bench/index.html` (copied to `/bench-app/` by `scripts/build.mjs`), shown in a
   frame by `apps/testbench/src/section.jsx` under the hub's header. It stays exactly as built: tests in progress and finished
   tests are kept in each laptop's browser (IndexedDB `chs-test-bench`), templates still come from the SharePoint folder
@@ -226,7 +230,7 @@ SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Se
   The files are named with every serial, comma separated: "AA3F46248926, AA3D58264234 - N1 Handle 10.11.2026.pdf".
 - **Start-screen defaults:** an empty Manufacturer starts as Mindray, Testing company as CHS, and Testing engineer as the engineer
   signed in to the hub (remembered on the laptop for offline use). The asset list still fills in its own values over them.
-- **Not found? Add to the asset list…** (under the red Not found box, inside the hub): a form with the device's details filled in from the bench (serial, manufacturer, model, CHS asset number, ward; device type and description from another device of the same model in the list; Site ID from the sheet picked) records it as a **pending row** for the customer on the New equipment page (Firestore `pendingAssets`), to be pasted under the asset list's last row or sent through Simpro Asset Sync. Nothing is written into the workbook (writing into the synced file was tried and didn't sync). The customer is the one this file was added to before on this laptop, else the only New equipment customer whose name matches the report's customer or the file name, else chosen in the form. A serial already pending isn't added twice; offline, the row waits on the laptop. Bench and hub talk by `chs-bench:pending-customers` / `add-pending` / `pending-reply`; the hub side is `apps/testbench/src/newequip/from-bench.js`.
+- **Not found? Add to the asset list…** (under the red Not found box, inside the hub): a form with the device's details filled in from the bench (serial, manufacturer, model, CHS asset number, ward; device type and description from another device of the same model in the list; Site ID from the sheet picked) records it as a **pending row** for the customer on the Customers tab (Firestore `pendingAssets`), to be pasted under the asset list's last row or sent through Simpro Asset Sync. Nothing is written into the workbook (writing into the synced file was tried and didn't sync). The customer is the one this file was added to before on this laptop, else the only Customers-tab customer whose name matches the report's customer or the file name, else chosen in the form. A serial already pending isn't added twice; offline, the row waits on the laptop. Bench and hub talk by `chs-bench:pending-customers` / `add-pending` / `pending-reply`; the hub side is `apps/testbench/src/newequip/from-bench.js`.
 - **Saving gives both files, and asks where.** The summary's **Save PDF + Ansur file** saves the PDF report and the Ansur record (.mtr)
   together (a test opened from an Ansur record gets the PDF only), in a folder chosen each time (the picker opens where it was last; browsers
   that can't choose a folder download both). Saved reports' **Save to a folder…** does the same for the ticked tests: each gets its PDF and
