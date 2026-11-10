@@ -96,6 +96,17 @@ await check('not one with HTML tucked in after the picture', false, () =>
   setDoc(doc(as('pat'), 'announcementPhotos/p1'), { photo: 'data:image/jpeg;base64,AAAA" onerror="alert(1)' }))
 await check('not anything else', false, () => setDoc(doc(as('pat'), 'announcementPhotos/p1'), { photo: 'javascript:alert(1)' }))
 
+console.log('
+New tools not to announce (settings/toolNews)')
+await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/nat'), { displayName: 'Nat', role: 'user', team: '' }))
+await check('anyone who posts news puts one away', true, () => setDoc(doc(as('pat'), 'settings/toolNews'), { dismissed: ['quote'] }))
+await check('and adds to the list', true, () => setDoc(doc(as('bob'), 'settings/toolNews'), { dismissed: ['quote', 'xero'] }))
+await check('anyone signed in reads it', true, () => import('firebase/firestore').then(f => f.getDoc(doc(as('nat'), 'settings/toolNews'))))
+await check('not someone who can't post', false, () => setDoc(doc(as('nat'), 'settings/toolNews'), { dismissed: ['quote'] }))
+await check('not signed out', false, () => setDoc(doc(anon, 'settings/toolNews'), { dismissed: [] }))
+await check('nothing but the list', false, () => setDoc(doc(as('pat'), 'settings/toolNews'), { dismissed: [], note: 'x' }))
+await check('not a list', false, () => setDoc(doc(as('pat'), 'settings/toolNews'), { dismissed: 'quote' }))
+
 await env.cleanup()
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

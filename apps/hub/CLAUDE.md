@@ -34,6 +34,7 @@ and hero line go; Asks unreadable → panel goes).
 | `src/Home.jsx` | The page and every block above: `Hero`, `HeroSearch`, `Glance`, `News`/`NewsCard`, `TeamNews`, `Directory`, `Tools`/`ToolCard`, `Footer`. Keeps what it last showed in a module-level `seen` so coming back from People/Manage doesn't flash. |
 | `src/today.js` | Who's where: reads `users`, this week's `schedules`, `oncall` from Firestore and interprets them with **the schedule's own code** (`apps/schedule/src/utils`), so home and schedule never disagree. `buildToday` is pure (tested); weekends show Monday. Resolves `null` when unreadable. |
 | `src/news.js` | Announcements: categories, sort/merge with the old `announcements.json`, Team news grouping, `canPost`/`canEdit`, photos (`announcementPhotos`), save/delete, email export. `social.js`: reactions, comments, `notifyNews`. `NewsPost.jsx`: one post's page (`#/news/<id>`). |
+| `src/tool-news.js` | New tools to announce: a tool in `tools.json` that isn't in `KNOWN_TOOLS`, no post's `toolId`, nor `settings/toolNews.dismissed` → a Tool updates draft in Manage → News. Never add to `KNOWN_TOOLS`. |
 | `src/asks.js`, `AsksPanel.jsx`, `useAsksBadge.js` | The Asks panel and header badge: same queries and `asks:seen` marks as Asks itself, via `apps/asks/src/model.js` (see `apps/asks/CLAUDE.md`). |
 | `src/needs.js`, `NeedsYou.jsx` | "Needs you": pure `needsYou({ badges, asks })` over the header-tab counts (`shared/badges.js`) and the asks summary. A new section count shows automatically; add it to the list in `needs.js` to word it. |
 | `src/tools.js` + root `tools.json` | The tool list: category order and stripe colours, `SERVICE_TOOL_IDS` (in the Service menu, not the home grid), search, recent tools (`hub:recent`), `opensInTab`, `openPhoneApp`. Icons must be in `Icon.jsx`'s map (Lucide; unknown → link icon). |
@@ -54,7 +55,7 @@ and hero line go; Asks unreadable → panel goes).
 
 - **Firestore, the staff schedule's project:** `users`, `schedules`, `oncall` (read only, by `today.js`);
   `users/{uid}.homeLayout` (own record, `isHomeLayout` in `rules/firestore.rules`); `announcements` (+ `/comments`)
-  and `announcementPhotos`; `asks` (read, via Asks' rules); `hubRequests` (Manage).
+  and `announcementPhotos`; `settings/toolNews` (new tools not to announce); `asks` (read, via Asks' rules); `hubRequests` (Manage).
 - **In the repo:** `tools.json`, `events.json`, the old `announcements.json` (until "Move into Manage"), photos in
   `apps/hub/public/news/`.
 - **Per browser (localStorage, prefixed `hub:`):** `hub:home-layout:<uid>`, `hub:recent`, `hub:start`;

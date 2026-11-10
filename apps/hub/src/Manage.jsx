@@ -12,7 +12,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
 import { Dialog, Linked, Toast, failMsg, useToast } from './ui.jsx'
 import { loadDirectory } from './people.js'
-import { tools } from './tools.js'
+import { SERVICE_TOOL_IDS, tools } from './tools.js'
+import { dismissTool, loadDismissed, toolDraft, toolsToAnnounce } from './tool-news.js'
 import { splitEmail } from './emailSplit.js'
 import { loadProjectSuggestions } from './suggest.js'
 import { notifyNews } from './social.js'
@@ -74,6 +75,15 @@ function NewsTab({ ctx }) {
   const poster = canPost(ctx.me)
   const reload = () => loadNews().then(setList)
   useEffect(() => { reload() }, [])
+  // Tools added to tools.json that nobody has announced yet (tool-news.js)
+  const [dismissed, setDismissed] = useState(null)
+  useEffect(() => { if (poster) loadDismissed().then(setDismissed) }, [poster])
+  const newTools = poster && list && dismissed ? toolsToAnnounce(tools, list, dismissed) : []
+  async function dontAnnounce(t) {
+    setDismissed(d => [...(d || []), t.id])
+    const msg = await dismissTool(t.id)
+    ctx.showToast(msg || `${t.name} won’t be offered again.`)
+  }
 
   if (!list) return <span className="caption">Loading…</span>
   if (mode === 'paste') return <PasteEmail ctx={ctx} list={list} onDone={() => { setMode('list'); reload() }} />
@@ -98,6 +108,15 @@ function NewsTab({ ctx }) {
         <button className="btn btn-secondary" onClick={() => setMode('export')}><Icon name="mail" size={16} /> Export for email</button>
       </div>
       {!poster && <div className="alert">Posting is for people on a team. Pick your team in the staff schedule, or ask an admin.</div>}
+      {newTools.map(t => (
+        <div key={t.id} className="card mg-note mg-newtool">
+          <span className="body-sm"><strong>New tool: {t.name}</strong> was added to the hub. Announce it? A draft is ready to check before it’s posted.</span>
+          <span className="mg-newtool-actions">
+            <button className="btn btn-primary" onClick={() => setEditing(toolDraft(t, { service: SERVICE_TOOL_IDS.includes(t.id) }))}><Icon name="pencil" size={16} /> Write the announcement</button>
+            <button className="btn btn-secondary" onClick={() => dontAnnounce(t)}>Don’t announce</button>
+          </span>
+        </div>
+      ))}
       {ctx.me.role === 'admin' && legacy.length > 0 && (
         <div className="card mg-note">
           <span className="body-sm">{legacy.length} older announcement{legacy.length === 1 ? ' is' : 's are'} still in <code>announcements.json</code>, so {legacy.length === 1 ? 'it' : 'they'} can only be changed in Git.</span>

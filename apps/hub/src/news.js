@@ -285,6 +285,8 @@ function record(a, me) {
     weekOf: /^\d{4}-\d{2}-\d{2}$/.test(a.weekOf || '') ? a.weekOf : mondayOf(a.date || isoToday()),
     order: Number.isFinite(a.order) ? a.order : 0,
     batchId: a.batchId || '',
+    // The tool a "New tool" post announces (tool-news.js), so it isn't offered again.
+    ...(/^[a-z0-9][a-z0-9-]{0,39}$/.test(a.toolId || '') ? { toolId: a.toolId } : {}),
     author: a.author || me.displayName || me.email || '',
     authorUid: a.authorUid || me.uid,
     hasPhoto: photoCountOf(a) > 0,
