@@ -32,7 +32,8 @@ param(
   [switch]$Apply,
   [string]$TemplateTable = 'T_WTH',
   [string[]]$Columns = @('End of Warranty Date', 'Extended Warranty'),
-  [string]$ListName = 'Component'
+  [string]$ListName = 'Component',
+  [switch]$AlignOwnItems   # also replace a customer's own Component items (when no row uses them) with the template's
 )
 $ErrorActionPreference = 'Stop'
 $public = Join-Path $env:USERPROFILE 'Cass Medical Limited\Cass & CHS SharePoint - Documents (1)\CMCHS Files\Service\Customer Data\Human\Public'
@@ -155,13 +156,27 @@ try {
           $tset = @($tList | ForEach-Object { Norm $_ })
           $own = @($have | Where-Object { $tset -notcontains (Norm $_) })
           $add = @($tList | Where-Object { (@($have | ForEach-Object { Norm $_ })) -notcontains (Norm $_) })
-          if ($own.Count) { $row.Component = 'own items, left'; $notes += "Component list has its own items (" + ($own -join ', ') + "): left alone" }
-          elseif (-not $add.Count -and $have.Count -eq $tList.Count) { $row.Component = 'same' }
+          # An item of the customer's own is only replaced with -AlignOwnItems, and only when no row of any table uses it as a Device Model.
+          $ownBlock = @()
+          if ($own.Count) {
+            if (-not $AlignOwnItems) { $ownBlock = $own }
+            else {
+              $usedModels = @{}
+              foreach ($w2 in $wb.Worksheets) { foreach ($l2 in $w2.ListObjects) {
+                $n2 = @(); foreach ($c2 in $l2.ListColumns) { $n2 += $c2.Name }
+                if (($n2 -contains 'Device Model') -and $l2.ListRows.Count) { foreach ($m in $l2.ListColumns.Item('Device Model').DataBodyRange.Value2) { if ($m) { $usedModels[(Norm $m)] = 1 } } }
+              } }
+              $ownBlock = @($own | Where-Object { $usedModels.ContainsKey((Norm $_)) })
+            }
+          }
+          if ($ownBlock.Count) { $row.Component = 'own items, left'; $notes += "Component list has its own items (" + ($ownBlock -join ', ') + ")" + $(if ($AlignOwnItems) { ' that rows use' }) + ': left alone' }
+          elseif (-not $own.Count -and -not $add.Count -and $have.Count -eq $tList.Count) { $row.Component = 'same' }
           else {
             $first = $rg.Row; $col = $rg.Column; $last = $first + $tList.Count - 1
-            $below = $sh.Range($sh.Cells.Item($first + $rg.Rows.Count, $col), $sh.Cells.Item([Math]::Max($last, $first + $rg.Rows.Count), $col))
-            $blocked = $false; if ($last -gt ($first + $rg.Rows.Count - 1)) { foreach ($cc in $below.Cells) { if ($cc.Value2) { $blocked = $true } } }
-            if ($blocked) { $row.Component = 'no room, left'; $notes += 'Component list: cells under it are not empty, left alone' }
+            # Cells under the list may already hold template items that the name just stops short of (Dunedin, West Coast): fine. Anything else under it blocks.
+            $blocked = $false
+            for ($r = $first + $rg.Rows.Count; $r -le $last; $r++) { $v = $sh.Cells.Item($r, $col).Value2; if ($v -and ($tset -notcontains (Norm $v))) { $blocked = $true } }
+            if ($blocked) { $row.Component = 'no room, left'; $notes += 'Component list: cells under it hold other things, left alone' }
             else {
               for ($i = 0; $i -lt $tList.Count; $i++) { $sh.Cells.Item($first + $i, $col).Value2 = $tList[$i] }
               for ($i = $tList.Count; $i -lt $rg.Rows.Count; $i++) { $sh.Cells.Item($first + $i, $col).ClearContents() | Out-Null }
