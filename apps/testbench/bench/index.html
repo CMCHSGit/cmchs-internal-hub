@@ -3929,9 +3929,10 @@ const Records = {
     const local = await this.list(), have = new Set(local.map(r => r.id));
     // Tests other engineers (or another laptop) have shared, that aren't on this PC yet, are listed after the same fashion; opening one fetches it.
     // Other engineers' tests stay out of the list until searched for (this engineer's own, from another laptop, are listed).
-    const mine = (s) => !s.by || !SharedTests.me || s.by === SharedTests.me;
-    const othersHidden = q ? 0 : SharedTests.list.filter(s => !have.has(s.id) && !mine(s)).length;
-    const sharedOnly = SharedTests.list.filter(s => !have.has(s.id) && (q || mine(s))).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
+    // A test whose record was cleared (size 0, once its files were sent and downloaded) is not listed: drag its file in to open it.
+    const mine = (s) => !s.by || !SharedTests.me || s.by === SharedTests.me, listed = SharedTests.list.filter(s => s.size !== 0);
+    const othersHidden = q ? 0 : listed.filter(s => !have.has(s.id) && !mine(s)).length;
+    const sharedOnly = listed.filter(s => !have.has(s.id) && (q || mine(s))).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
     const when = (r) => String(r.finished || r.saved || r.started);
     const runs = [...local, ...sharedOnly].sort((a, b) => when(b).localeCompare(when(a)))
       .filter(r => !q || [r.template?.name, ...Object.values(r.dut || {}), r.shared ? r.shared.byName : ''].join(' ').toLowerCase().includes(q));

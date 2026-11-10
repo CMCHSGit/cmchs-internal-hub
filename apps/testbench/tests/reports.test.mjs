@@ -304,7 +304,12 @@ test('tests other engineers finished are listed in Saved reports too, unless thi
   const others = sharedGroups([], [{ ...shared[0], order: '12345' }])[0]
   assert.deepEqual([others.sharedByEmail, others.order, others.rawCustomer], ['peter@cass.co.nz', '12345', 'Waitemata'])
   assert.ok(ui.includes('const isOthers = (g) => g.shared && !!g.sharedByEmail && g.sharedByEmail !== me') && ui.includes('!isOthers(g) || lookingFor || forJob(g)') && ui.includes('text.trim() || onlySerials.length || showOthers') && ui.includes('Include other engineers’ tests'), 'hidden unless searched, job-linked or switched on')
-  assert.ok(ui.includes('belongs(o, t)') && readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').includes('orders={orders} onJobUpdated'), 'a job’s orders decide which tests belong to it')
+  // A test whose stored record was cleared (size 0, after its files were sent and downloaded) is not listed again; one that was only sent or only downloaded is not offered for clearing.
+  assert.deepEqual(sharedGroups([], [{ ...shared[0], size: 0 }, { ...shared[1], size: 5000 }]).map((x) => x.sharedId), ['b'])
+  assert.ok(ui.includes('t.size !== 0 && t.started && t.by === me') && ui.includes('g.downloadedAt && !g.unsent && mine.has(g.testedAt)') && ui.includes('onClearShared(clearable)'), 'only your own tests, downloaded and sent')
+  const fb = readFileSync(new URL('../src/bench-tests-firebase.js', import.meta.url), 'utf8')
+  assert.ok(fb.includes("b.update(doc(db, 'benchTests', id), { size: 0 }); b.delete(doc(db, 'benchTestData', id))"), 'the bulk is deleted, the summary stays')
+  assert.ok(ui.includes('belongs(o, t)') && readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').includes('orders={orders} onClearShared={clearShared} onJobUpdated'), 'a job’s orders decide which tests belong to it')
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.ok(section.includes('sharedTests={testsList} onFetchShared={fetchShared}') && section.includes("format: 'chs-test-bench-results'") && section.includes('loadTest(g.sharedId)'))
 })

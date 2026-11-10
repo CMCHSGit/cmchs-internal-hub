@@ -23,7 +23,8 @@ test('the whole test is one JSON string, unless it is too big for a document', (
 
 test('the bench gets only the list fields, no extras', () => {
   const [row] = forBench([{ id: 'r1', by: 'a', byName: 'A', template: 'T', serial: 'S', model: 'M', customer: 'C', overall: 'pass', finished: 'f', started: 's', steps: 3, size: 99999, savedAt: 1 }])
-  assert.deepEqual(Object.keys(row).sort(), ['by', 'byName', 'customer', 'finished', 'id', 'model', 'order', 'overall', 'serial', 'started', 'steps', 'template'])
+  assert.deepEqual(Object.keys(row).sort(), ['by', 'byName', 'customer', 'finished', 'id', 'model', 'order', 'overall', 'serial', 'size', 'started', 'steps', 'template'])
+  assert.equal(row.size, 99999, 'size 0 marks a test whose stored record was cleared')
 })
 
 const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')

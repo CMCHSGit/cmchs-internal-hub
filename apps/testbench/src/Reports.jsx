@@ -63,7 +63,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ orders = [], reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ orders = [], onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -119,6 +119,17 @@ export default function Reports({ orders = [], reports, fresh, sim, onJobUpdated
   }
   const groups = useMemo(() => allGroups.filter((g) => !isOthers(g) || lookingFor || forJob(g)), [allGroups, lookingFor, job?.id, orders, me]) // eslint-disable-line react-hooks/exhaustive-deps
   const othersHidden = allGroups.length - groups.length
+  // This engineer's own shared tests whose files are all here, downloaded and sent to Simpro: their stored record can be cleared (they can be dragged back in).
+  const clearable = useMemo(() => {
+    const mine = new Map(sharedTests.filter((t) => t && t.size !== 0 && t.started && t.by === me).map((t) => [Date.parse(t.started), t.id]))
+    return withOnJob(groupReports(reports), onJob).filter((g) => !g.uploaded && g.testedAt && g.downloadedAt && !g.unsent && mine.has(g.testedAt)).map((g) => mine.get(g.testedAt))
+  }, [reports, sharedTests, onJob, me])
+  async function clearStored() {
+    if (!clearable.length || !window.confirm(`Free up storage: delete the stored details of ${clearable.length} of your test${clearable.length === 1 ? '' : 's'} whose files are already downloaded and sent to Simpro?
+
+Their files stay on this laptop and in Simpro, and orders still count them. If you ever need one again, drag its results file or Ansur record into the Test Bench or Saved reports.`)) return
+    try { const n = await onClearShared(clearable); setNote({ text: `Cleared the stored details of ${n} test${n === 1 ? '' : 's'}.`, tone: 'success' }) } catch (e) { setNote({ text: e?.code === 'permission-denied' ? 'Only the engineer who ran a test (or an admin) can clear it.' : (e?.message || 'Couldn’t clear them.'), tone: 'error' }) }
+  }
   const customers = useMemo(() => customersIn(groups), [groups])
   const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
@@ -479,6 +490,7 @@ export default function Reports({ orders = [], reports, fresh, sim, onJobUpdated
             {note.text && <p className={`tb-note tb-note-${note.tone}`} role="status">{note.text}</p>}
             {sim.access && <Alert tone="warning" title="Simpro isn’t switched on for you">{sim.access} Ask an admin to turn on Simpro access for you in Settings → People and access. Files you queue wait in the outbox.</Alert>}
             {!user && <Alert tone="warning" title="Sign in to send">Sign in to the hub (while online) to send files to Simpro.</Alert>}
+            {onClearShared && clearable.length > 0 && <button type="button" className="tb-link" onClick={clearStored} title="Deletes the stored copy of each test (the bulk of the storage); the tests stay counted in Orders">Free up storage: clear the stored details of {clearable.length} test{clearable.length === 1 ? '' : 's'} already sent and downloaded</button>}
             {hiddenCount > 0 && <button type="button" className="tb-link" onClick={() => { setHidden(new Set()); putHidden(new Set()) }}>Show the {hiddenCount} shared test{hiddenCount === 1 ? '' : 's'} you removed again</button>}
             {sentFiles().length > 0 && <button type="button" className="tb-link" onClick={() => remove(sentFiles(), `the ${sentFiles().length} files already sent`)}>Clear out the files already sent to Simpro</button>}
           </div>

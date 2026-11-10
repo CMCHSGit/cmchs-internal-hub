@@ -222,7 +222,7 @@ export const sharedFileBase = (s) => `${safeName(splitSerials(s.serial).join(', 
  */
 export function sharedGroups(reports, shared) {
   const here = new Set(reports.map((r) => r.meta && r.meta.testedAt).filter(Boolean))
-  return (shared || []).filter((t) => t && t.id && t.started && !here.has(t.started)).map((t) => {
+  return (shared || []).filter((t) => t && t.id && t.started && t.size !== 0 && !here.has(t.started)).map((t) => {   // size 0: its record was cleared, nothing to make a report from
     const finished = Date.parse(t.finished || t.started) || 0, tested = Date.parse(t.started) || finished
     return {
       base: 'shared:' + t.id, shared: true, sharedId: t.id, sharedBy: t.byName || t.by || '', sharedByEmail: t.by || '', order: t.order || '', rawCustomer: t.customer || '', overall: t.overall,

@@ -326,3 +326,11 @@ name), you open Saved reports from a Simpro Asset Sync list (its devices), you t
 Saved reports — then every test for that job is listed whoever ran it (tests started against that job number, and tests an order for that job counts by
 customer), so the job can be closed and the reports attached. A line says how many are hidden. Nothing is deleted or changed in Firestore, and Orders
 still counts everyone's tests. `sharedGroups` now carries `order` and `rawCustomer`; `Reports` takes `orders`.
+
+## Free up storage: clear the stored details of tests already sent and downloaded (10/11/2026)
+Each shared test keeps its whole record in `benchTestData` (about 50–100 KB). Saved reports now shows **Free up storage: clear the stored details of N tests
+already sent and downloaded** when this laptop holds the files of tests the signed-in engineer ran (matched by start time) and each is downloaded and on
+a Simpro job. After a confirmation it deletes those `benchTestData` documents and sets the one-line `benchTests` summary's `size` to 0 (`clearTestData`):
+the summary stays so Orders still count the test and **no rules change is needed**. A test with `size: 0` is no longer listed in Saved reports or Previous
+tests (nothing to make a report from); drag its results file or Ansur record into the bench or Saved reports to open it again. Only your own tests (or an
+admin's, by the rules) can be cleared; nothing is cleared automatically. Logged with a count only.

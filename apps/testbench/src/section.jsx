@@ -24,7 +24,7 @@ import Orders from './Orders.jsx'
 import { saveOrder, watchOrders } from './orders-firebase.js'
 import { jobClosesOrder, jobNumber, summaryLine } from './orders.js'
 import { splitSerials } from './bench-tests.js'
-import { loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
+import { clearTestData, loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
 import { handoffUrl, idbHandoff, putHandoff } from './newequip/handoff.js'
 import { watchCustomers } from './newequip/customers-firebase.js'
@@ -170,7 +170,7 @@ function TestBench() {
       }
       if (m?.type === 'chs-bench:get-run') {   // someone opened a test from the shared list
         let reply
-        try { const json = await loadTest(m.id); reply = json ? { json } : { error: 'That test is no longer shared.' } } catch (err) { reply = { error: err?.code === 'unavailable' ? 'No connection to fetch it. Try again when this laptop is online.' : (err?.message || 'Couldn’t fetch it.') } }
+        try { const json = await loadTest(m.id); reply = json ? { json } : { error: 'That test is no longer shared (its details are cleared once its files are sent and downloaded). Drag its results file or Ansur record into the bench to open it.' } } catch (err) { reply = { error: err?.code === 'unavailable' ? 'No connection to fetch it. Try again when this laptop is online.' : (err?.message || 'Couldn’t fetch it.') } }
         toBench({ type: 'chs-bench:run-data', reqId: m.reqId, id: m.id, ...reply })
         return
       }
@@ -333,6 +333,13 @@ function TestBench() {
     await refreshReports()
   }, [reportStore, refreshReports])
 
+  /** Frees the storage of tests already sent and downloaded: their whole record is deleted from the shared list, the one-line summary stays (orders still count it). */
+  const clearShared = useCallback(async (ids) => {
+    const n = await clearTestData(ids)
+    logActivity(null, `Cleared the stored details of ${n} shared test${n === 1 ? '' : 's'} already sent to Simpro and downloaded`, { app: 'testbench' })
+    return n
+  }, [])
+
   /** Another engineer's finished test: its whole record is fetched and kept here as a results file, so its report and Ansur record can be made (makePdf, makeMtr) like any other. */
   const fetchShared = useCallback(async (g) => {
     if (!reportStore) throw new Error('Saved reports can’t be kept on this laptop.')
@@ -439,7 +446,7 @@ function TestBench() {
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
           onJob={onJob} onJobFiles={noteJobFiles}
-          orders={orders} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
+          orders={orders} onClearShared={clearShared} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
           onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
           sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}

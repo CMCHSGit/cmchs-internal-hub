@@ -54,5 +54,5 @@ export function packRun(run) {
 
 /** What the bench shows in its list for each summary (the bench has no Firestore, so it gets plain objects). */
 export function forBench(docs) {
-  return docs.map((d) => ({ id: d.id, by: d.by, byName: d.byName, template: d.template, serial: d.serial, model: d.model, customer: d.customer, order: d.order || '', overall: d.overall, finished: d.finished, started: d.started, steps: d.steps }))
+  return docs.map((d) => ({ id: d.id, by: d.by, byName: d.byName, template: d.template, serial: d.serial, model: d.model, customer: d.customer, order: d.order || '', overall: d.overall, finished: d.finished, started: d.started, steps: d.steps, size: d.size }))   // size 0: its whole record was cleared (clearTestData); the line stays so orders still count it
 }

@@ -34,6 +34,18 @@ export async function loadTest(id) {
   return snap.exists() ? snap.data().json : null
 }
 
+/** Frees the storage of finished tests: the whole record (`benchTestData`, the bulk) is deleted and the one-line summary is kept with `size: 0`,
+    so orders still count the test and nothing needs a rules change. Only the engineer who shared a test (or an admin) can; returns how many were cleared. */
+export async function clearTestData(ids) {
+  const db = firestore(), list = [...new Set(ids.map(String))]
+  for (let i = 0; i < list.length; i += 200) {
+    const b = writeBatch(db)
+    for (const id of list.slice(i, i + 200)) { b.update(doc(db, 'benchTests', id), { size: 0 }); b.delete(doc(db, 'benchTestData', id)) }
+    await b.commit()
+  }
+  return list.length
+}
+
 export async function removeTest(id) {
   const db = firestore(), b = writeBatch(db)
   b.delete(doc(db, 'benchTests', String(id))); b.delete(doc(db, 'benchTestData', String(id)))
