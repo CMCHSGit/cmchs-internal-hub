@@ -24,7 +24,7 @@
     "dev:emulators": "npm run dev -w apps/hub -- --mode emulators"
   },
   "devDependencies": {
-    "vite": "^6.4.5",
+    "vite": "^8.3.6",
     "workbox-build": "^7.1.0"
   }
 }
