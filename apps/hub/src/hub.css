@@ -607,6 +607,7 @@ a.pp-tab { text-decoration: none; display: inline-flex; }
 .mg-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .mg-note { display: flex; align-items: center; justify-content: space-between; gap: 14px 20px; padding: 16px 20px; flex-wrap: wrap; }
 .mg-note .body-sm { flex: 1 1 320px; }
+.mg-newtool-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .mg-select { width: auto; min-height: 32px; border-radius: var(--radius-pill); font-size: 14px; }
 .mg-select-sm { width: auto; min-height: 32px; font-size: 14px; padding: 0 8px; }
 .mg-list { display: flex; flex-direction: column; gap: 10px; }

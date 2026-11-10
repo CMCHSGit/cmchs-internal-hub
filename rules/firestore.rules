@@ -386,6 +386,15 @@ service cloud.firestore {
         && request.resource.data.photo.size() < 600000;
       allow delete: if canEditProjects() || isHR();
     }
+    // New tools nobody needs to announce (Manage → News, apps/hub/src/tool-news.js):
+    // only the list of tool ids, written by anyone who may post news.
+    match /settings/toolNews {
+      allow read: if isSignedIn();
+      allow create, update: if canEditProjects()
+        && request.resource.data.keys().hasOnly(['dismissed'])
+        && request.resource.data.dismissed is list
+        && request.resource.data.dismissed.size() <= 200;
+    }
 
     // Tool requests and feedback (Manage → Tool requests / Feedback). Tool
     // requests are public so people can +1 them; feedback is seen only by
