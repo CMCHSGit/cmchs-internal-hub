@@ -181,6 +181,7 @@ export function startApp({ transport, who }) {
   // Saved reports), and how many of those are still to be attached to a Simpro job. Reads this computer's own store
   // only - nothing goes to Simpro. The link opens Saved reports on exactly those devices.
   let sheetSerials = [];
+  let reportGroups = []; // this computer's saved reports, grouped (groupReports): also counted per job in the Jobs tab
   async function updateReportsRow() {
     const rowEl = $('reportsRow');
     const serials = [...new Set(sheetSerials)];
@@ -189,13 +190,20 @@ export function startApp({ transport, who }) {
     rowEl.href = reportsLink(serials);
     let groups = [];
     try { groups = groupReports(await idbReports().all()); } catch (e) { /* storage blocked: shown as none saved */ }
+    reportGroups = groups;
     const r = reportsToAdd(groups, serials);
     const n = (c, one, many) => `${c} ${c === 1 ? one : many}`;
     $('reportsCount').textContent = !r.withReport
       ? `- none of the ${n(r.devices, 'device', 'devices')} here has a saved test report yet`
       : `- ${r.toAdd} of ${n(r.devices, 'device', 'devices')} ${r.toAdd === 1 ? 'has' : 'have'} a test report to add` + (r.withReport > r.toAdd ? ` (${r.withReport - r.toAdd} already sent)` : '') + (r.missing.length ? `, ${r.missing.length} with no saved report` : '');
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) updateReportsRow(); });
+  // Back from the Test Bench (the Jobs tab's "Attach reports" opens it in a new tab): recount, and redraw the Jobs tab's counts.
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) return;
+    await updateReportsRow();
+    const on = document.querySelector('#tabs button.on');
+    if (plan && on && on.dataset.tab === 'jobs') renderTab('jobs');
+  });
 
   async function refreshWarrantyInfo() {
     const row = $('warrantyFilterRow'), countEl = $('warrantyCount');
@@ -558,17 +566,28 @@ export function startApp({ transport, who }) {
     });
     return head.join('') + (cards.join('') || '<p class="empty">No jobs.</p>');
   }
+  // The Jobs tab's "Test reports" cell: how many of the job's devices have a saved report on this computer still to send, and a
+  // link to Saved reports on exactly those devices with this job chosen (reportsLink). Reads this computer only; sends nothing.
+  function jobReportsCell(j) {
+    const serials = j.attach.concat(j.already).map(a => a.ser);
+    const r = reportsToAdd(reportGroups, serials);
+    const count = !r.withReport ? 'none saved here'
+      : r.toAdd ? `${r.toAdd} of ${r.devices} to send` : `all ${r.withReport} sent`;
+    return `<a href="${esc(reportsLink(serials, j.jobNo))}" target="_blank" rel="noopener">Attach reports</a><br><span class="muted">${count}</span>`;
+  }
   function renderTab(k) {
     const p = plan; let html = '';
     if (k === 'create') html = p.creates.map(c => `<details class="asset"><summary><b>${esc(c.ser)}</b> <span class="muted">row ${c.rownum} · ${esc(c.sheet)} · site ${esc(c.site)} · ${c.changes.length} fields</span>${c.newId ? ` <span class="pill ok">created ${c.newId}</span>` : ''}${c.error ? ` <span class="pill bad">error</span>` : ''}</summary>${table(['Field', 'Value'], c.changes.map(x => [esc(x.col), esc(x.nv)]))}</details>`).join('') || '<p class="empty">No new assets.</p>';
     if (k === 'update') html = table(['Sheet', 'Serial', 'Row', 'Asset', 'Field', 'Simpro now', 'Spreadsheet', ''], p.changes.flatMap(c => c.changes.map(x => [esc(c.sheet), esc(c.ser), c.rownum, c.id, esc(x.col), `<span class="old">${esc(x.old) || '<i>blank</i>'}</span>`, `<span class="new">${esc(x.nv)}</span>`, x.status === 'ok' ? '<span class="pill ok">done</span>' : x.status ? '<span class="pill bad">failed</span>' : ''])));
     if (k === 'jobs') html = '<p class="muted">After the assets are imported, each job below gets ALL its assets attached, then every one of them is listed in the job Notes' + (warranty.columnFound ? ' - grouped into <b>Extended Warranty required</b> and <b>Other devices added</b>' : '') + ' (model and serial number, plus the battery serial for defibrillators), followed by the note <b>' + esc(noteText()) + '</b>. Its stage is set to <b>Complete</b> and status to <b>Job : Completed</b>. A job is only completed if every one of its assets attached successfully. A job referenced from more than one sheet is only attached-to and closed once, with items from every sheet it appeared in.</p>' +
-      table(['Job', 'Name / site', 'Now', 'To attach', 'Already attached', 'Notes', ''], p.jobPlans.map(j => [
+      '<p class="muted">Test reports are not attached by this tool. <b>Attach reports</b> opens Saved reports in the Test Bench in a new tab, showing the devices on that job with the job already chosen, to check and send them. Do it before Apply if the reports should be on the job before it is completed.</p>' +
+      table(['Job', 'Name / site', 'Now', 'To attach', 'Already attached', 'Test reports', 'Notes', ''], p.jobPlans.map(j => [
         `<b>#${esc(j.jobNo)}</b>`,
         j.job ? `${esc(j.job.name)}<br><span class="muted">${esc(j.job.site.Name || '')}</span>` : '',
         j.job ? `${esc(j.job.stage)}<br><span class="muted">${esc(j.job.status)}</span>` : '',
         j.attach.map(a => esc(a.ser) + ` <span class="muted">[${esc(a.sheet)}]</span>` + (a.assetId ? '' : ' <span class="muted">(new)</span>') + (a.status === 'ok' ? ' <span class="pill ok">attached</span>' : a.status ? ' <span class="pill bad">failed</span>' : '')).join('<br>') || '<span class="muted">none</span>',
         j.already.map(a => esc(a.ser) + ` <span class="muted">[${esc(a.sheet)}]</span>`).join('<br>') || '<span class="muted">none</span>',
+        jobReportsCell(j),
         j.problems.map(x => `<span class="bad">${esc(x)}</span>`).concat(j.notes.map(esc)).join('<br>'),
         j.closed ? '<span class="pill ok">completed</span>' : (j.result ? '<span class="pill bad">left open</span>' : (j.problems.length ? '<span class="pill bad">skipped</span>' : ''))
       ]));
