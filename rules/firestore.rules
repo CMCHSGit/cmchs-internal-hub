@@ -593,6 +593,23 @@ service cloud.firestore {
       return d.keys().hasOnly(['by', 'json']) && d.by is string && d.json is string && d.json.size() < 950000;
     }
 
+    // Where a finished test has got to, for everyone (10 Nov 2026): which Simpro jobs its report is on, and when it was downloaded. One small document per test,
+    // named by the test's id. Whichever engineer attaches or downloads a test records it (not only the one who ran it), so every laptop shows the same
+    // "Sent to" and "Downloaded", and the engineer who ran it can clear its stored record once both are true (apps/testbench/src/bench-status.js).
+    // Any Bench team member reads, writes and removes it; a write says who made it and may only name the known fields.
+    match /benchTestStatus/{id} {
+      allow read: if canBench();
+      allow create, update: if canBench() && request.resource.data.updatedBy == myBenchEmail() && isBenchStatus();
+      allow delete: if canBench();
+    }
+    function isBenchStatus() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['sentJobs', 'downloadedAt', 'updatedBy', 'updatedAt'])
+        && d.sentJobs is list && d.sentJobs.size() < 21
+        && (!('downloadedAt' in d) || d.downloadedAt is number)
+        && d.updatedBy is string && d.updatedAt is number;
+    }
+
     // The Test Bench's orders (the Orders tab at internal.chsnz.co.nz/testbench/): a job number, a customer and how many of each
     // device model are to be tested (apps/testbench/src/orders.js). The Bench's teams read, add and change them: any engineer can
     // edit or close an order, that is the point of one. The engineer who made an order, or an admin, deletes it; nobody can add one

@@ -66,6 +66,29 @@ await check('the engineer who shared it removes it (both parts, as the bench doe
 await check('an admin removes it', true, () => deleteDoc(doc(as('admin1'), 'benchTestData/t1')))
 await check('another engineer does not', false, () => deleteDoc(doc(as('bob'), 'benchTests/t1')))
 
+// Clearing a test's stored record: the engineer who ran it deletes the bulk and sets the summary's size to 0; the summary stays.
+const clear = (db, id = 't1') => { const b = writeBatch(db); b.update(doc(db, 'benchTests', id), { size: 0 }); b.delete(doc(db, 'benchTestData', id)); return b.commit() }
+await check('the engineer who ran it clears its stored record (the summary stays, size 0)', true, () => clear(as('eve')))
+await check('an admin clears it', true, () => clear(as('admin1')))
+await check('another engineer cannot', false, () => clear(as('bob')))
+
+// Where a test has got to (benchTestStatus): any Bench team member records it, stamped with their own email.
+const status = (by, over = {}) => ({ sentJobs: ['12345'], downloadedAt: 1762740000000, updatedBy: by, updatedAt: 1762740000000, ...over })
+console.log('\nTest Bench test status (sent to a job, downloaded)')
+await check('an engineer records that a test was sent and downloaded', true, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), status('bob@cass.co.nz')))
+await check('another engineer may update it too (they attach or download it)', true, () => setDoc(doc(as('eve'), 'benchTestStatus/t1'), status('eve@cass.co.nz', { sentJobs: ['1', '2'] })))
+await check('it may have no download time yet', true, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), { sentJobs: [], updatedBy: 'bob@cass.co.nz', updatedAt: 1 }))
+await check('an engineer reads it', true, () => getDoc(doc(as('bob'), 'benchTestStatus/t1')))
+await check('not sales', false, () => getDoc(doc(as('sally'), 'benchTestStatus/t1')))
+await check('not someone signed out', false, () => getDoc(doc(anon, 'benchTestStatus/t1')))
+await check('not someone with no team', false, () => setDoc(doc(as('nina'), 'benchTestStatus/t1'), status('nina@cass.co.nz')))
+await check('not stamped with someone else’s email', false, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), status('eve@cass.co.nz')))
+await check('not with fields it does not list', false, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), status('bob@cass.co.nz', { notes: 'x' })))
+await check('not with the jobs as text', false, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), status('bob@cass.co.nz', { sentJobs: '12345' })))
+await check('not with more than 20 jobs', false, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), status('bob@cass.co.nz', { sentJobs: Array.from({ length: 21 }, (_, i) => String(i)) })))
+await check('not with a download time that is not a number', false, () => setDoc(doc(as('bob'), 'benchTestStatus/t1'), status('bob@cass.co.nz', { downloadedAt: 'yesterday' })))
+await check('removing a test removes its status as the bench does', true, () => { const db = as('eve'), b = writeBatch(db); b.delete(doc(db, 'benchTests/t1')); b.delete(doc(db, 'benchTestData/t1')); b.delete(doc(db, 'benchTestStatus/t1')); return b.commit() })
+
 await env.cleanup()
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)

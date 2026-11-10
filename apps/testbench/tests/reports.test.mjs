@@ -306,16 +306,10 @@ test('tests other engineers finished are listed in Saved reports too, unless thi
   assert.ok(ui.includes('const isOthers = (g) => g.shared && !!g.sharedByEmail && g.sharedByEmail !== me') && ui.includes('!isOthers(g) || lookingFor || forJob(g)') && ui.includes('text.trim() || onlySerials.length || showOthers') && ui.includes('Include other engineers’ tests'), 'hidden unless searched, job-linked or switched on')
   // A test whose stored record was cleared (size 0, after its files were sent and downloaded) is not listed again; one that was only sent or only downloaded is not offered for clearing.
   assert.deepEqual(sharedGroups([], [{ ...shared[0], size: 0 }, { ...shared[1], size: 5000 }]).map((x) => x.sharedId), ['b'])
-  const { clearableIds } = await import('../src/reports.js')
-  const T = (id, by, started, size) => ({ id, by, started, finished: started, size })
-  const G = (started, over) => ({ testedAt: Date.parse(started), downloadedAt: 1, unsent: false, uploaded: false, ...over })
-  const ss = [T('a', 'me@x.nz', '2026-11-09T08:00:00.000Z'), T('b', 'me@x.nz', '2026-11-09T09:00:00.000Z'), T('c', 'me@x.nz', '2026-11-09T10:00:00.000Z'), T('d', 'peter@x.nz', '2026-11-09T11:00:00.000Z'), T('e', 'me@x.nz', '2026-11-09T12:00:00.000Z', 0)]
-  assert.deepEqual(clearableIds([G('2026-11-09T08:00:00.000Z'), G('2026-11-09T09:00:00.000Z', { downloadedAt: 0 }), G('2026-11-09T10:00:00.000Z', { unsent: true }), G('2026-11-09T11:00:00.000Z'), G('2026-11-09T12:00:00.000Z')], ss, 'me@x.nz'), ['a'], 'only your own, downloaded, sent, and not already cleared')
-  assert.deepEqual(clearableIds([G('2026-11-09T08:00:00.000Z')], ss, ''), [], 'nobody signed in: nothing')
   assert.ok(ui.includes('onClearShared(clearable)') && readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').includes('clearShared(ids).catch('), 'a button, and by itself')
   const fb = readFileSync(new URL('../src/bench-tests-firebase.js', import.meta.url), 'utf8')
   assert.ok(fb.includes("b.update(doc(db, 'benchTests', id), { size: 0 }); b.delete(doc(db, 'benchTestData', id))"), 'the bulk is deleted, the summary stays')
-  assert.ok(ui.includes('belongs(o, t)') && readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').includes('orders={orders} onClearShared={clearShared} onJobUpdated'), 'a job’s orders decide which tests belong to it')
+  assert.ok(ui.includes('belongs(o, t)') && readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').includes('orders={orders} status={status} onClearShared={clearShared} onJobUpdated'), 'a job’s orders decide which tests belong to it')
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.ok(section.includes('sharedTests={testsList} onFetchShared={fetchShared}') && section.includes("format: 'chs-test-bench-results'") && section.includes('loadTest(g.sharedId)'))
 })

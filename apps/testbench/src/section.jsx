@@ -18,12 +18,14 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, customerOf, getJob, listCompanies, listJobFiles, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { addOnJob, clearableIds, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
+import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import { saveOrder, watchOrders } from './orders-firebase.js'
 import { jobClosesOrder, jobNumber, summaryLine } from './orders.js'
 import { splitSerials } from './bench-tests.js'
+import { clearableIds, statusToWrite, withStatus } from './bench-status.js'
+import { saveStatus, watchStatus } from './bench-status-firebase.js'
 import { clearTestData, loadTest, removeTest, saveTest, watchTests } from './bench-tests-firebase.js'
 import { cleanAddress, peekDeviceLink, takeDeviceLink } from './device-link.js'
 import { handoffUrl, idbHandoff, putHandoff } from './newequip/handoff.js'
@@ -78,6 +80,7 @@ function TestBench() {
   const [tab, setTab] = useState(link.open ? 'reports' : 'bench') // 'bench' | 'reports' | 'orders'
   const [orders, setOrders] = useState([])
   const [ordersError, setOrdersError] = useState('')
+  const [status, setStatus] = useState({}) // { testId: { sentJobs, downloadedAt } } (bench-status.js)
   const [testsList, setTestsList] = useState([]) // the shared finished tests (what the orders count)
   const [sheet, setSheet] = useState(null) // the asset list loaded in the bench: { name, state, devices }
   const [startJob, setStartJob] = useState(null) // the Simpro job Saved reports opens with (from an order)
@@ -137,6 +140,12 @@ function TestBench() {
     )
   }, [user, sendShared])
   useEffect(() => { sendShared() }, [profile, sendShared])
+  // Where each shared test has got to (sent to a job, downloaded), recorded by whichever laptop did it. Until its rules are published Firestore
+  // refuses, and each laptop shows only what it knows itself, as before.
+  useEffect(() => {
+    if (!user) { setStatus({}); return undefined }
+    return watchStatus(setStatus, () => setStatus({}))
+  }, [user])
   // Orders: watched while signed in. Until their rules are published Firestore refuses; the tab says so rather than failing quietly.
   useEffect(() => {
     if (!user) { setOrders([]); setOrdersError(''); return undefined }
@@ -401,18 +410,33 @@ function TestBench() {
     if (!online || !user || access || !companies.length) return
     closeDoneOrders(orders.filter((o) => o.status !== 'closed' || Date.now() - (+o.closedAt || 0) < 30 * 864e5))   // closed in the last 30 days: only its files are looked at
   }, [orders, online, user, access, companies, closeDoneOrders])
-  const tests = useMemo(() => withOnJob(groupReports(reports), onJob), [reports, onJob])
+  const localTests = useMemo(() => withOnJob(groupReports(reports), onJob), [reports, onJob])   // this laptop's own knowledge of what was sent and downloaded
+  const tests = useMemo(() => withStatus(localTests, testsList, status), [localTests, testsList, status])   // plus what any laptop recorded
   const unsent = tests.filter((g) => g.unsent).length
-  // Tests this engineer ran whose files are downloaded and on a Simpro job have their stored record cleared by themselves (the summary stays; Saved
-  // reports has the same as a button). Each is tried once while this page is open; a failure (offline, rules) is tried again when the list changes.
+  // Share what this laptop knows (a report on a job, a download) so every laptop shows it. Each line is tried once; a failure (offline, rules not
+  // published yet) is tried again when the lists change.
+  const statusSent = useRef(new Set())
+  useEffect(() => {
+    if (!online || !user || !testsList.length) return
+    const key = (s) => `${s.id}|${s.jobs.join(',')}|${s.downloadedAt}`
+    const list = statusToWrite(localTests, testsList, status).filter((s) => !statusSent.current.has(key(s)))
+    if (!list.length) return
+    list.forEach((s) => statusSent.current.add(key(s)))
+    saveStatus(list, who.current.email)
+      .then((n) => logActivity(null, `Shared where ${n} test${n === 1 ? '' : 's'} got to (sent to a Simpro job, downloaded)`, { app: 'testbench' }))
+      .catch(() => list.forEach((s) => statusSent.current.delete(key(s))))
+  }, [localTests, testsList, status, online, user])
+  // Tests this engineer ran that are on a Simpro job and downloaded (as any laptop recorded it) have their stored record cleared by themselves
+  // (the summary stays; Saved reports has the same as a button). Each is tried once while this page is open; a failure (offline, rules) is
+  // tried again when the list changes.
   const autoCleared = useRef(new Set())
   useEffect(() => {
     if (!online || !user || !testsList.length) return
-    const ids = clearableIds(tests, testsList, who.current.email).filter((id) => !autoCleared.current.has(id))
+    const ids = clearableIds(testsList, status, who.current.email, localTests).filter((id) => !autoCleared.current.has(id))
     if (!ids.length) return
     ids.forEach((id) => autoCleared.current.add(id))
     clearShared(ids).catch(() => ids.forEach((id) => autoCleared.current.delete(id)))
-  }, [tests, testsList, online, user, clearShared])
+  }, [localTests, testsList, status, online, user, clearShared])
   // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
   const modelKey = useMemo(() => [...new Set(tests.map(modelOf))].sort().join('\n'), [tests])
   askColours.current = () => { if (modelKey) toBench({ type: 'chs-bench:model-colours', id: String(Date.now()), models: modelKey.split('\n') }) }
@@ -456,7 +480,7 @@ function TestBench() {
         <Reports
           reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
           onJob={onJob} onJobFiles={noteJobFiles}
-          orders={orders} onClearShared={clearShared} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
+          orders={orders} status={status} onClearShared={clearShared} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
           onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
           sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
           onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
