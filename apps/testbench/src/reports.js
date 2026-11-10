@@ -232,15 +232,6 @@ export function sharedGroups(reports, shared) {
   })
 }
 
-/**
- * The shared tests of the engineer `me` whose stored record can be cleared (clearTestData): this laptop has the files, they were downloaded and every
- * file that goes to Simpro is on a job. `groups` are this laptop's groups with the job files known (withOnJob). Matched by the test's start time.
- */
-export function clearableIds(groups, shared, me) {
-  const mine = new Map((shared || []).filter((t) => t && t.id && t.started && t.size !== 0 && me && t.by === me).map((t) => [Date.parse(t.started), t.id]))
-  return (groups || []).filter((g) => !g.uploaded && g.testedAt && g.downloadedAt && !g.unsent && mine.has(g.testedAt)).map((g) => mine.get(g.testedAt))
-}
-
 export const PERIODS = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['30', 'Last 30 days']]
 /** Whether a New Zealand day ("2026-11-02") falls in the period, as of `now`. */
 export function inPeriod(day, period, now = Date.now()) {

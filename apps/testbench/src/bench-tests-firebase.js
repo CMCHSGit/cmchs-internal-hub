@@ -1,6 +1,6 @@
 /* The Firestore side of the Test Bench's shared previous tests (see bench-tests.js). Rules: rules/firestore.rules, `benchTests` and
    `benchTestData`: engineers (and admins) read; the person who shared a test, or an admin, changes or removes it. */
-import { collection, doc, getDoc, limit, onSnapshot, orderBy, query, writeBatch } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, limit, onSnapshot, orderBy, query, writeBatch } from 'firebase/firestore'
 import { firestore } from '../../../shared/firestore.js'
 import { forBench, packRun, summaryOf } from './bench-tests.js'
 
@@ -50,4 +50,5 @@ export async function removeTest(id) {
   const db = firestore(), b = writeBatch(db)
   b.delete(doc(db, 'benchTests', String(id))); b.delete(doc(db, 'benchTestData', String(id)))
   await b.commit()
+  try { await deleteDoc(doc(db, 'benchTestStatus', String(id))) } catch { /* its rules may not be published yet: an orphan status line is harmless */ }
 }

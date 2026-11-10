@@ -6,7 +6,8 @@ import { belongs, jobNumber } from './orders.js'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
-import { PERIODS, UPLOAD_EXTS, categorise, clearableIds, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
+import { clearableIds, storageSummary, withStatus } from './bench-status.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
 import { bookletPdf, mergePdfs, printPdf } from './print.js'
 
@@ -63,7 +64,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ orders = [], onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ orders = [], status = {}, onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -110,7 +111,8 @@ export default function Reports({ orders = [], onClearShared, reports, fresh, si
   const [showOthers, setShowOthers] = useState(false)
   const me = String(user?.email || '').toLowerCase()
   const lookingFor = !!(text.trim() || onlySerials.length || showOthers)
-  const allGroups = useMemo(() => withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))], onJob).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, hidden])
+  // "Sent to" and "Downloaded" as any laptop recorded them (status), on top of what this laptop knows.
+  const allGroups = useMemo(() => withStatus(withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))], onJob), sharedTests, status).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, hidden, status])
   const isOthers = (g) => g.shared && !!g.sharedByEmail && g.sharedByEmail !== me
   const forJob = (g) => {
     if (!job) return false
@@ -120,7 +122,8 @@ export default function Reports({ orders = [], onClearShared, reports, fresh, si
   const groups = useMemo(() => allGroups.filter((g) => !isOthers(g) || lookingFor || forJob(g)), [allGroups, lookingFor, job?.id, orders, me]) // eslint-disable-line react-hooks/exhaustive-deps
   const othersHidden = allGroups.length - groups.length
   // This engineer's own shared tests whose files are all here, downloaded and sent to Simpro: their stored record can be cleared (they can be dragged back in).
-  const clearable = useMemo(() => clearableIds(withOnJob(groupReports(reports), onJob), sharedTests, me), [reports, sharedTests, onJob, me])
+  const clearable = useMemo(() => clearableIds(sharedTests, status, me, withOnJob(groupReports(reports), onJob)), [reports, sharedTests, onJob, me, status])
+  const storage = useMemo(() => storageSummary(sharedTests, status, me), [sharedTests, status, me])
   async function clearStored() {
     if (!clearable.length || !window.confirm(`Free up storage: delete the stored details of ${clearable.length} of your test${clearable.length === 1 ? '' : 's'} whose files are already downloaded and sent to Simpro?
 
@@ -492,6 +495,22 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
             {sentFiles().length > 0 && <button type="button" className="tb-link" onClick={() => remove(sentFiles(), `the ${sentFiles().length} files already sent`)}>Clear out the files already sent to Simpro</button>}
           </div>
         </>
+      )}
+
+      {user && storage.stored + storage.cleared > 0 && (
+        <details className="tb-totals">
+          <summary><strong>Shared test storage</strong> <span className="tb-muted">{storage.stored} stored · {kb(storage.bytes)}</span></summary>
+          <table>
+            <tbody>
+              <tr><td>Tests stored for everyone</td><td className="num">{storage.stored}</td><td className="tb-muted">{kb(storage.bytes)} in all; each is kept so a report can be made again</td></tr>
+              <tr><td>Cleared (already sent and downloaded)</td><td className="num">{storage.cleared}</td><td className="tb-muted">only a one-line summary is kept; Orders still count them</td></tr>
+              <tr><td>Yours, still stored</td><td className="num">{storage.mine}</td><td className="tb-muted">{storage.others} more are other engineers’; theirs clear on their own laptops</td></tr>
+              <tr><td>Yours, ready to clear</td><td className="num">{storage.ready}</td><td className="tb-muted">{storage.ready > 0 ? 'cleared automatically while the hub is open, or now with the button below' : 'sent to a Simpro job and downloaded'}</td></tr>
+              <tr><td>Yours, waiting to be sent and downloaded</td><td className="num">{storage.waiting}</td><td className="tb-muted">{storage.old > 0 ? `${storage.old} of them are over a year old and still not sent: worth attaching them, or removing them from the Test Bench` : 'they clear once their report is on a job and downloaded'}</td></tr>
+            </tbody>
+          </table>
+          {onClearShared && clearable.length > 0 && <p><button type="button" className="tb-link" onClick={clearStored}>Free up storage now: clear {clearable.length} test{clearable.length === 1 ? '' : 's'}</button></p>}
+        </details>
       )}
 
       {outbox.length > 0 && (

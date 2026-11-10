@@ -33,7 +33,8 @@ until it does everything, those keep working as they are. Its own map and rules:
 - **Per laptop:** IndexedDB `chs-test-bench` (templates, runs, kv folder handles; **schema bumps must keep `onblocked`/`onversionchange`**),
   `chs-bench-reports`, the outbox, `chs-newequip-handoff`; localStorage `chsBench.prefs`, `chsBench.flow`, `newEquip.customer`.
 - **Firestore** (rules in `rules/firestore.rules`): `benchTests` (one line per finished test), `benchTestData` (whole test as one JSON
-  string, no photos), `benchOrders`, `pendingAssets`, plus the new-equipment customers. Rule changes are **not** published by a push:
+  string, no photos; deleted once the test is sent and downloaded, the line stays with `size: 0`), `benchTestStatus` (jobs a test's
+  report is on + download time, written by any laptop, `src/bench-status.js`), `benchOrders`, `pendingAssets`, plus the new-equipment customers. Rule changes are **not** published by a push:
   paste the whole file into the Firebase console and say so (`rules/README.md`).
 - **SharePoint `CHS Test Bench` folder** (folder picker, once per laptop): `Templates` is the **master for templates**; `Results` for
   saved files. `templates/` in this repo is a copy for Firefox / no-picker browsers: after a template change in SharePoint run

@@ -335,3 +335,19 @@ the summary stays so Orders still count the test and **no rules change is needed
 tests (nothing to make a report from); drag its results file or Ansur record into the bench or Saved reports to open it again. Only your own tests (or an
 admin's, by the rules) can be cleared. **It also happens by itself**: while the hub is open, signed in and online, section.jsx clears every test that
 qualifies (`clearableIds`, each tried once per page load), so the button only shows what that could not clear. Logged with a count only.
+
+## "Sent to" and "Downloaded" shared between laptops; a storage panel (10/11/2026)
+- **Shared status.** Which Simpro jobs a test's report is on and when it was downloaded were known only to the laptop that did it. Each laptop now writes
+  what it knows to `benchTestStatus/{testId}` (`sentJobs`, `downloadedAt`, `updatedBy`, `updatedAt`; `src/bench-status.js`, `bench-status-firebase.js`) and
+  every laptop reads it, so a test Peter attached shows "Sent to #job" on everyone's list, tests made on demand from another engineer's test included.
+  Matching is by the test's start time (`meta.testedAt` on a laptop's files = the shared test's `started`). Any Bench team member may write a status
+  (it is bookkeeping, and whoever attaches or downloads is the one who knows). A write is one line to the activity log, with a count only.
+- **Clearing uses it.** A test of yours is cleared when its status says on a job and downloaded, or (before the rules are published) when this laptop's own
+  files say so. It no longer needs the laptop that holds the files: any of your laptops that opens the hub clears it.
+- **Storage panel** at the foot of Saved reports: tests stored for everyone and their size, how many were cleared, yours still stored, ready to clear,
+  waiting to be sent and downloaded (and how many of those are over a year old), with the Free up storage button.
+- **Rules: NOT YET PUBLISHED.** `benchTestStatus` is new in `rules/firestore.rules`: paste the whole file into the Firebase console (Firestore → Rules → Publish).
+  Until then the status is refused, each laptop shows only what it knows itself (as before) and nothing else breaks. Tests for it and for clearing a
+  record are in `rules/tests/bench-rules.test.mjs` (run by the Rules tests workflow on the pull request).
+- **CI.** The Rules tests workflow already ran every rules test file, orders included, on the emulator; its failure on 9 Nov was a syntax slip (an unescaped
+  apostrophe) in `pending-rules.test.mjs`, fixed here.

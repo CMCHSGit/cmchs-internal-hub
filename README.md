@@ -1,6 +1,6 @@
 # CMCHS Internal Hub
 
-**internal.chsnz.co.nz**: one Microsoft sign-in, then every internal tool. Hosted on GitHub Pages; every push to `main` deploys.
+**internal.chsnz.co.nz**: one Microsoft sign-in, then every internal tool. Hosted on GitHub Pages; every merge to `main` deploys (changes go in by pull request: see `CLAUDE.md`).
 
 **Install it as an app** (Chrome: install icon in the address bar; iOS Safari: Share → Add to Home Screen) and every tool opens *inside* that app window — no address bar, no bouncing out to a browser tab. That only works for pages on this domain, which is why tools move in here rather than staying on their own subdomain.
 
@@ -123,7 +123,7 @@ Every tool sits at the top level, `internal.chsnz.co.nz/<name>/` (the hub's cate
    - `opens`: `here` (same tab, for pages on this site) or `tab` (new tab, for other sites).
    - `short` (optional): the label under its round button in the home page hero; falls back to `name`.
    - `icon`: a [Lucide](https://lucide.dev/icons) name that's listed in `apps/hub/src/Icon.jsx` (add it there if not).
-3. Push to `main`.
+3. Open a pull request to `main` (see `CLAUDE.md`); merging deploys it.
 
 **Moving a tool's address:** add the old path to `MOVED` in `apps/hub/public/404.html` so bookmarks forward (e.g. `/order-parser/` → `/service-orders/`).
 

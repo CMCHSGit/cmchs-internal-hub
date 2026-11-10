@@ -17,11 +17,19 @@ which links between tools must keep working, and how to work while things move.
 Several people work on these repos with Claude, often at the same time.
 
 - **Pull before you start, and again before you commit.**
-- **Commit and push to `main` once verified** — no need to ask first. A push
-  deploys the whole site through GitHub Actions within a couple of minutes.
-  Verified means `npm run build` passes, the tests pass
-  (`npm test -w apps/schedule`, `npm test -w apps/hub`), and after deploying,
-  the live page actually shows the change.
+- **Changes reach `main` through a pull request** (branch ruleset "main: reviewed
+  changes, no force-push", since 10 Nov 2026): a direct push is refused (`GH013`)
+  unless it comes from a repository admin. Verify first: `npm run build` passes and
+  the tests pass (`npm test -w apps/schedule`, `npm test -w apps/hub`, plus the
+  app's own, e.g. `npm test --prefix apps/testbench`). Then
+  `git push origin HEAD:refs/heads/<short-branch-name>` (the working tree is shared,
+  so do not switch branches or stash), `gh pr create --base main`, and bind the PR
+  (ccd_pr tools). One approval is needed; anything under `.github/`, `rules/`,
+  `backend/`, `scripts/` or a `package.json` / lock file needs the owner's
+  (CODEOWNERS). **Merging deploys the whole site** through GitHub Actions within a
+  couple of minutes: after it, check the live page actually shows the change. A
+  commit made on local `main` and pushed this way is the same commit after a
+  merge, so `git pull` afterwards is clean.
 - **The demo tracker is `apps/equipment`** (read its `CLAUDE.md` first). `/demo/`
   only forwards there (`apps/demo/build.mjs`); the old tracker in `chs-equipment`
   is retired (tag `old-tracker-final`) and is never changed.
