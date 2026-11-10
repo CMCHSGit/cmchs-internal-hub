@@ -59,32 +59,34 @@ export default function ActivityLog() {
   }
 
   return (
-    <div className="admin-layout">
-      <div className="admin-side">
-        <p className="text-sm text-muted">
-          Who did what and when, across the whole hub: sign-ins, schedule and leave, on call, projects,
-          equipment, asks, checklists, maintenance, service orders, news and people. Most recent first.
-          It's a record, not an undo button: nothing here can be edited or deleted. Every night it is
-          also copied to Google Drive (folder “CMCHS Hub Activity Log Backups”).
-        </p>
-        <div className="activity-filters">
-          <select value={app} onChange={e => setApp(e.target.value)} aria-label="Tool">
-            <option value="">All tools</option>
-            {tools.map(t => <option key={t} value={t}>{appLabel(t)}</option>)}
-          </select>
-          <select value={who} onChange={e => setWho(e.target.value)} aria-label="Person">
-            <option value="">Everyone</option>
-            {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <input type="search" value={text} onChange={e => setText(e.target.value)} placeholder="Search the log" aria-label="Search the log" />
-        </div>
+    <div className="page admin-page activity-page">
+      <p className="st-note activity-intro">
+        Sign-ins, schedule and leave, on call, projects, equipment, asks, checklists, maintenance, service
+        orders, news and people, most recent first. It's a record, not an undo button: nothing here can be
+        edited or deleted. Every night it is also copied to Google Drive (folder “CMCHS Hub Activity Log Backups”).
+      </p>
+      <div className="activity-toolbar">
+        <select className="input" value={app} onChange={e => setApp(e.target.value)} aria-label="Tool">
+          <option value="">All tools</option>
+          {tools.map(t => <option key={t} value={t}>{appLabel(t)}</option>)}
+        </select>
+        <select className="input" value={who} onChange={e => setWho(e.target.value)} aria-label="Person">
+          <option value="">Everyone</option>
+          {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <input className="input activity-search" type="search" value={text} onChange={e => setText(e.target.value)} placeholder="Search the log" aria-label="Search the log" />
         <div className="activity-buttons">
           <Button variant="secondary" size="sm" onClick={() => load(true)} disabled={loading}>Refresh</Button>
           <Button variant="secondary" size="sm" onClick={download} disabled={!shown.length}>Download CSV</Button>
         </div>
       </div>
+      {entries.length > 0 && (
+        <p className="st-note activity-count">
+          {filtered ? `${shown.length} of ${entries.length} loaded lines` : `${entries.length} most recent lines`}
+        </p>
+      )}
 
-      <div className="admin-main">
+      <div className="activity-main">
         {blocked && (
           <Alert tone="warning" icon={<ScrollText size={20} />} title="Log not switched on yet">
             The database rules need updating before the activity log can be read — publish the
@@ -92,9 +94,9 @@ export default function ActivityLog() {
           </Alert>
         )}
         {loading && !entries.length ? <Loading /> : (
-          <div className="card admin-list activity-list">
+          <div className="card activity-list">
             {!shown.length && !blocked && (
-              <p className="text-sm text-muted" style={{ padding: 16 }}>
+              <p className="st-note" style={{ padding: 16 }}>
                 {filtered ? `Nothing matches in the ${entries.length} lines loaded.` : 'Nothing logged yet.'}
               </p>
             )}

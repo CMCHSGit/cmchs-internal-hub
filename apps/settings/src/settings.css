@@ -82,3 +82,31 @@
   .jobs-row { grid-template-columns: minmax(0, 1fr); }
   .jobs-msg { grid-column: 1; }
 }
+
+/* Activity log (ActivityLog.jsx): the filters in one row above the log, and
+   the log as lined-up columns (when, who, tool, what) the width of the page. */
+.activity-intro { max-width: 760px; }
+.activity-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.activity-toolbar select.input { width: auto; min-width: 150px; max-width: 220px; }
+.activity-search { flex: 1 1 220px; min-width: 0; max-width: 360px; }
+.activity-buttons { display: flex; gap: 8px; margin-left: auto; }
+.activity-count { margin-top: -2px; }
+.activity-main { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.activity-list { padding: 0; overflow: hidden; }
+.activity-row { display: grid; grid-template-columns: 112px 150px 112px minmax(0, 1fr); gap: 4px 14px; align-items: baseline;
+  padding: 9px 16px; border-top: 1px solid var(--border-subtle); font: var(--type-body-sm); }
+.activity-row:first-child { border-top: none; }
+.activity-row:hover { background: var(--surface-subtle); }
+.activity-when { color: var(--text-muted); font: var(--type-caption); white-space: nowrap; }
+.activity-who { font-weight: var(--weight-semibold); color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-app { justify-self: start; max-width: 100%; padding: 1px 8px; border-radius: 999px; background: var(--surface-sunken, var(--border-subtle));
+  color: var(--text-muted); font: var(--type-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.activity-what { min-width: 0; color: var(--text-body); overflow-wrap: anywhere; }
+@media (max-width: 899px) {
+  /* Narrow: when and tool on one line, who and what below. */
+  .activity-row { grid-template-columns: auto minmax(0, 1fr); }
+  .activity-when { grid-column: 1; }
+  .activity-app { grid-column: 2; grid-row: 1; justify-self: end; }
+  .activity-who, .activity-what { grid-column: 1 / -1; }
+  .activity-buttons { margin-left: 0; }
+}
