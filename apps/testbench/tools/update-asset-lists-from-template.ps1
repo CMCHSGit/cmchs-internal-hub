@@ -10,7 +10,13 @@
        typed in is never touched. A table that lacks a column the formula refers to (for example Manufacturing Date) is left alone and reported.
     2. The Component drop-down list (Reference sheet, the "Component" name): when the customer's list only holds items the template also has,
        it becomes the template's list. If the customer has items of their own, it is left alone and reported.
+  Optional: -FillEmpty "<column>",... also puts the formula in EMPTY cells of those columns (only where every column the formula uses has a value in
+  that row, e.g. a MAC address from the Device ID). The formula is read from the first row in the template that holds a formula of its own
+  (a typed value, or a formula pointing at another table such as T_NSH[@...], is skipped), and a copy that points at another table is replaced.
+  -ExcludePattern "<regex>" leaves out -Folder lists whose path matches it.
   Nothing else changes: no rows, columns, sheets, formats or other drop-downs. Drift in other lists is not touched.
+  With -Apply a list that needs no change is not saved and keeps no copy.
+  sync-asset-lists.ps1 (and "Sync asset lists.cmd") is the one-click version of all this.
 
   Three ways to run it (needs Excel on this PC; close the lists in Excel first):
     (no switch)  Report only: it edits a temporary copy to count what WOULD change, and deletes it. Nothing is written anywhere.
@@ -33,7 +39,9 @@ param(
   [string]$TemplateTable = 'T_WTH',
   [string[]]$Columns = @('End of Warranty Date', 'Extended Warranty'),
   [string]$ListName = 'Component',
-  [switch]$AlignOwnItems   # also replace a customer's own Component items (when no row uses them) with the template's
+  [switch]$AlignOwnItems,  # also replace a customer's own Component items (when no row uses them) with the template's
+  [string[]]$FillEmpty = @(),  # of the -Columns, these also get the formula in EMPTY cells when every column it uses has a value in that row (typed values are never touched)
+  [string]$ExcludePattern      # regex; -Folder lists whose full path matches it are left out (e.g. archived copies)
 )
 $ErrorActionPreference = 'Stop'
 $public = Join-Path $env:USERPROFILE 'Cass Medical Limited\Cass & CHS SharePoint - Documents (1)\CMCHS Files\Service\Customer Data\Human\Public'
@@ -45,7 +53,7 @@ $files = @()
 if ($Path) { foreach ($p in $Path) { $files += Get-Item -LiteralPath $p } }
 if ($Folder) {
   $files += Get-ChildItem -LiteralPath $Folder -Recurse:$Recurse -File -Filter '*Asset List*.xlsx' |
-    Where-Object { $_.FullName -notmatch '\\(Old|Backups)\\' -and $_.Name -notmatch '^~\$' -and $_.Name -notmatch 'Template' -and $_.Name -notmatch 'BADGE' -and $_.FullName -ne (Resolve-Path -LiteralPath $Template).Path }
+    Where-Object { $_.FullName -notmatch '\\(Old|Backups)\\' -and $_.Name -notmatch '^~\$' -and $_.Name -notmatch 'Template' -and $_.Name -notmatch 'BADGE' -and $_.FullName -ne (Resolve-Path -LiteralPath $Template).Path -and (-not $ExcludePattern -or $_.FullName -notmatch $ExcludePattern) }
 }
 $files = @($files | Sort-Object FullName -Unique)
 if (-not $files.Count) { Write-Host 'No asset lists found.'; return }
@@ -56,6 +64,7 @@ function Get-Used($formula) { [regex]::Matches($formula, '\[@\[([^\]]+)\]\]') | 
 
 $xl = New-Object -ComObject Excel.Application
 $xl.Visible = $false; $xl.DisplayAlerts = $false; $xl.EnableEvents = $false; $xl.AskToUpdateLinks = $false
+$xl.AutoCorrect.AutoFillFormulasInLists = $false   # entering a formula in one table cell must not fill the whole column (it would overwrite typed values)
 $summary = New-Object System.Collections.Generic.List[object]
 $tmpDir = Join-Path $env:TEMP ('asset-template-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $tmpDir | Out-Null
@@ -69,7 +78,14 @@ try {
     foreach ($lo in $ws.ListObjects) {
       if ($lo.Name -ne $TemplateTable) { continue }
       foreach ($c in $Columns) {
-        foreach ($lc in $lo.ListColumns) { if ($lc.Name -eq $c) { $tf[$c] = [string]$lc.DataBodyRange.Cells.Item(1, 1).Formula } }
+        foreach ($lc in $lo.ListColumns) {
+          if ($lc.Name -ne $c) { continue }
+          # the first row that holds a formula of its own (not a typed value, not one that points at another table, e.g. T_NSH[@...])
+          for ($k = 1; $k -le $lc.DataBodyRange.Rows.Count; $k++) {
+            $x = [string]$lc.DataBodyRange.Cells.Item($k, 1).Formula
+            if ($x.StartsWith('=') -and $x -notmatch '\w\[@') { $tf[$c] = $x; break }
+          }
+        }
       }
     }
   }
@@ -87,16 +103,16 @@ try {
 
   foreach ($file in $files) {
     Write-Host "`n$($file.FullName)"
-    $row = [ordered]@{ List = $file.Name; Tables = 0; FormulasChanged = 0; ValuesChanged = 0; TypedKept = 0; Component = '-'; Notes = '' }
+    $row = [ordered]@{ List = $file.Name; Tables = 0; FormulasChanged = 0; Filled = 0; ValuesChanged = 0; TypedKept = 0; Component = '-'; Notes = '' }
     $notes = @()
-    $keep = $false
+    $keep = $false; $changed = $false; $madeCopy = $false
     if ($Apply) {
       $target = $file.FullName
       $old = Join-Path $file.DirectoryName 'Old'
       if (-not (Test-Path -LiteralPath $old)) { New-Item -ItemType Directory -Path $old | Out-Null }
       $copy = Join-Path $old ($file.BaseName + ' (before template update ' + (Get-Date -Format 'dd.MM.yyyy') + ')' + $file.Extension)
-      if (-not (Test-Path -LiteralPath $copy)) { Copy-Item -LiteralPath $file.FullName -Destination $copy }
-      Write-Host "  copy kept: $copy"
+      $madeCopy = $false
+      if (-not (Test-Path -LiteralPath $copy)) { Copy-Item -LiteralPath $file.FullName -Destination $copy; $madeCopy = $true }
       $keep = $true
     } elseif ($OutDir) {
       $target = Join-Path $OutDir $file.Name
@@ -114,7 +130,11 @@ try {
       continue
     }
     try {
-      if ($Apply -and $wb.ReadOnly) { Write-Host '  open elsewhere (read-only): skipped'; $row.Notes = 'SKIPPED: open elsewhere'; $summary.Add([pscustomobject]$row); continue }
+      if ($Apply -and $wb.ReadOnly) {
+        Write-Host '  open elsewhere (read-only): skipped'; $row.Notes = 'SKIPPED: open elsewhere'; $summary.Add([pscustomobject]$row)
+        if ($madeCopy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
+        continue
+      }
       foreach ($ws in $wb.Worksheets) {
         foreach ($lo in $ws.ListObjects) {
           $names = @(); foreach ($lc in $lo.ListColumns) { $names += $lc.Name }
@@ -134,14 +154,28 @@ try {
               elseif ($f -ne '') { $nTyped++ }
             }
             $row.TypedKept += $nTyped
-            if ($nDiff -eq 0) { continue }
+            # Empty cells: only with -FillEmpty, and only where every column the formula uses has a value in that row.
+            $fillRows = @()
+            if ($FillEmpty -contains $c) {
+              $usedCols = @(Get-Used $tf[$c])
+              for ($i = 1; $i -le $n; $i++) {
+                if ([string]$fs[$i, 1] -ne '') { continue }
+                $ok = ($usedCols.Count -gt 0)
+                foreach ($u in $usedCols) { if (-not [string]$lo.ListColumns.Item($u).DataBodyRange.Cells.Item($i, 1).Value2) { $ok = $false; break } }
+                if ($ok) { $fillRows += $i }
+              }
+            }
+            if ($nDiff -eq 0 -and -not $fillRows.Count) { continue }
             if ($nTyped -eq 0 -and $nForm -eq $n) { $rng.Formula = $tf[$c] }
-            else { for ($i = 1; $i -le $n; $i++) { $cell = $rng.Cells.Item($i, 1); if ($cell.HasFormula) { $cell.Formula = $tf[$c] } } }
+            else {
+              for ($i = 1; $i -le $n; $i++) { $cell = $rng.Cells.Item($i, 1); if ($cell.HasFormula) { $cell.Formula = $tf[$c] } }
+              foreach ($i in $fillRows) { $rng.Cells.Item($i, 1).Formula = $tf[$c] }
+            }
             $xl.Calculate()
             $vs1 = $rng.Value2
             for ($i = 1; $i -le $n; $i++) { if ([string]$vs0[$i, 1] -ne [string]$vs1[$i, 1]) { $row.ValuesChanged++ } }
-            $row.FormulasChanged += $nDiff; $touched = $true
-            Write-Host "  $($ws.Name) / $($lo.Name) / ${c}: $nDiff of $n formulas replaced$(if ($nTyped) { ", $nTyped typed values kept" })"
+            $row.FormulasChanged += $nDiff; $row.Filled += $fillRows.Count; $touched = $true; $changed = $true
+            Write-Host "  $($ws.Name) / $($lo.Name) / ${c}: $nDiff of $n formulas replaced$(if ($fillRows.Count) { ", $($fillRows.Count) empty cells filled" })$(if ($nTyped) { ", $nTyped typed values kept" })"
           }
           if ($touched) { $row.Tables++ }
         }
@@ -181,15 +215,20 @@ try {
               for ($i = 0; $i -lt $tList.Count; $i++) { $sh.Cells.Item($first + $i, $col).Value2 = $tList[$i] }
               for ($i = $tList.Count; $i -lt $rg.Rows.Count; $i++) { $sh.Cells.Item($first + $i, $col).ClearContents() | Out-Null }
               $nm.RefersTo = '=' + $sh.Range($sh.Cells.Item($first, $col), $sh.Cells.Item($last, $col)).Address($true, $true, 1, $true)
-              $row.Component = "now $($tList.Count) (+$($add.Count))"
+              $row.Component = "now $($tList.Count) (+$($add.Count))"; $changed = $true
               Write-Host "  $ListName list: $($have.Count) -> $($tList.Count) items (+$($add -join ', '))"
             }
           }
         }
       }
-      if ($keep) {
+      if ($Apply -and -not $changed) {
+        # nothing to do: the list is not saved (it stays exactly as it was) and no copy is kept
+        if ($madeCopy) { Remove-Item -LiteralPath $copy -Force -ErrorAction SilentlyContinue }
+        Write-Host '  already up to date'
+      } elseif ($keep) {
+        if ($Apply) { Write-Host "  copy kept: $copy" }
         try { $wb.Save() }
-        catch { Write-Host "  NOT SAVED: $($_.Exception.Message) (the list is unchanged; close it elsewhere and run again)"; $notes += 'NOT SAVED'; $row.FormulasChanged = 0 }
+        catch { Write-Host "  NOT SAVED: $($_.Exception.Message) (the list is unchanged; close it elsewhere and run again)"; $notes += 'NOT SAVED'; $row.FormulasChanged = 0; $row.Filled = 0 }
       }
     } finally { $wb.Close($false) }
     $row.Notes = ($notes -join '; ')
@@ -201,6 +240,6 @@ try {
   Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 Write-Host "`n=== Summary"
-$summary | Format-Table List, Tables, FormulasChanged, ValuesChanged, TypedKept, Component -AutoSize | Out-String -Width 220 | Write-Host
+$summary | Format-Table List, Tables, FormulasChanged, Filled, ValuesChanged, TypedKept, Component -AutoSize | Out-String -Width 220 | Write-Host
 foreach ($r in $summary) { if ($r.Notes) { Write-Host ("- {0}: {1}" -f $r.List, $r.Notes) } }
 Write-Host "`nDone."
