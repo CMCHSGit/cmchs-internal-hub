@@ -85,7 +85,8 @@ function TestBench() {
   const [status, setStatus] = useState({}) // { testId: { sentJobs, downloadedAt } } (bench-status.js)
   const [testsList, setTestsList] = useState([]) // the shared finished tests (what the orders count)
   const [sheet, setSheet] = useState(null) // the asset list loaded in the bench: { name, state, devices }
-  const [startJob, setStartJob] = useState(null) // the Simpro job Saved reports opens with (from an order)
+  // The Simpro job Saved reports opens with: from an order, or from one job's "Attach reports" in Asset Sync (link.job).
+  const [startJob, setStartJob] = useState(() => (link.job ? { id: link.job, label: `#${link.job}` } : null))
   const [onlySerials, setOnlySerials] = useState(link.serials)
   const [top, setTop] = useState(0)
   const [reports, setReports] = useState([])

@@ -321,22 +321,27 @@ export function reportsToAdd(groups, serials) {
   return { devices: want.length, withReport: withReport.length, toAdd: toAdd.length, toAddSerials: toAdd, missing: want.filter((s) => !have.has(s)) }
 }
 
-/** The address of Saved reports for these devices: only their tests, only what is not yet sent. */
-export function reportsLink(serials) {
+const jobNo = (j) => { const s = String(j ?? '').trim().replace(/^#/, ''); return /^\d{1,12}$/.test(s) ? s : '' }
+
+/** The address of Saved reports for these devices: only their tests, only what is not yet sent. With a Simpro job number (Asset
+ *  Sync's "Attach reports" on one job), that job is already chosen to send them to; anything else is left out. */
+export function reportsLink(serials, job = '') {
   const list = [...new Set([...serials].map(serialKey).filter(Boolean))]
   const q = new URLSearchParams({ tab: 'reports' })
   if (list.length && list.length <= LINK_SERIALS_MAX) q.set('serials', list.join(','))
   q.set('unsent', '1')
+  if (jobNo(job)) q.set('job', jobNo(job))
   return '/testbench/?' + q.toString()
 }
 
-/** What an address asks Saved reports to show: { open, serials (array, empty for no filter), unsent }. */
+/** What an address asks Saved reports to show: { open, serials (array, empty for no filter), unsent, job ('' or a job number) }. */
 export function reportsFromSearch(search) {
   const p = new URLSearchParams(search || '')
   return {
     open: p.get('tab') === 'reports',
     serials: (p.get('serials') || '').split(',').map(serialKey).filter(Boolean).slice(0, LINK_SERIALS_MAX),
     unsent: p.get('unsent') === '1',
+    job: p.get('tab') === 'reports' ? jobNo(p.get('job')) : '',
   }
 }
 
