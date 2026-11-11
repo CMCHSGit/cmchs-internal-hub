@@ -15,8 +15,10 @@ Claude loads this file when working under `apps/equipment/`. It is the short map
 The demo equipment tracker ("Demo" in the hub header), live at `internal.chsnz.co.nz/equipment/`: CHS's demo devices,
 loans to hospitals, bookings, scanning (return, count, stocktake), the calendar, history and audit log, retired items,
 kits, QR asset labels, Simpro jobs for loans. Used by account managers (often on phones, on site) and Service & Projects.
-Rebuilt here as a section of the hub's one app; it replaced the old tracker on **19 Oct 2026**. `/demo/` and
-demo.chsnz.co.nz only forward here (`apps/demo/build.mjs` writes that page; there is nothing else in `apps/demo`).
+Rebuilt here as a section of the hub's one app; it replaced the old tracker on **19 Oct 2026**. `/demo/` forwards
+old links here (`?return=`, `?extend=`, `?reassign=`, `?newLoan=`, `?open=`, `?tab=`) and shows a "retired" error to a
+bare visit, so a stale old app is noticed (`apps/demo/build.mjs` writes that page; there is nothing else in `apps/demo`).
+demo.chsnz.co.nz is the chs-equipment repo's own page and still forwards everything.
 
 ## The map
 
