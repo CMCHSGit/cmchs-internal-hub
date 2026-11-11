@@ -9,8 +9,8 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 const keyOf = (x) => x.kind + ':' + x.key
 
 export default function AddToLoan({ s, items, onClose, onDone }) {
-  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
-    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
+  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }),
+    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.managers])
   const all = [...sections.needsReassign, ...sections.upcoming, ...sections.current, ...sections.longTerm]
   const [q, setQ] = useState('')
   const [to, setTo] = useState('')

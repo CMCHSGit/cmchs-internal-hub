@@ -71,7 +71,7 @@ function Shell() {
   // An old-style link (?newLoan=, ?return=, ?extend=, ?reassign=, ?tab=), once the data is in: to its view, the query dropped.
   useEffect(() => {
     if (!s.ready || !location.search) return
-    const sections = loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })
+    const sections = loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers })
     const t = linkTarget(location.search, sections, s.upcoming, s.equipment)
     history.replaceState(null, '', location.pathname + (t ? hashOf(t.view, t.params) : location.hash))
     if (t) { setRoute({ view: t.view, params: t.params }); if (t.note) showToast(t.note) }
@@ -83,9 +83,9 @@ function Shell() {
   // tab and the home-screen icon (shared/badges.js). Once the team and loan forms are in, and after every change.
   const needs = useMemo(() => {
     if (!s.ready || !s.extrasReady) return null
-    const sections = loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })
-    return actionCount(overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }), s.me)
-  }, [s.ready, s.extrasReady, s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.me])
+    const sections = loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers })
+    return actionCount(overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }), s.me)
+  }, [s.ready, s.extrasReady, s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.me, s.managers])
   useEffect(() => { if (needs != null) setBadge('equipment', needs) }, [needs])
 
   if (s.error && !s.ready) return <div className="eq-page"><Alert tone="critical" title="The demo tracker didn’t load">{s.error}</Alert></div>
@@ -175,7 +175,7 @@ function Equipment({ s, params, setParams, go, onDone }) {
   const show = (id, m = 'view') => { setOpen(id); setMode(m) }
   const done = (msg) => { setOpen(null); setMode('view'); onDone?.(msg) }
 
-  const ctx = { today: s.today, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, testMode: s.testMode }
+  const ctx = { today: s.today, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, testMode: s.testMode, team: s.managers }
   const withStatus = useMemo(() => (s.equipment || []).map((e) => ({ e, st: statusOf(e, ctx) })),
     [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode]) // eslint-disable-line react-hooks/exhaustive-deps
   const counts = useMemo(() => {

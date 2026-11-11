@@ -343,7 +343,7 @@ function Simpro({ s, onDone }) {
   const [making, setMaking] = useState('')
   const [confirmDialog, confirm] = useConfirm()
   useEffect(() => { s.loadJobConfig().then(setCfg, (e) => setError(e.message || String(e))) }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }), [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
+  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }), [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.managers])
   const missing = useMemo(() => (cfg && s.extrasReady ? loansMissingJobs(sections, s.loanDocs, cfg, s.today, s.equipment) : []), [sections, s.loanDocs, cfg, s.today, s.extrasReady, s.equipment])
   const [links, setLinks] = useState({}) // a job number typed against a row (old: the "Existing job #" box and Link)
   async function link(g) {

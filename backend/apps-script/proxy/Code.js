@@ -460,6 +460,18 @@ function trackerTeam_() {
   }
   return trackerTeam__;
 }
+// The team member a loan's account manager is: by name, else by the email the
+// loan was made with (BorrowerEmail on its items, borrowerEmail on a booking).
+// Loans keep the name typed or picked when made, which can differ from the
+// person's hub name ("Jessica Broughan" vs "Jess Broughan"); the email doesn't.
+// The tracker does the same (teamMemberFor in apps/equipment/src/model.js).
+function amFor_(ams, name, email) {
+  const lower = function(s) { return String(s || '').trim().toLowerCase(); };
+  const n = lower(name), e = lower(email);
+  return (n && ams.find(function(a) { return a && lower(a.name) === n; }))
+    || (e && ams.find(function(a) { return a && lower(a.email) === e; }))
+    || null;
+}
 function amEffectiveRole_(am) {
   return am.role === 'service' ? 'service' : 'am';
 }
@@ -552,9 +564,9 @@ function processStuckLoan(u, equipment, ams, todayStr) {
   });
   if (!blocked.length) return; // not actually stuck — either free already, long-term, or not found yet
 
-  if (!u.accountManager) { Logger.log('Stuck loan ' + u.id + ' (' + u.loanTo + ') has no AM set — skipping'); return; }
-  const am = ams.find(function(a) { return a && a.name === u.accountManager; });
-  if (!am) { Logger.log('No account manager record found for ' + u.accountManager + ' — skipping ' + u.id); return; }
+  if (!u.accountManager && !u.borrowerEmail) { Logger.log('Stuck loan ' + u.id + ' has no AM set — skipping'); return; }
+  const am = amFor_(ams, u.accountManager, u.borrowerEmail);
+  if (!am) { Logger.log('No account manager on the team for stuck loan ' + u.id + ' — skipping'); return; }
 
   const dedupPath = '/stuckLoanReminders/' + encodeURIComponent(u.id) + '_' + todayStr + '.json';
   if (fetchFirebaseJson(dedupPath)) {
@@ -635,7 +647,7 @@ function sendReturnRemindersRun_() {
       // in case an end date is ever left on one through a path this didn't
       // anticipate.
       if (loanDoc.longTerm) return;
-      const am = loanDoc.accountManager ? ams.find(function(a) { return a && a.name === loanDoc.accountManager; }) : null;
+      const am = amFor_(ams, loanDoc.accountManager, (g.items[0] || {}).BorrowerEmail);
       sendReturnDueSoonReminder_(g, loanDoc, am, serviceTeam, todayStr, key);
     } catch (err) {
       Logger.log('Return reminder failed for ' + key + ': ' + err);

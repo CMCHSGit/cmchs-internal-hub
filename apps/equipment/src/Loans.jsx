@@ -26,8 +26,8 @@ export default function Loans({ s, params, setParams, go }) {
     const el = params.open ? document.querySelector(`[data-loan="${CSS.escape(params.open)}"]`) : params.at && document.getElementById('loans-' + params.at)
     el?.scrollIntoView({ block: params.open ? 'center' : 'start' })
   }, [params.open, params.at])
-  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
-    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
+  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }),
+    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.managers])
   const f = { q: params.q || '', am: params.am || '', overdueOnly: params.overdue === '1', sort: params.sort || 'recent' }
   const all = [...sections.needsReassign, ...sections.upcoming, ...sections.current, ...sections.longTerm]
   const ams = [...new Set(all.map((g) => g.am).filter(Boolean))].sort()
