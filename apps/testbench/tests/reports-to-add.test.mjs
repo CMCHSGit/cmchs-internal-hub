@@ -60,7 +60,7 @@ test('the link opens Saved reports on the devices, not yet sent; an address read
   const link = reportsLink(['fs6-1', 'AB-3', 'fs6-1'])
   assert.match(link, /^\/testbench\/\?/)
   const back = reportsFromSearch(link.slice(link.indexOf('?')))
-  assert.deepEqual(back, { open: true, serials: ['FS6-1', 'AB-3'], unsent: true })
+  assert.deepEqual(back, { open: true, serials: ['FS6-1', 'AB-3'], unsent: true, job: '' })
 })
 
 test('serials with odd characters survive the address', () => {
@@ -73,10 +73,22 @@ test('a very long list opens Saved reports on everything not yet sent, rather th
   const many = Array.from({ length: LINK_SERIALS_MAX + 1 }, (_, i) => 'S' + i)
   const link = reportsLink(many)
   assert.ok(link.length < 300)
-  assert.deepEqual(reportsFromSearch(link.slice(link.indexOf('?'))), { open: true, serials: [], unsent: true })
+  assert.deepEqual(reportsFromSearch(link.slice(link.indexOf('?'))), { open: true, serials: [], unsent: true, job: '' })
 })
 
 test('an ordinary Test Bench address asks for nothing special', () => {
-  assert.deepEqual(reportsFromSearch(''), { open: false, serials: [], unsent: false })
-  assert.deepEqual(reportsFromSearch('?model=D30&serial=X1'), { open: false, serials: [], unsent: false })
+  assert.deepEqual(reportsFromSearch(''), { open: false, serials: [], unsent: false, job: '' })
+  assert.deepEqual(reportsFromSearch('?model=D30&serial=X1'), { open: false, serials: [], unsent: false, job: '' })
+})
+
+test("one job's link (Asset Sync's Jobs tab) opens Saved reports with that job chosen", () => {
+  const link = reportsLink(['fs6-1', 'AB-3'], '#4512')
+  assert.deepEqual(reportsFromSearch(link.slice(link.indexOf('?'))), { open: true, serials: ['FS6-1', 'AB-3'], unsent: true, job: '4512' })
+  assert.equal(reportsFromSearch(reportsLink(['X1'], 4512).split('?')[1]).job, '4512')
+})
+
+test('anything that is not a job number is left out of the link and ignored in an address', () => {
+  for (const bad of ['', null, undefined, 'abc', '12a', '-3', '1/2']) assert.doesNotMatch(reportsLink(['X1'], bad), /job=/)
+  assert.equal(reportsFromSearch('?tab=reports&job=12%2F..%2Fx').job, '')
+  assert.equal(reportsFromSearch('?job=4512').job, '')   // only with Saved reports
 })

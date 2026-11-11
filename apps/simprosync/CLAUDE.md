@@ -42,7 +42,9 @@ Test Bench. A proxy change for this tool changes theirs too.
 
 **Into this tool:** `/simprosync/?from=new-equipment` takes an asset list left in IndexedDB by the new-equipment page
 (`apps/testbench/src/newequip/handoff.js`, taken once, 10 minutes at most) and loads it as if chosen here. **Out:** the "Reports to
-add" row reads the Test Bench's saved reports on this computer (`apps/testbench/src/reports.js`) and links to them.
+add" row reads the Test Bench's saved reports on this computer (`apps/testbench/src/reports.js`) and links to them; the Jobs tab's
+**Attach reports** does the same for one job (`reportsLink(serials, jobNo)`, opened in a new tab with that job chosen). This tool
+**never attaches reports itself**: the Test Bench's outbox sends them.
 
 ## The sync rules (keep them; each was learned on real data)
 
