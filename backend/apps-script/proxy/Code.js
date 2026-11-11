@@ -1696,6 +1696,84 @@ function sendTestPush_(payload, caller) {
 // caught out. Missing/unrecognized island (a loan created before this field
 // existed) defaults to the longer, safer South Island window rather than
 // risk under-notifying.
+// ── Missed loan form emails: the server's catch-up ─────────────────────────
+// A new loan's form is emailed to its account manager by the browser when the
+// loan form is finished (EmailJS). If that never happens (the tab was closed,
+// the signal dropped, EmailJS refused it), nobody hears of the loan. So the
+// tracker queues the email on the loan when it's made (loans/{key}.meta.formEmail,
+// queuedFormEmail in apps/equipment/src/model.js) and marks it sent once the
+// browser sends it; this job sends any still unsent after LOAN_EMAIL_WAIT_MIN,
+// through Resend (as the Asks emails; this script's Gmail is blocked), and
+// marks it sent by 'server'. Run installLoanEmailTrigger() once from the editor.
+// Script Properties: RESEND_API_KEY and RESEND_FROM (already set for Asks), and
+// optionally LOAN_EMAIL_CC (comma-separated addresses, e.g. the Demo mailbox).
+// Only to someone on the tracker's team, and never a loan queued over
+// LOAN_EMAIL_MAX_DAYS ago. Logs counts only.
+const LOAN_EMAIL_WAIT_MIN = 20;
+const LOAN_EMAIL_MAX_DAYS = 3;
+
+function installLoanEmailTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'sendMissedLoanEmails') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('sendMissedLoanEmails').timeBased().everyMinutes(10).create();
+  Logger.log('Missed loan email trigger installed (every 10 minutes).');
+}
+
+function sendMissedLoanEmails() { trackJob_('loan-emails', sendMissedLoanEmailsRun_); }
+
+// Which queued emails are due (pure: apps/equipment/tests/loan-email.test.mjs runs it).
+function dueLoanEmails_(loans, nowMs) {
+  return loans.filter(function(l) {
+    const q = l && l.meta && l.meta.formEmail;
+    if (!q || q.pending !== true || !q.to || !q.html) return false;
+    if (String(l.__id || '').indexOf('testbatch_') === 0) return false;
+    const age = nowMs - Number(q.queuedMs || 0);
+    return age >= LOAN_EMAIL_WAIT_MIN * 60000 && age <= LOAN_EMAIL_MAX_DAYS * 86400000;
+  });
+}
+
+function loanEmailHtml_(q) {
+  const esc = function(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  const base = 'https://internal.chsnz.co.nz/equipment/';
+  const token = loanReturnToken_(q.loanTo || '', q.endDate || '');
+  const link = function(href, text) { return '<a href="' + esc(href) + '" style="color:#554596;font-weight:600;margin-right:16px;">' + esc(text) + '</a>'; };
+  return '<div style="font-family:\'Source Sans 3\',\'Segoe UI\',Arial,sans-serif;color:#575756;">' +
+    '<p style="margin:0 0 8px;">Loan form for ' + esc(q.loanTo || 'a demo loan') + '.</p>' +
+    '<p style="margin:0 0 16px;">' + link(base + '#/loans', 'Open in the demo tracker') +
+    (q.longTerm ? '' : link(base + '?return=' + token, 'Return it') + link(base + '?extend=' + token, 'Extend it')) + '</p>' +
+    q.html + '</div>';
+}
+
+function sendMissedLoanEmailsRun_() {
+  if (!trackerOnFirestore_()) { Logger.log('sendMissedLoanEmails: the tracker is not on Firestore; nothing to do.'); return; }
+  const due = dueLoanEmails_(fsList_('loans', ['meta']), Date.now());
+  if (!due.length) return;
+  if (!askEmailOn_()) throw new Error(due.length + ' loan form email(s) waiting, but Resend is not set up (RESEND_API_KEY, RESEND_FROM).');
+  const p = PropertiesService.getScriptProperties();
+  const cc = String(p.getProperty('LOAN_EMAIL_CC') || '').split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+  const team = trackerTeam_();
+  const lower = function(x) { return String(x || '').trim().toLowerCase(); };
+  let sent = 0, notOnTeam = 0, failed = 0;
+  due.forEach(function(l) {
+    const q = l.meta.formEmail;
+    if (!team.some(function(m) { return lower(m.email) === lower(q.to); })) {
+      fsPatch_('loans/' + l.__id, { 'meta.formEmail.pending': false, 'meta.formEmail.skipped': 'not on the team', 'meta.formEmail.html': '' }, true);
+      notOnTeam++; return;
+    }
+    const resp = UrlFetchApp.fetch('https://api.resend.com/emails', {
+      method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+      headers: { Authorization: 'Bearer ' + p.getProperty('RESEND_API_KEY') },
+      payload: JSON.stringify({ from: p.getProperty('RESEND_FROM'), to: [q.to], cc: cc, subject: 'Demo loan form: ' + (q.loanTo || 'new loan'), html: loanEmailHtml_(q) })
+    });
+    if (resp.getResponseCode() >= 300) { failed++; Logger.log('Loan form email refused by Resend (' + resp.getResponseCode() + ')'); return; }
+    fsPatch_('loans/' + l.__id, { 'meta.formEmail.pending': false, 'meta.formEmail.sentAt': new Date().toISOString(), 'meta.formEmail.by': 'server', 'meta.formEmail.html': '' }, true);
+    sent++;
+  });
+  Logger.log('Missed loan emails: ' + sent + ' sent, ' + notOnTeam + ' not on the team, ' + failed + ' failed.');
+  if (failed) throw new Error(failed + ' loan form email(s) could not be sent (' + sent + ' sent).');
+}
+
 function isStartingSoonBusinessDays(todayStr, startDateStr, island) {
   if (!startDateStr || startDateStr <= todayStr) return false; // no advance notice for same-day/past starts
   let businessDays = 0;

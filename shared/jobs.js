@@ -29,6 +29,7 @@ export const JOBS = [
   { id: 'demo-reminders',   group: 'script', name: 'Demo reminders',                   does: 'Sends the loans-starting-today reminders and calendar invites.', when: 'Every day 08:00', staleMin: 2 * DAY },
   { id: 'return-reminders', group: 'script', name: 'Return reminders',                 does: 'Sends the due-soon and overdue loan reminders.',                 when: 'Every day 08:00', staleMin: 2 * DAY },
   { id: 'stuck-loans',      group: 'script', name: 'Stuck loan reminders',             does: 'Chases loans stuck waiting on a test or a booking.',             when: 'Every 4 hours',   staleMin: 12 * 60 },
+  { id: 'loan-emails',      group: 'script', name: 'Missed loan emails',               does: 'Emails a new loan’s form to its account manager if the browser never did.', when: 'Every 10 minutes', staleMin: 60 },
   { id: 'ask-sweep',        group: 'script', name: 'Ask sweep',                        does: 'Sends the push messages for new and changed asks.',              when: 'Every 5 minutes', staleMin: 30 },
 
   { id: 'excel-import',    group: 'pc', name: 'Excel → schedule', does: 'Brings changes made in the Excel schedule into the app.',    when: 'Every 5 minutes', staleMin: 30 },
