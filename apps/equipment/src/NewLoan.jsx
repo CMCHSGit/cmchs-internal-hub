@@ -27,7 +27,7 @@ export default function NewLoan({ s, params, go, onDone }) {
   const source = useMemo(() => {
     const ref = params.copy || params.move
     if (!ref) return null
-    const all = Object.values(loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })).flat()
+    const all = Object.values(loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers })).flat()
     return all.find((g) => g.kind + ':' + g.key === ref) || null
   }, [params.copy, params.move]) // eslint-disable-line react-hooks/exhaustive-deps
   const [f, setF] = useState(() => ({ ...blank(s.today), ...(params.loanTo ? { loanTo: params.loanTo } : {}), ...(params.location ? { location: params.location } : {}),

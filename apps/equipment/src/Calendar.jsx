@@ -20,8 +20,8 @@ export default function Calendar({ s, params, setParams, go }) {
   const [start, setStart] = useState(s.today)
   const days = useMemo(() => dayList(start, weeks * 7), [start, weeks])
   const from = days[0], to = days[days.length - 1]
-  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
-    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
+  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }),
+    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.managers])
   const rows = useMemo(() => calendarRows(sections, { from, to, sort, today: s.today }), [sections, from, to, sort, s.today])
   const months = useMemo(() => {
     const out = []
