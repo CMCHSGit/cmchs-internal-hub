@@ -7,7 +7,7 @@ They moved here on 16 Oct 2026 from the repos they grew up in (step 1 of
 | File | Database | Was |
 |---|---|---|
 | `firestore.rules` | Firestore in the staff schedule's Firebase project: `users`, `schedules`, `oncall`, `locations`, `activity`, `maintenance`, `serviceOrders`, `checklists` (27 Oct 2026), `project*`, People, Manage (news, tool requests, feedback), `asks` (9 Nov 2026: files on an ask, `asks/{id}/files` and their parts, published 9 Nov 2026), `pendingAssets` (6 Nov 2026: assets recorded on the new-equipment page; 9 Nov 2026: a recorded asset can be edited; published 9 Nov 2026), `benchOrders` and an `order` field on `benchTests` (6 Nov 2026: the Test Bench's Orders, published 6 Nov 2026), `benchTestStatus` (10 Nov 2026: which Simpro jobs a test's report is on and when it was downloaded, so every laptop shows the same; **NOT YET PUBLISHED**), `kbArticles`, `kbParts`, `kbDevices`, `kbJobs` and `users/{uid}.kbEditor` (6 Nov 2026: the Knowledge base, published 9 Nov 2026); and, not used until step 5's cutover, the demo tracker (`equipment`, `retiredEquipment`, `loans`, `equipmentHistory`, `equipmentAudit`, `equipmentKits`, `settings/equipment`, `tileLocations`) | `cmchs-staff-schedule/firestore.rules` |
-| `database.rules.json` | Realtime Database in the `chs-equipment` project: the demo tracker | `chs-equipment/database.rules.json` |
+| `database.rules.json` | Realtime Database in the `chs-equipment` project: the old demo tracker's. **Locked: no reads, no writes** (published 11 Nov 2026) | `chs-equipment/database.rules.json` |
 
 ## Publishing: a push does NOT do it
 
@@ -25,6 +25,16 @@ console: Firestore → Rules, or Realtime Database → Rules, then Publish.
 Realtime Database was open to anyone. Before publishing it, `checkDatabaseAuth()`
 (proxy) and `checkBackupDatabaseAuth()` (backup) both said READY, and Tile sync's
 `CHS_EQUIPMENT_SERVICE_ACCOUNT` secret was set. An unsigned read now gets 401.
+
+Since the move to Firestore (4 Nov 2026) nothing current reads it as a signed-in
+person. It was frozen read-only on 5 Nov, and on **11 Nov 2026 locked completely**
+(`.read: false`): old copies of the tracker kept on phones by the old Demo app's
+service worker could still load equipment and email a loan form, but their save
+was refused, so loans were emailed that never existed. Locked, they can't load
+anything. The nightly backup and Tile sync read it with service accounts, which
+rules don't apply to; the hub's only remaining read (Tile locations, a fallback
+when Firestore has none, `apps/equipment/src/db.js`) already copes with a refusal.
+To undo: Realtime Database → Rules → history, publish the earlier version.
 
 ## Testing
 

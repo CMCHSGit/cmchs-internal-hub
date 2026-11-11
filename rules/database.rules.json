@@ -1,6 +1,6 @@
 {
   "rules": {
-    ".read": "auth != null && auth.token.staff === true",
-    ".write": "auth != null && auth.token.staff === true"
+    ".read": false,
+    ".write": false
   }
 }
