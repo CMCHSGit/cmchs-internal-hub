@@ -31,7 +31,8 @@ Several people work on these repos with Claude, often at the same time.
   commit made on local `main` and pushed this way is the same commit after a
   merge, so `git pull` afterwards is clean.
 - **The demo tracker is `apps/equipment`** (read its `CLAUDE.md` first). `/demo/`
-  only forwards there (`apps/demo/build.mjs`); the old tracker in `chs-equipment`
+  forwards old links there and shows a "retired" error to a bare visit
+  (`apps/demo/build.mjs`); the old tracker in `chs-equipment`
   is retired (tag `old-tracker-final`) and is never changed.
 - **Secrets never go in the repo, a commit message or the chat.** The repo is
   public. The `VITE_*` values live in Actions secrets and a local `.env`

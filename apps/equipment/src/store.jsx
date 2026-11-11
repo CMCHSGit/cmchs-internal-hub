@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { commit as fsCommit } from './db-firestore.js'
 import {
   activateBookings, applyImport, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness,
+  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent,
 } from './model.js'
 
 const Store = createContext(null)
@@ -580,9 +580,13 @@ export function StoreProvider({ children }) {
    * sendLoanConfirmationEmail), through EmailJS with the old tracker's
    * template and public key. Not sent in test mode or the dev server.
    */
-  const emailForm = useCallback(async (form, to, name) => {
+  const emailForm = useCallback(async (form, to, name, { key = '', once = false } = {}) => {
     if (!to) throw new Error('There’s no email address to send it to.')
     if (isLocal || readTestMode()) { console.info('[equipment] loan form email not sent here (test mode or dev):', to); return { simulated: true } }
+    // Finishing a new loan: if the proxy has already sent its queued copy (the form was left open a long time), not again.
+    if (key && once) {
+      try { const { data } = await read('loanMeta/' + enc(metaKey(key))); if (data?.formEmail && data.formEmail.pending === false && data.formEmail.by === 'server') return { sent: true, already: true } } catch { /* send it */ }
+    }
     const token = btoa(encodeURIComponent(form.loanTo + '|||' + (form.endDate || ''))).replace(/=/g, '')
     const res = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -599,8 +603,10 @@ export function StoreProvider({ children }) {
       }),
     })
     if (!res.ok) throw new Error('The email didn’t go: ' + ((await res.text()) || res.status))
+    // Gone: the proxy's catch-up (sendMissedLoanEmails) mustn't send it again.
+    if (key) { try { await patchMeta(key, { formEmail: formEmailSent('tracker') }) } catch (e) { console.warn('[equipment] email not marked sent', e) } }
     return { sent: true }
-  }, [])
+  }, [patchMeta])
 
   /**
    * A new loan (old: submitBatchLoan / doLoan). Refused if one to the same
@@ -632,6 +638,12 @@ export function StoreProvider({ children }) {
     const doc = { loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate, accountManager: f.am, contactNumber: f.contact || '',
       jobType: f.jobType || 'Demo', demoType: f.demoType || '', island: f.island || '', longTerm: !!f.longTerm, notes: f.notes || '', notesCell: f.notes || '', authCell: f.shipping || '', items }
     try { await write('loanDocs/' + enc(batchId), doc); setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [batchId]: doc } })) } catch (e) { console.warn('[equipment] loan form not saved', e) }
+    // Its form email, queued until the loan form sends it, so the proxy sends it if the browser never does (queuedFormEmail).
+    if (!testMode && !isLocal && f.email) {
+      const queued = queuedFormEmail({ loanTo: doc.loanTo, location: doc.location, startDate: doc.startDate, endDate: doc.endDate, accountManager: doc.accountManager,
+        contactNumber: doc.contactNumber, rows: formRows(doc, plan.loaned, plan.equipment), notes: doc.notesCell, shipping: doc.authCell, items: plan.loaned, longTerm: doc.longTerm }, { to: f.email, name: f.am })
+      try { await patchMeta(batchId, { formEmail: queued }) } catch (e) { console.warn('[equipment] form email not queued', e) }
+    }
     if (f.demoType) await addDemoType(f.demoType)
     const n = plan.loaned.length
     await audit('loan_created', `${n} item${n !== 1 ? 's' : ''} loaned to ${f.loanTo}${f.location ? ' — ' + f.location : ''}`,

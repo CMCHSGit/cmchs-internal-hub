@@ -16,9 +16,9 @@ const loansLink = (params = {}) => { const q = new URLSearchParams(params).toStr
 const devices = (n) => `${n} ${n === 1 ? 'device' : 'devices'}`
 
 export default function Overview({ s }) {
-  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
-    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
-  const ov = useMemo(() => overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode }),
+  const sections = useMemo(() => loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }),
+    [s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode, s.managers])
+  const ov = useMemo(() => overviewOf(sections, { equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers }),
     [sections, s.equipment, s.upcoming, s.loanMeta, s.loanDocs, s.today, s.testMode])
 
   // A booking waiting on a transfer opens Transfer on the loan holding its devices, those ticked and the

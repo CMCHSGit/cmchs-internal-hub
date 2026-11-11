@@ -394,3 +394,7 @@
   .eq-cal-label { width: 128px; flex-basis: 128px; }
 }
 @media (max-width: 359px) { .eq-tab { font-size: 10.5px; } }
+
+/* Notes boxes grow to fit their text (AutoText.jsx): no scroll bar inside a small box. */
+textarea.eq-autotext { overflow-y: hidden; }
+.eq-lf textarea.eq-autotext { min-height: 0; }

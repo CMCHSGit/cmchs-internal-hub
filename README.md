@@ -78,7 +78,7 @@ One device registration covers every tool. Demo reminders go to the phones turne
 
 ### /demo/ forwards to /equipment/
 
-Until 19 Oct 2026 `/demo/` ran the old tracker (fetched from chs-equipment and adapted by `embed.js`). Now `apps/demo/build.mjs` writes a page that forwards to `/equipment/` with the same query and hash, and the new tracker reads the old addresses. demo.chsnz.co.nz forwards the same way. To go back: restore `apps/demo/build.mjs` and `embed.js` from git history, and chs-equipment's `index.html` from its tag `old-tracker-final`.
+Until 19 Oct 2026 `/demo/` ran the old tracker (fetched from chs-equipment and adapted by `embed.js`). Now `apps/demo/build.mjs` writes a page that forwards an address carrying an old link (`?return=`, `?extend=`, `?reassign=`, `?newLoan=`, `?open=`, `?tab=`) to `/equipment/` with the same query and hash, and the new tracker reads the old addresses. A bare `/demo/` shows "This demo tracker has been retired" (11 Nov 2026), so an old copy of the app left on a phone is noticed. demo.chsnz.co.nz is a separate page in chs-equipment and still forwards everything. To go back: restore `apps/demo/build.mjs` and `embed.js` from git history, and chs-equipment's `index.html` from its tag `old-tracker-final`.
 
 ### The schedule move is mid-flight
 

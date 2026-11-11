@@ -9,6 +9,7 @@
                 is on and it isn't long term): what closing the old form did.
      viewing    a loan's form from its card. Save keeps changes (and brings
                 its Simpro job up to date, as the old Save Changes). */
+import AutoText from './AutoText.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
@@ -36,7 +37,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
   }
   const save = () => step('Saving…', async () => { const r = await s.saveForm(docKey, form, formInfo, { simproToo: !finishing }); setEdited(false); return r })
   const send = () => step('Sending…', async () => {
-    const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager)
+    const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager, { key: docKey })
     setDone((d) => [...d, r.simulated ? 'Email not sent (test mode or the dev server).' : `Emailed to ${finishing?.email || info.email}.`])
   })
   async function finish({ away = false } = {}) {
@@ -46,8 +47,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
       await step('Saving…', () => s.saveForm(docKey, form, formInfo, { simproToo: false }))
       if (finishing.email) {
         try {
-          const r = await step('Sending the email…', () => s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing.email, finishing.name))
-          notes.push(r.simulated ? 'email not sent here (test mode or dev)' : `emailed to ${finishing.email}`)
+          const r = await step('Sending the email…', () => s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing.email, finishing.name, { key: docKey, once: true }))
+          notes.push(r.simulated ? 'email not sent here (test mode or dev)' : r.already ? `already emailed to ${finishing.email}` : `emailed to ${finishing.email}`)
         } catch { notes.push('the email didn’t go (send it again from the loan’s form)') }
       }
       if (!info.longTerm) {
@@ -116,8 +117,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           </table>
         </div>
         <Button size="sm" variant="ghost" iconLeft={<Plus size={14} />} onClick={() => { setF((x) => ({ ...x, rows: [...x.rows, ['', '', '', '', '']] })); setEdited(true) }}>Add a row</Button>
-        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={1} value={f.notes} onChange={set('notes')} /></label>
-        <label className="field"><span className="field-label">Shipping details</span><textarea className="input" rows={1} value={f.shipping} onChange={set('shipping')} /></label>
+        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Shipping details</span><AutoText rows={1} value={f.shipping} onChange={set('shipping')} /></label>
         {done.map((d) => <p key={d} className="eq-note">{d}</p>)}
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
         <div className="dialog-actions eq-lf-actions">

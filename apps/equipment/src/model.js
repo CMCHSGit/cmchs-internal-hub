@@ -234,7 +234,7 @@ export function loanDocFor(g, loanDocs = {}) {
  * account manager, its form's island and notes, whether it's overdue or
  * starting soon, and ghosts: items since transferred to another loan.
  */
-export function loanSections({ equipment = [], upcoming = [], loanMeta = {}, loanDocs = {}, today = nzDate(), testMode = false } = {}) {
+export function loanSections({ equipment = [], upcoming = [], loanMeta = {}, loanDocs = {}, today = nzDate(), testMode = false, team = [] } = {}) {
   const ctx = { loanMeta, loanDocs }
   const onLoan = equipment.filter((e) => isOut(e) && !(!testMode && isTestBatch(e.BatchID)))
   const grouped = new Map(), scheduledGrouped = new Map()
@@ -250,7 +250,7 @@ export function loanSections({ equipment = [], upcoming = [], loanMeta = {}, loa
   }
   const finish = (g) => {
     const doc = loanDocFor(g, loanDocs)
-    g.am = loanAM(g, ctx)
+    g.am = amName(loanAM(g, ctx), g.items[0]?.BorrowerEmail || g.email || '', team)
     g.longTerm = isLoanLongTerm(g.batchId, ctx)
     g.island = doc?.island || ''
     g.notes = doc ? (doc.notesCell || doc.notes || '') : ''
@@ -278,7 +278,7 @@ export function loanSections({ equipment = [], upcoming = [], loanMeta = {}, loa
   const bookings = upcoming
     .filter((u) => (testMode || !isTestBatch(u.id)) && !merged.has(u.id))
     .map((u) => finish({ key: u.id, kind: 'booking', batchId: u.id, loanTo: u.loanTo || '', location: u.location || '', startDate: u.startDate || '',
-      endDate: u.endDate || '', accountManager: u.accountManager || '', items: [], pending: u.items || [], ghosts: [] }))
+      endDate: u.endDate || '', accountManager: u.accountManager || '', email: u.borrowerEmail || '', items: [], pending: u.items || [], ghosts: [] }))
 
   return {
     needsReassign: loans.filter((g) => g.pending.length && !g.longTerm),
@@ -363,6 +363,21 @@ export function memberFor(user, managers = []) {
     (email && managers.find((a) => (a.email || '').toLowerCase() === email)) || null
 }
 
+/**
+ * The team member a loan's account manager is: by name, else by the email the
+ * loan was made with (BorrowerEmail, a booking's borrowerEmail). Loans keep the
+ * name typed or picked when they were made, which can differ from the person's
+ * hub name ("Jessica Broughan" vs "Jess Broughan"); the email doesn't. The
+ * proxy's reminders do the same (amFor_ in backend/apps-script/proxy/Code.js).
+ */
+export function teamMemberFor(name, email, team = []) {
+  const n = String(name || '').trim().toLowerCase(), e = String(email || '').trim().toLowerCase()
+  return (n && team.find((m) => (m.name || '').trim().toLowerCase() === n)) ||
+    (e && team.find((m) => (m.email || '').trim().toLowerCase() === e)) || null
+}
+/** The name to show and filter a loan by: its team member's hub name when there is one, else as stored. */
+export const amName = (name, email, team = []) => teamMemberFor(name, email, team)?.name || name || ''
+
 /** 'am' (account manager) or 'service' (Service & Projects) (old: amEffectiveRole). */
 export const roleOf = (m) => (m ? (m.role === 'service' ? 'service' : 'am') : '')
 
@@ -378,7 +393,7 @@ export const roleOf = (m) => (m ? (m.role === 'service' ? 'service' : 'am') : ''
  *   byAM        active loans per account manager, with how many are overdue
  * Overdue is the Loans tab's (a long-term loan never is), so the numbers agree.
  */
-export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta = {}, loanDocs = {}, today = nzDate(), testMode = false } = {}) {
+export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta = {}, loanDocs = {}, today = nzDate(), testMode = false, team = [] } = {}) {
   const active = [...sections.needsReassign, ...sections.current, ...sections.longTerm]
   const ahead = sections.upcoming
     .filter((g) => (g.kind === 'scheduled' || (g.startDate && g.pending.length)) && (!g.startDate || g.startDate > today))
@@ -386,6 +401,7 @@ export function overviewOf(sections, { equipment = [], upcoming = [], loanMeta =
   const blockers = (u) => (u.items || []).map((i) => equipment.find((e) => e && (e.id === i.id || e.CHSAssetNo === i.CHSAssetNo) && isOut(e) && e.OnLoanTo !== u.loanTo)).filter(Boolean)
   const stuck = upcoming.filter((u) => (testMode || !isTestBatch(u.id)) && u.startDate && u.startDate <= today)
     .filter((u) => { const b = blockers(u); return !(b.length && b.every((e) => isLoanLongTerm(e.BatchID, { loanMeta, loanDocs }))) })
+    .map((u) => ({ ...u, accountManager: amName(u.accountManager, u.borrowerEmail, team) }))
   const needsTesting = ahead.filter((g) => {
     if (g.kind === 'booking') return false // nothing reserved yet, so nothing to test
     const r = loanMeta[readinessKey(g)] || {}
@@ -1136,6 +1152,26 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
 <td style="border:1px solid #ccc;padding:8px 12px;text-align:center;font-size:12px"><b style="color:#554596">Please ensure this form accompanies<br>demo stock throughout trial and<br>is returned to Connected Healthcare</b><br><b style="color:#dc2626;font-size:11px">Check all units have current ESC</b></td>
 <td style="border:1px solid #ccc;padding:8px 12px;width:28%;vertical-align:top;font-size:11px"><b>Return checked by:</b><br><br>Signed:<br><br>Name (print):<br><br>Date:</td></tr></table></div>`
 }
+
+/**
+ * A new loan's form email, queued on its meta (loans/{key}.meta.formEmail)
+ * until it has gone. The browser sends it when the loan form is finished, and
+ * marks it sent (formEmailSent); if that never happens (the tab was closed,
+ * EmailJS failed), the proxy's sendMissedLoanEmails sends this copy itself
+ * after a while (backend/apps-script/proxy/Code.js). The form is kept as the
+ * HTML the browser would have sent, so both look the same. Nothing for test
+ * mode or a loan with no email address.
+ */
+export function queuedFormEmail(form, { to = '', name = '', ts = nzNow(), ms = Date.now() } = {}) {
+  if (!to) return null
+  return {
+    pending: true, queuedAt: ts, queuedMs: ms, to, name, loanTo: form.loanTo || '',
+    startDate: toISO(form.startDate) || '', endDate: form.longTerm ? '' : (toISO(form.endDate) || ''), longTerm: !!form.longTerm,
+    html: loanFormHtml({ ...form, startDate: toISO(form.startDate), endDate: toISO(form.endDate) }),
+  }
+}
+/** The queued email marked as gone: the form's HTML dropped, who sent it kept. */
+export const formEmailSent = (by = 'tracker', ts = nzNow()) => ({ pending: false, sentAt: ts, by })
 
 /**
  * A date as the old tracker writes it into stored text (history notes,

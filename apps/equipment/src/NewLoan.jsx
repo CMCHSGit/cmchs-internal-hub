@@ -14,6 +14,7 @@
                            made, the loan is posted back to the page that opened
                            it ({ type: 'chs-demo-loan-created', ref, batchId, … },
                            this site only), as the old notifyProjectTrackerOfLoan */
+import AutoText from './AutoText.jsx'
 import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
@@ -27,7 +28,7 @@ export default function NewLoan({ s, params, go, onDone }) {
   const source = useMemo(() => {
     const ref = params.copy || params.move
     if (!ref) return null
-    const all = Object.values(loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode })).flat()
+    const all = Object.values(loanSections({ equipment: s.equipment, upcoming: s.upcoming, loanMeta: s.loanMeta, loanDocs: s.loanDocs, today: s.today, testMode: s.testMode, team: s.managers })).flat()
     return all.find((g) => g.kind + ':' + g.key === ref) || null
   }, [params.copy, params.move]) // eslint-disable-line react-hooks/exhaustive-deps
   const [f, setF] = useState(() => ({ ...blank(s.today), ...(params.loanTo ? { loanTo: params.loanTo } : {}), ...(params.location ? { location: params.location } : {}),
@@ -143,8 +144,8 @@ export default function NewLoan({ s, params, go, onDone }) {
             </label>
           )}
         </div>
-        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
-        <label className="field"><span className="field-label">Shipping details</span><textarea className="input" rows={2} value={f.shipping} onChange={set('shipping')} /></label>
+        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Shipping details</span><AutoText rows={2} value={f.shipping} onChange={set('shipping')} /></label>
       </section>
       <section className="card eq-newloan-part">
         <h2 className="eq-section-title">Devices</h2>
