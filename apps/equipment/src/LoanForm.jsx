@@ -36,7 +36,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
   }
   const save = () => step('Saving…', async () => { const r = await s.saveForm(docKey, form, formInfo, { simproToo: !finishing }); setEdited(false); return r })
   const send = () => step('Sending…', async () => {
-    const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager)
+    const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager, { key: docKey })
     setDone((d) => [...d, r.simulated ? 'Email not sent (test mode or the dev server).' : `Emailed to ${finishing?.email || info.email}.`])
   })
   async function finish({ away = false } = {}) {
@@ -46,8 +46,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
       await step('Saving…', () => s.saveForm(docKey, form, formInfo, { simproToo: false }))
       if (finishing.email) {
         try {
-          const r = await step('Sending the email…', () => s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing.email, finishing.name))
-          notes.push(r.simulated ? 'email not sent here (test mode or dev)' : `emailed to ${finishing.email}`)
+          const r = await step('Sending the email…', () => s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing.email, finishing.name, { key: docKey, once: true }))
+          notes.push(r.simulated ? 'email not sent here (test mode or dev)' : r.already ? `already emailed to ${finishing.email}` : `emailed to ${finishing.email}`)
         } catch { notes.push('the email didn’t go (send it again from the loan’s form)') }
       }
       if (!info.longTerm) {

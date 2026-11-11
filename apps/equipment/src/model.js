@@ -1154,6 +1154,26 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
 }
 
 /**
+ * A new loan's form email, queued on its meta (loans/{key}.meta.formEmail)
+ * until it has gone. The browser sends it when the loan form is finished, and
+ * marks it sent (formEmailSent); if that never happens (the tab was closed,
+ * EmailJS failed), the proxy's sendMissedLoanEmails sends this copy itself
+ * after a while (backend/apps-script/proxy/Code.js). The form is kept as the
+ * HTML the browser would have sent, so both look the same. Nothing for test
+ * mode or a loan with no email address.
+ */
+export function queuedFormEmail(form, { to = '', name = '', ts = nzNow(), ms = Date.now() } = {}) {
+  if (!to) return null
+  return {
+    pending: true, queuedAt: ts, queuedMs: ms, to, name, loanTo: form.loanTo || '',
+    startDate: toISO(form.startDate) || '', endDate: form.longTerm ? '' : (toISO(form.endDate) || ''), longTerm: !!form.longTerm,
+    html: loanFormHtml({ ...form, startDate: toISO(form.startDate), endDate: toISO(form.endDate) }),
+  }
+}
+/** The queued email marked as gone: the form's HTML dropped, who sent it kept. */
+export const formEmailSent = (by = 'tracker', ts = nzNow()) => ({ pending: false, sentAt: ts, by })
+
+/**
  * A date as the old tracker writes it into stored text (history notes,
  * Counted, audit summaries, Simpro notes, the printed form): DD/MM/YYYY (old:
  * formatDisplayDate). The screens here show 16-Oct-2026 (fmtDate); stored
