@@ -2,6 +2,7 @@
    groups, Simpro switch, missing Simpro jobs and test mode). The tracker's
    team (account managers and roles) is kept in Settings, People and access,
    for every tool at once. */
+import AutoText from './AutoText.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { AdminDialog } from './Items.jsx'
@@ -183,8 +184,8 @@ function RetiredEdit({ s, item, onClose, onDone }) {
     <Dialog title={`Edit ${item.CHSAssetNo || ''}${item.Model ? ' — ' + item.Model : ''}`} onClose={onClose} width={480}>
       <form className="eq-form" onSubmit={async (e) => { e.preventDefault(); setBusy(true); setError(''); try { await s.editRetired(item.id, f); onDone(`${item.CHSAssetNo || 'Item'} updated.`) } catch (err) { setError(err.message || String(err)) } finally { setBusy(false) } }}>
         <label className="field"><span className="field-label">Why</span><select value={f.reason} onChange={set('reason')}><option value="">—</option>{reasons.map((r) => <option key={r}>{r}</option>)}</select></label>
-        <label className="field"><span className="field-label">Retired notes</span><textarea className="input" rows={2} value={f.retiredNotes} onChange={set('retiredNotes')} /></label>
-        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Retired notes</span><AutoText rows={2} value={f.retiredNotes} onChange={set('retiredNotes')} /></label>
+        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
         {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose}>Cancel</Button>

@@ -3,6 +3,7 @@
    Extend, Return to active, Return items, Make long-term, the loan form,
    Add items, Transfer (to another loan, or a new one), Copy (a new loan
    with the same devices), Edit and Delete. */
+import AutoText from './AutoText.jsx'
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
@@ -337,8 +338,8 @@ function EditDialog({ g, s, busy, error, onClose, onSave }) {
               </select>}
           </label>
         </div>
-        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={f.notes} onChange={set('notes')} /></label>
-        <label className="field"><span className="field-label">Shipping and authorisation</span><textarea className="input" rows={2} value={f.shipping} onChange={set('shipping')} /></label>
+        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Shipping and authorisation</span><AutoText rows={2} value={f.shipping} onChange={set('shipping')} /></label>
         <p className="eq-note">A box left empty keeps what it had, as it did in the old tracker (notes, shipping, contact and demo type are saved as shown).</p>
         {problem && <p className="eq-note eq-problem">{problem}</p>}
         {error && <Alert tone="critical" title="Not saved">{error}</Alert>}

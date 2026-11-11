@@ -9,6 +9,7 @@
                 is on and it isn't long term): what closing the old form did.
      viewing    a loan's form from its card. Save keeps changes (and brings
                 its Simpro job up to date, as the old Save Changes). */
+import AutoText from './AutoText.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
@@ -116,8 +117,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           </table>
         </div>
         <Button size="sm" variant="ghost" iconLeft={<Plus size={14} />} onClick={() => { setF((x) => ({ ...x, rows: [...x.rows, ['', '', '', '', '']] })); setEdited(true) }}>Add a row</Button>
-        <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={1} value={f.notes} onChange={set('notes')} /></label>
-        <label className="field"><span className="field-label">Shipping details</span><textarea className="input" rows={1} value={f.shipping} onChange={set('shipping')} /></label>
+        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <label className="field"><span className="field-label">Shipping details</span><AutoText rows={1} value={f.shipping} onChange={set('shipping')} /></label>
         {done.map((d) => <p key={d} className="eq-note">{d}</p>)}
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}
         <div className="dialog-actions eq-lf-actions">

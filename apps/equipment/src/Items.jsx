@@ -2,6 +2,7 @@
    Delete, which an admin confirms: the hub role, not the old admin password). The loan fields are on the form as in
    the old one, for putting a record right; loans themselves are made and
    changed from Loans. */
+import AutoText from './AutoText.jsx'
 import { useState } from 'react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
 import { ADD_FIELDS, FIELDS, RETIRE_REASONS } from './model.js'
@@ -103,7 +104,7 @@ export function ItemForm({ s, item = null, onClose, onDone }) {
   }
   const input = (k) => {
     if (k === 'Returned') return <select value={f[k]} onChange={set(k)}><option value="">—</option><option>Yes</option><option>No</option></select>
-    if (k === 'Notes') return <textarea className="input" rows={2} value={f[k]} onChange={set(k)} />
+    if (k === 'Notes') return <AutoText rows={2} value={f[k]} onChange={set(k)} />
     return <input className="input" type={DATES.has(k) ? 'date' : NUMBERS.has(k) ? 'number' : 'text'} step={NUMBERS.has(k) ? '0.01' : undefined} value={f[k]} onChange={set(k)} required={k === 'CHSAssetNo'} autoFocus={k === 'CHSAssetNo' && !item}
       list={k === 'Model' ? 'eq-models' : k === 'Description' ? 'eq-descs' : undefined} />
   }
@@ -179,7 +180,7 @@ export function RetireDialog({ s, item, onClose, onDone }) {
       <label className="field"><span className="field-label">Why</span>
         <select value={reason} onChange={(e) => setReason(e.target.value)}><option value="">Optional…</option>{RETIRE_REASONS.map((r) => <option key={r}>{r}</option>)}</select>
       </label>
-      <label className="field"><span className="field-label">Notes</span><textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
+      <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
     </AdminDialog>
   )
 }
