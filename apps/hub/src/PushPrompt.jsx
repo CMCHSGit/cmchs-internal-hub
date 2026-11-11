@@ -79,19 +79,55 @@ function within(ms, step, promise) {
   return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`Timed out ${step}. Try again.`)), ms))])
 }
 
-// The permission question comes FIRST, before anything is awaited: iOS only
-// shows it while the tap still counts, and loading Firebase first used it up,
-// so the question never appeared and this waited forever.
-export async function enable(uid) {
-  const permission = await Notification.requestPermission()
-  if (permission !== 'granted') throw new Error('Notifications weren’t allowed. They can be turned on in the phone’s Settings for this app.')
-  const { app, fs, msg, db } = await within(20000, 'loading', firebaseParts())
-  if (!(await msg.isSupported())) throw new Error('This browser can’t show notifications.')
-  const registration = await within(15000, 'waiting for the app to finish installing', navigator.serviceWorker.ready)
-  const token = await within(20000, 'registering this phone', msg.getToken(msg.getMessaging(app), {
+/**
+ * The app's service worker, once it is running. Just after the app is installed (or reinstalled: deleting the app
+ * from a phone deletes its worker too) the worker is still downloading the app, about 1 MB, which on mobile data can
+ * take well over the 15 s this used to wait, and the person saw "Timed out… Try again." So: make sure it has been
+ * asked to install (shared/register-sw.js only does that once the page has finished loading; registering it again is
+ * a no-op), then give it a minute.
+ */
+async function appWorker(onStep) {
+  const sw = navigator.serviceWorker
+  if (import.meta.env.PROD && !(await sw.getRegistration('/'))) sw.register('/sw.js', { scope: '/' }).catch(() => {})
+  const slow = setTimeout(() => onStep('installing'), 3000)
+  try { return await within(60000, 'waiting for the app to finish installing', sw.ready) }
+  finally { clearTimeout(slow) }
+}
+
+/**
+ * This phone's registration. The first one on a newly installed app can be slow to come back, so a request that
+ * times out is asked once more, for longer, before giving up.
+ */
+async function phoneToken(msg, app, registration, onStep) {
+  const ask = (ms) => within(ms, 'registering this phone', msg.getToken(msg.getMessaging(app), {
     vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
     serviceWorkerRegistration: registration,
   }))
+  try { return await ask(20000) }
+  catch (e) {
+    if (!/^Timed out/.test(e?.message || '')) throw e
+    onStep('registering')
+    return ask(40000)
+  }
+}
+
+// What the steps that can take a while say, for the prompt and Settings (onStep).
+export const ENABLE_STEPS = {
+  installing: 'Still setting up the app on this phone…',
+  registering: 'Still registering this phone…',
+}
+
+// The permission question comes FIRST, before anything is awaited: iOS only
+// shows it while the tap still counts, and loading Firebase first used it up,
+// so the question never appeared and this waited forever.
+// onStep(id) says when it is taking a while (ENABLE_STEPS), so it doesn't just sit on "Turning on…".
+export async function enable(uid, onStep = () => {}) {
+  const permission = await Notification.requestPermission()
+  if (permission !== 'granted') throw new Error('Notifications weren’t allowed. They can be turned on in the phone’s Settings for this app.')
+  const { app, fs, msg, db } = await within(30000, 'loading', firebaseParts())
+  if (!(await msg.isSupported())) throw new Error('This browser can’t show notifications.')
+  const registration = await appWorker(onStep)
+  const token = await phoneToken(msg, app, registration, onStep)
   if (!token) throw new Error('Couldn’t register this device.')
   await within(15000, 'saving', fs.updateDoc(fs.doc(db, 'users', uid), { fcmTokens: fs.arrayUnion(token) }))
   try { localStorage.setItem(ENABLED_KEY, '1') } catch { /* the schedule's card may show once more */ }
@@ -119,6 +155,7 @@ async function restoreRegistration(uid) {
 export default function PushPrompt({ user }) {
   const [state, setState] = useState('hidden') // hidden | ask | busy | done | error
   const [error, setError] = useState('')
+  const [step, setStep] = useState('')
 
   useEffect(() => {
     if (!user?.uid || user.uid === 'dev') return
@@ -140,8 +177,9 @@ export default function PushPrompt({ user }) {
 
   async function turnOn() {
     setState('busy')
+    setStep('')
     try {
-      await enable(user.uid)
+      await enable(user.uid, setStep)
       setState('done')
     } catch (e) {
       console.error(e)
@@ -161,6 +199,7 @@ export default function PushPrompt({ user }) {
       <div className="push-prompt-text">
         {state === 'done' ? <strong>Notifications are on for this device.</strong>
           : state === 'error' ? <><strong>Notifications aren’t on</strong><span>{error}</span></>
+          : state === 'busy' && step ? <><strong>Turning on notifications</strong><span>{ENABLE_STEPS[step]} This can take a minute just after installing.</span></>
           : <><strong>Turn on notifications?</strong><span>So your reminders reach you on this device.</span></>}
       </div>
       {state !== 'done' && (

@@ -6,7 +6,7 @@ import { useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Button, Loading, Switch, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { setTheme } from '../../../shared/tool-chrome.js'
 import { START_KEY, START_PAGES } from '../../hub/src/router.js'
-import { enable, pushStatus } from '../../hub/src/PushPrompt.jsx'
+import { ENABLE_STEPS, enable, pushStatus } from '../../hub/src/PushPrompt.jsx'
 
 const THEME_KEY = 'css_theme' // shared/tool-chrome.js, and the boot script in index.html
 const read = (k) => { try { return localStorage.getItem(k) || '' } catch { return '' } }
@@ -79,6 +79,7 @@ export function MyNotifications() {
   const [status, setStatus] = useState(pushStatus)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [step, setStep] = useState('') // a slow step of turning on (ENABLE_STEPS)
   const [prefs, setPrefs] = useState(null)
   const [toastMsg, toast] = useToast()
 
@@ -90,10 +91,10 @@ export function MyNotifications() {
   }, [user?.uid])
 
   async function turnOn() {
-    setBusy(true); setError('')
-    try { await enable(user.uid); setStatus(pushStatus()); toast('Notifications are on for this phone') }
+    setBusy(true); setError(''); setStep('')
+    try { await enable(user.uid, setStep); setStatus(pushStatus()); toast('Notifications are on for this phone') }
     catch (e) { setError(e.message || 'Couldn’t turn notifications on.') }
-    finally { setBusy(false) }
+    finally { setBusy(false); setStep('') }
   }
 
   async function setMine(key, on) {
@@ -116,6 +117,7 @@ export function MyNotifications() {
         <h2 className="st-card-title">This phone</h2>
         <p className="st-status">{STATUS_TEXT[status]}</p>
         {status === 'off' && <div><Button onClick={turnOn} disabled={busy}>{busy ? 'Turning on…' : 'Turn on notifications'}</Button></div>}
+        {busy && step && <p className="st-note" role="status">{ENABLE_STEPS[step]} This can take a minute just after installing.</p>}
         {error && <Alert tone="critical" title="Not turned on">{error}</Alert>}
         <p className="st-note">One phone covers every tool: the staff schedule, Asks and the demo tracker. Each phone is turned on separately.</p>
       </section>
