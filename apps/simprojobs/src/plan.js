@@ -82,12 +82,17 @@ export function planSignature(plan) {
  * `unknown`: the answer never came (or Simpro said it had a fault), so the step may or may not have happened: the page says to look in
  * Simpro before trying again. `onChange(run)` is called after every step, so the page can show progress and keep it across a reload.
  */
-export async function runPlan(call, plan, run = {}, onChange = () => {}) {
+export async function runPlan(call, plan, run = {}, onChange = () => {}, ctx = {}) {
   const state = { jobId: run.jobId || null, sectionId: run.sectionId || null, done: [...(run.done || [])], failed: null }
   const stop = (step, message, unknown) => { state.failed = { step: step.id, message, unknown } }
   for (const step of plan) {
     if (state.done.includes(step.id)) continue
-    const req = step.request(state)
+    // A step may read what it is about to change first (editing adds to the end of the job's text as it is NOW, not as it was when the
+    // page loaded). Nothing has been sent if that read fails, so a failure here is never "unknown".
+    if (step.prepare) {
+      try { await step.prepare(call, ctx) } catch (e) { stop(step, String(e?.message || e), false); break }
+    }
+    const req = step.request(state, ctx)
     let res
     // Saved before the request goes, so a page closed or a phone put to sleep mid-step is known afterwards: that step may have happened.
     onChange({ ...state, done: [...state.done], inflight: step.id })

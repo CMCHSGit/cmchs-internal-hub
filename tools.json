@@ -113,7 +113,7 @@
     "id": "simpro-jobs",
     "name": "Simpro Jobs",
     "short": "Simpro Jobs",
-    "description": "Create and change Simpro jobs from your phone: pick the customer, site, cost centre, job type, charge category and priority",
+    "description": "Create, find, change and close Simpro jobs from your phone, with a preview before anything is sent to Simpro",
     "link": "/simprojobs/",
     "category": "Service",
     "icon": "clipboard-list",

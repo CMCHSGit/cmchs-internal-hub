@@ -1,7 +1,8 @@
-/* Simpro Jobs: the new-job form and its review. Choose a customer, then one of its sites, set the cost centre, job type, charge category
-   and priority, and write the description and notes. Looking things up is read only. The one thing that writes to Simpro is create() below,
-   which runs only from the button on the review screen (Review.jsx) and sends exactly the plan shown there (plan.js), through the hub's
-   Simpro relay (the Simpro key never reaches the page). */
+/* Simpro Jobs. This file is the tool's frame (the title, the company, the two tabs) and the New job tab: choose a customer, then one of its
+   sites, set the cost centre, job type, charge category and priority, and write the description and notes. The Find tab (Jobs.jsx) searches,
+   shows, changes and closes jobs that already exist. Looking things up is read only. Every write to Simpro (making a job here, changing or
+   closing one in Jobs.jsx) runs only from the button on a review screen and sends exactly the plan shown there (plan.js, manage.js), through
+   the hub's Simpro relay (the Simpro key never reaches the page). */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { auth } from '../../schedule/src/firebase.js'
 import { Alert, Badge, Button, Loading, useConfirm } from '../../../shared/ui/index.jsx'
@@ -12,6 +13,8 @@ import { MAX_TEXT, hasWork, missing, preview } from './draft.js'
 import { buildPlan, describeRun, runPlan, settleRun } from './plan.js'
 import { ReviewSheet } from './Review.jsx'
 import { CustomerSheet, OptionSheet, SiteSheet } from './Sheets.jsx'
+import { readSetup, writeSetup } from './setupCache.js'
+import FindJobs from './Jobs.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
 const sheetFromHash = () => (/^#\/pick\/([A-Za-z]+)/.exec(location.hash) || [])[1] || ''
@@ -20,17 +23,6 @@ const sheetFromHash = () => (/^#\/pick\/([A-Za-z]+)/.exec(location.hash) || [])[
 const DRAFT_KEY = 'simprojobs.draft'
 const readDraft = () => { try { return JSON.parse(sessionStorage.getItem(DRAFT_KEY)) || {} } catch { return {} } }
 const writeDraft = (d) => { try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch { /* private mode: the form simply starts afresh next time */ } }
-
-// Cost centres, priorities and the custom fields' options hardly ever change: keep them for half an hour so a reopened page is instant.
-const SETUP_TTL = 30 * 60 * 1000
-const setupKey = (companyId) => 'simprojobs.setup2.' + companyId // 2: priority became a custom field, so an older saved answer has the wrong shape
-const readSetup = (companyId) => {
-  try {
-    const s = JSON.parse(sessionStorage.getItem(setupKey(companyId)))
-    return s && Date.now() - s.at < SETUP_TTL ? s.data : null
-  } catch { return null }
-}
-const writeSetup = (companyId, data) => { try { sessionStorage.setItem(setupKey(companyId), JSON.stringify({ at: Date.now(), data })) } catch { /* no cache then */ } }
 
 /** The four option pickers, in form order: the form's key, its label, where it sits in the setup answer, and what it starts on. */
 const OPTION_FIELDS = [
@@ -67,29 +59,8 @@ function PickRow({ label, value, placeholder, disabled, note, error, onClick }) 
   )
 }
 
-export default function SimproJobs() {
-  const call = useMemo(() => makeCall({
-    proxyUrl: PROXY_URL,
-    getToken: async () => {
-      if (!auth?.currentUser) throw new SendError('Sign in to the hub to use Simpro.', false)
-      return auth.currentUser.getIdToken()
-    },
-  }), [])
-
-  // Who may use Simpro is decided by the relay; the first call (the company list) is also that check.
-  const [companies, setCompanies] = useState([])
-  const [companyId, setCompanyId] = useState(savedCompany)
-  const [access, setAccess] = useState('')
-  const [booting, setBooting] = useState(true)
-  useEffect(() => {
-    let live = true
-    listCompanies(call)
-      .then((list) => { if (!live) return; setCompanies(list); if (list.length && !list.some((c) => c.ID === companyId)) setCompanyId(list[0].ID) })
-      .catch((e) => { if (live) setAccess(friendly(e)) })
-      .finally(() => { if (live) setBooting(false) })
-    return () => { live = false }
-  }, [call]) // eslint-disable-line react-hooks/exhaustive-deps
-
+/** The New job tab. */
+function NewJob({ call, companyId }) {
   // The form. A choice is { id, name } (a customer is { ID, kind, name, individual }; a site is { id, name }).
   const [form, setForm] = useState(() => readDraft().form || {})
   // The run (making the job) is kept with the form: a phone that sleeps or reloads mid-way must still know which steps are done.
@@ -102,10 +73,9 @@ export default function SimproJobs() {
   }
 
   // The setup lists, from the cache if it is fresh, and always refreshed behind it.
-  const [setup, setSetup] = useState(() => readSetup(savedCompany()))
+  const [setup, setSetup] = useState(() => readSetup(companyId))
   const [setupBusy, setSetupBusy] = useState(false)
   useEffect(() => {
-    if (booting || access) return
     let live = true
     const cached = readSetup(companyId)
     if (cached) setSetup(cached)
@@ -114,7 +84,7 @@ export default function SimproJobs() {
       loadSetup(call, companyId).then((s) => { if (!live) return; setSetup(s); writeSetup(companyId, s) }).finally(() => { if (live) setSetupBusy(false) })
     }
     return () => { live = false }
-  }, [call, companyId, booting, access])
+  }, [call, companyId])
 
   // Starting choices, once the lists are here: only a field nobody has chosen yet.
   const started = useRef(false)
@@ -185,11 +155,6 @@ export default function SimproJobs() {
     try { setChecks(await runChecks(call, companyId)) } catch (e) { setChecks([{ label: 'Check', state: 'fail', detail: friendly(e) }]) } finally { setChecking(false) }
   }
 
-  if (booting) return <div className="sj-page"><Loading /></div>
-  if (access) {
-    return <div className="sj-page"><Alert tone="critical" title="Can’t reach Simpro">{access}</Alert></div>
-  }
-
   const todo = missing(form)
   const runState = run && frozen && !running ? describeRun(frozen, run) : null
   const optionError = (key) => (setup && setup[key]?.error) || ''
@@ -197,21 +162,8 @@ export default function SimproJobs() {
   const openOption = sheet && OPTION_FIELDS.find((f) => f.key === sheet)
 
   return (
-    <div className="sj-page">
-      <div className="sj-head">
-        <div>
-          <h1 className="sj-title">New Simpro job</h1>
-          <p className="sj-sub">Fill in the job, then review it. Nothing is created in Simpro until you tap Create on the review screen.</p>
-        </div>
-        {companies.length > 1 && (
-          <label className="field sj-company">
-            <span className="field-label">Simpro company</span>
-            <select value={companyId} onChange={(e) => { const id = +e.target.value; setCompanyId(id); try { localStorage.setItem(COMPANY_KEY, String(id)) } catch { /* not remembered */ } setForm({}); started.current = false; setSetup(readSetup(id)) }}>
-              {companies.map((c) => <option key={c.ID} value={c.ID}>{c.Name || `Company ${c.ID}`}</option>)}
-            </select>
-          </label>
-        )}
-      </div>
+    <>
+      <p className="sj-sub sj-tab-intro">Fill in the job, then review it. Nothing is created in Simpro until you tap Create on the review screen.</p>
 
       {runState && (
         <Alert
@@ -296,6 +248,69 @@ export default function SimproJobs() {
       {openOption && setup?.[openOption.key] && !setup[openOption.key].error && (
         <OptionSheet title={openOption.title} options={setup[openOption.key].options} selected={form[openOption.key]} defaultName={openOption.defaultName} onPick={pick(openOption.key)} onClose={close} />
       )}
+    </>
+  )
+}
+
+// Which tab is showing lives in the address: #/find and #/job/123 are the Find tab, anything else (#/pick/… included) is New job.
+const viewFromHash = () => (/^#\/(find|job\/\d+)/.test(location.hash) ? 'find' : 'new')
+
+/** The tool's frame: the title, the Simpro company, the two tabs, and the connection to Simpro both tabs use. */
+export default function SimproJobs() {
+  const call = useMemo(() => makeCall({
+    proxyUrl: PROXY_URL,
+    getToken: async () => {
+      if (!auth?.currentUser) throw new SendError('Sign in to the hub to use Simpro.', false)
+      return auth.currentUser.getIdToken()
+    },
+  }), [])
+
+  // Who may use Simpro is decided by the relay; the first call (the company list) is also that check.
+  const [companies, setCompanies] = useState([])
+  const [companyId, setCompanyId] = useState(savedCompany)
+  const [access, setAccess] = useState('')
+  const [booting, setBooting] = useState(true)
+  useEffect(() => {
+    let live = true
+    listCompanies(call)
+      .then((list) => { if (!live) return; setCompanies(list); if (list.length && !list.some((c) => c.ID === companyId)) setCompanyId(list[0].ID) })
+      .catch((e) => { if (live) setAccess(friendly(e)) })
+      .finally(() => { if (live) setBooting(false) })
+    return () => { live = false }
+  }, [call]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [view, setView] = useState(viewFromHash)
+  useEffect(() => {
+    const on = () => setView(viewFromHash())
+    window.addEventListener('hashchange', on)
+    window.addEventListener('popstate', on)
+    return () => { window.removeEventListener('hashchange', on); window.removeEventListener('popstate', on) }
+  }, [])
+
+  if (booting) return <div className="sj-page"><Loading /></div>
+  if (access) return <div className="sj-page"><Alert tone="critical" title="Can’t reach Simpro">{access}</Alert></div>
+
+  return (
+    <div className={`sj-page sj-view-${view}`}>
+      <div className="sj-head">
+        <div>
+          <h1 className="sj-title">Simpro Jobs</h1>
+          <nav className="sj-tabs" aria-label="Simpro Jobs">
+            <a href="#/new" className={`sj-tab${view === 'new' ? ' sj-tab-on' : ''}`} aria-current={view === 'new' ? 'page' : undefined}>New job</a>
+            <a href="#/find" className={`sj-tab${view === 'find' ? ' sj-tab-on' : ''}`} aria-current={view === 'find' ? 'page' : undefined}>Find a job</a>
+          </nav>
+        </div>
+        {companies.length > 1 && (
+          <label className="field sj-company">
+            <span className="field-label">Simpro company</span>
+            <select value={companyId} onChange={(e) => { const id = +e.target.value; setCompanyId(id); try { localStorage.setItem(COMPANY_KEY, String(id)) } catch { /* not remembered */ } try { sessionStorage.removeItem(DRAFT_KEY) } catch { /* nothing kept */ } }}>
+              {companies.map((c) => <option key={c.ID} value={c.ID}>{c.Name || `Company ${c.ID}`}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      {/* The company is the key: choosing another remounts the tab, so nothing from one company's lists is used for another's. */}
+      {view === 'find' ? <FindJobs key={companyId} call={call} companyId={companyId} /> : <NewJob key={companyId} call={call} companyId={companyId} />}
     </div>
   )
 }

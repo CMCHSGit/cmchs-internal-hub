@@ -104,3 +104,47 @@ body.sj-lock { overflow: hidden; }
 .sj-facts dd { margin: 0; font: var(--type-body); color: var(--text-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
 .sj-review-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
 .sj-review-actions a.btn { text-decoration: none; }
+
+/* Step 4: the tabs, finding a job, and one job. */
+.sj-tabs { display: flex; gap: 6px; margin-top: 10px; }
+.sj-tab { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 18px; border: 1px solid var(--border-hairline); border-radius: var(--radius-pill); color: var(--text-strong);
+  background: var(--surface-card); font: var(--weight-semibold) var(--size-body-sm)/1.2 var(--font-body); text-decoration: none; }
+.sj-tab-on { background: var(--accent-fg); border-color: var(--accent-fg); color: #fff; }
+.sj-tab:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.sj-tab-intro { margin: 0; }
+.sj-view-find { display: flex; flex-direction: column; } /* one column, whatever the width: it is a list and a page */
+
+.sj-find, .sj-detail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sj-find-box { display: flex; flex-direction: column; gap: 10px; }
+.sj-find-input { width: 100%; font-size: 16px; min-height: 48px; }
+.sj-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sj-count { font: var(--type-body-sm); color: var(--text-muted); margin-left: 6px; }
+.sj-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.sj-result { display: flex; flex-direction: column; gap: 3px; padding: 12px 4px; min-height: 56px; text-decoration: none; color: inherit; border-top: 1px solid var(--border-subtle); }
+.sj-results > li:first-child .sj-result { border-top: 0; }
+.sj-result:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+@media (hover: hover) { .sj-result:hover { background: var(--surface-subtle); } }
+.sj-result-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.sj-result-no { font: var(--weight-semibold) 15px/1.3 var(--font-mono); color: var(--accent-fg); }
+.sj-result-title { flex: 1 1 200px; min-width: 0; font: var(--weight-semibold) 17px/1.3 var(--font-body); color: var(--text-strong); overflow-wrap: anywhere; }
+.sj-result-sub { margin: 0; font: var(--type-body-sm); color: var(--text-muted); overflow-wrap: anywhere; }
+.sj-snip { font: var(--type-body-sm); color: var(--text-body); line-height: 1.5; overflow-wrap: anywhere; }
+.sj-snip strong { margin-right: 4px; color: var(--accent-fg); }
+.sj-tab-on, .sj-tab-on:hover { background: var(--chs-purple); border-color: var(--accent-fg); color: var(--text-inverse); } /* the kit's own selected-tag look: readable in light and dark */
+.sj-find mark, .sj-detail mark { background: #fddab4; color: #1d1d1d; border-radius: 2px; padding: 0 1px; }
+
+.sj-back-link { margin: 0; }
+.sj-back-link a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-fg); font: var(--weight-semibold) var(--size-body-sm)/1 var(--font-body); }
+.sj-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.sj-job-title { margin: 8px 0 2px; font: var(--weight-semibold) 22px/1.25 var(--font-display); color: var(--text-strong); overflow-wrap: anywhere; }
+.sj-h3 { margin: 0 0 8px; font: var(--weight-semibold) 16px/1.3 var(--font-display); color: var(--text-strong); }
+.sj-select { width: 100%; min-height: 48px; font-size: 16px; }
+
+/* Simpro's rich text on the job page (Deep Search's own safe drawing, SafeHtml, styled here since its stylesheet isn't loaded with this tool). */
+.sj-rich-wrap .ds-rich { font: var(--type-body); line-height: 1.55; color: var(--text-body); overflow-wrap: anywhere; }
+.sj-rich-wrap .ds-rich p, .sj-rich-wrap .ds-rich div, .sj-rich-wrap .ds-rich ul, .sj-rich-wrap .ds-rich ol { margin: 0 0 8px; }
+.sj-rich-wrap .ds-rich ul, .sj-rich-wrap .ds-rich ol { padding-left: 22px; }
+.sj-rich-wrap .ds-table-scroll { overflow-x: auto; margin: 0 0 8px; }
+.sj-rich-wrap table { border-collapse: collapse; font-size: 14px; }
+.sj-rich-wrap td, .sj-rich-wrap th { border: 1px solid var(--border-subtle); padding: 4px 8px; text-align: left; vertical-align: top; }
+.sj-rich-wrap .ds-empty { margin: 0; color: var(--text-muted); font: var(--type-body-sm); }

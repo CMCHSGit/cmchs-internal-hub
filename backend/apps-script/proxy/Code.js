@@ -1910,7 +1910,7 @@ const SIMPRO_SYNC_ALLOWLIST = [
 // Methods only a role:'admin' user may relay. A simproAccess grant (below)
 // covers reading and syncing, never deleting.
 const SIMPRO_SYNC_ADMIN_ONLY = ['delete'];
-const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes'];
+const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes', 'Description'];   // Description: only ever added to (simproJobsScopeError_)
 // Simpro's four job stages (the Ansur and SimproSync pickers offer exactly these).
 const SIMPRO_SYNC_STAGES = ['Pending', 'Progress', 'Complete', 'Archived'];
 // A job's notes are replaced whole by a PATCH (Ansur appends to a fresh copy first), so
@@ -1972,6 +1972,7 @@ function simproJobsPlainHtml_(html) {
 // The writes work through the company's one Simpro key, so they are held to what the tool does: add to a job that has just been made,
 // and set only the three custom fields the form sets. A person's own Simpro login might allow more or less than this; the key is shared.
 const SIMPRO_JOBS_NEW_JOB_HOURS = 12;          // a job is "just made" while it is Pending and was last touched within this long
+const SIMPRO_JOBS_EDITABLE_STAGES = ['Pending', 'Progress', 'Complete'];   // a job past these (Invoiced, Archived) is not edited here
 // The three custom fields the form sets, as they are named in CHS's Simpro ("Job Type", "Charge category - CHS", "Priority (incl callouts) - CHS");
 // keep equal to FIELD_NAMES in apps/simprojobs/src/lookups.js.
 const SIMPRO_JOBS_FIELD_NAMES = /^(job\s*type|charge\s*categor(y|ies)(\s*-\s*chs)?|priority(\s*\([^)]*\))?(\s*-\s*chs)?)$/i;
@@ -1981,7 +1982,7 @@ function simproJobsCacheGet_(key) { try { return CacheService.getScriptCache().g
 function simproJobsCachePut_(key, value, seconds) { try { CacheService.getScriptCache().put(key, value, seconds); } catch (e) { /* no cache: the check is made every time */ } }
 
 // '' when this write may go ahead, else why not. Reads Simpro (with the shared key) to decide, and remembers a good answer briefly.
-function simproJobsScopeError_(method, path, who) {
+function simproJobsScopeError_(method, path, who, body) {
   var m;
   if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
     // One counter per person per clock hour, so the allowance resets on the hour (a counter whose life is renewed on every create
@@ -1992,17 +1993,38 @@ function simproJobsScopeError_(method, path, who) {
     simproJobsCachePut_(key, String(made + 1), 3600);
     return '';
   }
+  // Changing a job's description: only ever adding to the end of what is there (the page appends; it never replaces), on a job that is
+  // not yet invoiced or archived. The relay reads the job itself, so a call made from a browser console can't rewrite a description.
+  if (method === 'patch' && (m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)$/)) && body && typeof body === 'object' && 'Description' in body) {
+    const dj = simproFetch('/companies/' + m[1] + '/jobs/' + m[2], 'get');
+    if (!dj.ok || !dj.json) return 'is for a job Simpro could not show (' + dj.code + ')';
+    if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(dj.json.Stage) === -1) return 'is for a job that is ' + String(dj.json.Stage) + ', so its description can no longer be changed here';
+    const current = String(dj.json.Description || '');
+    const next = String(body.Description);
+    if (next.length <= current.length || next.indexOf(current) !== 0) return 'changes the description other than by adding to the end of it';
+    if (!simproJobsPlainHtml_(next.slice(current.length))) return 'adds markup other than paragraphs and line breaks to the description';
+    return '';
+  }
+
   m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)\/(?:sections\/(?:\d+\/costCenters\/)?|customFields\/(\d+))$/);
   if (!m || (method !== 'post' && method !== 'patch')) return '';
   const company = m[1], jobId = m[2], fieldId = m[3];
 
-  if (fieldId) {                                  // only Job Type and Charge Category
+  if (fieldId) {                                  // only Job Type, Charge category and Priority, on a job that is not yet invoiced or archived
     const fkey = 'simproJobsField_' + company + '_' + fieldId;
     if (simproJobsCacheGet_(fkey) !== 'ok') {
       const f = simproFetch('/companies/' + company + '/setup/customFields/projects/' + fieldId, 'get');
       if (!f.ok || !f.json || !SIMPRO_JOBS_FIELD_NAMES.test(String(f.json.Name || '').trim())) return 'sets a custom field other than Job Type, Charge Category or Priority';
       simproJobsCachePut_(fkey, 'ok', 21600);
     }
+    const okey = 'simproJobsOpen_' + company + '_' + jobId;
+    if (simproJobsCacheGet_(okey) !== 'ok') {
+      const oj = simproFetch('/companies/' + company + '/jobs/' + jobId, 'get');
+      if (!oj.ok || !oj.json) return 'is for a job Simpro could not show (' + oj.code + ')';
+      if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(oj.json.Stage) === -1) return 'is for a job that is ' + String(oj.json.Stage) + ', so its custom fields can no longer be changed here';
+      simproJobsCachePut_(okey, 'ok', 60);
+    }
+    return '';
   }
   const jkey = 'simproJobsNew_' + company + '_' + jobId;
   if (simproJobsCacheGet_(jkey) !== 'ok') {       // only a job that has just been made
@@ -2031,6 +2053,7 @@ function simproSyncJobPatchError_(body) {
     if (typeof s !== 'number' || !isFinite(s) || Math.floor(s) !== s || s < 0) return 'sets a status that is not a status code';
   }
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_SYNC_MAX_NOTES)) return 'sets notes that are not text or are too long';
+  if ('Description' in body && (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML)) return 'sets a description that is not text or is too long';
   return '';
 }
 
@@ -2366,7 +2389,7 @@ function simproSyncProxy_(payload) {
     }
     const jobWriteWhy = simproSyncJobWriteError_(method, path.split('?')[0], r.body, requests.length);
     if (jobWriteWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobWriteWhy });
-    const jobScopeWhy = simproJobsScopeError_(method, path.split('?')[0], who);
+    const jobScopeWhy = simproJobsScopeError_(method, path.split('?')[0], who, r.body);
     if (jobScopeWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobScopeWhy });
     if (method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {   // a GET only lists the job's files
       const body = r.body || {};

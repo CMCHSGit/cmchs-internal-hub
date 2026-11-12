@@ -1,6 +1,6 @@
 # Simpro Jobs (`/simprojobs/`, Service menu)
 
-Create, edit and change Simpro jobs from a phone. Owner: Jonathan Nasrun. Visible to admins and anyone with Simpro access, the same
+Create, find, change and close Simpro jobs from a phone. Owner: Jonathan Nasrun. Visible to admins and anyone with Simpro access, the same
 rule the Simpro relay applies. Mobile first: one column, 56px rows, a full-screen picker with the phone's Back button to leave it.
 
 ## Step 1: the new-job form's pickers (read only)
@@ -67,9 +67,31 @@ Jonathan chose description and notes only; asset or serial, contact and due date
 - **Same access as the rest of the tool** (admins and Simpro-access staff), not admin only (Jonathan's decision, 13 Nov 2026: this is a phone tool for the service team). Check who holds Simpro access (Settings, People and access) before the deploy. A job made by mistake can be archived in Simpro
   (the relay already allows `Stage: Archived`); there is no delete.
 
+## Step 4: find, change and close existing jobs (the **Find a job** tab)
+
+The page is "Simpro Jobs" with two tabs: **New job** (above) and **Find a job** (`#/find`, a job is `#/job/123`, its screens `#/job/123/edit` and
+`/close`, so the phone's Back button works).
+- **Search** is Simpro Deep Search's own (`apps/simprosearch/src/search.js`, reused unchanged): every word typed must be in the job, each in any of
+  its number, title, customer, site, description or notes. Results are in **three sections** (`manage.js groupResults`): **job number and title**
+  first (customer and site names go with it), then jobs found **only by their description**, then **only by their notes**, newest first, with the
+  matching words highlighted in a snippet. A stage chip narrows it. With nothing typed it lists the newest jobs.
+- **A job** shows its stage and status, Job type / Charge category / Priority, and its description and notes drawn with Deep Search's safe rich-text
+  drawing. **Add to it or change it** and **Close job** are disabled with a reason when the job's stage doesn't allow them.
+- **Add to it or change it**: text is only ever **added to the end** of the description or notes (never replaced: a description can be rich text and tables,
+  which a phone's plain text box would flatten), read fresh just before it is written so a note someone added in Simpro meanwhile is kept; and Job type,
+  Charge category and Priority can be changed (each its own step, only if it differs). **Close** is what SimproSync does: Stage Complete, then Status
+  "Job : Completed" (found by name). Pending, Progress and Complete jobs can be changed; Invoiced and Archived jobs can't; only Pending and Progress can be closed.
+- **Same rule as creating**: every change is previewed (the exact text; each field "from → to"), goes to Simpro only when the person taps the button on that screen,
+  runs one step at a time (a double tap can't start it twice), and says what was and wasn't done if a step stops. Nothing is kept across a reload: the job is
+  read again from Simpro, which is the truth.
+- **Relay** (needs a deploy; `tests/relay-scope.test.mjs`): the job `PATCH` now also takes `Description`, but only as an **addition to the end of what Simpro holds**
+  (the relay reads the job and refuses anything else, and refuses markup other than paragraphs and line breaks in what was added) on a job that is not Invoiced or
+  Archived. The three custom fields can be changed on any Pending, Progress or Complete job of any age (a section or cost centre is still only for a job
+  made in the last 12 hours). Stage, Status and Notes are as before for the other tools.
+
 ## Later
 
-4. Edit or change an existing job (the relay's job `PATCH` allows only Stage, Status and Notes today); the same review-then-yes rule applies.
+- Change other job fields (due date, a different site or customer), or reopen a closed job: not built; the same review-then-yes rule would apply.
 
 ## Tests
 
