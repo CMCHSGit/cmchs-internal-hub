@@ -30,7 +30,9 @@ One direction only: Excel → app. Nothing is written to the Excel.
   for that person in the current week, or in any week between (typed in the sheet, or pasted from it), is treated as a copy, not as that person's entry:
   it isn't brought into the app, and the log says "N future-week entries left out". What the app already holds for those weeks is never changed, and
   once the week is the current one it imports as usual. This only applies to this automatic import (the Admin → Excel screen imports what you pick);
-  `"ignoreCopiedWeeks": false` in the config turns it off. The app's own "Copy last week" button marks what it copies (`copiedFrom` on the schedule).
+  `"ignoreCopiedWeeks": false` in the config turns it off.
+  **A week that is all leave or training is never treated as a copy (13 Nov 2026):** time away often runs for more than a week, so a
+  second identical week of "Leave" comes in like any other entry (`allTimeAway`, read the way the Leave calendar reads leave). The app's own "Copy last week" button marks what it copies (`copiedFrom` on the schedule).
   Code: `daysSignature` and `planImport`'s `skipCopiesFrom` in `src/utils/excelPlan.js`, tests `tests/excelCopyGuard.test.mjs`.
 
 Code: `scripts/excel-import.mjs` (the PC side), `scripts/excelImportJob.mjs` (one run, tested in
