@@ -13,7 +13,7 @@ const allowed = (method, path) => vm.runInContext(`simproSyncAllowed_(${JSON.str
 
 test('the new-job form’s reads are allowed', () => {
   for (const path of [
-    customersPath(3, '', 1, 0), customersPath(3, 'mid central', 2, 1), customersPath(3, 'mid', 1, 2),
+    customersPath(3, '', 1, 0), customersPath(3, 'mid central', 2, 1), customersPath(3, 'Ben & Jerry’s', 3, 0),
     '/companies/3/customers/companies/12?columns=ID,Sites',
     '/companies/3/customers/individuals/12?columns=ID,Sites,Archived',
     '/companies/3/sites/?Customers.ID=12&columns=ID,Name,Customers,Archived&orderby=Name&pageSize=250',
@@ -53,4 +53,43 @@ test('what was already allowed still is, and sites keep working with a plain que
   assert.equal(allowed('get', '/companies/3/jobs/?Description=%25a%25&columns=ID'), true)
   assert.equal(allowed('patch', '/companies/3/jobs/123'), true)
   assert.equal(allowed('delete', '/companies/3/sites/7/assets/9'), true) // the relay then asks for the admin role
+})
+
+test('the customers LIST only returns the picker’s own columns: nothing record-level (banking, contacts) can be asked for', () => {
+  const base = '/companies/3/customers/'
+  const ok = 'columns=ID,Type,CompanyName,GivenName,FamilyName&pageSize=30'
+  assert.equal(allowed('get', base + '?' + ok), true)
+  assert.equal(allowed('get', base + '?' + ok + '&orderby=CompanyName&search=any&CompanyName=%25a%25&GivenName=%25a%25&FamilyName=%25a%25&page=2'), true)
+  for (const bad of [
+    'columns=ID,Banking', 'columns=ID,Contacts', 'columns=ID,CompanyName,Banking', 'columns=Banking', 'columns=ID,Sites',
+    'columns=ID&columns=ID,Banking', 'columns=ID,Banking&columns=ID',           // a repeat can't smuggle one in either
+    'columns=ID,CompanyName,', 'columns=ID,,CompanyName', 'columns=id,CompanyName', 'columns=ID,companyname',
+    'pageSize=30',                                                              // no columns at all
+    'pageSize=30&search=any&CompanyName=%25a%25',                               // still none
+    ok + '&Banking=%25a%25', ok + '&Contacts.Email=%25a%25', ok + '&orderby=Banking', ok + '&orderby=-Banking', ok + '&display=all', ok + '&x=1',
+    ok + '&CompanyName=%25a/b%25', ok + '&CompanyName=a;b', ok + '&CompanyName=#',
+    '',
+  ]) assert.equal(allowed('get', base + (bad ? '?' + bad : '')), false, 'customers list: ' + (bad || '(no query)'))
+  // The per-type lists are not offered at all.
+  for (const p of ['/companies/3/customers/companies/', '/companies/3/customers/individuals/']) {
+    assert.equal(allowed('get', p + '?' + ok), false, p)
+    assert.equal(allowed('get', p + '?columns=ID,Banking'), false, p)
+  }
+})
+
+test('the sites list: paging as before, the form’s customer filter, and no other column or filter', () => {
+  assert.equal(allowed('get', '/companies/3/sites/'), true)
+  assert.equal(allowed('get', '/companies/3/sites/?pageSize=250&page=2'), true)       // SimproSync
+  assert.equal(allowed('get', '/companies/3/sites/?Customers.ID=12&columns=ID,Name,Customers,Archived&orderby=Name&pageSize=250'), true)
+  for (const bad of ['columns=ID,PrivateNotes', 'columns=PrivateNotes', 'columns=ID,BillingContact', 'columns=ID,Name,Rates', 'PrivateNotes=%25a%25', 'Customers.ID=a', 'orderby=PrivateNotes', 'search=any', 'Name=%25a%25', 'columns=ID&columns=ID,PrivateNotes']) {
+    assert.equal(allowed('get', '/companies/3/sites/?' + bad), false, 'sites: ' + bad)
+  }
+})
+
+test('the setup lists take paging and nothing else', () => {
+  for (const p of ['/companies/3/setup/accounts/costCenters/', '/companies/3/setup/responseTimes/', '/companies/3/setup/customFields/projects/', '/companies/3/setup/customFields/projects/44']) {
+    assert.equal(allowed('get', p), true, p)
+    assert.equal(allowed('get', p + '?pageSize=250&page=2'), true, p)
+    for (const bad of ['columns=ID,Name', 'Name=%25a%25', 'search=any', 'orderby=Name', 'pageSize=abc', 'x=1']) assert.equal(allowed('get', p + '?' + bad), false, p + ' ' + bad)
+  }
 })

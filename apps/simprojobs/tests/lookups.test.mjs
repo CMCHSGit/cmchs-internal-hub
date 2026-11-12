@@ -90,9 +90,8 @@ test('customersPath: browse has no filter; a search filters the three name colum
   assert.match(s, /page=2/)
   assert.match(s, /search=any&CompanyName=%25mid%25&GivenName=%25mid%25&FamilyName=%25mid%25$/)
   assert.doesNotMatch(customersPath(3, '', 1, 1), /orderby/)
-  assert.match(customersPath(3, 'x', 1, 2), /^\/companies\/3\/customers\/companies\/\?CompanyName=%25x%25&pageSize=30/)
   // Every address is something the relay's search policy lets through.
-  for (const v of [0, 1, 2]) assert.match(customersPath(3, 'Ben & Jerry’s', 2, v).split('?')[1], /^[A-Za-z0-9=&%+,.()\-_: ]*$/)
+  for (const v of [0, 1]) assert.match(customersPath(3, 'Ben & Jerry’s', 2, v).split('?')[1], /^[A-Za-z0-9=&%+,.()\-_: ]*$/)
 })
 
 test('loadCustomers: browse, search, and "more" only when a full page came back', async () => {
@@ -205,5 +204,5 @@ test('nothing in the lookups ever writes', async () => {
   await loadCustomers(call, 3, 'x'); await loadSites(call, 3, { ID: 1, kind: 'companies' }); await loadSetup(call, 3); await runChecks(call, 3)
   assert.ok(seen.length > 5)
   assert.ok(seen.every((s) => s.method === 'GET'))
-  assert.equal(CUSTOMER_VARIANTS, 3)
+  assert.equal(CUSTOMER_VARIANTS, 2)
 })

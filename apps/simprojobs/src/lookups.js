@@ -46,12 +46,11 @@ export const customerKind = (c) => (c?.Type === 'Individual' || (!c?.Type && !c?
 
 const CUSTOMER_COLUMNS = 'ID,Type,CompanyName,GivenName,FamilyName'
 /** Ways of asking, best first. Simpro might refuse one (an orderby or a column it doesn't take), so a refusal tries the next. */
-export const CUSTOMER_VARIANTS = 3
+export const CUSTOMER_VARIANTS = 2
 
 export function customersPath(companyId, text, page = 1, variant = 0) {
   const t = String(text ?? '').trim()
   const paging = `pageSize=${PAGE_SIZE}` + (page > 1 ? `&page=${page}` : '')
-  if (variant >= 2) return `/companies/${companyId}/customers/companies/?${t ? `CompanyName=${likeTerm(t)}&` : ''}${paging}&orderby=CompanyName`
   const parts = [`columns=${CUSTOMER_COLUMNS}`, paging]
   if (variant === 0) parts.push('orderby=CompanyName')
   if (t) { const like = likeTerm(t); parts.push('search=any', `CompanyName=${like}`, `GivenName=${like}`, `FamilyName=${like}`) }

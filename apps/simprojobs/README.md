@@ -26,8 +26,11 @@ Where each list comes from (Simpro's own API reference, developer.simprogroup.co
 
 ### The relay (needs a deploy)
 
-Step 1 widened `SIMPRO_SYNC_ALLOWLIST` in `backend/apps-script/proxy/Code.js`, read only: customers (list, and a record for `columns=ID,Sites`
-only), sites with the search query policy, `setup/accounts/costCenters`, `setup/responseTimes`, `setup/customFields/projects`. It goes live
+Step 1 widened `SIMPRO_SYNC_ALLOWLIST` in `backend/apps-script/proxy/Code.js`, read only, each rule with a **whitelist of query pieces** (a column or
+filter not named can never be sent, repeats included; a list endpoint would otherwise also return record-level columns such as banking):
+the customers list only (`columns=` required, limited to ID/Type/CompanyName/GivenName/FamilyName/Archived, plus the name filters, paging and
+orderby), a customer's own record only for `columns=ID,Sites`, sites (paging, `Customers.ID`, a small column set), and paging only for
+`setup/accounts/costCenters`, `setup/responseTimes` and `setup/customFields/projects`. It goes live
 only after `clasp deploy -i` from an up-to-date checkout (`backend/README.md`); until then each picker says the relay "doesn't allow this
 lookup yet". `tests/relay.test.mjs` loads the real `Code.js` and checks what is allowed and what is still refused.
 

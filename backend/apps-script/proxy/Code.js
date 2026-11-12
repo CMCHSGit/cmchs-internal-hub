@@ -1856,22 +1856,33 @@ const SIMPRO_QUERY_PLAIN = /^[A-Za-z0-9=&]*$/;
 // "\", so a query can never restructure the URL the path regex already fixed.
 const SIMPRO_QUERY_SEARCH = /^[A-Za-z0-9=&%+,.()\-_: ]*$/;
 
+// Simpro Jobs reads (below). A list endpoint also accepts record-level columns (Banking, Contacts...), so these are not the broad
+// search policy: every "&"-separated piece of the query must be one of the listed ones (a repeated piece too), so a column or
+// filter that is not named here can never be sent.
+// Paging only: the setup lists a job is made with have nothing to filter or select.
+const SIMPRO_QUERY_PAGING = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5})(?:&|$))+$/;
+// The customers list: the picker's columns and name filters only, and columns= must be there (rule[3]).
+const SIMPRO_QUERY_CUSTOMER_LIST = /^(?=(?:.*&)?columns=)(?:(?:columns=ID(?:,(?:Type|CompanyName|GivenName|FamilyName|Archived))*|pageSize=\d{1,3}|page=\d{1,5}|orderby=-?(?:ID|CompanyName|GivenName|FamilyName)|search=(?:any|all)|(?:CompanyName|GivenName|FamilyName)=[A-Za-z0-9%+.\-_ ]{1,200})(?:&|$))+$/;
+// The sites list: paging (SimproSync), plus the new-job form's customer filter and its small column set.
+const SIMPRO_QUERY_SITE_LIST = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5}|columns=ID(?:,(?:Name|Customers|Archived))*|orderby=-?(?:ID|Name)|Customers\.ID=\d{1,9})(?:&|$))+$/;
+
 const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/$/],
   [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
   [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
-  // Sites take the search query policy, so the new-job form can find a customer's sites (Customers.ID, columns, orderby).
-  [['get'],        /^\/companies\/\d+\/sites\/$/, SIMPRO_QUERY_SEARCH],
-  // Simpro Jobs (read only): the pickers of the new-job form. Customers: search, columns, paging. A customer's own record also
-  // holds banking and contacts, so it is only readable for its linked sites: the query must be columns=ID,Sites (rule[3] = a
-  // query is required, since a bare call would return the whole record).
-  [['get'],        /^\/companies\/\d+\/customers\/(companies\/|individuals\/)?$/, SIMPRO_QUERY_SEARCH],
+  // Sites: paging as before, plus the new-job form's customer filter (SIMPRO_QUERY_SITE_LIST: nothing else is selectable).
+  [['get'],        /^\/companies\/\d+\/sites\/$/, SIMPRO_QUERY_SITE_LIST],
+  // Simpro Jobs (read only): the pickers of the new-job form. The customers list, and only that list (not the per-type ones), with
+  // columns= required and limited to the picker's own (SIMPRO_QUERY_CUSTOMER_LIST). A customer's own record also holds banking and
+  // contacts, so it is only readable for its linked sites: the query must be columns=ID,Sites (rule[3] = a query is required,
+  // since a bare call would return the whole record).
+  [['get'],        /^\/companies\/\d+\/customers\/$/, SIMPRO_QUERY_CUSTOMER_LIST, true],
   [['get'],        /^\/companies\/\d+\/customers\/(companies|individuals)\/\d+$/, /^columns=ID,Sites(,Archived)?$/, true],
   // Setup lists a job is made with: cost centres, response times (Simpro's name for a job's priority) and the job custom
-  // fields (Job Type, Charge Category: a List field's options are in its ListItems).
-  [['get'],        /^\/companies\/\d+\/setup\/accounts\/costCenters\/$/, SIMPRO_QUERY_SEARCH],
-  [['get'],        /^\/companies\/\d+\/setup\/responseTimes\/$/, SIMPRO_QUERY_SEARCH],
-  [['get'],        /^\/companies\/\d+\/setup\/customFields\/projects\/(\d+)?$/, SIMPRO_QUERY_SEARCH],
+  // fields (Job Type, Charge Category: a List field's options are in its ListItems). Paging only.
+  [['get'],        /^\/companies\/\d+\/setup\/accounts\/costCenters\/$/, SIMPRO_QUERY_PAGING],
+  [['get'],        /^\/companies\/\d+\/setup\/responseTimes\/$/, SIMPRO_QUERY_PAGING],
+  [['get'],        /^\/companies\/\d+\/setup\/customFields\/projects\/(\d+)?$/, SIMPRO_QUERY_PAGING],
   // Company-wide asset list, read-only. Needs the search query policy for
   // filters like AssetType.ID=9, Site.ID=in(1,2) and columns=ID,Site,CustomFields.
   [['get'],        /^\/companies\/\d+\/customerAssets\/$/, SIMPRO_QUERY_SEARCH],
