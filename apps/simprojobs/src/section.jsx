@@ -1,5 +1,5 @@
 /* Simpro Jobs as a section of the one app: the hub (apps/hub/src/App.jsx) opens this at /simprojobs/, under its own header.
-   Step 1 is read only: it can look things up in Simpro and has no way to change anything there. */
+   Looking things up is read only; the one write (making a job) runs only from the button on the review screen (Review.jsx, plan.js). */
 import { AuthProvider, useAuth } from '../../schedule/src/contexts/AuthContext'
 import { Alert, Loading } from '../../../shared/ui/index.jsx'
 import App from './App.jsx'
