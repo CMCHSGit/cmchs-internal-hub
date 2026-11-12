@@ -65,7 +65,7 @@ Jonathan chose description and notes only; asset or serial, contact and due date
   can't be touched; a custom field is only one named **Job Type** or **Charge Category** in Simpro; a description or note carries only
   `<p>`, `</p>` and `<br>` (the page escapes everything else); one person can make **20 jobs per clock hour** (the count resets on the hour). If Simpro ever doesn't report a job's
   `DateModified` the add is refused rather than assumed fine, and the page shows the reason.
-- **Same access as the rest of the tool** (admins and Simpro-access staff), not admin only. Check who holds Simpro access (Settings, People and access) before the deploy. A job made by mistake can be archived in Simpro
+- **Same access as the rest of the tool** (admins and Simpro-access staff), not admin only (Jonathan's decision, 13 Nov 2026: this is a phone tool for the service team). Check who holds Simpro access (Settings, People and access) before the deploy. A job made by mistake can be archived in Simpro
   (the relay already allows `Stage: Archived`); there is no delete.
 
 ## Later
