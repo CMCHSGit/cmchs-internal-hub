@@ -1,0 +1,60 @@
+# Runs on every pull request into main: builds the whole site and runs every app's
+# tests, so a change is proved before it can be merged (and so before it deploys).
+# The ruleset "main: reviewed changes, no force-push" requires the job "Build and test"
+# to pass. It has no path filter on purpose: a required check that does not run on a
+# pull request would leave that pull request waiting for ever.
+#
+# Safe for a branch to run: it uses no secrets (the build gets placeholder Firebase
+# values, enough to compile, never real ones), and read-only permissions. Nothing is
+# published, and nothing here sends or changes any data.
+name: PR checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # The build refuses to run in CI without the Firebase settings (so a deploy can never ship a hub nobody can sign in to).
+      # A check only needs it to compile, so these are placeholders, not the real values.
+      - run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ci-placeholder
+          VITE_FIREBASE_AUTH_DOMAIN: ci-placeholder.example
+          VITE_FIREBASE_PROJECT_ID: ci-placeholder
+          VITE_FIREBASE_APP_ID: ci-placeholder
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ci-placeholder
+          VITE_FIREBASE_VAPID_KEY: ci-placeholder
+          VITE_AZURE_TENANT_ID: ci-placeholder
+      # Every app that has a "test" script, so a new app's tests join the check without editing this file.
+      # (The Firestore rules tests have their own workflow, rules-tests.yml: they need Java and the emulator.)
+      - name: Run each app's tests
+        run: |
+          failed=""
+          for dir in apps/*/; do
+            dir="${dir%/}"
+            if [ -f "$dir/package.json" ] && grep -q '"test"' "$dir/package.json"; then
+              echo "::group::$dir"
+              if ! npm test --prefix "$dir"; then failed="$failed $dir"; fi
+              echo "::endgroup::"
+            fi
+          done
+          if [ -n "$failed" ]; then echo "Tests failed in:$failed"; exit 1; fi
