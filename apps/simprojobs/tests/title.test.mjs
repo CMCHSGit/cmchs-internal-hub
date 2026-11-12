@@ -92,3 +92,22 @@ test('editing: a changed title is its own step, shown from → to; an unchanged 
   const bare = normaliseJob({ ID: 7, Name: '', Description: 'x', Stage: 'Progress', Customer: { ID: 1 } })
   assert.deepEqual(buildEditPlan({ job: bare, changes: { title: 'Pump check' }, setup: SETUP, companyId: 3 })[0].facts, [['Title', 'none → Pump check']])
 })
+
+test('a title with hidden direction marks or line separators is refused by the relay, and the page says why', () => {
+  const r = relay()
+  const good = { Type: 'Service', Customer: 12, Site: 34, Description: '<p>Fault</p>' }
+  for (const bad of ['a\u2028b', 'a\u2029b', 'a\u202eb', 'a\u200fb', 'a\u200eb', 'a\u2066b', 'a\u2069b']) {
+    assert.match(r.create({ ...good, Name: bad }), /title that is not one line of plain text/, JSON.stringify(bad))
+    assert.match(r.patch({ Name: bad }), /title that is not one line of plain text/, JSON.stringify(bad))
+  }
+  assert.equal(r.create({ ...good, Name: 'Māori — Défibrillateur 日本語' }), '') // ordinary unicode is fine
+})
+
+test('the page refuses hidden text-direction characters in a title and says why, and still takes ordinary unicode', async () => {
+  const { titleProblem, cleanTitle } = await import('../src/draft.js')
+  const rtl = String.fromCharCode(0x202e)
+  const sep = String.fromCharCode(0x2028)
+  assert.match(titleProblem('abc' + rtl + 'def'), /hidden text-direction characters/)
+  assert.equal(titleProblem('Māori Health — 日本語'), '')
+  assert.equal(cleanTitle('a' + sep + 'b'), 'a b') // a line separator is just a space once cleaned
+})

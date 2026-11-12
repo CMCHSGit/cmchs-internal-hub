@@ -1926,7 +1926,8 @@ const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
 // A job's title (Simpro's "Name") is one short line of plain text: the page allows 100 characters and never "<" or ">" (it is not HTML).
 const SIMPRO_JOBS_MAX_TITLE = 100;
 function simproJobsTitleOk_(v) {
-  return typeof v === 'string' && v.trim().length > 0 && v.length <= SIMPRO_JOBS_MAX_TITLE && !/[\x00-\x1f\x7f<>]/.test(v);
+  // No control characters, no < or >, no line or paragraph separators (U+2028/2029) and no hidden text-direction marks (U+200E/F, U+202A-E, U+2066-9).
+  return typeof v === 'string' && v.trim().length > 0 && v.length <= SIMPRO_JOBS_MAX_TITLE && !/[\x00-\x1f\x7f<>\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(v);
 }
 
 function simproJobsPositiveInt_(v) {
@@ -2009,6 +2010,9 @@ function simproJobsScopeError_(method, path, who, body) {
     if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(dj.json.Stage) === -1) return 'is for a job that is ' + String(dj.json.Stage) + ', so its description or title can no longer be changed here';
     if ('Description' in body) {
       const current = String(dj.json.Description || '');
+      // A description that already ends in an unfinished tag (text pasted into Simpro) would swallow the start of what is added and could
+      // turn it into a live tag: nothing is added to it here.
+      if (current.lastIndexOf('<') > current.lastIndexOf('>')) return 'is for a description that ends in the middle of a tag, so nothing can be added to it here';
       const next = String(body.Description);
       if (next.length <= current.length || next.indexOf(current) !== 0) return 'changes the description other than by adding to the end of it';
       if (!simproJobsPlainHtml_(next.slice(current.length))) return 'adds markup other than paragraphs and line breaks to the description';

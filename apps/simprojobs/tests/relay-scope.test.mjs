@@ -191,3 +191,13 @@ test('the job PATCH now takes a Description as text, and nothing else new', () =
     assert.notEqual(e.patchError(bad), '', J(bad).slice(0, 40))
   }
 })
+
+test('nothing is added to a description that already ends in an unfinished tag', () => {
+  const add = '<p>more</p>'
+  const e = env({ jobs: { 1: { Stage: 'Pending', Description: '<p>Old</p><' }, 2: { Stage: 'Pending', Description: '<p>Old</p><a href="x' }, 3: { Stage: 'Pending', Description: '<p>Old</p>' }, 4: { Stage: 'Pending', Description: 'a > b' }, 5: { Stage: 'Pending', Description: '<p>x</p> a < b' } } })
+  assert.match(e.scope('patch', JOB + '1', undefined, { Description: '<p>Old</p><' + add }), /ends in the middle of a tag/)
+  assert.match(e.scope('patch', JOB + '2', undefined, { Description: '<p>Old</p><a href="x' + add }), /ends in the middle of a tag/)
+  assert.match(e.scope('patch', JOB + '5', undefined, { Description: '<p>x</p> a < b' + add }), /ends in the middle of a tag/)
+  assert.equal(e.scope('patch', JOB + '3', undefined, { Description: '<p>Old</p>' + add }), '')
+  assert.equal(e.scope('patch', JOB + '4', undefined, { Description: 'a > b' + add }), '')   // a ">" with no "<" after it is just text
+})
