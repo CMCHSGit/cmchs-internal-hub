@@ -1856,11 +1856,33 @@ const SIMPRO_QUERY_PLAIN = /^[A-Za-z0-9=&]*$/;
 // "\", so a query can never restructure the URL the path regex already fixed.
 const SIMPRO_QUERY_SEARCH = /^[A-Za-z0-9=&%+,.()\-_: ]*$/;
 
+// Simpro Jobs reads (below). A list endpoint also accepts record-level columns (Banking, Contacts...), so these are not the broad
+// search policy: every "&"-separated piece of the query must be one of the listed ones (a repeated piece too), so a column or
+// filter that is not named here can never be sent.
+// Paging only: the setup lists a job is made with have nothing to filter or select.
+const SIMPRO_QUERY_PAGING = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5})(?:&|$))+$/;
+// The customers list: the picker's columns and name filters only, and columns= must be there (rule[3]).
+const SIMPRO_QUERY_CUSTOMER_LIST = /^(?=(?:.*&)?columns=)(?:(?:columns=ID(?:,(?:Type|CompanyName|GivenName|FamilyName|Archived))*|pageSize=\d{1,3}|page=\d{1,5}|orderby=-?(?:ID|CompanyName|GivenName|FamilyName)|search=(?:any|all)|(?:CompanyName|GivenName|FamilyName)=(?:[A-Za-z0-9.\-_]|%25|%20){1,200})(?:&|$))+$/;
+// The sites list: paging (SimproSync), plus the new-job form's customer filter and its small column set.
+const SIMPRO_QUERY_SITE_LIST = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5}|columns=ID(?:,(?:Name|Customers|Archived))*|orderby=-?(?:ID|Name)|Customers\.ID=\d{1,9})(?:&|$))+$/;
+
 const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/$/],
   [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
   [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
-  [['get'],        /^\/companies\/\d+\/sites\/$/],
+  // Sites: paging as before, plus the new-job form's customer filter (SIMPRO_QUERY_SITE_LIST: nothing else is selectable).
+  [['get'],        /^\/companies\/\d+\/sites\/$/, SIMPRO_QUERY_SITE_LIST],
+  // Simpro Jobs (read only): the pickers of the new-job form. The customers list, and only that list (not the per-type ones), with
+  // columns= required and limited to the picker's own (SIMPRO_QUERY_CUSTOMER_LIST). A customer's own record also holds banking and
+  // contacts, so it is only readable for its linked sites: the query must be columns=ID,Sites (rule[3] = a query is required,
+  // since a bare call would return the whole record).
+  [['get'],        /^\/companies\/\d+\/customers\/$/, SIMPRO_QUERY_CUSTOMER_LIST, true],
+  [['get'],        /^\/companies\/\d+\/customers\/(companies|individuals)\/\d+$/, /^columns=ID,Sites(,Archived)?$/, true],
+  // Setup lists a job is made with: cost centres, response times (Simpro's name for a job's priority) and the job custom
+  // fields (Job Type, Charge Category: a List field's options are in its ListItems). Paging only.
+  [['get'],        /^\/companies\/\d+\/setup\/accounts\/costCenters\/$/, SIMPRO_QUERY_PAGING],
+  [['get'],        /^\/companies\/\d+\/setup\/responseTimes\/$/, SIMPRO_QUERY_PAGING],
+  [['get'],        /^\/companies\/\d+\/setup\/customFields\/projects\/(\d+)?$/, SIMPRO_QUERY_PAGING],
   // Company-wide asset list, read-only. Needs the search query policy for
   // filters like AssetType.ID=9, Site.ID=in(1,2) and columns=ID,Site,CustomFields.
   [['get'],        /^\/companies\/\d+\/customerAssets\/$/, SIMPRO_QUERY_SEARCH],
@@ -1876,6 +1898,12 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/$/],
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/],
   [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/\d+\/assets\/$/],
+  // Simpro Jobs, making a job: one step per call, in this order (the same sequence the demo tracker's createJob uses). None takes a
+  // query, and each body is checked by simproSyncJobWriteError_ below.
+  [['post'],       /^\/companies\/\d+\/jobs\/$/, /^$/],
+  [['post'],       /^\/companies\/\d+\/jobs\/\d+\/sections\/$/, /^$/],
+  [['post'],       /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/, /^$/],
+  [['patch'],      /^\/companies\/\d+\/jobs\/\d+\/customFields\/\d+$/, /^$/],
   // Attach a generated PDF to a job (Ansur PVT reports), and list the files a job has (names only matter: the Test Bench shows a
   // test as sent when its report is already on the job, wherever it was attached from). Plain query only (pageSize).
   [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/]
@@ -1889,6 +1917,104 @@ const SIMPRO_SYNC_STAGES = ['Pending', 'Progress', 'Complete', 'Archived'];
 // A job's notes are replaced whole by a PATCH (Ansur appends to a fresh copy first), so
 // this is a ceiling on one job's whole notes field, far above any real one.
 const SIMPRO_SYNC_MAX_NOTES = 50000;
+
+// Simpro Jobs: what making a job may carry. A new job is a Service job with a customer, a site and a description, and optionally
+// notes and a priority (Simpro calls it a response time); nothing else (no name, dates, stage, status, people or tags) can be set here.
+const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Customer', 'Site', 'Description', 'Notes', 'ResponseTime', 'Stage'];
+const SIMPRO_JOBS_MAX_HTML = 130000;   // the page caps typed text at 20,000 characters; escaped into HTML (a quote becomes &quot;) it is up to 6 times that, plus tags
+const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
+
+function simproJobsPositiveInt_(v) {
+  return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v > 0 && v < 1e9;
+}
+
+// The body of each write that makes a job. Returns '' when fine (or when the call is not one of these), else why not. Like
+// simproSyncJobPatchError_, this limits the values, so a call made from a browser console can't do anything the tool itself wouldn't.
+function simproSyncJobWriteError_(method, path, body, requestCount) {
+  const isJob = method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path);
+  const isSection = method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/sections\/$/.test(path);
+  const isCentre = method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/.test(path);
+  const isField = method === 'patch' && /^\/companies\/\d+\/jobs\/\d+\/customFields\/\d+$/.test(path);
+  if (!isJob && !isSection && !isCentre && !isField) return '';
+  if (requestCount > 1) return 'is one of several: each step of making a job is sent on its own';
+  const isObj = body && typeof body === 'object' && !Array.isArray(body);
+  if (!isObj) return 'has no body';
+  const keys = Object.keys(body);
+  if (isSection) return keys.length ? 'adds a section with fields, which is not allowed' : '';
+  if (isCentre) {
+    if (keys.length !== 1 || keys[0] !== 'CostCenter' || !simproJobsPositiveInt_(body.CostCenter)) return 'adds something other than a cost centre';
+    return '';
+  }
+  if (isField) {
+    const v = body.Value;
+    if (keys.length !== 1 || keys[0] !== 'Value' || typeof v !== 'string' || !v.trim() || v.length > SIMPRO_JOBS_MAX_FIELD_VALUE || /[\x00-\x1f\x7f]/.test(v)) {
+      return 'sets a custom field to something other than a short piece of text';
+    }
+    return '';
+  }
+  if (keys.some(function (k) { return SIMPRO_JOBS_CREATE_FIELDS.indexOf(k) === -1; })) return 'sets a job field that is not allowed';
+  if (body.Type !== 'Service') return 'makes a job that is not a Service job';
+  if (!simproJobsPositiveInt_(body.Customer) || !simproJobsPositiveInt_(body.Site)) return 'has no customer or site';
+  if (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML) return 'has no description, or one that is too long';
+  if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_JOBS_MAX_HTML)) return 'has notes that are not text or are too long';
+  if (!simproJobsPlainHtml_(body.Description) || ('Notes' in body && !simproJobsPlainHtml_(body.Notes))) return 'has markup other than paragraphs and line breaks';
+  if ('ResponseTime' in body && !simproJobsPositiveInt_(body.ResponseTime)) return 'has a priority that is not an id';
+  if ('Stage' in body && body.Stage !== 'Pending') return 'makes a job that does not start as Pending';
+  return '';
+}
+
+// The page writes a description or note as <p>…</p> paragraphs with <br> line breaks and escapes everything else (&lt; &gt; &amp;), so
+// those three tags are the only markup a call from this tool carries. Anything else with a "<" or ">" (a link, a script, an image, a
+// style) is refused here, so a call made from a browser console can't put it into a job.
+function simproJobsPlainHtml_(html) {
+  return String(html).replace(/<\/?p>|<br>/g, '').indexOf('<') === -1 && String(html).replace(/<\/?p>|<br>/g, '').indexOf('>') === -1;
+}
+
+// ── Simpro Jobs: how far these writes reach ─────────────────────────────────────────────────────────────────────────────────
+// The writes work through the company's one Simpro key, so they are held to what the tool does: add to a job that has just been made,
+// and set only the two custom fields the form sets. A person's own Simpro login might allow more or less than this; the key is shared.
+const SIMPRO_JOBS_NEW_JOB_HOURS = 12;          // a job is "just made" while it is Pending and was last touched within this long
+const SIMPRO_JOBS_FIELD_NAMES = /^(job\s*type|charge\s*categor(y|ies))$/i;
+const SIMPRO_JOBS_CREATES_PER_HOUR = 20;       // per person: far above real use, a ceiling on a runaway or a hostile loop
+
+function simproJobsCacheGet_(key) { try { return CacheService.getScriptCache().get(key); } catch (e) { return null; } }
+function simproJobsCachePut_(key, value, seconds) { try { CacheService.getScriptCache().put(key, value, seconds); } catch (e) { /* no cache: the check is made every time */ } }
+
+// '' when this write may go ahead, else why not. Reads Simpro (with the shared key) to decide, and remembers a good answer briefly.
+function simproJobsScopeError_(method, path, who) {
+  var m;
+  if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
+    // One counter per person per clock hour, so the allowance resets on the hour (a counter whose life is renewed on every create
+    // would be a sliding window that a steady, busy person could eventually hit).
+    const key = 'simproJobsMade_' + String((who && (who.uid || who.email)) || 'unknown') + '_' + Math.floor(Date.now() / 3600000);
+    const made = parseInt(simproJobsCacheGet_(key) || '0', 10) || 0;
+    if (made >= SIMPRO_JOBS_CREATES_PER_HOUR) return 'has already made ' + SIMPRO_JOBS_CREATES_PER_HOUR + ' jobs this hour, which is the most this tool allows';
+    simproJobsCachePut_(key, String(made + 1), 3600);
+    return '';
+  }
+  m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)\/(?:sections\/(?:\d+\/costCenters\/)?|customFields\/(\d+))$/);
+  if (!m || (method !== 'post' && method !== 'patch')) return '';
+  const company = m[1], jobId = m[2], fieldId = m[3];
+
+  if (fieldId) {                                  // only Job Type and Charge Category
+    const fkey = 'simproJobsField_' + company + '_' + fieldId;
+    if (simproJobsCacheGet_(fkey) !== 'ok') {
+      const f = simproFetch('/companies/' + company + '/setup/customFields/projects/' + fieldId, 'get');
+      if (!f.ok || !f.json || !SIMPRO_JOBS_FIELD_NAMES.test(String(f.json.Name || '').trim())) return 'sets a custom field other than Job Type or Charge Category';
+      simproJobsCachePut_(fkey, 'ok', 21600);
+    }
+  }
+  const jkey = 'simproJobsNew_' + company + '_' + jobId;
+  if (simproJobsCacheGet_(jkey) !== 'ok') {       // only a job that has just been made
+    const j = simproFetch('/companies/' + company + '/jobs/' + jobId, 'get');
+    if (!j.ok || !j.json) return 'is for a job Simpro could not show (' + j.code + ')';
+    if (j.json.Stage !== 'Pending') return 'is for a job that is no longer Pending, so this tool will not add to it';
+    const touched = Date.parse(String(j.json.DateModified || ''));
+    if (!isFinite(touched) || Date.now() - touched > SIMPRO_JOBS_NEW_JOB_HOURS * 3600 * 1000) return 'is for a job that was not made or changed in the last ' + SIMPRO_JOBS_NEW_JOB_HOURS + ' hours, so this tool will not add to it';
+    simproJobsCachePut_(jkey, 'ok', 60);
+  }
+  return '';
+}
 
 // What a job PATCH may carry. Returns '' when fine, else why not. The fields are
 // already limited to Stage/Status/Notes; this limits their values, so a call made
@@ -1934,6 +2060,15 @@ function simproSyncWriteSummary_(requests, results) {
     if (method === 'patch' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)$/))) {
       const body = r.body || {};
       text = 'changed job ' + m[1] + ': ' + Object.keys(body).map(function (k) { return k === 'Stage' ? 'Stage to ' + body.Stage : k; }).join(', ');
+    } else if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
+      const made = results && results[i] && results[i].data && results[i].data.ID;
+      text = 'created a Service job' + (made ? ' (job ' + made + ')' : '');
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/$/))) {
+      text = 'added a section to job ' + m[1];
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/\d+\/costCenters\/$/))) {
+      text = 'added a cost centre to job ' + m[1];
+    } else if (method === 'patch' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/customFields\/\d+$/))) {
+      text = 'set a custom field on job ' + m[1];
     } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/attachments\/files\/$/))) {
       text = 'attached a file to job ' + m[1];
     } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/\d+\/costCenters\/\d+\/assets\/$/))) {
@@ -2021,6 +2156,7 @@ function simproSyncAllowed_(method, pathWithQuery) {
   const query = qIdx === -1 ? '' : pathWithQuery.slice(qIdx + 1);
   return SIMPRO_SYNC_ALLOWLIST.some(function (rule) {
     if (rule[0].indexOf(m) === -1 || !rule[1].test(path)) return false;
+    if (rule[3] === true && !query) return false;   // this rule needs a query (see the customer record above)
     return !query || (rule[2] || SIMPRO_QUERY_PLAIN).test(query);
   });
 }
@@ -2228,6 +2364,10 @@ function simproSyncProxy_(payload) {
       const why = simproSyncJobPatchError_(r.body);
       if (why) return respond({ success: false, error: 'Request ' + i + ' ' + why });
     }
+    const jobWriteWhy = simproSyncJobWriteError_(method, path.split('?')[0], r.body, requests.length);
+    if (jobWriteWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobWriteWhy });
+    const jobScopeWhy = simproJobsScopeError_(method, path.split('?')[0], who);
+    if (jobScopeWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobScopeWhy });
     if (method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {   // a GET only lists the job's files
       const body = r.body || {};
       if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {

@@ -8,7 +8,7 @@
   main.section:is(
     [data-section="service"], [data-section="service-orders"], [data-section="maintenance"],
     [data-section="oncall"], [data-section="checklists"], [data-section="simprosync"],
-    [data-section="simprosearch"], [data-section="ansurtopdf"], [data-section="testbench"],
+    [data-section="simprosearch"], [data-section="simprojobs"], [data-section="ansurtopdf"], [data-section="testbench"],
     [data-section="new-equipment"], [data-section="pdf-editor"]
   ) {
     /* Smaller type scale, re-declared with its composites (a composite is worked out where it is declared). */
@@ -24,7 +24,7 @@
     --type-caption: var(--weight-regular) var(--size-caption)/1.35 var(--font-body);
 
     /* Wider page column, tighter edges and gaps. */
-    :is(.sv-page, .so-page, .mt-page, .oc-page, .cl-page, .an-host, .ds-page, .ss-host, .ne-host) {
+    :is(.sv-page, .so-page, .mt-page, .oc-page, .cl-page, .an-host, .ds-page, .sj-page, .ss-host, .ne-host) {
       max-width: 1920px; padding: 12px 20px 28px; gap: 10px;
     }
 
