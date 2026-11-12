@@ -1,0 +1,46 @@
+# Simpro Jobs (`/simprojobs/`, Service menu)
+
+Create, edit and change Simpro jobs from a phone. Owner: Jonathan Nasrun. Visible to admins and anyone with Simpro access, the same
+rule the Simpro relay applies. Mobile first: one column, 56px rows, a full-screen picker with the phone's Back button to leave it.
+
+## Step 1: the new-job form's pickers (read only)
+
+Customer (browse A to Z, or search, Show more), then one of its **Site**s, then **Cost centre** (starts on Service), **Job type**
+(starts on Repair), **Charge category**, **Priority** (starts on Standard). **Nothing can be created or changed in Simpro from here
+yet**: every call is a `GET` through the existing `simproSync` relay, and the tests fail if one isn't.
+
+Where each list comes from (Simpro's own API reference, developer.simprogroup.com/apidoc, v1.0, read 13 Nov 2026):
+
+| Picker | Simpro | Notes |
+|---|---|---|
+| Customer | `GET /customers/` (`search=any`, `CompanyName`/`GivenName`/`FamilyName` filters, `columns`, `pageSize`, `page`, `orderby`) | company and individual customers; a refused way of asking falls back to the next (`CUSTOMER_VARIANTS`) |
+| Site | the customer's own record, `GET /customers/{companies\|individuals}/{id}?columns=ID,Sites`; else `GET /sites/?Customers.ID=` checked row by row | only the `Sites` column is ever readable there (a customer's record also holds banking) |
+| Cost centre | `GET /setup/accounts/costCenters/` | |
+| Priority | `GET /setup/responseTimes/` | Simpro calls a job's priority a **response time** (`ResponseTime` on a job) |
+| Job type, Charge category | job **custom fields**: `GET /setup/customFields/projects/`, found by name, then `/{id}` for the `ListItems` | not built-in job fields. The old tracker set Job Type as custom field 44. If a build names them differently, **Check Simpro** shows the names that exist |
+
+- `src/lookups.js`: what to ask and how to read the answer (no React; tested). `src/Sheets.jsx`: the pickers. `src/App.jsx`: the page.
+- The form is kept in the browser for the session (a phone that switches apps and reloads the page keeps its choices); the setup lists
+  are cached for 30 minutes so a reopened page is instant, and refreshed behind that.
+- **Check Simpro** on the page asks every list once and says which worked (counts and list names, never a customer or site name).
+
+### The relay (needs a deploy)
+
+Step 1 widened `SIMPRO_SYNC_ALLOWLIST` in `backend/apps-script/proxy/Code.js`, read only: customers (list, and a record for `columns=ID,Sites`
+only), sites with the search query policy, `setup/accounts/costCenters`, `setup/responseTimes`, `setup/customFields/projects`. It goes live
+only after `clasp deploy -i` from an up-to-date checkout (`backend/README.md`); until then each picker says the relay "doesn't allow this
+lookup yet". `tests/relay.test.mjs` loads the real `Code.js` and checks what is allowed and what is still refused.
+
+## Later steps (each needs Jonathan's explicit yes, a preview of exactly what will be written, and a relay deploy)
+
+2. Details a job needs: description, notes, asset or serial, contact, due date (what to include is Jonathan's call).
+3. Create the job: `POST /jobs/` (`Type`, `Site`, `Customer`, `ResponseTime`, `CustomFields: [{CustomField, Value}]`, ...), then its cost centre
+   (`POST /jobs/{id}/sections/`, then `.../costCenters/` with `CostCenter`), after a preview and a yes.
+4. Edit or change an existing job (the relay's job `PATCH` allows only Stage, Status and Notes today).
+Each write gets an activity line with no private content (`shared/activity.js`, add `simprojobs` to `APP_LABELS`).
+
+## Tests
+
+```bash
+cd apps/simprojobs && npm test        # invented customers and sites only; nothing real in this public repo
+```

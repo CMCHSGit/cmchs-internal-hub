@@ -1860,7 +1860,18 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/$/],
   [['get'],        /^\/companies\/\d+\/setup\/assetTypes\/(\d+\/customFields\/(\d+)?)?$/],
   [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
-  [['get'],        /^\/companies\/\d+\/sites\/$/],
+  // Sites take the search query policy, so the new-job form can find a customer's sites (Customers.ID, columns, orderby).
+  [['get'],        /^\/companies\/\d+\/sites\/$/, SIMPRO_QUERY_SEARCH],
+  // Simpro Jobs (read only): the pickers of the new-job form. Customers: search, columns, paging. A customer's own record also
+  // holds banking and contacts, so it is only readable for its linked sites: the query must be columns=ID,Sites (rule[3] = a
+  // query is required, since a bare call would return the whole record).
+  [['get'],        /^\/companies\/\d+\/customers\/(companies\/|individuals\/)?$/, SIMPRO_QUERY_SEARCH],
+  [['get'],        /^\/companies\/\d+\/customers\/(companies|individuals)\/\d+$/, /^columns=ID,Sites(,Archived)?$/, true],
+  // Setup lists a job is made with: cost centres, response times (Simpro's name for a job's priority) and the job custom
+  // fields (Job Type, Charge Category: a List field's options are in its ListItems).
+  [['get'],        /^\/companies\/\d+\/setup\/accounts\/costCenters\/$/, SIMPRO_QUERY_SEARCH],
+  [['get'],        /^\/companies\/\d+\/setup\/responseTimes\/$/, SIMPRO_QUERY_SEARCH],
+  [['get'],        /^\/companies\/\d+\/setup\/customFields\/projects\/(\d+)?$/, SIMPRO_QUERY_SEARCH],
   // Company-wide asset list, read-only. Needs the search query policy for
   // filters like AssetType.ID=9, Site.ID=in(1,2) and columns=ID,Site,CustomFields.
   [['get'],        /^\/companies\/\d+\/customerAssets\/$/, SIMPRO_QUERY_SEARCH],
@@ -2021,6 +2032,7 @@ function simproSyncAllowed_(method, pathWithQuery) {
   const query = qIdx === -1 ? '' : pathWithQuery.slice(qIdx + 1);
   return SIMPRO_SYNC_ALLOWLIST.some(function (rule) {
     if (rule[0].indexOf(m) === -1 || !rule[1].test(path)) return false;
+    if (rule[3] === true && !query) return false;   // this rule needs a query (see the customer record above)
     return !query || (rule[2] || SIMPRO_QUERY_PLAIN).test(query);
   });
 }

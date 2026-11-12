@@ -22,6 +22,7 @@ export const SECTIONS = [
   { id: 'knowledge', prefix: '/knowledge/' },
   { id: 'simprosync', prefix: '/simprosync/' },
   { id: 'simprosearch', prefix: '/simprosearch/' },
+  { id: 'simprojobs', prefix: '/simprojobs/' },
   { id: 'ansurtopdf', prefix: '/ansurtopdf/' },
   { id: 'testbench', prefix: '/testbench/' },
   { id: 'new-equipment', prefix: '/new-equipment/' },
