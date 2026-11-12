@@ -61,3 +61,19 @@ test('what the app already holds for a copied week is not touched', () => {
   const p = plan({ '2026-11-09': week(person('Ana Smith', days)), '2026-11-16': week(person('Ana Smith', days)) }, { existing })
   assert.deepEqual(ids(p), ['2026-11-09_u1']) // the app's own 16 Nov entry stays as it is
 })
+
+test('a week that is all leave or training is not a copy, even when it repeats: long leave runs for more than a week', () => {
+  const p = plan({
+    '2026-11-09': week(person('Ana Smith', ['leave', 'leave', 'leave', 'leave', 'leave']), person('Bo Jones', ['Annual Leave', 'Annual Leave', 'Training', '', ''])),
+    '2026-11-16': week(person('Ana Smith', ['Leave', 'Leave', 'Leave', 'Leave', 'Leave']), person('Bo Jones', ['Annual Leave', 'Annual Leave', 'Training', '', ''])),
+  })
+  assert.deepEqual(ids(p), ['2026-11-09_u1', '2026-11-09_u2', '2026-11-16_u1', '2026-11-16_u2'])
+  assert.equal(p.stats.copies, 0)
+})
+
+test('a repeated week that mixes leave with work is still a copy', () => {
+  const days = ['Leave', 'Leave', 'Wellington', '', '']
+  const p = plan({ '2026-11-09': week(person('Ana Smith', days)), '2026-11-16': week(person('Ana Smith', days)) })
+  assert.deepEqual(ids(p), ['2026-11-09_u1'])
+  assert.equal(p.stats.copies, 1)
+})

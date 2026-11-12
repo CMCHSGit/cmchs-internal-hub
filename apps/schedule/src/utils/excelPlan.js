@@ -17,6 +17,7 @@
 import { squash } from './excelSchedule.js'
 import { normalizeSchedule } from './week.js'
 import { shortNames } from './names.js'
+import { statusOf } from './status.js'
 
 // ── Names ─────────────────────────────────────────────────────────────────
 
@@ -252,10 +253,18 @@ function planPersonWeek({ person, existing, excelWins }) {
  *                  sheet says in the current week or any week between (a pasted copy) is left out and counted in
  *                  `stats.copies`, so a week pasted forward in the Excel doesn't become people's entries. Nothing already in
  *                  the app is touched. (See copiedFrom the other way: the app's own "Copy last week" marks what it copies.)
+ *                  A week that is all leave or training (allTimeAway) is never a copy: long leave repeats.
  * → { schedules, onCall, newPeople, userUpdates, weekRows, conflicts, stats, warnings }
  */
 /** A person's five days as one comparable string, '' when nothing is written. */
 export const daysSignature = days => (days.some(d => squash(d)) ? days.map(d => squash(d).toLowerCase()).join('|') : '')
+
+/**
+ * Every day written in is leave or training (read the way the Leave calendar reads it), e.g. a whole
+ * week of "Leave". Time away often runs for more than a week, so a week like this repeating is far more
+ * likely to be real than pasted, and the copy guard lets it through.
+ */
+export const allTimeAway = days => days.some(d => squash(d)) && days.every(d => !squash(d) || ['leave', 'training'].includes(statusOf({ location: squash(d) })))
 
 export function planImport({ weeks, selected, mapping, users, existing, existingOnCall, excelWins = false, skipCopiesFrom = null }) {
   const plan = { schedules: [], onCall: [], newPeople: new Map(), userUpdates: new Map(), weekRows: [], conflicts: [], stats: { ...emptyCounts(), weeks: 0, people: 0, writes: 0, copies: 0 }, warnings: [] }
@@ -263,6 +272,7 @@ export function planImport({ weeks, selected, mapping, users, existing, existing
   if (skipCopiesFrom) for (const [w, people] of weeks) sigs.set(w, new Map(people.map(p => [nameKey(p.name), daysSignature(p.days)])))
   const isCopy = (weekStart, key, p) => {
     if (!skipCopiesFrom || weekStart <= skipCopiesFrom) return false
+    if (allTimeAway(p.days)) return false // a second week of leave is leave, not a copy
     const sig = daysSignature(p.days)
     if (!sig) return false
     for (const [w, m] of sigs) if (w >= skipCopiesFrom && w < weekStart && m.get(key) === sig) return true
