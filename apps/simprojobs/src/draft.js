@@ -33,7 +33,9 @@ export const cleanTitle = (text) => String(text ?? '').replace(/\s+/g, ' ').trim
 export function titleProblem(text) {
   const t = String(text ?? '').replace(/\s+/g, ' ').trim()
   if (/[<>]/.test(t)) return 'A title can’t contain < or >.'
-  if (/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(t)) return 'A title can’t contain hidden text-direction characters.'
+  // The same rule as the relay (simproJobsTitleOk_ in Code.js): nothing hidden, and something readable.
+  if (/[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2060-\u206f\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufeff<>]/.test(t) || /[\ud800-\udbff](?![\udc00-\udfff])|(?:^|[^\ud800-\udbff])[\udc00-\udfff]/.test(t) || /\udb40/.test(t)) return 'A title can’t contain hidden or text-direction characters.'
+  if (t && !/[\p{L}\p{N}]/u.test(t)) return 'A title needs at least one letter or number.'
   if (t.length > MAX_TITLE) return `A title can be up to ${MAX_TITLE} characters.`
   return ''
 }

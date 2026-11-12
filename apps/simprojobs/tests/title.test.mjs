@@ -107,7 +107,68 @@ test('the page refuses hidden text-direction characters in a title and says why,
   const { titleProblem, cleanTitle } = await import('../src/draft.js')
   const rtl = String.fromCharCode(0x202e)
   const sep = String.fromCharCode(0x2028)
-  assert.match(titleProblem('abc' + rtl + 'def'), /hidden text-direction characters/)
+  assert.match(titleProblem('abc' + rtl + 'def'), /hidden or text-direction characters/)
   assert.equal(titleProblem('Māori Health — 日本語'), '')
   assert.equal(cleanTitle('a' + sep + 'b'), 'a b') // a line separator is just a space once cleaned
+})
+
+// ── Hidden characters: the security review's list, built from character codes so nothing invisible sits in this file ──
+const ch = (...codes) => String.fromCharCode(...codes)
+const HIDDEN_ONES = {
+  'a C1 control': ch(0x80), 'next line (NEL)': ch(0x85), 'the last C1 control': ch(0x9f), 'zero-width space': ch(0x200b), 'zero-width joiner': ch(0x200d), 'left-to-right mark': ch(0x200e),
+  'right-to-left mark': ch(0x200f), 'line separator': ch(0x2028), 'paragraph separator': ch(0x2029), 'right-to-left override': ch(0x202e), 'word joiner': ch(0x2060),
+  'invisible times': ch(0x2062), 'a bidi isolate': ch(0x2066), 'pop directional isolate': ch(0x2069), 'Hangul filler': ch(0x3164), 'Hangul choseong filler': ch(0x115f), 'Braille blank': ch(0x2800),
+  'byte-order mark': ch(0xfeff), 'Mongolian vowel separator': ch(0x180e),
+}
+
+test('the relay refuses every hidden or direction-control character inside an otherwise normal title', () => {
+  const r = relay()
+  const good = { Type: 'Service', Customer: 12, Site: 34, Description: '<p>Fault</p>' }
+  for (const [what, c] of Object.entries(HIDDEN_ONES)) {
+    const t = 'Pump ' + c + 'check'
+    assert.match(r.create({ ...good, Name: t }), /title that is not one line of plain text/, 'create: ' + what)
+    assert.match(r.patch({ Name: t }), /title that is not one line of plain text/, 'patch: ' + what)
+  }
+})
+
+test('the relay refuses a title nobody could read: only invisible, only punctuation, or broken', () => {
+  const r = relay()
+  const good = { Type: 'Service', Customer: 12, Site: 34, Description: '<p>Fault</p>' }
+  const bad = [
+    ch(0x200b), ch(0x2060), ch(0x3164), ch(0x2800), '  ' + ch(0x200b) + '  ', ch(0x200b, 0x200b, 0x200b),          // invisible
+    '...', '---', '!!!', '()', '&',                                                                                    // nothing to read
+    String.fromCodePoint(0x1f527), String.fromCodePoint(0x1f527).repeat(5),                                           // emoji only
+    ch(0xd800), 'a' + ch(0xdc00), ch(0xd800) + 'a', 'ab' + ch(0xd83d),                                                 // broken surrogate halves
+    String.fromCodePoint(0xe0041) + 'abc', 'abc' + String.fromCodePoint(0xe007f), String.fromCodePoint(0xe0001),       // tag characters
+  ]
+  for (const t of bad) {
+    assert.match(r.create({ ...good, Name: t }), /title that is not one line of plain text/, 'create: ' + JSON.stringify(t))
+    assert.match(r.patch({ Name: t }), /title that is not one line of plain text/, 'patch: ' + JSON.stringify(t))
+  }
+})
+
+test('the relay still takes ordinary titles: accents, CJK, ampersands, numbers, an emoji beside words', () => {
+  const r = relay()
+  const good = { Type: 'Service', Customer: 12, Site: 34, Description: '<p>Fault</p>' }
+  for (const t of ['Monitor will not power on', 'Smith & Sons — service', 'Défibrillateur Māori 日本語', '12345', 'Pump ' + String.fromCodePoint(0x1f527) + ' check', "O'Brien \"ward\" 4", 'x'.repeat(100)]) {
+    assert.equal(r.create({ ...good, Name: t }), '', t)
+    assert.equal(r.patch({ Name: t }), '', t)
+  }
+  assert.match(r.create({ ...good, Name: 'x'.repeat(101) }), /title that is not one line/)
+})
+
+test('the page says the same in words, before anything is sent', async () => {
+  const { titleProblem, missing } = await import('../src/draft.js')
+  for (const [what, c] of Object.entries(HIDDEN_ONES)) {
+    if (c === ch(0x2028) || c === ch(0x2029) || c === ch(0xfeff)) continue          // spaces to the page's cleaning, which collapses them
+    assert.match(titleProblem('Pump ' + c + 'check'), /hidden or text-direction characters/, what)
+  }
+  for (const t of [ch(0x200b), ch(0x3164), ch(0x2800), ch(0xd800), 'a' + ch(0xdc00), String.fromCodePoint(0xe0041) + 'abc']) assert.match(titleProblem(t), /hidden or text-direction characters/, JSON.stringify(t))
+  for (const t of ['...', '&', String.fromCodePoint(0x1f527)]) assert.match(titleProblem(t), /at least one letter or number/, JSON.stringify(t))
+  for (const t of ['Pump check', '12345', 'Smith & Sons', 'Défibrillateur 日本語', '']) assert.equal(titleProblem(t), '', JSON.stringify(t))
+  // An unusable title counts as missing, so the form can't be reviewed with one.
+  const full = { customer: { ID: 1 }, site: { id: 2 }, costCentre: { id: 3 }, jobType: { id: 'R' }, chargeCategory: { id: 'W' }, priority: { id: 'S' }, description: 'x' }
+  assert.deepEqual(missing({ ...full, title: ch(0x200b) }), ['Title'])
+  assert.deepEqual(missing({ ...full, title: '...' }), ['Title'])
+  assert.deepEqual(missing({ ...full, title: 'Pump check' }), [])
 })

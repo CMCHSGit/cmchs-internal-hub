@@ -1926,8 +1926,13 @@ const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
 // A job's title (Simpro's "Name") is one short line of plain text: the page allows 100 characters and never "<" or ">" (it is not HTML).
 const SIMPRO_JOBS_MAX_TITLE = 100;
 function simproJobsTitleOk_(v) {
-  // No control characters, no < or >, no line or paragraph separators (U+2028/2029) and no hidden text-direction marks (U+200E/F, U+202A-E, U+2066-9).
-  return typeof v === 'string' && v.trim().length > 0 && v.length <= SIMPRO_JOBS_MAX_TITLE && !/[\x00-\x1f\x7f<>\u2028\u2029\u200e\u200f\u202a-\u202e\u2066-\u2069]/.test(v);
+  if (typeof v !== 'string' || !v.trim().length || v.length > SIMPRO_JOBS_MAX_TITLE) return false;
+  // Nothing hidden: no control or C1 control characters, zero-width and text-direction marks, line and paragraph separators, invisible
+  // operators, fillers that draw as blank (Hangul, Braille), a byte-order mark, and no < or > (a title is plain text, not HTML).
+  if (/[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2060-\u206f\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufeff<>]/.test(v)) return false;
+  // No broken surrogate halves and no Unicode tag characters (the U+E0000 block, whose high surrogate is DB40).
+  if (/[\ud800-\udbff](?![\udc00-\udfff])|(?:^|[^\ud800-\udbff])[\udc00-\udfff]/.test(v) || /\udb40/.test(v)) return false;
+  return /[\p{L}\p{N}]/u.test(v);      // and something a person can read: a letter or a digit
 }
 
 function simproJobsPositiveInt_(v) {
