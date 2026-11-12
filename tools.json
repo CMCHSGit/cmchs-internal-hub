@@ -15,7 +15,7 @@
     "name": "Demo equipment tracker",
     "short": "Demo tracker",
     "description": "Scan, loan, and track CMCHS demo equipment",
-    "link": "/demo/",
+    "link": "/equipment/",
     "category": "Everyday",
     "icon": "package",
     "opens": "here",

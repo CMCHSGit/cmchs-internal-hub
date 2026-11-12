@@ -1,4 +1,4 @@
-// npm test -w apps/equipment — /demo/ (apps/demo/build.mjs): old links still forward, a bare visit shows the retired error.
+// npm test -w apps/equipment — /demo/ (apps/demo/build.mjs): every visit goes to the new tracker, old links with their query and hash.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
@@ -12,12 +12,12 @@ const run = (search, hash = '') => {
   return calls
 }
 
-test('a bare /demo/ does not forward: it shows the retired error', () => {
-  assert.deepEqual(run(''), [])
-  assert.deepEqual(run('?utm=x', '#/loans'), [])
-  assert.match(PAGE, /has been retired/)
+test('a bare /demo/ opens the new tracker', () => {
+  assert.deepEqual(run(''), ['/equipment/'])
+  assert.deepEqual(run('?utm=x', '#/loans'), ['/equipment/?utm=x#/loans'])
+  assert.match(PAGE, /http-equiv="refresh" content="0; url=\/equipment\/"/)
   assert.match(PAGE, /href="\/equipment\/"/)
-  assert.doesNotMatch(PAGE, /http-equiv="refresh"/)
+  assert.doesNotMatch(PAGE, /retired/)
 })
 
 test('every old link still forwards with its query and hash', () => {
@@ -25,8 +25,8 @@ test('every old link still forwards with its query and hash', () => {
   assert.deepEqual(run('?newLoan=1&ref=r1&loanTo=A'), ['/equipment/?newLoan=1&ref=r1&loanTo=A'])
 })
 
-test('the forward list covers every query name linkTarget reads', () => {
+test('the old link names are the ones linkTarget reads', () => {
   const src = linkTarget.toString()
   for (const k of OLD_LINK_KEYS) assert.ok(src.includes(`'${k}'`), `${k} is read by linkTarget`)
-  for (const k of ['newLoan', 'reassign', 'open', 'return', 'extend']) assert.ok(OLD_LINK_KEYS.includes(k), `${k} still forwards`)
+  for (const k of ['newLoan', 'reassign', 'open', 'return', 'extend']) assert.ok(OLD_LINK_KEYS.includes(k), `${k} is listed`)
 })
