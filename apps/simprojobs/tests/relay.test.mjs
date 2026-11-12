@@ -18,7 +18,6 @@ test('the new-job form’s reads are allowed', () => {
     '/companies/3/customers/individuals/12?columns=ID,Sites,Archived',
     '/companies/3/sites/?Customers.ID=12&columns=ID,Name,Customers,Archived&orderby=Name&pageSize=250',
     '/companies/3/setup/accounts/costCenters/?pageSize=250',
-    '/companies/3/setup/responseTimes/?pageSize=250',
     '/companies/3/setup/customFields/projects/?pageSize=250',
     '/companies/3/setup/customFields/projects/44',
   ]) assert.equal(allowed('get', path), true, path)
@@ -86,8 +85,10 @@ test('the sites list: paging as before, the form’s customer filter, and no oth
   }
 })
 
-test('the setup lists take paging and nothing else', () => {
-  for (const p of ['/companies/3/setup/accounts/costCenters/', '/companies/3/setup/responseTimes/', '/companies/3/setup/customFields/projects/', '/companies/3/setup/customFields/projects/44']) {
+test('the setup lists take paging and nothing else; response times are not read at all (priority is a custom field)', () => {
+  assert.equal(allowed('get', '/companies/3/setup/responseTimes/'), false)
+  assert.equal(allowed('get', '/companies/3/setup/responseTimes/?pageSize=250'), false)
+  for (const p of ['/companies/3/setup/accounts/costCenters/', '/companies/3/setup/customFields/projects/', '/companies/3/setup/customFields/projects/44']) {
     assert.equal(allowed('get', p), true, p)
     assert.equal(allowed('get', p + '?pageSize=250&page=2'), true, p)
     for (const bad of ['columns=ID,Name', 'Name=%25a%25', 'search=any', 'orderby=Name', 'pageSize=abc', 'x=1']) assert.equal(allowed('get', p + '?' + bad), false, p + ' ' + bad)

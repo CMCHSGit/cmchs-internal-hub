@@ -7,9 +7,10 @@
                  pageSize (max 250), page, orderby; a column filter is Field=%25text%25
    - sites       a customer's record has Sites (its linked sites); /sites/ rows are {ID, Name}, full records also hold Customers
    - cost centre GET /setup/accounts/costCenters/ {ID, Name}
-   - priority    Simpro calls it a response time: GET /setup/responseTimes/ {ID, Name, Archived}; on a job it is ResponseTime
-   - job type    not a built-in field: a custom field on jobs (GET /setup/customFields/projects/ {ID, Name, Type}); a List field's
-   - charge cat. options are the ListItems of GET /setup/customFields/projects/{id}. Which field is which is found by name. */
+   - job type, charge category, priority: not built-in job fields but custom fields on jobs (GET /setup/customFields/projects/
+                 {ID, Name, Type}); a List field's options are the ListItems of GET /setup/customFields/projects/{id}. Which field is
+                 which is found by name. In CHS's Simpro (confirmed live, 13 Nov 2026) they are "Job Type", "Charge category - CHS" and
+                 "Priority (incl callouts) - CHS"; Simpro's own "response times" list, which the docs suggest for priority, is empty there. */
 import { SendError, ok, simproErr } from '../../testbench/src/simpro-api.js'
 
 export const PAGE_SIZE = 30
@@ -17,8 +18,15 @@ export const SETUP_PAGE = 250
 
 /** What the form starts on, when Simpro has an option of that name. */
 export const DEFAULTS = { costCentre: 'Service', jobType: 'Repair', priority: 'Standard' }
-/** The job custom fields the form needs, found by name (case and spacing ignored). */
-export const FIELD_NAMES = { jobType: /^job\s*type$/i, chargeCategory: /^charge\s*categor(y|ies)$/i }
+/**
+ * The job custom fields the form needs, found by name (case and spacing ignored; CHS's " - CHS" suffix and the "(incl callouts)" note
+ * are accepted). The relay checks a custom field's name against the same three shapes (SIMPRO_JOBS_FIELD_NAMES in Code.js): keep them equal.
+ */
+export const FIELD_NAMES = {
+  jobType: /^job\s*type$/i,
+  chargeCategory: /^charge\s*categor(y|ies)(\s*-\s*chs)?$/i,
+  priority: /^priority(\s*\([^)]*\))?(\s*-\s*chs)?$/i,
+}
 
 /**
  * The text in Simpro's wildcard form (% on both ends, so it can be anywhere), safe to put in the address. Only letters, digits and
@@ -100,11 +108,28 @@ const cleanSites = (list) => {
  */
 export async function loadSites(call, companyId, customer) {
   const first = await call('GET', `/companies/${companyId}/customers/${customer.kind}/${customer.ID}?columns=ID,Sites`)
-  if (ok(first) && first.data && Array.isArray(first.data.Sites)) return { sites: cleanSites(first.data.Sites), via: 'customer' }
-  const second = await call('GET', `/companies/${companyId}/sites/?Customers.ID=${customer.ID}&columns=ID,Name,Customers,Archived&orderby=Name&pageSize=${SETUP_PAGE}`)
-  const rows = rowsOf(second, 'Sites')
-  if (rows.some((s) => !Array.isArray(s.Customers))) throw new SendError(`This customer’s sites could not be read safely (${simproErr(first)})`, false)
-  return { sites: cleanSites(rows.filter((s) => s.Customers.some((c) => (c?.ID ?? c) === customer.ID))), via: 'sites' }
+  const own = ok(first) && first.data && Array.isArray(first.data.Sites) ? cleanSites(first.data.Sites) : null
+  if (own && own.length) return { sites: own, via: 'customer' }
+  // The record gave no sites (or no Sites column): the site list is asked too, so a customer is never shown as having none only because
+  // one way of asking came back empty. If that second way fails and the record did answer, the record's empty answer stands.
+  const noneFound = { sites: [], via: 'customer' }
+  let second
+  try {
+    second = await call('GET', `/companies/${companyId}/sites/?Customers.ID=${customer.ID}&columns=ID,Name,Customers,Archived&orderby=Name&pageSize=${SETUP_PAGE}`)
+  } catch (e) {
+    if (own) return noneFound
+    throw e
+  }
+  if (!ok(second) || !Array.isArray(second.data)) {
+    if (own) return noneFound
+    throw new SendError(`Sites: ${simproErr(second)}`, second.status >= 500 || second.status === 429)
+  }
+  if (second.data.some((s) => !Array.isArray(s.Customers))) {
+    if (own) return noneFound
+    throw new SendError(`This customer’s sites could not be read safely (${simproErr(first)})`, false)
+  }
+  const sites = cleanSites(second.data.filter((s) => s.Customers.some((c) => (c?.ID ?? c) === customer.ID)))
+  return { sites, via: sites.length ? 'sites' : 'customer' }
 }
 
 // ── Setup: the options on the form ─────────────────────────────────────────────────────────────────────────────────────────
@@ -114,11 +139,6 @@ const asOptions = (rows) => rows.map((x) => ({ id: x.ID, name: String(x.Name ?? 
 
 export async function loadCostCentres(call, companyId) {
   return asOptions(activeOnly(rowsOf(await call('GET', `/companies/${companyId}/setup/accounts/costCenters/?pageSize=${SETUP_PAGE}`), 'Cost centres')))
-}
-
-/** Simpro's response times are what its job form calls priority. */
-export async function loadPriorities(call, companyId) {
-  return asOptions(activeOnly(rowsOf(await call('GET', `/companies/${companyId}/setup/responseTimes/?pageSize=${SETUP_PAGE}`), 'Priorities')))
 }
 
 /** Every custom field a job can have: {ID, Name, Type}. */
@@ -153,9 +173,8 @@ export async function loadSetup(call, companyId) {
     if (field.Type && field.Type !== 'List') throw new Error(`“${field.Name}” is a ${field.Type} field in Simpro, not a list.`)
     return loadFieldOptions(call, companyId, field.ID)
   }
-  const [costCentre, priority, fieldsRes] = await Promise.all([
+  const [costCentre, fieldsRes] = await Promise.all([
     wrap(() => loadCostCentres(call, companyId)),
-    wrap(() => loadPriorities(call, companyId)),
     (async () => { try { return { fields: await loadJobFields(call, companyId), error: '' } } catch (e) { return { fields: [], error: friendly(e) } } })(),
   ])
   const fieldPart = async (which, label) => {
@@ -164,7 +183,7 @@ export async function loadSetup(call, companyId) {
     const r = await wrap(fieldPicker(fieldsRes.fields, which, label))
     return { ...r, field: field ? { id: field.ID, name: field.Name } : null }
   }
-  const [jobType, chargeCategory] = await Promise.all([fieldPart('jobType', 'Job Type'), fieldPart('chargeCategory', 'Charge Category')])
+  const [jobType, chargeCategory, priority] = await Promise.all([fieldPart('jobType', 'Job Type'), fieldPart('chargeCategory', 'Charge Category'), fieldPart('priority', 'Priority')])
   return { costCentre, priority, jobType, chargeCategory, fieldNames: fieldsRes.fields.map((f) => ({ name: f.Name, type: f.Type })) }
 }
 
@@ -180,20 +199,26 @@ export async function runChecks(call, companyId) {
   const add = (label, state, detail) => out.push({ label, state, detail })
   const attempt = async (label, fn) => { try { await fn() } catch (e) { add(label, 'fail', friendly(e)) } }
 
-  let customer = null
+  let sample = []
   await attempt('Customers (browse)', async () => {
     const r = await loadCustomers(call, companyId, '', 1, 0)
-    customer = r.rows[0] || null
+    sample = [0, 4, 8, 12, 16, 20].map((i) => r.rows[i]).filter(Boolean)
     add('Customers (browse)', r.rows.length ? 'ok' : 'warn', `${r.rows.length}${r.more ? '+' : ''} on the first page; asked way ${r.variant + 1} of ${CUSTOMER_VARIANTS}${r.variant ? ' (the first ways were refused)' : ''}`)
   })
   await attempt('Customers (search)', async () => {
     const r = await loadCustomers(call, companyId, 'a', 1, 0)
     add('Customers (search)', r.rows.length ? 'ok' : 'warn', `a search for one letter found ${r.rows.length}${r.more ? '+' : ''}`)
   })
-  if (customer) {
+  if (sample.length) {
+    // Several customers, spread down the first page: the first one A to Z may well have no sites, which would prove nothing.
     await attempt('Sites of a customer', async () => {
-      const r = await loadSites(call, companyId, customer)
-      add('Sites of a customer', 'ok', `${r.sites.length} sites for the first customer, from ${r.via === 'customer' ? 'its own record' : 'the site list'}`)
+      const results = await Promise.all(sample.map((c) => loadSites(call, companyId, c).catch((e) => ({ error: friendly(e) }))))
+      const failed = results.filter((r) => r.error)
+      const withSites = results.filter((r) => r.sites?.length)
+      const most = withSites.reduce((m, r) => Math.max(m, r.sites.length), 0)
+      const via = [...new Set(withSites.map((r) => (r.via === 'customer' ? 'the customer’s own record' : 'the site list')))].join(' and ')
+      if (failed.length === results.length) return add('Sites of a customer', 'fail', failed[0].error)
+      add('Sites of a customer', withSites.length ? 'ok' : 'warn', `${withSites.length} of ${results.length} sampled customers have sites${withSites.length ? ` (up to ${most}; read from ${via})` : ': none of them, which is odd: tell me if you know one that has a site'}${failed.length ? `; ${failed.length} could not be read` : ''}`)
     })
   }
   const setup = await loadSetup(call, companyId)
@@ -203,7 +228,7 @@ export async function runChecks(call, companyId) {
     add(label, part.options.length ? 'ok' : 'warn', `${part.options.length} options${part.field ? ` (field “${part.field.name}”)` : ''}${wanted ? (has ? `; “${has.name}” is there` : `; no “${wanted}” to start on`) : ''}`)
   }
   show('Cost centres', setup.costCentre, DEFAULTS.costCentre)
-  show('Priorities', setup.priority, DEFAULTS.priority)
+  show('Priority', setup.priority, DEFAULTS.priority)
   show('Job type', setup.jobType, DEFAULTS.jobType)
   show('Charge category', setup.chargeCategory)
   add('Job custom fields in Simpro', setup.fieldNames.length ? 'ok' : 'warn', setup.fieldNames.length ? setup.fieldNames.map((f) => `${f.name} (${f.type})`).join(', ') : 'none listed')
