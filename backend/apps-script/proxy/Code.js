@@ -1910,7 +1910,7 @@ const SIMPRO_SYNC_ALLOWLIST = [
 // Methods only a role:'admin' user may relay. A simproAccess grant (below)
 // covers reading and syncing, never deleting.
 const SIMPRO_SYNC_ADMIN_ONLY = ['delete'];
-const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes'];
+const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes', 'Description', 'Name'];   // Description: only ever added to; Name: a plain title (simproJobsScopeError_)
 // Simpro's four job stages (the Ansur and SimproSync pickers offer exactly these).
 const SIMPRO_SYNC_STAGES = ['Pending', 'Progress', 'Complete', 'Archived'];
 // A job's notes are replaced whole by a PATCH (Ansur appends to a fresh copy first), so
@@ -1919,9 +1919,21 @@ const SIMPRO_SYNC_MAX_NOTES = 50000;
 
 // Simpro Jobs: what making a job may carry. A new job is a Service job with a customer, a site and a description, and optionally
 // notes; nothing else (no name, dates, stage, status, people or tags) can be set here.
-const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Customer', 'Site', 'Description', 'Notes', 'Stage'];
+const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Name', 'Customer', 'Site', 'Description', 'Notes', 'Stage'];
 const SIMPRO_JOBS_MAX_HTML = 130000;   // the page caps typed text at 20,000 characters; escaped into HTML (a quote becomes &quot;) it is up to 6 times that, plus tags
 const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
+
+// A job's title (Simpro's "Name") is one short line of plain text: the page allows 100 characters and never "<" or ">" (it is not HTML).
+const SIMPRO_JOBS_MAX_TITLE = 100;
+function simproJobsTitleOk_(v) {
+  if (typeof v !== 'string' || !v.trim().length || v.length > SIMPRO_JOBS_MAX_TITLE) return false;
+  // Nothing hidden: no control or C1 control characters, zero-width and text-direction marks, line and paragraph separators, invisible
+  // operators, fillers that draw as blank (Hangul, Braille), a byte-order mark, and no < or > (a title is plain text, not HTML).
+  if (/[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028-\u202e\u2060-\u206f\u115f\u1160\u17b4\u17b5\u180e\u2800\u3164\ufeff<>]/.test(v)) return false;
+  // No broken surrogate halves and no Unicode tag characters (the U+E0000 block, whose high surrogate is DB40).
+  if (/[\ud800-\udbff](?![\udc00-\udfff])|(?:^|[^\ud800-\udbff])[\udc00-\udfff]/.test(v) || /\udb40/.test(v)) return false;
+  return /[\p{L}\p{N}]/u.test(v);      // and something a person can read: a letter or a digit
+}
 
 function simproJobsPositiveInt_(v) {
   return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v > 0 && v < 1e9;
@@ -1953,6 +1965,7 @@ function simproSyncJobWriteError_(method, path, body, requestCount) {
   }
   if (keys.some(function (k) { return SIMPRO_JOBS_CREATE_FIELDS.indexOf(k) === -1; })) return 'sets a job field that is not allowed';
   if (body.Type !== 'Service') return 'makes a job that is not a Service job';
+  if ('Name' in body && !simproJobsTitleOk_(body.Name)) return 'has a title that is not one line of plain text up to ' + SIMPRO_JOBS_MAX_TITLE + ' characters';
   if (!simproJobsPositiveInt_(body.Customer) || !simproJobsPositiveInt_(body.Site)) return 'has no customer or site';
   if (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML) return 'has no description, or one that is too long';
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_JOBS_MAX_HTML)) return 'has notes that are not text or are too long';
@@ -1972,6 +1985,7 @@ function simproJobsPlainHtml_(html) {
 // The writes work through the company's one Simpro key, so they are held to what the tool does: add to a job that has just been made,
 // and set only the three custom fields the form sets. A person's own Simpro login might allow more or less than this; the key is shared.
 const SIMPRO_JOBS_NEW_JOB_HOURS = 12;          // a job is "just made" while it is Pending and was last touched within this long
+const SIMPRO_JOBS_EDITABLE_STAGES = ['Pending', 'Progress', 'Complete'];   // a job past these (Invoiced, Archived) is not edited here
 // The three custom fields the form sets, as they are named in CHS's Simpro ("Job Type", "Charge category - CHS", "Priority (incl callouts) - CHS");
 // keep equal to FIELD_NAMES in apps/simprojobs/src/lookups.js.
 const SIMPRO_JOBS_FIELD_NAMES = /^(job\s*type|charge\s*categor(y|ies)(\s*-\s*chs)?|priority(\s*\([^)]*\))?(\s*-\s*chs)?)$/i;
@@ -1981,7 +1995,7 @@ function simproJobsCacheGet_(key) { try { return CacheService.getScriptCache().g
 function simproJobsCachePut_(key, value, seconds) { try { CacheService.getScriptCache().put(key, value, seconds); } catch (e) { /* no cache: the check is made every time */ } }
 
 // '' when this write may go ahead, else why not. Reads Simpro (with the shared key) to decide, and remembers a good answer briefly.
-function simproJobsScopeError_(method, path, who) {
+function simproJobsScopeError_(method, path, who, body) {
   var m;
   if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
     // One counter per person per clock hour, so the allowance resets on the hour (a counter whose life is renewed on every create
@@ -1992,17 +2006,44 @@ function simproJobsScopeError_(method, path, who) {
     simproJobsCachePut_(key, String(made + 1), 3600);
     return '';
   }
+  // Changing a job's description or title (the Name): on a job that is not yet invoiced or archived, and a description only ever by adding
+  // to the end of what is there (the page appends; it never replaces). The relay reads the job itself, so a call made from a browser
+  // console can't rewrite a description.
+  if (method === 'patch' && (m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)$/)) && body && typeof body === 'object' && ('Description' in body || 'Name' in body)) {
+    const dj = simproFetch('/companies/' + m[1] + '/jobs/' + m[2], 'get');
+    if (!dj.ok || !dj.json) return 'is for a job Simpro could not show (' + dj.code + ')';
+    if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(dj.json.Stage) === -1) return 'is for a job that is ' + String(dj.json.Stage) + ', so its description or title can no longer be changed here';
+    if ('Description' in body) {
+      const current = String(dj.json.Description || '');
+      // A description that already ends in an unfinished tag (text pasted into Simpro) would swallow the start of what is added and could
+      // turn it into a live tag: nothing is added to it here.
+      if (current.lastIndexOf('<') > current.lastIndexOf('>')) return 'is for a description that ends in the middle of a tag, so nothing can be added to it here';
+      const next = String(body.Description);
+      if (next.length <= current.length || next.indexOf(current) !== 0) return 'changes the description other than by adding to the end of it';
+      if (!simproJobsPlainHtml_(next.slice(current.length))) return 'adds markup other than paragraphs and line breaks to the description';
+    }
+    return '';
+  }
+
   m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)\/(?:sections\/(?:\d+\/costCenters\/)?|customFields\/(\d+))$/);
   if (!m || (method !== 'post' && method !== 'patch')) return '';
   const company = m[1], jobId = m[2], fieldId = m[3];
 
-  if (fieldId) {                                  // only Job Type and Charge Category
+  if (fieldId) {                                  // only Job Type, Charge category and Priority, on a job that is not yet invoiced or archived
     const fkey = 'simproJobsField_' + company + '_' + fieldId;
     if (simproJobsCacheGet_(fkey) !== 'ok') {
       const f = simproFetch('/companies/' + company + '/setup/customFields/projects/' + fieldId, 'get');
       if (!f.ok || !f.json || !SIMPRO_JOBS_FIELD_NAMES.test(String(f.json.Name || '').trim())) return 'sets a custom field other than Job Type, Charge Category or Priority';
       simproJobsCachePut_(fkey, 'ok', 21600);
     }
+    const okey = 'simproJobsOpen_' + company + '_' + jobId;
+    if (simproJobsCacheGet_(okey) !== 'ok') {
+      const oj = simproFetch('/companies/' + company + '/jobs/' + jobId, 'get');
+      if (!oj.ok || !oj.json) return 'is for a job Simpro could not show (' + oj.code + ')';
+      if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(oj.json.Stage) === -1) return 'is for a job that is ' + String(oj.json.Stage) + ', so its custom fields can no longer be changed here';
+      simproJobsCachePut_(okey, 'ok', 60);
+    }
+    return '';
   }
   const jkey = 'simproJobsNew_' + company + '_' + jobId;
   if (simproJobsCacheGet_(jkey) !== 'ok') {       // only a job that has just been made
@@ -2031,6 +2072,8 @@ function simproSyncJobPatchError_(body) {
     if (typeof s !== 'number' || !isFinite(s) || Math.floor(s) !== s || s < 0) return 'sets a status that is not a status code';
   }
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_SYNC_MAX_NOTES)) return 'sets notes that are not text or are too long';
+  if ('Description' in body && (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML)) return 'sets a description that is not text or is too long';
+  if ('Name' in body && !simproJobsTitleOk_(body.Name)) return 'sets a title that is not one line of plain text up to ' + SIMPRO_JOBS_MAX_TITLE + ' characters';
   return '';
 }
 
@@ -2366,7 +2409,7 @@ function simproSyncProxy_(payload) {
     }
     const jobWriteWhy = simproSyncJobWriteError_(method, path.split('?')[0], r.body, requests.length);
     if (jobWriteWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobWriteWhy });
-    const jobScopeWhy = simproJobsScopeError_(method, path.split('?')[0], who);
+    const jobScopeWhy = simproJobsScopeError_(method, path.split('?')[0], who, r.body);
     if (jobScopeWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobScopeWhy });
     if (method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {   // a GET only lists the job's files
       const body = r.body || {};
