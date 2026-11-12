@@ -1862,7 +1862,7 @@ const SIMPRO_QUERY_SEARCH = /^[A-Za-z0-9=&%+,.()\-_: ]*$/;
 // Paging only: the setup lists a job is made with have nothing to filter or select.
 const SIMPRO_QUERY_PAGING = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5})(?:&|$))+$/;
 // The customers list: the picker's columns and name filters only, and columns= must be there (rule[3]).
-const SIMPRO_QUERY_CUSTOMER_LIST = /^(?=(?:.*&)?columns=)(?:(?:columns=ID(?:,(?:Type|CompanyName|GivenName|FamilyName|Archived))*|pageSize=\d{1,3}|page=\d{1,5}|orderby=-?(?:ID|CompanyName|GivenName|FamilyName)|search=(?:any|all)|(?:CompanyName|GivenName|FamilyName)=[A-Za-z0-9%+.\-_ ]{1,200})(?:&|$))+$/;
+const SIMPRO_QUERY_CUSTOMER_LIST = /^(?=(?:.*&)?columns=)(?:(?:columns=ID(?:,(?:Type|CompanyName|GivenName|FamilyName|Archived))*|pageSize=\d{1,3}|page=\d{1,5}|orderby=-?(?:ID|CompanyName|GivenName|FamilyName)|search=(?:any|all)|(?:CompanyName|GivenName|FamilyName)=(?:[A-Za-z0-9.\-_]|%25|%20){1,200})(?:&|$))+$/;
 // The sites list: paging (SimproSync), plus the new-job form's customer filter and its small column set.
 const SIMPRO_QUERY_SITE_LIST = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5}|columns=ID(?:,(?:Name|Customers|Archived))*|orderby=-?(?:ID|Name)|Customers\.ID=\d{1,9})(?:&|$))+$/;
 

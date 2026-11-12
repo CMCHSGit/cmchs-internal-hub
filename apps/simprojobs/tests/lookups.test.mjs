@@ -70,8 +70,16 @@ function fakeSimpro(opts = {}) {
   const call = makeCall({ getToken: async () => 'token', proxyUrl: 'https://proxy.invalid/', fetchFn })
   return { call, seen }
 }
-test('likeTerm wraps in wildcards and escapes what would break an address', () => {
-  assert.equal(likeTerm('A&E (north)'), '%25A%26E%20%28north%29%25')
+test('likeTerm wraps in wildcards; any character that could break an address becomes a wildcard itself', () => {
+  assert.equal(likeTerm('mid central'), '%25mid%20central%25')
+  assert.equal(likeTerm('A&E (north)'), '%25A%25E%20%25north%25')
+  assert.equal(likeTerm('Ben & Jerry’s'), '%25Ben%20%25%20Jerry%25s%25')
+  assert.equal(likeTerm('Māori Health'), '%25M%25ori%20Health%25')
+  assert.equal(likeTerm("x=1&columns=Banking"), '%25x%251%25columns%25Banking%25')
+  assert.equal(likeTerm('St. Mary-Ann_2'), '%25St.%20Mary-Ann_2%25')
+  // Whatever is typed, a filter value is only ever letters, digits, . - _ , %20 and %25.
+  for (const t of ['', ' ', '&&&', '%', '%26', '100%', 'a\nb', '日本語', 'x'.repeat(500)]) assert.match(likeTerm(t), /^(?:[A-Za-z0-9.\-_]|%25|%20)+$/, JSON.stringify(t).slice(0, 20))
+  assert.ok(likeTerm('x'.repeat(500)).length <= 110)
 })
 
 test('customerName and customerKind read both kinds of customer', () => {

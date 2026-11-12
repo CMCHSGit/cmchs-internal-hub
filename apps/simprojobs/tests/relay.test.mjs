@@ -93,3 +93,18 @@ test('the setup lists take paging and nothing else', () => {
     for (const bad of ['columns=ID,Name', 'Name=%25a%25', 'search=any', 'orderby=Name', 'pageSize=abc', 'x=1']) assert.equal(allowed('get', p + '?' + bad), false, p + ' ' + bad)
   }
 })
+
+test('a filter value is only letters, digits, . - _ , %20 and %25: an encoded & or = can never ride inside one', () => {
+  const ok = 'columns=ID,Type,CompanyName,GivenName,FamilyName&pageSize=30'
+  for (const field of ['CompanyName', 'GivenName', 'FamilyName']) {
+    assert.equal(allowed('get', `/companies/3/customers/?${ok}&${field}=%25mid%20central%25`), true, field)
+    for (const bad of ['a%26columns%3DBanking%26x', 'a%26b', 'a%3Db', 'a%2Cb', 'a%27b', 'a%0Ab', 'a%00b', 'a%2f', 'a%C4%81', 'a+b', 'a b', 'a%2', 'a%', 'a%25%', '']) {
+      assert.equal(allowed('get', `/companies/3/customers/?${ok}&${field}=${bad}`), false, field + '=' + bad)
+    }
+  }
+  // Every search the page can build (whatever is typed) gets through, because the page turns the odd characters into wildcards.
+  for (const typed of ['Ben & Jerry’s', 'Māori Health', 'x=1&columns=Banking', '100%', 'a\nb', '日本語', 'St. Mary-Ann_2', 'x'.repeat(500)]) {
+    assert.equal(allowed('get', customersPath(3, typed, 1, 0)), true, typed.slice(0, 20))
+    assert.equal(allowed('get', customersPath(3, typed, 2, 1)), true, typed.slice(0, 20))
+  }
+})

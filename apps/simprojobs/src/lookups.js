@@ -20,10 +20,16 @@ export const DEFAULTS = { costCentre: 'Service', jobType: 'Repair', priority: 'S
 /** The job custom fields the form needs, found by name (case and spacing ignored). */
 export const FIELD_NAMES = { jobType: /^job\s*type$/i, chargeCategory: /^charge\s*categor(y|ies)$/i }
 
-/** The text in Simpro's wildcard form (% on both ends, so it can be anywhere), safe to put in the address. */
+/**
+ * The text in Simpro's wildcard form (% on both ends, so it can be anywhere), safe to put in the address. Only letters, digits and
+ * . - _ go through as they are and a space as %20; any other character (an &, an apostrophe, a macron) becomes Simpro's % wildcard
+ * instead of being encoded, so "Ben & Jerry's" asks for "Ben % Jerry%s" and still finds it. That keeps a filter value to the few
+ * characters the relay accepts, so a value can never carry a "&" or "=" of its own.
+ */
 export function likeTerm(text) {
-  const enc = encodeURIComponent(String(text).trim()).replace(/[!'()*~]/g, (c) => '%' + c.charCodeAt(0).toString(16).toUpperCase())
-  return '%25' + enc + '%25'
+  let out = ''
+  for (const ch of String(text).trim().slice(0, 100)) out += /[A-Za-z0-9.\-_]/.test(ch) ? ch : ch === ' ' ? '%20' : '%25'
+  return ('%25' + out + '%25').replace(/(?:%25){2,}/g, '%25')
 }
 
 /** A relay that has not been updated yet answers "is not allowed" to the new lookups: say so in words. */
