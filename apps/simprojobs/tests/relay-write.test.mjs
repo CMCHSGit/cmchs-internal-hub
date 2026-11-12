@@ -27,7 +27,7 @@ test('the five steps of making a job are allowed', () => {
 test('a new job is a Service job with a customer, a site and a description, and nothing else can be set', () => {
   for (const [label, body] of [
     ['project type', { ...GOOD, Type: 'Project' }], ['no type', { Customer: 12, Site: 34, Description: 'x' }], ['prepaid', { ...GOOD, Type: 'Prepaid' }],
-    ['name', { ...GOOD, Name: 'x' }], ['stage', { ...GOOD, Stage: 'Complete' }], ['status', { ...GOOD, Status: 1 }], ['due date', { ...GOOD, DueDate: '2026-12-01' }],
+    ['stage', { ...GOOD, Stage: 'Complete' }], ['status', { ...GOOD, Status: 1 }], ['due date', { ...GOOD, DueDate: '2026-12-01' }],
     ['custom fields', { ...GOOD, CustomFields: [{ CustomField: 1, Value: 'x' }] }], ['tags', { ...GOOD, Tags: [1] }], ['technician', { ...GOOD, Technician: 5 }],
     ['no customer', { ...GOOD, Customer: undefined }], ['string customer', { ...GOOD, Customer: '12' }], ['zero site', { ...GOOD, Site: 0 }], ['float site', { ...GOOD, Site: 1.5 }],
     ['negative customer', { ...GOOD, Customer: -1 }], ['huge site', { ...GOOD, Site: 1e12 }],
@@ -70,7 +70,7 @@ test('nothing else about a job or its parts opens up', () => {
   ]) assert.equal(allowed(method, path), false, method + ' ' + path)
   // The job PATCH is still only Stage, Status and Notes, and the attachments and asset routes are as they were.
   assert.equal(allowed('patch', JOB + '5001'), true)
-  assert.match(vm.runInContext(`simproSyncJobPatchError_(${J({ Name: 'x' })})`, ctx), /not allowed/)
+  assert.match(vm.runInContext(`simproSyncJobPatchError_(${J({ DueDate: '2026-12-01' })})`, ctx), /not allowed/)
   assert.equal(allowed('post', JOB + '5001/attachments/files/'), true)
   assert.equal(allowed('post', JOB + '5001/sections/77/costCenters/9/assets/'), true)
   // A call that is not one of these steps is not judged by this check.

@@ -6,17 +6,17 @@
    under it, then set the job's custom fields (Job Type, Charge Category and Priority are custom fields on jobs in CHS's Simpro). Each step is its own call, and the
    relay (backend/apps-script/proxy/Code.js, simproSyncJobWriteError_) checks each body again. */
 import { SendError, ok, simproErr } from '../../testbench/src/simpro-api.js'
-import { cleanText, missing, toHtml } from './draft.js'
+import { cleanText, cleanTitle, missing, titleProblem, toHtml } from './draft.js'
 
 /** Every job made here is a Service job (the relay refuses any other Type). */
 export const JOB_TYPE = 'Service'
 
 /**
- * The body of the first request: only what the form holds, and Stage Pending (a new job; the relay only lets this tool add to a Pending job).
- * No name, dates, status or people: Simpro's own defaults apply.
+ * The body of the first request: only what the form holds (the title is Simpro's job "Name"), and Stage Pending (a new job; the relay only
+ * lets this tool add to a Pending job). No dates, status or people: Simpro's own defaults apply.
  */
 export function jobBody(form) {
-  const body = { Type: JOB_TYPE, Customer: form.customer.ID, Site: form.site.id, Description: toHtml(form.description), Stage: 'Pending' }
+  const body = { Type: JOB_TYPE, Name: cleanTitle(form.title), Customer: form.customer.ID, Site: form.site.id, Description: toHtml(form.description), Stage: 'Pending' }
   const notes = toHtml(form.notes)
   if (notes) body.Notes = notes
   return body
@@ -28,6 +28,8 @@ export function jobBody(form) {
  * Each step: { id, title, facts: [[label, value]…] for the review screen, request(state) -> { method, path, body } }.
  */
 export function buildPlan(form, setup, companyId) {
+  const badTitle = titleProblem(form.title) // first, so the reason is said in words rather than as "Title is missing"
+  if (badTitle) throw new Error(badTitle)
   const todo = missing(form)
   if (todo.length) throw new Error('Still to fill in: ' + todo.join(', ') + '.')
   const jobField = setup?.jobType?.field
@@ -42,7 +44,7 @@ export function buildPlan(form, setup, companyId) {
     {
       id: 'job', title: 'Create the job in Simpro',
       facts: [
-        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Customer', form.customer.name], ['Site', form.site.name],
+        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Title', cleanTitle(form.title)], ['Customer', form.customer.name], ['Site', form.site.name],
         ['Description', cleanText(form.description)], ['Notes', notes || 'None'],
       ],
       request: () => ({ method: 'POST', path: base, body: jobBody(form) }),

@@ -1910,7 +1910,7 @@ const SIMPRO_SYNC_ALLOWLIST = [
 // Methods only a role:'admin' user may relay. A simproAccess grant (below)
 // covers reading and syncing, never deleting.
 const SIMPRO_SYNC_ADMIN_ONLY = ['delete'];
-const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes', 'Description'];   // Description: only ever added to (simproJobsScopeError_)
+const SIMPRO_SYNC_JOB_PATCH_FIELDS = ['Stage', 'Status', 'Notes', 'Description', 'Name'];   // Description: only ever added to; Name: a plain title (simproJobsScopeError_)
 // Simpro's four job stages (the Ansur and SimproSync pickers offer exactly these).
 const SIMPRO_SYNC_STAGES = ['Pending', 'Progress', 'Complete', 'Archived'];
 // A job's notes are replaced whole by a PATCH (Ansur appends to a fresh copy first), so
@@ -1919,9 +1919,15 @@ const SIMPRO_SYNC_MAX_NOTES = 50000;
 
 // Simpro Jobs: what making a job may carry. A new job is a Service job with a customer, a site and a description, and optionally
 // notes; nothing else (no name, dates, stage, status, people or tags) can be set here.
-const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Customer', 'Site', 'Description', 'Notes', 'Stage'];
+const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Name', 'Customer', 'Site', 'Description', 'Notes', 'Stage'];
 const SIMPRO_JOBS_MAX_HTML = 130000;   // the page caps typed text at 20,000 characters; escaped into HTML (a quote becomes &quot;) it is up to 6 times that, plus tags
 const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
+
+// A job's title (Simpro's "Name") is one short line of plain text: the page allows 100 characters and never "<" or ">" (it is not HTML).
+const SIMPRO_JOBS_MAX_TITLE = 100;
+function simproJobsTitleOk_(v) {
+  return typeof v === 'string' && v.trim().length > 0 && v.length <= SIMPRO_JOBS_MAX_TITLE && !/[\x00-\x1f\x7f<>]/.test(v);
+}
 
 function simproJobsPositiveInt_(v) {
   return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v > 0 && v < 1e9;
@@ -1953,6 +1959,7 @@ function simproSyncJobWriteError_(method, path, body, requestCount) {
   }
   if (keys.some(function (k) { return SIMPRO_JOBS_CREATE_FIELDS.indexOf(k) === -1; })) return 'sets a job field that is not allowed';
   if (body.Type !== 'Service') return 'makes a job that is not a Service job';
+  if ('Name' in body && !simproJobsTitleOk_(body.Name)) return 'has a title that is not one line of plain text up to ' + SIMPRO_JOBS_MAX_TITLE + ' characters';
   if (!simproJobsPositiveInt_(body.Customer) || !simproJobsPositiveInt_(body.Site)) return 'has no customer or site';
   if (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML) return 'has no description, or one that is too long';
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_JOBS_MAX_HTML)) return 'has notes that are not text or are too long';
@@ -1993,16 +2000,19 @@ function simproJobsScopeError_(method, path, who, body) {
     simproJobsCachePut_(key, String(made + 1), 3600);
     return '';
   }
-  // Changing a job's description: only ever adding to the end of what is there (the page appends; it never replaces), on a job that is
-  // not yet invoiced or archived. The relay reads the job itself, so a call made from a browser console can't rewrite a description.
-  if (method === 'patch' && (m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)$/)) && body && typeof body === 'object' && 'Description' in body) {
+  // Changing a job's description or title (the Name): on a job that is not yet invoiced or archived, and a description only ever by adding
+  // to the end of what is there (the page appends; it never replaces). The relay reads the job itself, so a call made from a browser
+  // console can't rewrite a description.
+  if (method === 'patch' && (m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)$/)) && body && typeof body === 'object' && ('Description' in body || 'Name' in body)) {
     const dj = simproFetch('/companies/' + m[1] + '/jobs/' + m[2], 'get');
     if (!dj.ok || !dj.json) return 'is for a job Simpro could not show (' + dj.code + ')';
-    if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(dj.json.Stage) === -1) return 'is for a job that is ' + String(dj.json.Stage) + ', so its description can no longer be changed here';
-    const current = String(dj.json.Description || '');
-    const next = String(body.Description);
-    if (next.length <= current.length || next.indexOf(current) !== 0) return 'changes the description other than by adding to the end of it';
-    if (!simproJobsPlainHtml_(next.slice(current.length))) return 'adds markup other than paragraphs and line breaks to the description';
+    if (SIMPRO_JOBS_EDITABLE_STAGES.indexOf(dj.json.Stage) === -1) return 'is for a job that is ' + String(dj.json.Stage) + ', so its description or title can no longer be changed here';
+    if ('Description' in body) {
+      const current = String(dj.json.Description || '');
+      const next = String(body.Description);
+      if (next.length <= current.length || next.indexOf(current) !== 0) return 'changes the description other than by adding to the end of it';
+      if (!simproJobsPlainHtml_(next.slice(current.length))) return 'adds markup other than paragraphs and line breaks to the description';
+    }
     return '';
   }
 
@@ -2054,6 +2064,7 @@ function simproSyncJobPatchError_(body) {
   }
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_SYNC_MAX_NOTES)) return 'sets notes that are not text or are too long';
   if ('Description' in body && (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML)) return 'sets a description that is not text or is too long';
+  if ('Name' in body && !simproJobsTitleOk_(body.Name)) return 'sets a title that is not one line of plain text up to ' + SIMPRO_JOBS_MAX_TITLE + ' characters';
   return '';
 }
 

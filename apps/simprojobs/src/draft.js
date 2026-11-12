@@ -20,12 +20,29 @@ export function toHtml(text) {
   return t.split(/\n{2,}/).map((p) => '<p>' + escapeHtml(p).replace(/\n/g, '<br>') + '</p>').join('')
 }
 
+/** A job's title (Simpro's "Name"): one short plain line. */
+export const MAX_TITLE = 100
+
+/** The title as it will be sent: one line, spaces collapsed, trimmed, cut at MAX_TITLE. */
+export const cleanTitle = (text) => String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE)
+
+/**
+ * Why a typed title can't be used, in words, or ''. It is plain text, not HTML, so nothing that looks like a tag is accepted (the relay
+ * refuses it too); an over-long title is refused rather than silently cut, so what is reviewed is what is sent.
+ */
+export function titleProblem(text) {
+  const t = String(text ?? '').replace(/\s+/g, ' ').trim()
+  if (/[<>]/.test(t)) return 'A title can’t contain < or >.'
+  if (t.length > MAX_TITLE) return `A title can be up to ${MAX_TITLE} characters.`
+  return ''
+}
+
 /** What a job can't be made without, in the order the form shows it: the labels of the fields still empty. Notes are optional. */
 export function missing(form) {
   const f = form || {}
   const need = [
     ['Customer', f.customer], ['Site', f.site], ['Cost centre', f.costCentre], ['Job type', f.jobType],
-    ['Charge category', f.chargeCategory], ['Priority', f.priority], ['Description', cleanText(f.description)],
+    ['Charge category', f.chargeCategory], ['Priority', f.priority], ['Title', cleanTitle(f.title) && !titleProblem(f.title)], ['Description', cleanText(f.description)],
   ]
   return need.filter(([, v]) => !v).map(([label]) => label)
 }
@@ -33,7 +50,7 @@ export function missing(form) {
 /** True when the form holds something a person typed or chose that Start again would throw away (the usual choices don't count). */
 export function hasWork(form) {
   const f = form || {}
-  if (cleanText(f.description) || cleanText(f.notes) || f.customer || f.site) return true
+  if (cleanText(f.description) || cleanText(f.notes) || cleanTitle(f.title) || f.customer || f.site) return true
   return ['costCentre', 'jobType', 'chargeCategory', 'priority'].some((k) => f[k] && !f[k].usual)
 }
 

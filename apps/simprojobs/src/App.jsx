@@ -9,7 +9,7 @@ import { Alert, Badge, Button, Loading, useConfirm } from '../../../shared/ui/in
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from '../../testbench/src/simpro-api.js'
 import { DEFAULTS, friendly, loadSetup, pickDefault, runChecks } from './lookups.js'
-import { MAX_TEXT, hasWork, missing, preview } from './draft.js'
+import { MAX_TEXT, MAX_TITLE, cleanTitle, hasWork, missing, preview, titleProblem } from './draft.js'
 import { buildPlan, describeRun, runPlan, settleRun } from './plan.js'
 import { ReviewSheet } from './Review.jsx'
 import { CustomerSheet, OptionSheet, SiteSheet } from './Sheets.jsx'
@@ -193,6 +193,16 @@ function NewJob({ call, companyId }) {
 
       <div className="sj-card sj-form">
         <label className="field">
+          <span className="field-label">Title <span className="sj-req">(needed)</span></span>
+          <input
+            className="input sj-title-input" type="text" maxLength={MAX_TITLE + 20} value={form.title || ''} onChange={(e) => set('title', e.target.value)}
+            placeholder="A short title, e.g. Monitor will not power on" autoComplete="off" aria-describedby="sj-title-hint" aria-invalid={!!titleProblem(form.title) || undefined}
+          />
+          <span id="sj-title-hint" className={titleProblem(form.title) ? 'sj-pick-error' : 'sj-hint'} role={titleProblem(form.title) ? 'alert' : undefined}>
+            {titleProblem(form.title) || `Shown as the job’s title in Simpro and in searches. One line, up to ${MAX_TITLE} characters.`}
+          </span>
+        </label>
+        <label className="field">
           <span className="field-label">Description <span className="sj-req">(needed)</span></span>
           <textarea
             className="input sj-text" rows={5} maxLength={MAX_TEXT} value={form.description || ''} onChange={(e) => set('description', e.target.value)}
@@ -216,6 +226,7 @@ function NewJob({ call, companyId }) {
           <div><dt>Customer</dt><dd>{form.customer?.name || '—'}</dd></div>
           <div><dt>Site</dt><dd>{form.site?.name || '—'}</dd></div>
           {OPTION_FIELDS.map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{form[key]?.name || '—'}</dd></div>)}
+          <div><dt>Title</dt><dd>{cleanTitle(form.title) || '—'}</dd></div>
           <div><dt>Description</dt><dd>{preview(form.description) || '—'}</dd></div>
           <div><dt>Notes</dt><dd>{preview(form.notes) || 'None'}</dd></div>
         </dl>

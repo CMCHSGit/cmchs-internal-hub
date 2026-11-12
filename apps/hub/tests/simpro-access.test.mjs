@@ -88,7 +88,7 @@ test('a job update may set Stage, Status and Notes, with real values', () => {
 
 test('a job update with other fields, odd values or nothing in it is refused, and nothing reaches Simpro', () => {
   const { call, sent } = relay()
-  for (const body of [{}, null, { Name: 'x' }, { Stage: 'Deleted' }, { Stage: ['Complete'] }, { Status: 'Complete' }, { Status: -1 }, { Status: 1.5 }, { Status: { ID: 'x' } }, { Notes: { a: 1 } }, { Notes: 'x'.repeat(50001) }]) {
+  for (const body of [{}, null, { DueDate: '2026-12-01' }, { Stage: 'Deleted' }, { Stage: ['Complete'] }, { Status: 'Complete' }, { Status: -1 }, { Status: 1.5 }, { Status: { ID: 'x' } }, { Notes: { a: 1 } }, { Notes: 'x'.repeat(50001) }]) {
     assert.equal(call(job(7, body)).success, false, JSON.stringify(body)?.slice(0, 40))
   }
   assert.equal(sent.simpro.length, 0)

@@ -190,7 +190,7 @@ test('an edit adds to the end of the text as it is when the change is made, keep
   assert.equal(relay({ 102: fresh }).verdict(writes[0]), '')
   // ...and refuses the same text if it would REPLACE the description, or if the job moved on to Invoiced.
   assert.match(relay({ 102: { ...fresh, Description: 'something else' } }).verdict(writes[0]), /other than by adding to the end/)
-  assert.match(relay({ 102: { ...fresh, Stage: 'Invoiced' } }).verdict(writes[0]), /Invoiced, so its description can no longer be changed/)
+  assert.match(relay({ 102: { ...fresh, Stage: 'Invoiced' } }).verdict(writes[0]), /Invoiced, so its description or title can no longer be changed/)
 })
 
 test('an edit that can’t read the job first writes nothing', async () => {

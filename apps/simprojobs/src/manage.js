@@ -8,13 +8,13 @@
    Changing: the same plan, review and run as making a job (plan.js), and the relay holds each write to what this does (Code.js):
    - text is only ever ADDED to the end of a job's description or notes (never replaced: a job's description can be rich text, tables and
      all, which a phone's plain text box would flatten), and the relay refuses a description change that isn't an addition to the end;
-   - Job Type, Charge category and Priority can be changed (the custom fields the new-job form sets);
+   - the title can be changed, and Job Type, Charge category and Priority (the custom fields the new-job form sets);
    - Close is what SimproSync does: Stage Complete, then Status "Job : Completed".
    A job that is Invoiced or Archived can't be changed here. */
 import { SendError, ok, simproErr } from '../../testbench/src/simpro-api.js'
 import { customerName, searchJobs, statusName, whereFound } from '../../simprosearch/src/search.js'
 import { htmlToText } from '../../simprosearch/src/html.js'
-import { cleanText, toHtml } from './draft.js'
+import { cleanText, cleanTitle, titleProblem, toHtml } from './draft.js'
 
 export const RECENT_PAGE = 30
 /** Stages a job can still be changed in here, and the ones it can be closed from. */
@@ -115,8 +115,8 @@ export async function loadCompletedStatus(call, companyId) {
 const FIELD_KEYS = ['jobType', 'chargeCategory', 'priority']
 
 /**
- * The plan for adding to a job's description or notes and/or changing its Job Type, Charge category or Priority. `job` is normaliseJob()'s;
- * `changes` is { addDescription, addNotes, jobType, chargeCategory, priority } (the last three are options { name } or nothing); a custom
+ * The plan for adding to a job's description or notes, changing its title, and/or changing its Job Type, Charge category or Priority. `job` is
+ * normaliseJob()'s; `changes` is { title, addDescription, addNotes, jobType, chargeCategory, priority } (the three fields are options { name } or nothing); a custom
  * field left as it is, or put back to what it holds, is not a step. Throws Error in words when there is nothing to change or it can't be.
  * The text step reads the job just before it writes (prepare), so what is added goes after whatever is there then.
  */
@@ -127,6 +127,17 @@ export function buildEditPlan({ job, changes = {}, setup, companyId }) {
   const addNotes = cleanText(changes.addNotes)
   if (addDescription.length > MAX_ADD || addNotes.length > MAX_ADD) throw new Error(`An addition can be up to ${MAX_ADD} characters.`)
   const plan = []
+  // The title (Simpro's job "Name") is replaced, not added to: it is one short plain line, and the review shows it from → to.
+  if (changes.title !== undefined && cleanTitle(changes.title) !== cleanTitle(job.name)) {
+    const bad = titleProblem(changes.title)
+    if (bad) throw new Error(bad)
+    const title = cleanTitle(changes.title)
+    if (!title) throw new Error('A title can’t be empty.')
+    plan.push({
+      id: 'title', title: 'Change the title', facts: [['Title', `${cleanTitle(job.name) || 'none'} → ${title}`]],
+      request: () => ({ method: 'PATCH', path: base, body: { Name: title } }),
+    })
+  }
   if (addDescription || addNotes) {
     plan.push({
       id: 'text', title: 'Add to the job’s text',

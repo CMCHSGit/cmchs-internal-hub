@@ -35,7 +35,7 @@ lookup yet". `tests/relay.test.mjs` loads the real `Code.js` and checks what is 
 
 ## Step 2: description and notes (no Simpro calls)
 
-Two text fields under the pickers (16px, so iOS doesn't zoom): **Description** (needed) and **Notes** (optional). They are kept with the rest of
+A **Title** (needed: one plain line up to 100 characters, no < or >, sent as the job's Name) and two text fields under the pickers (16px, so iOS does not zoom): **Description** (needed) and **Notes** (optional). They are kept with the rest of
 the form for the session. `src/draft.js` holds the rules, tested: `missing()` (what the summary says is still to fill in), `toHtml()` (plain
 text as the small HTML Simpro's description and notes hold: a blank line is a paragraph, a line break is `<br>`, anything typed that looks like
 markup is escaped, never run; used when the job is created) and `hasWork()` (Start again asks first only when there is something to lose).
@@ -46,9 +46,9 @@ Jonathan chose description and notes only; asset or serial, contact and due date
 **Review and create job** opens a review screen, and its **Create job in Simpro** button is the only thing in the tool that sends a write.
 - **Plan = preview = action** (`src/plan.js`): the form becomes six steps, the review screen is drawn from those steps (the exact words that
   will be stored, the cost centre, Job Type, Charge category and Priority), and the button runs those same steps. Nothing is sent before the tap.
-- **The sequence** is the demo tracker's `createJob`, proven on this Simpro: `POST /jobs/` (`Type: "Service"`, `Customer`, `Site`, `Description`,
+- **The sequence** is the demo tracker's `createJob`, proven on this Simpro: `POST /jobs/` (`Type: "Service"`, `Name` (the title), `Customer`, `Site`, `Description`,
   `Notes`, `Stage: "Pending"`), `POST .../sections/`, `POST .../sections/{id}/costCenters/` (`CostCenter`), then `PATCH .../customFields/{id}`
-  (`Value`) for Job Type, Charge category and Priority. No name, dates, stage, status or people are set: Simpro's defaults apply. If this Simpro
+  (`Value`) for Job Type, Charge category and Priority. No dates, status or people are set: Simpro's defaults apply. If this Simpro
   insists on a due date, the first step is refused (422) and nothing is created.
 - **Never a second job.** Once tapped, the plan is frozen into the run (kept with the form for the session), a double tap can't start two runs,
   and a step that is done is never sent again. A step Simpro refuses stops the run; **Try the remaining steps** resumes from there. A step
@@ -77,7 +77,7 @@ The page is "Simpro Jobs" with two tabs: **New job** (above) and **Find a job** 
   matching words highlighted in a snippet. A stage chip narrows it. With nothing typed it lists the newest jobs.
 - **A job** shows its stage and status, Job type / Charge category / Priority, and its description and notes drawn with Deep Search's safe rich-text
   drawing. **Add to it or change it** and **Close job** are disabled with a reason when the job's stage doesn't allow them.
-- **Add to it or change it**: text is only ever **added to the end** of the description or notes (never replaced: a description can be rich text and tables,
+- **Add to it or change it**: the title can be changed (replaced, shown from → to; a job with no title can be given one); text is only ever **added to the end** of the description or notes (never replaced: a description can be rich text and tables,
   which a phone's plain text box would flatten), read fresh just before it is written so a note someone added in Simpro meanwhile is kept; and Job type,
   Charge category and Priority can be changed (each its own step, only if it differs). **Close** is what SimproSync does: Stage Complete, then Status
   "Job : Completed" (found by name). Pending, Progress and Complete jobs can be changed; Invoiced and Archived jobs can't; only Pending and Progress can be closed.

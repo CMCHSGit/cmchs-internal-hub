@@ -148,3 +148,6 @@ body.sj-lock { overflow: hidden; }
 .sj-rich-wrap table { border-collapse: collapse; font-size: 14px; }
 .sj-rich-wrap td, .sj-rich-wrap th { border: 1px solid var(--border-subtle); padding: 4px 8px; text-align: left; vertical-align: top; }
 .sj-rich-wrap .ds-empty { margin: 0; color: var(--text-muted); font: var(--type-body-sm); }
+
+/* The title box: a one-line field, 16px so iOS doesn't zoom into it. */
+.sj-title-input { width: 100%; font-size: 16px; min-height: 48px; }

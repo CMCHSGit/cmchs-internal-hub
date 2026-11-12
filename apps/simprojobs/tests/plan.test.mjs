@@ -21,6 +21,7 @@ const FORM = {
   jobType: { id: 'Repair', name: 'Repair' },
   chargeCategory: { id: 'Warranty', name: 'Warranty' },
   priority: { id: 'Standard', name: 'Standard' },
+  title: '  Monitor   will not power on ',
   description: 'Monitor will not power on & shows <E12>.\n\nCustomer rang at 9am.',
   notes: 'Ask for Pat\nSerial AB-1234',
 }
@@ -49,7 +50,7 @@ function fakeSimpro(opts = {}) {
 
 test('jobBody holds only what the form holds; typed text is escaped, notes are left out when empty', () => {
   const body = jobBody(FORM)
-  assert.deepEqual(Object.keys(body).sort(), ['Customer', 'Description', 'Notes', 'Site', 'Stage', 'Type'])
+  assert.deepEqual(Object.keys(body).sort(), ['Customer', 'Description', 'Name', 'Notes', 'Site', 'Stage', 'Type'])
   assert.equal(body.Type, JOB_TYPE)
   assert.equal(body.Type, 'Service')
   assert.equal(body.Customer, 12)
@@ -73,7 +74,7 @@ test('the plan is six steps in the demo tracker’s order, and its review facts 
   assert.deepEqual(plan.map((s) => s.id), ['job', 'section', 'costCentre', 'jobType', 'chargeCategory', 'priority'])
   const facts = Object.fromEntries(plan.flatMap((s) => s.facts))
   assert.deepEqual(facts, {
-    Type: 'Service', Stage: 'Pending', Customer: 'Example Hospital', Site: 'Theatre 1',
+    Type: 'Service', Stage: 'Pending', Title: 'Monitor will not power on', Customer: 'Example Hospital', Site: 'Theatre 1',
     Description: 'Monitor will not power on & shows <E12>.\n\nCustomer rang at 9am.', Notes: 'Ask for Pat\nSerial AB-1234',
     'Cost centre': 'Service', 'Job Type': 'Repair', 'Charge category - CHS': 'Warranty', 'Priority (incl callouts) - CHS': 'Standard',
   })

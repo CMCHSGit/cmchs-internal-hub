@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button, Loading, Spinner } from '../../../shared/ui/index.jsx'
 import SafeHtml from '../../simprosearch/src/SafeHtml.jsx'
 import { friendly, loadSetup } from './lookups.js'
+import { MAX_TITLE, titleProblem } from './draft.js'
 import {
   MAX_ADD, STAGE_CHIPS, buildClosePlan, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, loadCompletedStatus, loadJobDetail, loadRecentJobs,
 } from './manage.js'
@@ -193,14 +194,15 @@ function useChange(call, plan) {
 
 function EditSheet({ call, companyId, job, setup, onClose, onDone }) {
   const [add, setAdd] = useState({ addDescription: '', addNotes: '' })
+  const [title, setTitle] = useState(job.name || '')
   const [picked, setPicked] = useState({ jobType: '', chargeCategory: '', priority: '' })
   const [review, setReview] = useState(false)
   const FIELDS = [['jobType', 'Job type'], ['chargeCategory', 'Charge category'], ['priority', 'Priority']]
   const changes = useMemo(() => {
-    const c = { ...add }
+    const c = { ...add, title }
     for (const [key] of FIELDS) { if (picked[key]) c[key] = { name: picked[key] } }
     return c
-  }, [add, picked]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [add, picked, title]) // eslint-disable-line react-hooks/exhaustive-deps
   const built = useMemo(() => { try { return { plan: buildEditPlan({ job, changes, setup, companyId }) } } catch (e) { return { error: e.message } } }, [job, changes, setup, companyId])
   const change = useChange(call, built.plan)
 
@@ -209,7 +211,12 @@ function EditSheet({ call, companyId, job, setup, onClose, onDone }) {
   }
   return (
     <Sheet title={`Change job ${job.id}`} onClose={onClose}>
-      <p className="sj-hint">Add to the description or notes (what is there now stays as it is) or change a field. Then review it: nothing goes to Simpro until you confirm.</p>
+      <p className="sj-hint">Change the title, add to the description or notes (what is there now stays as it is), or change a field. Then review it: nothing goes to Simpro until you confirm.</p>
+      <label className="field">
+        <span className="field-label">Title</span>
+        <input className="input sj-title-input" type="text" maxLength={MAX_TITLE + 20} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="No title yet" autoComplete="off" aria-invalid={!!titleProblem(title) || undefined} />
+        {titleProblem(title) && <span className="sj-pick-error" role="alert">{titleProblem(title)}</span>}
+      </label>
       <label className="field">
         <span className="field-label">Add to the description</span>
         <textarea className="input sj-text" rows={4} maxLength={MAX_ADD} value={add.addDescription} onChange={(e) => setAdd((a) => ({ ...a, addDescription: e.target.value }))} placeholder="Goes after the existing description" />

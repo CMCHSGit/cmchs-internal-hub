@@ -172,7 +172,7 @@ test('a job’s description can only be added to the end of, on a job that is no
     ['link added', { Description: html + '<a href="https://example.invalid">x</a>' }], ['script added', { Description: html + '<script>alert(1)</script>' }],
     ['tags other than p and br', { Description: html + '<b>bold</b>' }], ['attributes', { Description: html + '<p class="x">a</p>' }], ['a stray >', { Description: html + 'a > b' }],
   ]) assert.notEqual(e.scope('patch', JOB + '1', undefined, body), '', label)
-  assert.match(e.scope('patch', JOB + '2', undefined, { Description: html + add }), /Invoiced, so its description can no longer be changed here/)
+  assert.match(e.scope('patch', JOB + '2', undefined, { Description: html + add }), /Invoiced, so its description or title can no longer be changed here/)
   assert.match(e.scope('patch', JOB + '1', undefined, { Description: '<p>replaced</p>' }), /other than by adding to the end/)
   assert.match(e.scope('patch', JOB + '99', undefined, { Description: add }), /could not show \(404\)/)
 })
@@ -187,7 +187,7 @@ test('the job PATCH now takes a Description as text, and nothing else new', () =
   const e = env()
   assert.equal(e.patchError({ Description: '<p>x</p>' }), '')
   assert.equal(e.patchError({ Description: '<p>x</p>', Notes: 'y' }), '')
-  for (const bad of [{ Description: '' }, { Description: '  ' }, { Description: 5 }, { Description: {} }, { Description: null }, { Description: 'x'.repeat(130001) }, { Description: 'x', Name: 'y' }, { Name: 'x' }, { DueDate: '2026-12-01' }, { Customer: 5 }, { Site: 5 }, { Type: 'Project' }]) {
+  for (const bad of [{ Description: '' }, { Description: '  ' }, { Description: 5 }, { Description: {} }, { Description: null }, { Description: 'x'.repeat(130001) }, { Name: '' }, { Name: '  ' }, { Name: '<b>x</b>' }, { Name: 'x'.repeat(101) }, { Name: 5 }, { Name: {} }, { DueDate: '2026-12-01' }, { Customer: 5 }, { Site: 5 }, { Type: 'Project' }]) {
     assert.notEqual(e.patchError(bad), '', J(bad).slice(0, 40))
   }
 })
