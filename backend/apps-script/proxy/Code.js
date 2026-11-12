@@ -1984,9 +1984,11 @@ function simproJobsCachePut_(key, value, seconds) { try { CacheService.getScript
 function simproJobsScopeError_(method, path, who) {
   var m;
   if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
-    const key = 'simproJobsMade_' + String((who && (who.uid || who.email)) || 'unknown');
+    // One counter per person per clock hour, so the allowance resets on the hour (a counter whose life is renewed on every create
+    // would be a sliding window that a steady, busy person could eventually hit).
+    const key = 'simproJobsMade_' + String((who && (who.uid || who.email)) || 'unknown') + '_' + Math.floor(Date.now() / 3600000);
     const made = parseInt(simproJobsCacheGet_(key) || '0', 10) || 0;
-    if (made >= SIMPRO_JOBS_CREATES_PER_HOUR) return 'has made ' + SIMPRO_JOBS_CREATES_PER_HOUR + ' jobs in the last hour, which is the most this tool allows';
+    if (made >= SIMPRO_JOBS_CREATES_PER_HOUR) return 'has already made ' + SIMPRO_JOBS_CREATES_PER_HOUR + ' jobs this hour, which is the most this tool allows';
     simproJobsCachePut_(key, String(made + 1), 3600);
     return '';
   }

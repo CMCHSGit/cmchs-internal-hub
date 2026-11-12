@@ -34,7 +34,8 @@ function env({ jobs = {}, fields = {} } = {}) {
   vm.runInContext(source, sandbox)
   const scope = (method, path, who = { uid: 'u1' }) => vm.runInContext(`simproJobsScopeError_(${J(method)}, ${J(path)}, ${J(who)})`, sandbox)
   const why = (method, path, body) => vm.runInContext(`simproSyncJobWriteError_(${J(method)}, ${J(path)}, ${J(body)}, 1)`, sandbox)
-  return { scope, why, calls, cache }
+  const setNow = (ms) => { vm.runInContext(`Date.now = () => ${ms}`, sandbox) } // the clock the relay sees
+  return { scope, why, calls, cache, setNow }
 }
 const hoursAgo = (h) => new Date(Date.now() - h * 3600 * 1000).toISOString()
 const fresh = () => ({ Stage: 'Pending', DateModified: new Date().toISOString() })
@@ -92,7 +93,7 @@ test('what is not one of these writes is not judged, and costs Simpro nothing', 
 test('one person can make 20 jobs an hour; the 21st is refused, and others are not affected', () => {
   const e = env()
   for (let i = 0; i < 20; i++) assert.equal(e.scope('post', JOB, { uid: 'u1' }), '', 'job ' + (i + 1))
-  assert.match(e.scope('post', JOB, { uid: 'u1' }), /20 jobs in the last hour/)
+  assert.match(e.scope('post', JOB, { uid: 'u1' }), /20 jobs this hour/)
   assert.equal(e.scope('post', JOB, { uid: 'u2' }), '')
   assert.equal(e.scope('post', JOB, { email: 'someone@example.invalid' }), '')
   assert.equal(e.calls.length, 0) // counting needs no call to Simpro
@@ -116,4 +117,20 @@ test('a new job starts as Pending and nothing else', () => {
   const e = env()
   assert.equal(e.why('post', JOB, { ...GOOD, Stage: 'Pending' }), '')
   for (const stage of ['Progress', 'Complete', 'Archived', 'Invoiced', 'pending', '', null, 1]) assert.notEqual(e.why('post', JOB, { ...GOOD, Stage: stage }), '', J(stage))
+})
+
+test('the allowance resets on the hour: a steady, busy person is never locked out, a burst still is', () => {
+  const hour = 3600 * 1000
+  const start = Math.floor(Date.now() / hour) * hour + 10 * 60 * 1000       // ten past an hour
+  const e = env()
+  e.setNow(start)
+  for (let i = 0; i < 20; i++) assert.equal(e.scope('post', JOB), '', 'burst ' + (i + 1))
+  assert.match(e.scope('post', JOB), /already made 20 jobs this hour/)
+  e.setNow(start + 49 * 60 * 1000)                                           // 59 past: still the same hour
+  assert.match(e.scope('post', JOB), /this hour/)
+  e.setNow(start + 51 * 60 * 1000)                                           // the next hour: a fresh 20
+  assert.equal(e.scope('post', JOB), '')
+  // One job every 30 minutes, for ten hours (21 jobs): never refused.
+  const steady = env()
+  for (let i = 0; i < 21; i++) { steady.setNow(start + i * 30 * 60 * 1000); assert.equal(steady.scope('post', JOB), '', 'job ' + (i + 1)) }
 })
