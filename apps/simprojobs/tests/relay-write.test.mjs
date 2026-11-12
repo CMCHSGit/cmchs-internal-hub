@@ -18,7 +18,7 @@ const GOOD = { Type: 'Service', Customer: 12, Site: 34, Description: '<p>Fault</
 
 test('the five steps of making a job are allowed', () => {
   assert.equal(verdict('post', JOB, GOOD), '')
-  assert.equal(verdict('post', JOB, { ...GOOD, Notes: '<p>n</p>', ResponseTime: 2 }), '')
+  assert.equal(verdict('post', JOB, { ...GOOD, Notes: '<p>n</p>', Stage: 'Pending' }), '')
   assert.equal(verdict('post', JOB + '5001/sections/', {}), '')
   assert.equal(verdict('post', JOB + '5001/sections/77/costCenters/', { CostCenter: 15 }), '')
   assert.equal(verdict('patch', JOB + '5001/customFields/44', { Value: 'Repair' }), '')
@@ -33,7 +33,7 @@ test('a new job is a Service job with a customer, a site and a description, and 
     ['negative customer', { ...GOOD, Customer: -1 }], ['huge site', { ...GOOD, Site: 1e12 }],
     ['no description', { Type: 'Service', Customer: 12, Site: 34 }], ['blank description', { ...GOOD, Description: '  ' }], ['object description', { ...GOOD, Description: {} }],
     ['huge description', { ...GOOD, Description: 'x'.repeat(130001) }], ['object notes', { ...GOOD, Notes: {} }], ['huge notes', { ...GOOD, Notes: 'x'.repeat(130001) }],
-    ['string priority', { ...GOOD, ResponseTime: '1' }], ['zero priority', { ...GOOD, ResponseTime: 0 }],
+    ['response time (priority is a custom field here)', { ...GOOD, ResponseTime: 2 }], ['string response time', { ...GOOD, ResponseTime: '1' }],
   ]) assert.notEqual(verdict('post', JOB, body), '', label)
   for (const bad of [null, undefined, 'x', [], [GOOD]]) assert.notEqual(verdict('post', JOB, bad), '', J(bad))
 })

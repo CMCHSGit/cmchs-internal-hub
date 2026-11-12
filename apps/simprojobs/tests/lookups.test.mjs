@@ -2,7 +2,7 @@
 // A pretend Simpro with invented customers, sites and setup lists: nothing here is real, and nothing leaves the process.
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { CUSTOMER_VARIANTS, PAGE_SIZE, customerKind, customerName, customersPath, friendly, likeTerm, loadCustomers, loadSetup, loadSites, pickDefault, runChecks } from '../src/lookups.js'
+import { CUSTOMER_VARIANTS, FIELD_NAMES, PAGE_SIZE, customerKind, customerName, customersPath, friendly, likeTerm, loadCustomers, loadSetup, loadSites, pickDefault, runChecks } from '../src/lookups.js'
 import { SendError, makeCall } from '../../testbench/src/simpro-api.js'
 
 const CUSTOMERS = [
@@ -18,10 +18,11 @@ const SITES = [
 ]
 const FIELDS = [
   { ID: 44, Name: 'Job Type', Type: 'List' },
-  { ID: 45, Name: 'Charge category', Type: 'List' },
-  { ID: 46, Name: 'Reference', Type: 'Text' },
+  { ID: 45, Name: 'Charge category - CHS', Type: 'List' },
+  { ID: 46, Name: 'Priority (incl callouts) - CHS', Type: 'List' },
+  { ID: 47, Name: 'Reference', Type: 'Text' },
 ]
-const LIST_ITEMS = { 44: ['Demo', 'Repair', 'Install'], 45: ['Chargeable', 'Warranty'] }
+const LIST_ITEMS = { 44: ['Demo', 'Repair', 'Install'], 45: ['Chargeable', 'Warranty'], 46: ['Standard', 'Urgent', 'Emergency callout'] }
 
 /**
  * opts.refuse: query words Simpro answers 400 to. opts.noSitesOnCustomer: the customer record has no Sites. opts.ignoreCustomerFilter: the site
@@ -55,6 +56,7 @@ function fakeSimpro(opts = {}) {
       const c = CUSTOMERS.find((x) => x.ID === +m[2])
       if (!c) return reply(404, {})
       if (params.columns !== 'ID,Sites') throw new Error('the whole customer record was asked for')
+      if (opts.emptyRecordSites) return reply(200, { ID: c.ID, Sites: [] })
       return reply(200, opts.noSitesOnCustomer ? { ID: c.ID } : { ID: c.ID, Sites: SITES.filter((s) => s.Customers.some((x) => x.ID === c.ID)).map(({ ID, Name, Archived }) => ({ ID, Name, Archived })) })
     }
     if (/^\/companies\/\d+\/sites\/$/.test(p)) {
@@ -62,7 +64,6 @@ function fakeSimpro(opts = {}) {
       return reply(200, SITES.filter((s) => s.Customers.some((x) => x.ID === +params['Customers.ID'])))
     }
     if (/setup\/accounts\/costCenters\/$/.test(p)) return reply(200, [{ ID: 15, Name: 'Service' }, { ID: 16, Name: 'Install' }, { ID: 17, Name: 'Old one', Archived: true }])
-    if (/setup\/responseTimes\/$/.test(p)) return reply(200, [{ ID: 1, Name: 'Standard', Archived: false }, { ID: 2, Name: '24 Hours Emergency Response', Archived: false }, { ID: 3, Name: 'Retired', Archived: true }])
     if (/setup\/customFields\/projects\/$/.test(p)) return reply(200, FIELDS)
     if ((m = p.match(/setup\/customFields\/projects\/(\d+)$/))) return reply(200, { ID: +m[1], ListItems: LIST_ITEMS[m[1]] ?? null })
     return reply(404, { errors: [{ message: 'unknown path in the pretend Simpro: ' + p }] })
@@ -157,41 +158,77 @@ test('loadSites: without Sites on the record it asks the site list and trusts ea
   assert.deepEqual(only.sites.map((s) => s.id), [13])
 })
 
-test('loadSetup: cost centres, priorities and the two custom fields, archived ones left out', async () => {
+test('loadSetup: cost centres, and Job Type, Charge category and Priority as custom fields named the way CHS’s Simpro names them', async () => {
   const { call } = fakeSimpro()
   const s = await loadSetup(call, 3)
   assert.deepEqual(s.costCentre.options.map((o) => o.name), ['Install', 'Service'])
-  assert.deepEqual(s.priority.options.map((o) => o.name), ['24 Hours Emergency Response', 'Standard'])
   assert.equal(s.jobType.field.id, 44)
   assert.deepEqual(s.jobType.options.map((o) => o.id), ['Demo', 'Repair', 'Install'])
-  assert.equal(s.chargeCategory.field.id, 45)
+  assert.deepEqual(s.chargeCategory.field, { id: 45, name: 'Charge category - CHS' })
   assert.equal(s.chargeCategory.options.length, 2)
-  assert.deepEqual(s.fieldNames.map((f) => f.name), ['Job Type', 'Charge category', 'Reference'])
+  assert.deepEqual(s.priority.field, { id: 46, name: 'Priority (incl callouts) - CHS' })
+  assert.deepEqual(s.priority.options.map((o) => o.name), ['Standard', 'Urgent', 'Emergency callout'])
+  assert.deepEqual(s.fieldNames.map((f) => f.name), ['Job Type', 'Charge category - CHS', 'Priority (incl callouts) - CHS', 'Reference'])
   assert.equal(pickDefault(s.costCentre.options, ' service ').id, 15)
-  assert.equal(pickDefault(s.priority.options, 'Standard').id, 1)
+  assert.equal(pickDefault(s.priority.options, 'Standard').id, 'Standard')
   assert.equal(pickDefault(s.jobType.options, 'Repair').id, 'Repair')
   assert.equal(pickDefault(s.jobType.options, 'Nope'), null)
 })
 
+test('FIELD_NAMES accepts the names CHS’s Simpro uses and the plain ones, and not other fields', () => {
+  for (const n of ['Job Type', 'job type', 'Charge category - CHS', 'Charge Category', 'Charge categories - CHS', 'Priority (incl callouts) - CHS', 'Priority', 'Priority - CHS']) {
+    assert.ok(Object.values(FIELD_NAMES).some((re) => re.test(n)), n)
+  }
+  for (const n of ['Job Type Extra', 'xJob Type', 'Charge category notes', 'Priority list', 'Customer Notes', 'Reference', '']) {
+    assert.ok(!Object.values(FIELD_NAMES).some((re) => re.test(n)), n)
+  }
+})
+
 test('loadSetup: one lookup missing leaves the others working, and says which', async () => {
-  const { call } = fakeSimpro({ missing: /responseTimes/ })
+  const { call } = fakeSimpro({ missing: /accounts\/costCenters/ })
   const s = await loadSetup(call, 3)
-  assert.match(s.priority.error, /Priorities: Simpro said 404/)
-  assert.equal(s.costCentre.options.length, 2)
+  assert.match(s.costCentre.error, /Cost centres: Simpro said 404/)
   assert.equal(s.jobType.options.length, 3)
+  assert.equal(s.priority.options.length, 3)
 })
 
 test('loadSetup: a custom field that is not there, or is not a list, is explained rather than guessed at', async () => {
   const { call } = fakeSimpro()
-  const real = FIELDS.splice(1, 1) // charge category gone
+  const real = FIELDS.splice(1, 2) // charge category and priority gone
   try {
     const s = await loadSetup(call, 3)
     assert.match(s.chargeCategory.error, /No job custom field called “Charge Category”/)
+    assert.match(s.priority.error, /No job custom field called “Priority”/)
     assert.equal(s.chargeCategory.field, null)
     FIELDS[0].Type = 'Text'
     const t = await loadSetup(call, 3)
     assert.match(t.jobType.error, /“Job Type” is a Text field/)
   } finally { FIELDS[0].Type = 'List'; FIELDS.splice(1, 0, ...real) }
+})
+
+test('loadSites: a customer whose record lists no sites is checked against the site list too, and a real "none" stays none', async () => {
+  const { call, seen } = fakeSimpro()
+  // The record answers with an empty Sites list but the site list knows sites for this customer.
+  const { call: emptyRecord } = fakeSimpro({ emptyRecordSites: true })
+  const r = await loadSites(emptyRecord, 3, { ID: 1, kind: 'companies' })
+  assert.equal(r.via, 'sites')
+  assert.deepEqual(r.sites.map((s) => s.id), [12, 11])
+  // A customer with no sites anywhere: none, from its own record, after the second look.
+  const none = await loadSites(call, 3, { ID: 3, kind: 'individuals' })
+  assert.deepEqual(none, { sites: [], via: 'customer' })
+  assert.equal(seen.filter((s) => /sites\/\?/.test(s.path)).length, 1)
+  // The second look being refused leaves the record's answer standing, not an error.
+  const { call: refusing } = fakeSimpro({ refuse: ['/sites/'] })
+  assert.deepEqual(await loadSites(refusing, 3, { ID: 3, kind: 'individuals' }), { sites: [], via: 'customer' })
+})
+
+test('runChecks samples several customers for sites, so a first customer with none proves nothing', async () => {
+  const { call } = fakeSimpro()
+  const lines = await runChecks(call, 3)
+  const sites = lines.find((l) => l.label === 'Sites of a customer')
+  assert.equal(sites.state, 'ok')
+  assert.match(sites.detail, /\d of \d sampled customers have sites/)
+  assert.ok(!/Example|Ward|Main site/.test(sites.detail))
 })
 
 test('runChecks reports each lookup in words and never prints a customer or site name', async () => {

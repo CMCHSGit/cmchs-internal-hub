@@ -23,7 +23,7 @@ const writeDraft = (d) => { try { sessionStorage.setItem(DRAFT_KEY, JSON.stringi
 
 // Cost centres, priorities and the custom fields' options hardly ever change: keep them for half an hour so a reopened page is instant.
 const SETUP_TTL = 30 * 60 * 1000
-const setupKey = (companyId) => 'simprojobs.setup.' + companyId
+const setupKey = (companyId) => 'simprojobs.setup2.' + companyId // 2: priority became a custom field, so an older saved answer has the wrong shape
 const readSetup = (companyId) => {
   try {
     const s = JSON.parse(sessionStorage.getItem(setupKey(companyId)))
@@ -143,7 +143,7 @@ export default function SimproJobs() {
     try {
       const base = run || {
         form: JSON.parse(JSON.stringify(form)), companyId,
-        setup: { jobType: { field: setup.jobType.field }, chargeCategory: { field: setup.chargeCategory.field } },
+        setup: { jobType: { field: setup.jobType.field }, chargeCategory: { field: setup.chargeCategory.field }, priority: { field: setup.priority.field } },
         jobId: null, sectionId: null, done: [], failed: null,
       }
       setRun({ ...base, failed: null })

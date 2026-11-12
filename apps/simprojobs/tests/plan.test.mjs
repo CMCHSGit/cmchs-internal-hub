@@ -20,11 +20,15 @@ const FORM = {
   costCentre: { id: 15, name: 'Service' },
   jobType: { id: 'Repair', name: 'Repair' },
   chargeCategory: { id: 'Warranty', name: 'Warranty' },
-  priority: { id: 1, name: 'Standard' },
+  priority: { id: 'Standard', name: 'Standard' },
   description: 'Monitor will not power on & shows <E12>.\n\nCustomer rang at 9am.',
   notes: 'Ask for Pat\nSerial AB-1234',
 }
-const SETUP = { jobType: { field: { id: 44, name: 'Job Type' } }, chargeCategory: { field: { id: 45, name: 'Charge Category' } } }
+const SETUP = {
+  jobType: { field: { id: 44, name: 'Job Type' } },
+  chargeCategory: { field: { id: 45, name: 'Charge category - CHS' } },
+  priority: { field: { id: 46, name: 'Priority (incl callouts) - CHS' } },
+}
 
 /** opts.status: { stepWord: status } Simpro answers instead; opts.lost: step words whose answer never arrives; opts.refuse: relay refusals. */
 function fakeSimpro(opts = {}) {
@@ -45,12 +49,12 @@ function fakeSimpro(opts = {}) {
 
 test('jobBody holds only what the form holds; typed text is escaped, notes are left out when empty', () => {
   const body = jobBody(FORM)
-  assert.deepEqual(Object.keys(body).sort(), ['Customer', 'Description', 'Notes', 'ResponseTime', 'Site', 'Stage', 'Type'])
+  assert.deepEqual(Object.keys(body).sort(), ['Customer', 'Description', 'Notes', 'Site', 'Stage', 'Type'])
   assert.equal(body.Type, JOB_TYPE)
   assert.equal(body.Type, 'Service')
   assert.equal(body.Customer, 12)
   assert.equal(body.Site, 34)
-  assert.equal(body.ResponseTime, 1)
+  assert.equal('ResponseTime' in body, false) // priority is a custom field here, not Simpro's response time
   assert.equal(body.Description, '<p>Monitor will not power on &amp; shows &lt;E12&gt;.</p><p>Customer rang at 9am.</p>')
   assert.equal(body.Notes, '<p>Ask for Pat<br>Serial AB-1234</p>')
   assert.equal('Notes' in jobBody({ ...FORM, notes: '  \n ' }), false)
@@ -61,23 +65,24 @@ test('buildPlan refuses an unfinished form and missing Simpro fields, in words',
   assert.throws(() => buildPlan({ ...FORM, description: ' ' }, SETUP, 3), /Description/)
   assert.throws(() => buildPlan(FORM, { ...SETUP, jobType: { field: null } }, 3), /Job type field was not found/)
   assert.throws(() => buildPlan(FORM, { ...SETUP, chargeCategory: {} }, 3), /Charge category field was not found/)
+  assert.throws(() => buildPlan(FORM, { ...SETUP, priority: { field: null } }, 3), /Priority field was not found/)
 })
 
-test('the plan is five steps in the demo tracker’s order, and its review facts are what will be sent', () => {
+test('the plan is six steps in the demo tracker’s order, and its review facts are what will be sent', () => {
   const plan = buildPlan(FORM, SETUP, 3)
-  assert.deepEqual(plan.map((s) => s.id), ['job', 'section', 'costCentre', 'jobType', 'chargeCategory'])
+  assert.deepEqual(plan.map((s) => s.id), ['job', 'section', 'costCentre', 'jobType', 'chargeCategory', 'priority'])
   const facts = Object.fromEntries(plan.flatMap((s) => s.facts))
   assert.deepEqual(facts, {
-    Type: 'Service', Stage: 'Pending', Customer: 'Example Hospital', Site: 'Theatre 1', Priority: 'Standard',
+    Type: 'Service', Stage: 'Pending', Customer: 'Example Hospital', Site: 'Theatre 1',
     Description: 'Monitor will not power on & shows <E12>.\n\nCustomer rang at 9am.', Notes: 'Ask for Pat\nSerial AB-1234',
-    'Cost centre': 'Service', 'Job Type': 'Repair', 'Charge Category': 'Warranty',
+    'Cost centre': 'Service', 'Job Type': 'Repair', 'Charge category - CHS': 'Warranty', 'Priority (incl callouts) - CHS': 'Standard',
   })
   const reqs = plan.map((s) => s.request({ jobId: 5001, sectionId: 77 }))
   assert.deepEqual(reqs.map((r) => r.method + ' ' + r.path), [
     'POST /companies/3/jobs/', 'POST /companies/3/jobs/5001/sections/', 'POST /companies/3/jobs/5001/sections/77/costCenters/',
-    'PATCH /companies/3/jobs/5001/customFields/44', 'PATCH /companies/3/jobs/5001/customFields/45',
+    'PATCH /companies/3/jobs/5001/customFields/44', 'PATCH /companies/3/jobs/5001/customFields/45', 'PATCH /companies/3/jobs/5001/customFields/46',
   ])
-  assert.deepEqual(reqs.slice(1).map((r) => r.body), [{}, { CostCenter: 15 }, { Value: 'Repair' }, { Value: 'Warranty' }])
+  assert.deepEqual(reqs.slice(1).map((r) => r.body), [{}, { CostCenter: 15 }, { Value: 'Repair' }, { Value: 'Warranty' }, { Value: 'Standard' }])
 })
 
 test('every request the plan builds is allowed by the real relay, body checks included', () => {
@@ -91,16 +96,16 @@ test('every request the plan builds is allowed by the real relay, body checks in
   assert.equal(relayAllows(big.method, big.path, big.body), '')
 })
 
-test('running the plan: five writes in order, ids carried forward, nothing but the five', async () => {
+test('running the plan: six writes in order, ids carried forward, nothing but the six', async () => {
   const { call, writes } = fakeSimpro()
   const seen = []
   const run = await runPlan(call, buildPlan(FORM, SETUP, 3), {}, (r) => seen.push([r.done.length, r.inflight || null]))
-  assert.deepEqual(run, { jobId: 5001, sectionId: 77, done: ['job', 'section', 'costCentre', 'jobType', 'chargeCategory'], failed: null })
+  assert.deepEqual(run, { jobId: 5001, sectionId: 77, done: ['job', 'section', 'costCentre', 'jobType', 'chargeCategory', 'priority'], failed: null })
   // Told before each step goes (which step is in flight) and after it (done), and once more at the end.
-  assert.deepEqual(seen, [[0, 'job'], [1, null], [1, 'section'], [2, null], [2, 'costCentre'], [3, null], [3, 'jobType'], [4, null], [4, 'chargeCategory'], [5, null], [5, null]])
+  assert.deepEqual(seen, [[0, 'job'], [1, null], [1, 'section'], [2, null], [2, 'costCentre'], [3, null], [3, 'jobType'], [4, null], [4, 'chargeCategory'], [5, null], [5, 'priority'], [6, null], [6, null]])
   assert.deepEqual(writes.map((w) => w.method + ' ' + w.path), [
     'POST /companies/3/jobs/', 'POST /companies/3/jobs/5001/sections/', 'POST /companies/3/jobs/5001/sections/77/costCenters/',
-    'PATCH /companies/3/jobs/5001/customFields/44', 'PATCH /companies/3/jobs/5001/customFields/45',
+    'PATCH /companies/3/jobs/5001/customFields/44', 'PATCH /companies/3/jobs/5001/customFields/45', 'PATCH /companies/3/jobs/5001/customFields/46',
   ])
   assert.equal(describeRun(buildPlan(FORM, SETUP, 3), run).state, 'done')
   assert.match(describeRun(buildPlan(FORM, SETUP, 3), run).text, /Job 5001 was created/)
@@ -115,7 +120,7 @@ test('a step Simpro refuses stops the run, and resuming never makes a second job
   assert.equal(run.failed.step, 'costCentre')
   assert.equal(run.failed.unknown, false)
   assert.match(run.failed.message, /Simpro said 422/)
-  assert.equal(first.writes.length, 3) // it stopped there: the two field steps were not tried
+  assert.equal(first.writes.length, 3) // it stopped there: the three field steps were not tried
   const d = describeRun(plan, run)
   assert.equal(d.state, 'partial')
   assert.match(d.text, /Job 5001 was created, but “Add the cost centre” did not finish/)
@@ -123,8 +128,8 @@ test('a step Simpro refuses stops the run, and resuming never makes a second job
   const second = fakeSimpro()
   const resumed = await runPlan(second.call, plan, run)
   assert.equal(resumed.failed, null)
-  assert.deepEqual(resumed.done, ['job', 'section', 'costCentre', 'jobType', 'chargeCategory'])
-  assert.deepEqual(second.writes.map((w) => w.word), ['centre', 'field', 'field']) // no job, no section
+  assert.deepEqual(resumed.done, ['job', 'section', 'costCentre', 'jobType', 'chargeCategory', 'priority'])
+  assert.deepEqual(second.writes.map((w) => w.word), ['centre', 'field', 'field', 'field']) // no job, no section
   assert.ok(second.writes.every((w) => w.path.includes('/jobs/5001/')))
   assert.ok(second.writes[0].path.includes('/sections/77/'))
 })
@@ -167,7 +172,7 @@ test('an answer without the new job’s number is not taken as success', async (
 test('planSignature is the same for the same form and changes with anything the job would hold', () => {
   const a = planSignature(buildPlan(FORM, SETUP, 3))
   assert.equal(a, planSignature(buildPlan({ ...FORM }, SETUP, 3)))
-  for (const change of [{ description: FORM.description + '!' }, { notes: '' }, { site: { id: 35, name: 'x' } }, { priority: { id: 2, name: 'x' } }, { jobType: { id: 'Demo', name: 'Demo' } }]) {
+  for (const change of [{ description: FORM.description + '!' }, { notes: '' }, { site: { id: 35, name: 'x' } }, { priority: { id: 'Urgent', name: 'Urgent' } }, { jobType: { id: 'Demo', name: 'Demo' } }]) {
     assert.notEqual(a, planSignature(buildPlan({ ...FORM, ...change }, SETUP, 3)), JSON.stringify(Object.keys(change)))
   }
   assert.notEqual(a, planSignature(buildPlan(FORM, SETUP, 4)))

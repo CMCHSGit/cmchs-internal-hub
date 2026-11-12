@@ -58,14 +58,16 @@ test('writes to a job are only for a job that has just been made: Pending and to
   assert.match(e.scope('post', JOB + '9999/sections/'), /could not show \(404\)/)
 })
 
-test('a custom field is only Job Type or Charge Category, found by name in Simpro', () => {
-  const e = env({ jobs: { 5001: fresh() }, fields: { 44: 'Job Type', 45: ' Charge category ', 46: 'Customer Notes', 47: 'Job Type Extra', 48: 'Charge Categories' } })
-  assert.equal(e.scope('patch', JOB + '5001/customFields/44'), '')
-  assert.equal(e.scope('patch', JOB + '5001/customFields/45'), '')
-  assert.equal(e.scope('patch', JOB + '5001/customFields/48'), '')
-  assert.match(e.scope('patch', JOB + '5001/customFields/46'), /other than Job Type or Charge Category/)
-  assert.match(e.scope('patch', JOB + '5001/customFields/47'), /other than Job Type or Charge Category/)
-  assert.match(e.scope('patch', JOB + '5001/customFields/999'), /other than Job Type or Charge Category/) // Simpro has no such field
+test('a custom field is only Job Type, Charge category or Priority, found by name in Simpro (CHS’s own names included)', () => {
+  const e = env({
+    jobs: { 5001: fresh() },
+    fields: {
+      44: 'Job Type', 45: 'Charge category - CHS', 46: 'Priority (incl callouts) - CHS', 48: ' Charge category ', 49: 'Charge Categories', 50: 'Priority',
+      60: 'Customer Notes', 61: 'Job Type Extra', 62: 'Priority list', 63: 'Charge category notes', 64: 'Priority (a) (b)', 65: 'xPriority',
+    },
+  })
+  for (const id of [44, 45, 46, 48, 49, 50]) assert.equal(e.scope('patch', JOB + '5001/customFields/' + id), '', 'field ' + id)
+  for (const id of [60, 61, 62, 63, 64, 65, 999]) assert.match(e.scope('patch', JOB + '5001/customFields/' + id), /other than Job Type, Charge Category or Priority/, 'field ' + id)
 })
 
 test('a good answer is remembered briefly, so five steps are not five extra rounds of questions; a refusal never is', () => {

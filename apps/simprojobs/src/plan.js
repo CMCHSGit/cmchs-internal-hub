@@ -3,7 +3,7 @@
    No React and no Firebase, so the tests run it as it is. `call(method, path, body)` is makeCall()'s result (testbench/simpro-api.js).
 
    The sequence is the one the demo tracker's createJob has used against this Simpro: create the job, add a section, add the cost centre
-   under it, then set the job's custom fields (Job Type and Charge Category are custom fields on jobs). Each step is its own call, and the
+   under it, then set the job's custom fields (Job Type, Charge Category and Priority are custom fields on jobs in CHS's Simpro). Each step is its own call, and the
    relay (backend/apps-script/proxy/Code.js, simproSyncJobWriteError_) checks each body again. */
 import { SendError, ok, simproErr } from '../../testbench/src/simpro-api.js'
 import { cleanText, missing, toHtml } from './draft.js'
@@ -19,7 +19,6 @@ export function jobBody(form) {
   const body = { Type: JOB_TYPE, Customer: form.customer.ID, Site: form.site.id, Description: toHtml(form.description), Stage: 'Pending' }
   const notes = toHtml(form.notes)
   if (notes) body.Notes = notes
-  if (form.priority?.id) body.ResponseTime = form.priority.id
   return body
 }
 
@@ -33,15 +32,17 @@ export function buildPlan(form, setup, companyId) {
   if (todo.length) throw new Error('Still to fill in: ' + todo.join(', ') + '.')
   const jobField = setup?.jobType?.field
   const chargeField = setup?.chargeCategory?.field
+  const priorityField = setup?.priority?.field
   if (!jobField?.id) throw new Error('Simpro’s Job type field was not found, so the job type can’t be set.')
   if (!chargeField?.id) throw new Error('Simpro’s Charge category field was not found, so it can’t be set.')
+  if (!priorityField?.id) throw new Error('Simpro’s Priority field was not found, so the priority can’t be set.')
   const base = `/companies/${companyId}/jobs/`
   const notes = cleanText(form.notes)
   return [
     {
       id: 'job', title: 'Create the job in Simpro',
       facts: [
-        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Customer', form.customer.name], ['Site', form.site.name], ['Priority', form.priority.name],
+        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Customer', form.customer.name], ['Site', form.site.name],
         ['Description', cleanText(form.description)], ['Notes', notes || 'None'],
       ],
       request: () => ({ method: 'POST', path: base, body: jobBody(form) }),
@@ -58,6 +59,10 @@ export function buildPlan(form, setup, companyId) {
     {
       id: 'chargeCategory', title: `Set “${chargeField.name}”`, facts: [[chargeField.name, form.chargeCategory.name]],
       request: (s) => ({ method: 'PATCH', path: `${base}${s.jobId}/customFields/${chargeField.id}`, body: { Value: form.chargeCategory.name } }),
+    },
+    {
+      id: 'priority', title: `Set “${priorityField.name}”`, facts: [[priorityField.name, form.priority.name]],
+      request: (s) => ({ method: 'PATCH', path: `${base}${s.jobId}/customFields/${priorityField.id}`, body: { Value: form.priority.name } }),
     },
   ]
 }
