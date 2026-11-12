@@ -1,6 +1,7 @@
-/* Simpro Jobs, steps 1 and 2: the new-job form. Choose a customer, then one of its sites, set the cost centre, job type, charge category
-   and priority (step 1), and write the description and notes (step 2). Read only: every call is a GET through the hub's Simpro relay
-   (the Simpro key never reaches the page), and nothing can be created in Simpro from here yet. */
+/* Simpro Jobs: the new-job form and its review. Choose a customer, then one of its sites, set the cost centre, job type, charge category
+   and priority, and write the description and notes. Looking things up is read only. The one thing that writes to Simpro is create() below,
+   which runs only from the button on the review screen (Review.jsx) and sends exactly the plan shown there (plan.js), through the hub's
+   Simpro relay (the Simpro key never reaches the page). */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { auth } from '../../schedule/src/firebase.js'
 import { Alert, Badge, Button, Loading, useConfirm } from '../../../shared/ui/index.jsx'
@@ -8,6 +9,8 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from '../../testbench/src/simpro-api.js'
 import { DEFAULTS, friendly, loadSetup, pickDefault, runChecks } from './lookups.js'
 import { MAX_TEXT, hasWork, missing, preview } from './draft.js'
+import { buildPlan, describeRun, runPlan, settleRun } from './plan.js'
+import { ReviewSheet } from './Review.jsx'
 import { CustomerSheet, OptionSheet, SiteSheet } from './Sheets.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
@@ -89,7 +92,9 @@ export default function SimproJobs() {
 
   // The form. A choice is { id, name } (a customer is { ID, kind, name, individual }; a site is { id, name }).
   const [form, setForm] = useState(() => readDraft().form || {})
-  useEffect(() => writeDraft({ form }), [form])
+  // The run (making the job) is kept with the form: a phone that sleeps or reloads mid-way must still know which steps are done.
+  const [run, setRun] = useState(() => settleRun(readDraft().run) || null)
+  useEffect(() => writeDraft({ form, run }), [form, run])
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const chooseCustomer = (c) => {
     if (form.customer?.ID !== c.ID) setForm((f) => ({ ...f, customer: c, site: null })) // another customer's site is no longer the site
@@ -120,21 +125,52 @@ export default function SimproJobs() {
   }, [setup])
   const [confirmDialog, confirm] = useConfirm()
   const startAgain = async () => {
+    if (run) return newJob()
     if (hasWork(form) && !(await confirm({ title: 'Start again?', message: 'This clears the customer, site, description and notes you have entered on this page. Nothing has been sent to Simpro.', confirmLabel: 'Clear the form', danger: true }))) return
     setForm(withDefaults({}, setup))
+  }
+
+  // Making the job. What is shown on the review screen is the plan built from the form; once the button is tapped the plan is frozen
+  // into the run, so what carries on (or resumes after a failure) is exactly what was reviewed, even if the form is edited meanwhile.
+  const built = useMemo(() => { try { return { plan: buildPlan(form, setup, companyId) } } catch (e) { return { error: e.message } } }, [form, setup, companyId])
+  const frozen = useMemo(() => { try { return run ? buildPlan(run.form, run.setup, run.companyId) : null } catch { return null } }, [run?.form, run?.setup, run?.companyId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const plan = run ? frozen : built.plan
+  const [running, setRunning] = useState(false)
+  const busy = useRef(false) // a double tap must never start two runs
+  const create = async () => {
+    if (busy.current || !plan) return
+    busy.current = true; setRunning(true)
+    try {
+      const base = run || {
+        form: JSON.parse(JSON.stringify(form)), companyId,
+        setup: { jobType: { field: setup.jobType.field }, chargeCategory: { field: setup.chargeCategory.field } },
+        jobId: null, sectionId: null, done: [], failed: null,
+      }
+      setRun({ ...base, failed: null })
+      const final = await runPlan(call, plan, { ...base, failed: null }, (s) => setRun({ ...base, ...s }))
+      setRun({ ...base, ...final })
+    } finally { busy.current = false; setRunning(false) }
+  }
+  const discardRun = () => { if (!busy.current) { setRun(null); close() } }
+  const newJob = async () => {
+    if (busy.current) return
+    const st = run && frozen ? describeRun(frozen, run).state : ''
+    if ((st === 'partial' || st === 'unsure') && !(await confirm({ title: 'Start a new job?', message: 'The earlier job stays in Simpro as far as it got; this only clears the form. Look in Simpro first if you are not sure it was made.', confirmLabel: 'Start a new job' }))) return
+    setRun(null); setForm(withDefaults({}, setup)); close()
   }
 
   // Which picker is open lives in the address (#/pick/customer), so the phone's Back closes it.
   const [sheet, setSheet] = useState(sheetFromHash)
   const pushed = useRef(false)
   useEffect(() => {
-    const on = () => setSheet(sheetFromHash())
+    const on = () => { const s = sheetFromHash(); if (!s) pushed.current = false; setSheet(s) } // Back closed it: nothing of ours is left to undo
     window.addEventListener('hashchange', on)
     window.addEventListener('popstate', on)
     return () => { window.removeEventListener('hashchange', on); window.removeEventListener('popstate', on) }
   }, [])
   const open = (name) => { pushed.current = true; location.hash = '#/pick/' + name }
   const close = useCallback(() => {
+    if (!sheetFromHash()) { setSheet(''); return } // nothing is open: never step back out of the page
     if (pushed.current) { pushed.current = false; history.back(); return }
     history.replaceState(null, '', location.pathname + location.search)
     setSheet('')
@@ -155,6 +191,7 @@ export default function SimproJobs() {
   }
 
   const todo = missing(form)
+  const runState = run && frozen && !running ? describeRun(frozen, run) : null
   const optionError = (key) => (setup && setup[key]?.error) || ''
   const badge = (key) => (form[key]?.usual ? <Badge tone="neutral">Usual</Badge> : null)
   const openOption = sheet && OPTION_FIELDS.find((f) => f.key === sheet)
@@ -164,7 +201,7 @@ export default function SimproJobs() {
       <div className="sj-head">
         <div>
           <h1 className="sj-title">New Simpro job</h1>
-          <p className="sj-sub">Step 2 of 3: choose who the job is for, how it is set up, and what it is about. Nothing is created in Simpro yet.</p>
+          <p className="sj-sub">Fill in the job, then review it. Nothing is created in Simpro until you tap Create on the review screen.</p>
         </div>
         {companies.length > 1 && (
           <label className="field sj-company">
@@ -175,6 +212,13 @@ export default function SimproJobs() {
           </label>
         )}
       </div>
+
+      {runState && (
+        <Alert
+          tone={runState.state === 'done' ? 'success' : runState.state === 'refused' ? 'critical' : 'warning'} title={runState.text}
+          action={<Button size="sm" variant="secondary" onClick={() => open('review')}>Open</Button>}
+        />
+      )}
 
       <div className="sj-col">
       <div className="sj-card sj-form">
@@ -224,10 +268,12 @@ export default function SimproJobs() {
           <div><dt>Notes</dt><dd>{preview(form.notes) || 'None'}</dd></div>
         </dl>
         <div className="sj-actions">
-          <Button variant="primary" disabled title="Creating jobs comes in step 3">Create job</Button>
-          <Button variant="ghost" onClick={startAgain}>Start again</Button>
+          {run
+            ? <Button variant="primary" onClick={() => open('review')}>{runState?.state === 'done' ? `Job ${run.jobId} created` : 'See how the job is going'}</Button>
+            : <Button variant="primary" disabled={!built.plan || running} onClick={() => open('review')}>Review and create job</Button>}
+          <Button variant="ghost" onClick={startAgain}>{run ? 'Start a new job' : 'Start again'}</Button>
         </div>
-        <p className="sj-hint">{todo.length ? `Still to fill in: ${todo.join(', ')}.` : 'Everything a job needs is filled in.'} Next: a preview of exactly what will be created, and your yes, before anything goes to Simpro.</p>
+        <p className="sj-hint">{run ? 'The job was made from the details you reviewed; changing the form now does not change it.' : `${todo.length ? `Still to fill in: ${todo.join(', ')}. ` : ''}Review shows exactly what will be created. Nothing goes to Simpro until you tap Create there.`}</p>
       </div>
 
       <details className="sj-card sj-check">
@@ -244,6 +290,7 @@ export default function SimproJobs() {
       </details>
 
       {confirmDialog}
+      {sheet === 'review' && plan && <ReviewSheet plan={plan} run={run} running={running} onCreate={create} onDiscard={discardRun} onNew={newJob} onClose={close} />}
       {sheet === 'customer' && <CustomerSheet call={call} companyId={companyId} selected={form.customer} onPick={chooseCustomer} onClose={close} />}
       {sheet === 'site' && form.customer && <SiteSheet call={call} companyId={companyId} customer={form.customer} selected={form.site} onPick={pickSite} onClose={close} />}
       {openOption && setup?.[openOption.key] && !setup[openOption.key].error && (

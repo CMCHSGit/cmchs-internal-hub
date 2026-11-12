@@ -1898,6 +1898,12 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/$/],
   [['get'],        /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/],
   [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/\d+\/assets\/$/],
+  // Simpro Jobs, making a job: one step per call, in this order (the same sequence the demo tracker's createJob uses). None takes a
+  // query, and each body is checked by simproSyncJobWriteError_ below.
+  [['post'],       /^\/companies\/\d+\/jobs\/$/, /^$/],
+  [['post'],       /^\/companies\/\d+\/jobs\/\d+\/sections\/$/, /^$/],
+  [['post'],       /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/, /^$/],
+  [['patch'],      /^\/companies\/\d+\/jobs\/\d+\/customFields\/\d+$/, /^$/],
   // Attach a generated PDF to a job (Ansur PVT reports), and list the files a job has (names only matter: the Test Bench shows a
   // test as sent when its report is already on the job, wherever it was attached from). Plain query only (pageSize).
   [['get','post'], /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/]
@@ -1911,6 +1917,49 @@ const SIMPRO_SYNC_STAGES = ['Pending', 'Progress', 'Complete', 'Archived'];
 // A job's notes are replaced whole by a PATCH (Ansur appends to a fresh copy first), so
 // this is a ceiling on one job's whole notes field, far above any real one.
 const SIMPRO_SYNC_MAX_NOTES = 50000;
+
+// Simpro Jobs: what making a job may carry. A new job is a Service job with a customer, a site and a description, and optionally
+// notes and a priority (Simpro calls it a response time); nothing else (no name, dates, stage, status, people or tags) can be set here.
+const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Customer', 'Site', 'Description', 'Notes', 'ResponseTime'];
+const SIMPRO_JOBS_MAX_HTML = 130000;   // the page caps typed text at 20,000 characters; escaped into HTML (a quote becomes &quot;) it is up to 6 times that, plus tags
+const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
+
+function simproJobsPositiveInt_(v) {
+  return typeof v === 'number' && isFinite(v) && Math.floor(v) === v && v > 0 && v < 1e9;
+}
+
+// The body of each write that makes a job. Returns '' when fine (or when the call is not one of these), else why not. Like
+// simproSyncJobPatchError_, this limits the values, so a call made from a browser console can't do anything the tool itself wouldn't.
+function simproSyncJobWriteError_(method, path, body, requestCount) {
+  const isJob = method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path);
+  const isSection = method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/sections\/$/.test(path);
+  const isCentre = method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/sections\/\d+\/costCenters\/$/.test(path);
+  const isField = method === 'patch' && /^\/companies\/\d+\/jobs\/\d+\/customFields\/\d+$/.test(path);
+  if (!isJob && !isSection && !isCentre && !isField) return '';
+  if (requestCount > 1) return 'is one of several: each step of making a job is sent on its own';
+  const isObj = body && typeof body === 'object' && !Array.isArray(body);
+  if (!isObj) return 'has no body';
+  const keys = Object.keys(body);
+  if (isSection) return keys.length ? 'adds a section with fields, which is not allowed' : '';
+  if (isCentre) {
+    if (keys.length !== 1 || keys[0] !== 'CostCenter' || !simproJobsPositiveInt_(body.CostCenter)) return 'adds something other than a cost centre';
+    return '';
+  }
+  if (isField) {
+    const v = body.Value;
+    if (keys.length !== 1 || keys[0] !== 'Value' || typeof v !== 'string' || !v.trim() || v.length > SIMPRO_JOBS_MAX_FIELD_VALUE || /[\x00-\x1f\x7f]/.test(v)) {
+      return 'sets a custom field to something other than a short piece of text';
+    }
+    return '';
+  }
+  if (keys.some(function (k) { return SIMPRO_JOBS_CREATE_FIELDS.indexOf(k) === -1; })) return 'sets a job field that is not allowed';
+  if (body.Type !== 'Service') return 'makes a job that is not a Service job';
+  if (!simproJobsPositiveInt_(body.Customer) || !simproJobsPositiveInt_(body.Site)) return 'has no customer or site';
+  if (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML) return 'has no description, or one that is too long';
+  if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_JOBS_MAX_HTML)) return 'has notes that are not text or are too long';
+  if ('ResponseTime' in body && !simproJobsPositiveInt_(body.ResponseTime)) return 'has a priority that is not an id';
+  return '';
+}
 
 // What a job PATCH may carry. Returns '' when fine, else why not. The fields are
 // already limited to Stage/Status/Notes; this limits their values, so a call made
@@ -1956,6 +2005,15 @@ function simproSyncWriteSummary_(requests, results) {
     if (method === 'patch' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)$/))) {
       const body = r.body || {};
       text = 'changed job ' + m[1] + ': ' + Object.keys(body).map(function (k) { return k === 'Stage' ? 'Stage to ' + body.Stage : k; }).join(', ');
+    } else if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
+      const made = results && results[i] && results[i].data && results[i].data.ID;
+      text = 'created a Service job' + (made ? ' (job ' + made + ')' : '');
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/$/))) {
+      text = 'added a section to job ' + m[1];
+    } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/\d+\/costCenters\/$/))) {
+      text = 'added a cost centre to job ' + m[1];
+    } else if (method === 'patch' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/customFields\/\d+$/))) {
+      text = 'set a custom field on job ' + m[1];
     } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/attachments\/files\/$/))) {
       text = 'attached a file to job ' + m[1];
     } else if (method === 'post' && (m = path.match(/^\/companies\/\d+\/jobs\/(\d+)\/sections\/\d+\/costCenters\/\d+\/assets\/$/))) {
@@ -2251,6 +2309,8 @@ function simproSyncProxy_(payload) {
       const why = simproSyncJobPatchError_(r.body);
       if (why) return respond({ success: false, error: 'Request ' + i + ' ' + why });
     }
+    const jobWriteWhy = simproSyncJobWriteError_(method, path.split('?')[0], r.body, requests.length);
+    if (jobWriteWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobWriteWhy });
     if (method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {   // a GET only lists the job's files
       const body = r.body || {};
       if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {

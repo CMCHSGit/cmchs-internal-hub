@@ -6,8 +6,8 @@ rule the Simpro relay applies. Mobile first: one column, 56px rows, a full-scree
 ## Step 1: the new-job form's pickers (read only)
 
 Customer (browse A to Z, or search, Show more), then one of its **Site**s, then **Cost centre** (starts on Service), **Job type**
-(starts on Repair), **Charge category**, **Priority** (starts on Standard). **Nothing can be created or changed in Simpro from here
-yet**: every call is a `GET` through the existing `simproSync` relay, and the tests fail if one isn't.
+(starts on Repair), **Charge category**, **Priority** (starts on Standard). Every lookup is a `GET` through the existing `simproSync` relay, and
+the tests fail if one isn't; only step 3 (below) writes.
 
 Where each list comes from (Simpro's own API reference, developer.simprogroup.com/apidoc, v1.0, read 13 Nov 2026):
 
@@ -42,12 +42,29 @@ text as the small HTML Simpro's description and notes hold: a blank line is a pa
 markup is escaped, never run; used when the job is created) and `hasWork()` (Start again asks first only when there is something to lose).
 Jonathan chose description and notes only; asset or serial, contact and due date are left out for now (a serial can go in the notes).
 
-## Later steps (each needs Jonathan's explicit yes, a preview of exactly what will be written, and a relay deploy)
+## Step 3: create the job (the first thing here that writes to Simpro)
 
-3. Create the job: `POST /jobs/` (`Type`, `Site`, `Customer`, `ResponseTime`, `CustomFields: [{CustomField, Value}]`, ...), then its cost centre
-   (`POST /jobs/{id}/sections/`, then `.../costCenters/` with `CostCenter`), after a preview and a yes.
-4. Edit or change an existing job (the relay's job `PATCH` allows only Stage, Status and Notes today).
-Each write gets an activity line with no private content (`shared/activity.js`, add `simprojobs` to `APP_LABELS`).
+**Review and create job** opens a review screen, and its **Create job in Simpro** button is the only thing in the tool that sends a write.
+- **Plan = preview = action** (`src/plan.js`): the form becomes five steps, the review screen is drawn from those steps (the exact words that
+  will be stored, the cost centre, Job Type and Charge Category), and the button runs those same steps. Nothing is sent before the tap.
+- **The sequence** is the demo tracker's `createJob`, proven on this Simpro: `POST /jobs/` (`Type: "Service"`, `Customer`, `Site`, `Description`,
+  `Notes`, `ResponseTime`), `POST .../sections/`, `POST .../sections/{id}/costCenters/` (`CostCenter`), then `PATCH .../customFields/{id}`
+  (`Value`) for Job Type and for Charge Category. No name, dates, stage, status or people are set: Simpro's defaults apply. If this Simpro
+  insists on a due date, the first step is refused (422) and nothing is created.
+- **Never a second job.** Once tapped, the plan is frozen into the run (kept with the form for the session), a double tap can't start two runs,
+  and a step that is done is never sent again. A step Simpro refuses stops the run; **Try the remaining steps** resumes from there. A step
+  whose answer never came (a dropped connection, a 5xx, the page closed mid-step) is "not sure": the page says to look in Simpro (Deep Search)
+  before trying again.
+- **Relay** (`simproSyncJobWriteError_` in `Code.js`, loaded by `tests/relay-write.test.mjs`): only these four writes, each alone in its call
+  and with no query; a job must be a Service job with a customer, a site and a description (and optionally notes and a response time), and no
+  other field; a section is empty; a cost centre is only `{CostCenter: id}`; a custom field is only `{Value: short text}`. It also writes the
+  activity line ("created a Service job (job N)", job numbers only, never the text). Needs the same deploy as the read rules.
+- **Same access as the rest of the tool** (admins and Simpro-access staff), not admin only. A job made by mistake can be archived in Simpro
+  (the relay already allows `Stage: Archived`); there is no delete.
+
+## Later
+
+4. Edit or change an existing job (the relay's job `PATCH` allows only Stage, Status and Notes today); the same review-then-yes rule applies.
 
 ## Tests
 
