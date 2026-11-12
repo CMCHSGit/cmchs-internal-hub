@@ -1,12 +1,13 @@
-/* Simpro Jobs, step 1: the new-job form's pickers. Choose a customer, then one of its sites, and set the cost centre, job type, charge
-   category and priority. Read only: every call is a GET through the hub's Simpro relay (the Simpro key never reaches the page), and nothing
-   can be created in Simpro from here yet. */
+/* Simpro Jobs, steps 1 and 2: the new-job form. Choose a customer, then one of its sites, set the cost centre, job type, charge category
+   and priority (step 1), and write the description and notes (step 2). Read only: every call is a GET through the hub's Simpro relay
+   (the Simpro key never reaches the page), and nothing can be created in Simpro from here yet. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { auth } from '../../schedule/src/firebase.js'
-import { Alert, Badge, Button, Loading } from '../../../shared/ui/index.jsx'
+import { Alert, Badge, Button, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from '../../testbench/src/simpro-api.js'
 import { DEFAULTS, friendly, loadSetup, pickDefault, runChecks } from './lookups.js'
+import { MAX_TEXT, hasWork, missing, preview } from './draft.js'
 import { CustomerSheet, OptionSheet, SiteSheet } from './Sheets.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
@@ -117,7 +118,11 @@ export default function SimproJobs() {
     started.current = true
     setForm((f) => withDefaults(f, setup))
   }, [setup])
-  const startAgain = () => setForm(withDefaults({}, setup))
+  const [confirmDialog, confirm] = useConfirm()
+  const startAgain = async () => {
+    if (hasWork(form) && !(await confirm({ title: 'Start again?', message: 'This clears the customer, site, description and notes you have entered on this page. Nothing has been sent to Simpro.', confirmLabel: 'Clear the form', danger: true }))) return
+    setForm(withDefaults({}, setup))
+  }
 
   // Which picker is open lives in the address (#/pick/customer), so the phone's Back closes it.
   const [sheet, setSheet] = useState(sheetFromHash)
@@ -149,7 +154,7 @@ export default function SimproJobs() {
     return <div className="sj-page"><Alert tone="critical" title="Can’t reach Simpro">{access}</Alert></div>
   }
 
-  const complete = form.customer && form.site && OPTION_FIELDS.every(({ key }) => form[key])
+  const todo = missing(form)
   const optionError = (key) => (setup && setup[key]?.error) || ''
   const badge = (key) => (form[key]?.usual ? <Badge tone="neutral">Usual</Badge> : null)
   const openOption = sheet && OPTION_FIELDS.find((f) => f.key === sheet)
@@ -159,7 +164,7 @@ export default function SimproJobs() {
       <div className="sj-head">
         <div>
           <h1 className="sj-title">New Simpro job</h1>
-          <p className="sj-sub">Step 1 of 3: choose who the job is for and how it is set up. Nothing is created in Simpro yet.</p>
+          <p className="sj-sub">Step 2 of 3: choose who the job is for, how it is set up, and what it is about. Nothing is created in Simpro yet.</p>
         </div>
         {companies.length > 1 && (
           <label className="field sj-company">
@@ -171,6 +176,7 @@ export default function SimproJobs() {
         )}
       </div>
 
+      <div className="sj-col">
       <div className="sj-card sj-form">
         <PickRow label="Customer" value={form.customer?.name} placeholder="Choose a customer" onClick={() => open('customer')} />
         <PickRow label="Site" value={form.site?.name} placeholder={form.customer ? 'Choose a site' : 'Choose a customer first'} disabled={!form.customer} onClick={() => open('site')} />
@@ -189,18 +195,39 @@ export default function SimproJobs() {
         {setupBusy && <p className="sj-hint"><span className="sj-dot" aria-hidden="true" /> Refreshing the lists from Simpro…</p>}
       </div>
 
+      <div className="sj-card sj-form">
+        <label className="field">
+          <span className="field-label">Description <span className="sj-req">(needed)</span></span>
+          <textarea
+            className="input sj-text" rows={5} maxLength={MAX_TEXT} value={form.description || ''} onChange={(e) => set('description', e.target.value)}
+            placeholder="What is the fault or the request? e.g. the monitor will not power on" aria-describedby="sj-desc-hint"
+          />
+          <span id="sj-desc-hint" className="sj-hint">Shown on the job as the fault or request. A blank line starts a new paragraph.</span>
+        </label>
+        <label className="field">
+          <span className="field-label">Notes <span className="sj-opt">(optional)</span></span>
+          <textarea
+            className="input sj-text" rows={4} maxLength={MAX_TEXT} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)}
+            placeholder="Anything else the technician should know: contact on site, access, serial number…"
+          />
+        </label>
+      </div>
+      </div>
+
       <div className="sj-card">
         <h2 className="sj-h2">This job would be made with</h2>
         <dl className="sj-summary">
           <div><dt>Customer</dt><dd>{form.customer?.name || '—'}</dd></div>
           <div><dt>Site</dt><dd>{form.site?.name || '—'}</dd></div>
           {OPTION_FIELDS.map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{form[key]?.name || '—'}</dd></div>)}
+          <div><dt>Description</dt><dd>{preview(form.description) || '—'}</dd></div>
+          <div><dt>Notes</dt><dd>{preview(form.notes) || 'None'}</dd></div>
         </dl>
         <div className="sj-actions">
           <Button variant="primary" disabled title="Creating jobs comes in step 3">Create job</Button>
           <Button variant="ghost" onClick={startAgain}>Start again</Button>
         </div>
-        <p className="sj-hint">{complete ? 'Everything the pickers cover is chosen.' : 'Choose every field above.'} Next: the description, notes and other details, then a preview of exactly what will be created, and your yes, before anything goes to Simpro.</p>
+        <p className="sj-hint">{todo.length ? `Still to fill in: ${todo.join(', ')}.` : 'Everything a job needs is filled in.'} Next: a preview of exactly what will be created, and your yes, before anything goes to Simpro.</p>
       </div>
 
       <details className="sj-card sj-check">
@@ -216,6 +243,7 @@ export default function SimproJobs() {
         )}
       </details>
 
+      {confirmDialog}
       {sheet === 'customer' && <CustomerSheet call={call} companyId={companyId} selected={form.customer} onPick={chooseCustomer} onClose={close} />}
       {sheet === 'site' && form.customer && <SiteSheet call={call} companyId={companyId} customer={form.customer} selected={form.site} onPick={pickSite} onClose={close} />}
       {openOption && setup?.[openOption.key] && !setup[openOption.key].error && (

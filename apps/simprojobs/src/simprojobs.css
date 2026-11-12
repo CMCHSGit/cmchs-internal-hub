@@ -81,3 +81,9 @@ body.sj-lock { overflow: hidden; }
   .sj-page { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
   .sj-head, .sj-check { grid-column: 1 / -1; }
 }
+
+/* Step 2: the description and notes. */
+.sj-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.sj-text { width: 100%; font-size: 16px; line-height: 1.45; min-height: 120px; } /* 16px: iOS zooms into anything smaller */
+.sj-req { font-weight: var(--weight-light); color: #a85800; }
+.sj-opt { font-weight: var(--weight-light); color: var(--text-muted); }

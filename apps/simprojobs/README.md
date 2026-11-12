@@ -34,9 +34,16 @@ orderby), a customer's own record only for `columns=ID,Sites`, sites (paging, `C
 only after `clasp deploy -i` from an up-to-date checkout (`backend/README.md`); until then each picker says the relay "doesn't allow this
 lookup yet". `tests/relay.test.mjs` loads the real `Code.js` and checks what is allowed and what is still refused.
 
+## Step 2: description and notes (no Simpro calls)
+
+Two text fields under the pickers (16px, so iOS doesn't zoom): **Description** (needed) and **Notes** (optional). They are kept with the rest of
+the form for the session. `src/draft.js` holds the rules, tested: `missing()` (what the summary says is still to fill in), `toHtml()` (plain
+text as the small HTML Simpro's description and notes hold: a blank line is a paragraph, a line break is `<br>`, anything typed that looks like
+markup is escaped, never run; used when the job is created) and `hasWork()` (Start again asks first only when there is something to lose).
+Jonathan chose description and notes only; asset or serial, contact and due date are left out for now (a serial can go in the notes).
+
 ## Later steps (each needs Jonathan's explicit yes, a preview of exactly what will be written, and a relay deploy)
 
-2. Details a job needs: description, notes, asset or serial, contact, due date (what to include is Jonathan's call).
 3. Create the job: `POST /jobs/` (`Type`, `Site`, `Customer`, `ResponseTime`, `CustomFields: [{CustomField, Value}]`, ...), then its cost centre
    (`POST /jobs/{id}/sections/`, then `.../costCenters/` with `CostCenter`), after a preview and a yes.
 4. Edit or change an existing job (the relay's job `PATCH` allows only Stage, Status and Notes today).
