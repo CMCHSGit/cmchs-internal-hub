@@ -1920,7 +1920,7 @@ const SIMPRO_SYNC_MAX_NOTES = 50000;
 
 // Simpro Jobs: what making a job may carry. A new job is a Service job with a customer, a site and a description, and optionally
 // notes and a priority (Simpro calls it a response time); nothing else (no name, dates, stage, status, people or tags) can be set here.
-const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Customer', 'Site', 'Description', 'Notes', 'ResponseTime'];
+const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Customer', 'Site', 'Description', 'Notes', 'ResponseTime', 'Stage'];
 const SIMPRO_JOBS_MAX_HTML = 130000;   // the page caps typed text at 20,000 characters; escaped into HTML (a quote becomes &quot;) it is up to 6 times that, plus tags
 const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
 
@@ -1957,7 +1957,60 @@ function simproSyncJobWriteError_(method, path, body, requestCount) {
   if (!simproJobsPositiveInt_(body.Customer) || !simproJobsPositiveInt_(body.Site)) return 'has no customer or site';
   if (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML) return 'has no description, or one that is too long';
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_JOBS_MAX_HTML)) return 'has notes that are not text or are too long';
+  if (!simproJobsPlainHtml_(body.Description) || ('Notes' in body && !simproJobsPlainHtml_(body.Notes))) return 'has markup other than paragraphs and line breaks';
   if ('ResponseTime' in body && !simproJobsPositiveInt_(body.ResponseTime)) return 'has a priority that is not an id';
+  if ('Stage' in body && body.Stage !== 'Pending') return 'makes a job that does not start as Pending';
+  return '';
+}
+
+// The page writes a description or note as <p>…</p> paragraphs with <br> line breaks and escapes everything else (&lt; &gt; &amp;), so
+// those three tags are the only markup a call from this tool carries. Anything else with a "<" or ">" (a link, a script, an image, a
+// style) is refused here, so a call made from a browser console can't put it into a job.
+function simproJobsPlainHtml_(html) {
+  return String(html).replace(/<\/?p>|<br>/g, '').indexOf('<') === -1 && String(html).replace(/<\/?p>|<br>/g, '').indexOf('>') === -1;
+}
+
+// ── Simpro Jobs: how far these writes reach ─────────────────────────────────────────────────────────────────────────────────
+// The writes work through the company's one Simpro key, so they are held to what the tool does: add to a job that has just been made,
+// and set only the two custom fields the form sets. A person's own Simpro login might allow more or less than this; the key is shared.
+const SIMPRO_JOBS_NEW_JOB_HOURS = 12;          // a job is "just made" while it is Pending and was last touched within this long
+const SIMPRO_JOBS_FIELD_NAMES = /^(job\s*type|charge\s*categor(y|ies))$/i;
+const SIMPRO_JOBS_CREATES_PER_HOUR = 20;       // per person: far above real use, a ceiling on a runaway or a hostile loop
+
+function simproJobsCacheGet_(key) { try { return CacheService.getScriptCache().get(key); } catch (e) { return null; } }
+function simproJobsCachePut_(key, value, seconds) { try { CacheService.getScriptCache().put(key, value, seconds); } catch (e) { /* no cache: the check is made every time */ } }
+
+// '' when this write may go ahead, else why not. Reads Simpro (with the shared key) to decide, and remembers a good answer briefly.
+function simproJobsScopeError_(method, path, who) {
+  var m;
+  if (method === 'post' && /^\/companies\/\d+\/jobs\/$/.test(path)) {
+    const key = 'simproJobsMade_' + String((who && (who.uid || who.email)) || 'unknown');
+    const made = parseInt(simproJobsCacheGet_(key) || '0', 10) || 0;
+    if (made >= SIMPRO_JOBS_CREATES_PER_HOUR) return 'has made ' + SIMPRO_JOBS_CREATES_PER_HOUR + ' jobs in the last hour, which is the most this tool allows';
+    simproJobsCachePut_(key, String(made + 1), 3600);
+    return '';
+  }
+  m = path.match(/^\/companies\/(\d+)\/jobs\/(\d+)\/(?:sections\/(?:\d+\/costCenters\/)?|customFields\/(\d+))$/);
+  if (!m || (method !== 'post' && method !== 'patch')) return '';
+  const company = m[1], jobId = m[2], fieldId = m[3];
+
+  if (fieldId) {                                  // only Job Type and Charge Category
+    const fkey = 'simproJobsField_' + company + '_' + fieldId;
+    if (simproJobsCacheGet_(fkey) !== 'ok') {
+      const f = simproFetch('/companies/' + company + '/setup/customFields/projects/' + fieldId, 'get');
+      if (!f.ok || !f.json || !SIMPRO_JOBS_FIELD_NAMES.test(String(f.json.Name || '').trim())) return 'sets a custom field other than Job Type or Charge Category';
+      simproJobsCachePut_(fkey, 'ok', 21600);
+    }
+  }
+  const jkey = 'simproJobsNew_' + company + '_' + jobId;
+  if (simproJobsCacheGet_(jkey) !== 'ok') {       // only a job that has just been made
+    const j = simproFetch('/companies/' + company + '/jobs/' + jobId, 'get');
+    if (!j.ok || !j.json) return 'is for a job Simpro could not show (' + j.code + ')';
+    if (j.json.Stage !== 'Pending') return 'is for a job that is no longer Pending, so this tool will not add to it';
+    const touched = Date.parse(String(j.json.DateModified || ''));
+    if (!isFinite(touched) || Date.now() - touched > SIMPRO_JOBS_NEW_JOB_HOURS * 3600 * 1000) return 'is for a job that was not made or changed in the last ' + SIMPRO_JOBS_NEW_JOB_HOURS + ' hours, so this tool will not add to it';
+    simproJobsCachePut_(jkey, 'ok', 60);
+  }
   return '';
 }
 
@@ -2311,6 +2364,8 @@ function simproSyncProxy_(payload) {
     }
     const jobWriteWhy = simproSyncJobWriteError_(method, path.split('?')[0], r.body, requests.length);
     if (jobWriteWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobWriteWhy });
+    const jobScopeWhy = simproJobsScopeError_(method, path.split('?')[0], who);
+    if (jobScopeWhy) return respond({ success: false, error: 'Request ' + i + ' ' + jobScopeWhy });
     if (method === 'post' && /^\/companies\/\d+\/jobs\/\d+\/attachments\/files\/$/.test(path.split('?')[0])) {   // a GET only lists the job's files
       const body = r.body || {};
       if (Object.keys(body).some(function (k) { return SIMPRO_SYNC_ATTACHMENT_FIELDS.indexOf(k) === -1; })) {

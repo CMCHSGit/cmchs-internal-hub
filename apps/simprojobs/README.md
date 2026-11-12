@@ -59,7 +59,13 @@ Jonathan chose description and notes only; asset or serial, contact and due date
   and with no query; a job must be a Service job with a customer, a site and a description (and optionally notes and a response time), and no
   other field; a section is empty; a cost centre is only `{CostCenter: id}`; a custom field is only `{Value: short text}`. It also writes the
   activity line ("created a Service job (job N)", job numbers only, never the text). Needs the same deploy as the read rules.
-- **Same access as the rest of the tool** (admins and Simpro-access staff), not admin only. A job made by mistake can be archived in Simpro
+- **How far the writes reach** (`simproJobsScopeError_`, added after the security session's review; `tests/relay-scope.test.mjs`): the relay uses
+  the company's one Simpro key, so these writes are held to what the tool does. A section, cost centre or custom field is only added to a job
+  that is **Pending** and was made or changed in the last 12 hours (the new job's own stage is sent as `Pending`), so an old or invoiced job
+  can't be touched; a custom field is only one named **Job Type** or **Charge Category** in Simpro; a description or note carries only
+  `<p>`, `</p>` and `<br>` (the page escapes everything else); one person can make **20 jobs an hour**. If Simpro ever doesn't report a job's
+  `DateModified` the add is refused rather than assumed fine, and the page shows the reason.
+- **Same access as the rest of the tool** (admins and Simpro-access staff), not admin only. Check who holds Simpro access (Settings, People and access) before the deploy. A job made by mistake can be archived in Simpro
   (the relay already allows `Stage: Archived`); there is no delete.
 
 ## Later

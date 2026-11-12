@@ -45,7 +45,7 @@ function fakeSimpro(opts = {}) {
 
 test('jobBody holds only what the form holds; typed text is escaped, notes are left out when empty', () => {
   const body = jobBody(FORM)
-  assert.deepEqual(Object.keys(body).sort(), ['Customer', 'Description', 'Notes', 'ResponseTime', 'Site', 'Type'])
+  assert.deepEqual(Object.keys(body).sort(), ['Customer', 'Description', 'Notes', 'ResponseTime', 'Site', 'Stage', 'Type'])
   assert.equal(body.Type, JOB_TYPE)
   assert.equal(body.Type, 'Service')
   assert.equal(body.Customer, 12)
@@ -68,7 +68,7 @@ test('the plan is five steps in the demo tracker’s order, and its review facts
   assert.deepEqual(plan.map((s) => s.id), ['job', 'section', 'costCentre', 'jobType', 'chargeCategory'])
   const facts = Object.fromEntries(plan.flatMap((s) => s.facts))
   assert.deepEqual(facts, {
-    Type: 'Service', Customer: 'Example Hospital', Site: 'Theatre 1', Priority: 'Standard',
+    Type: 'Service', Stage: 'Pending', Customer: 'Example Hospital', Site: 'Theatre 1', Priority: 'Standard',
     Description: 'Monitor will not power on & shows <E12>.\n\nCustomer rang at 9am.', Notes: 'Ask for Pat\nSerial AB-1234',
     'Cost centre': 'Service', 'Job Type': 'Repair', 'Charge Category': 'Warranty',
   })

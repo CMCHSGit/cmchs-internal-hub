@@ -11,9 +11,12 @@ import { cleanText, missing, toHtml } from './draft.js'
 /** Every job made here is a Service job (the relay refuses any other Type). */
 export const JOB_TYPE = 'Service'
 
-/** The body of the first request: only what the form holds. No name, dates, stage, status or people: Simpro's own defaults apply. */
+/**
+ * The body of the first request: only what the form holds, and Stage Pending (a new job; the relay only lets this tool add to a Pending job).
+ * No name, dates, status or people: Simpro's own defaults apply.
+ */
 export function jobBody(form) {
-  const body = { Type: JOB_TYPE, Customer: form.customer.ID, Site: form.site.id, Description: toHtml(form.description) }
+  const body = { Type: JOB_TYPE, Customer: form.customer.ID, Site: form.site.id, Description: toHtml(form.description), Stage: 'Pending' }
   const notes = toHtml(form.notes)
   if (notes) body.Notes = notes
   if (form.priority?.id) body.ResponseTime = form.priority.id
@@ -38,7 +41,7 @@ export function buildPlan(form, setup, companyId) {
     {
       id: 'job', title: 'Create the job in Simpro',
       facts: [
-        ['Type', JOB_TYPE], ['Customer', form.customer.name], ['Site', form.site.name], ['Priority', form.priority.name],
+        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Customer', form.customer.name], ['Site', form.site.name], ['Priority', form.priority.name],
         ['Description', cleanText(form.description)], ['Notes', notes || 'None'],
       ],
       request: () => ({ method: 'POST', path: base, body: jobBody(form) }),
