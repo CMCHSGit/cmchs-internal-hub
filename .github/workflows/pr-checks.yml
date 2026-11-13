@@ -46,7 +46,10 @@ jobs:
           VITE_AZURE_TENANT_ID: ci-placeholder
       # Every app that has a "test" script, so a new app's tests join the check without editing this file.
       # (The Firestore rules tests have their own workflow, rules-tests.yml: they need Java and the emulator.)
+      # The Asks tests build their sample dates in local time and assume New Zealand's (they fail on the runner's UTC clock), so the tests run in it.
       - name: Run each app's tests
+        env:
+          TZ: Pacific/Auckland
         run: |
           failed=""
           for dir in apps/*/; do
