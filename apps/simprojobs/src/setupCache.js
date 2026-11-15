@@ -11,3 +11,13 @@ export const readSetup = (companyId) => {
 }
 
 export const writeSetup = (companyId, data) => { try { sessionStorage.setItem(setupKey(companyId), JSON.stringify({ at: Date.now(), data })) } catch { /* no cache then */ } }
+
+/* The staff list (the optional technician) is kept the same way, per company, for the same half hour. */
+const staffKey = (companyId) => 'simprojobs.staff.' + companyId
+export const readStaff = (companyId) => {
+  try {
+    const s = JSON.parse(sessionStorage.getItem(staffKey(companyId)))
+    return s && Date.now() - s.at < SETUP_TTL ? s.data : null
+  } catch { return null }
+}
+export const writeStaff = (companyId, data) => { try { sessionStorage.setItem(staffKey(companyId), JSON.stringify({ at: Date.now(), data })) } catch { /* no cache then */ } }

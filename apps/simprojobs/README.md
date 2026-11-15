@@ -6,7 +6,7 @@ rule the Simpro relay applies. Mobile first: one column, 56px rows, a full-scree
 ## Step 1: the new-job form's pickers (read only)
 
 Customer (browse A to Z, or search, Show more), then one of its **Site**s, then **Cost centre** (starts on Service), **Job type**
-(starts on Repair), **Charge category**, **Priority** (starts on Standard). Every lookup is a `GET` through the existing `simproSync` relay, and
+(starts on Repair), **Charge category**, **Priority** (starts on Standard), and an optional **Technician** (see below). Every lookup is a `GET` through the existing `simproSync` relay, and
 the tests fail if one isn't; only step 3 (below) writes.
 
 Where each list comes from (Simpro's own API reference, developer.simprogroup.com/apidoc, v1.0, read 13 Nov 2026):
@@ -79,8 +79,9 @@ The page is "Simpro Jobs" with two tabs: **New job** (above) and **Find a job** 
   drawing. **Add to it or change it** and **Close job** are disabled with a reason when the job's stage doesn't allow them.
 - **Add to it or change it**: the title can be changed (replaced, shown from → to; a job with no title can be given one); text is only ever **added to the end** of the description or notes (never replaced: a description can be rich text and tables,
   which a phone's plain text box would flatten), read fresh just before it is written so a note someone added in Simpro meanwhile is kept; and Job type,
-  Charge category and Priority can be changed (each its own step, only if it differs). **Close** is what SimproSync does: Stage Complete, then Status
-  "Job : Completed" (found by name). Pending, Progress and Complete jobs can be changed; Invoiced and Archived jobs can't; only Pending and Progress can be closed.
+  Charge category and Priority can be changed (each its own step, only if it differs). **Close job** is a small form: it starts on what SimproSync does, Stage Complete then Status
+  "Job : Completed" (found by name), and you can add a note (to the end of the notes), pick another stage (Pending, Progress, Complete or Archived) and another status
+  (Simpro's job statuses, or leave it as it is); only what differs is a step. Pending, Progress and Complete jobs can be changed; Invoiced and Archived jobs can't be.
 - **Same rule as creating**: every change is previewed (the exact text; each field "from → to"), goes to Simpro only when the person taps the button on that screen,
   runs one step at a time (a double tap can't start it twice), and says what was and wasn't done if a step stops. Nothing is kept across a reload: the job is
   read again from Simpro, which is the truth.
@@ -98,3 +99,13 @@ The page is "Simpro Jobs" with two tabs: **New job** (above) and **Find a job** 
 ```bash
 cd apps/simprojobs && npm test        # invented customers and sites only; nothing real in this public repo
 ```
+
+## Technician (optional, on a new job)
+
+The New job form has an optional **Technician** (a Simpro staff member: employees and contractors, not plant). It starts on **the person signed in** when they are
+exactly one Simpro employee: their Microsoft name is matched to Simpro's staff names (words in any order, accents and case ignored), else the name part of their email
+(`peter.lin@…`); two employees with the same name, or none, means no guess and it starts empty. They can pick someone else or "No technician" (a cleared choice stays
+cleared). It goes in the create request as `Technicians` (the staff id; Simpro's docs give the job's technician as one staff id, so one person, not several).
+Not on the Edit screen yet: Simpro's docs describe a job's technicians as a list, and replacing it could drop people, so that waits for a look at a real job.
+- Relay: `GET /staff/` is read for the list with a whitelist of query pieces (columns `ID,Name,Type,TypeId` only, paging, ordering, staff type), never a staff member's own
+  record; `Technicians` is accepted on create as a whole-number id only. Needs the relay redeploy. Check Simpro shows how many staff were found and whether you were matched.

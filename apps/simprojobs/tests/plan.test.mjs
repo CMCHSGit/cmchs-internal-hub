@@ -74,7 +74,7 @@ test('the plan is six steps in the demo tracker’s order, and its review facts 
   assert.deepEqual(plan.map((s) => s.id), ['job', 'section', 'costCentre', 'jobType', 'chargeCategory', 'priority'])
   const facts = Object.fromEntries(plan.flatMap((s) => s.facts))
   assert.deepEqual(facts, {
-    Type: 'Service', Stage: 'Pending', Title: 'Monitor will not power on', Customer: 'Example Hospital', Site: 'Theatre 1',
+    Type: 'Service', Stage: 'Pending', Title: 'Monitor will not power on', Customer: 'Example Hospital', Site: 'Theatre 1', Technician: 'None',
     Description: 'Monitor will not power on & shows <E12>.\n\nCustomer rang at 9am.', Notes: 'Ask for Pat\nSerial AB-1234',
     'Cost centre': 'Service', 'Job Type': 'Repair', 'Charge category - CHS': 'Warranty', 'Priority (incl callouts) - CHS': 'Standard',
   })

@@ -194,7 +194,7 @@ export async function loadSetup(call, companyId) {
  * picker. Setup names (cost centres, priorities, custom fields) are this business's own lists; customers and sites are only counted.
  * Returns [{ label, state: 'ok'|'warn'|'fail', detail }].
  */
-export async function runChecks(call, companyId) {
+export async function runChecks(call, companyId, who) {
   const out = []
   const add = (label, state, detail) => out.push({ label, state, detail })
   const attempt = async (label, fn) => { try { await fn() } catch (e) { add(label, 'fail', friendly(e)) } }
@@ -231,6 +231,55 @@ export async function runChecks(call, companyId) {
   show('Priority', setup.priority, DEFAULTS.priority)
   show('Job type', setup.jobType, DEFAULTS.jobType)
   show('Charge category', setup.chargeCategory)
+  await attempt('Staff (technician)', async () => {
+    const staff = await loadStaff(call, companyId)
+    const me = who ? matchStaff(staff, who) : null
+    add('Staff (technician)', staff.length ? 'ok' : 'warn', `${staff.length} employees and contractors${who ? (me ? `; you were found as a Simpro employee (by your ${me.how})` : '; you were not matched to one Simpro employee, so the technician starts empty') : ''}`)
+  })
   add('Job custom fields in Simpro', setup.fieldNames.length ? 'ok' : 'warn', setup.fieldNames.length ? setup.fieldNames.map((f) => `${f.name} (${f.type})`).join(', ') : 'none listed')
   return out
+}
+
+// ── Staff: the optional technician ──────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Simpro's staff the technician can be: employees and contractors (not plant), A to Z. A staff member's ID is what a job's technician is.
+ * The list is a few hundred people at most, so it is read whole (the page keeps it for half an hour). Throws SendError.
+ */
+export async function loadStaff(call, companyId) {
+  const all = []
+  for (let page = 1; page <= 8; page++) {
+    const r = await call('GET', `/companies/${companyId}/staff/?columns=ID,Name,Type&pageSize=${SETUP_PAGE}${page > 1 ? `&page=${page}` : ''}`)
+    const rows = rowsOf(r, 'Staff')
+    all.push(...rows)
+    if (rows.length < SETUP_PAGE) break
+  }
+  const seen = new Set()
+  return all
+    .filter((s) => s && s.ID && s.Name && (!s.Type || s.Type === 'employee' || s.Type === 'contractor') && !seen.has(s.ID) && seen.add(s.ID))
+    .map((s) => ({ id: s.ID, name: String(s.Name).trim(), type: s.Type || 'employee' }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+}
+
+const foldName = (s) => String(s ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+const nameTokens = (s) => foldName(s).split(/[^a-z0-9]+/).filter(Boolean)
+const sameTokens = (a, b) => a.length > 1 && a.length === b.length && [...a].sort().join(' ') === [...b].sort().join(' ')
+
+/**
+ * Which Simpro employee is the person signed in, or null. By the name Microsoft gives ("Peter Lin" or "Lin, Peter": same words, any order,
+ * accents and case ignored), else by the name part of their email (peter.lin@…). Only when exactly one employee matches: two people with
+ * the same name, or none, means no guess, and the technician is left for the person to choose. Returns { person, how }.
+ */
+export function matchStaff(staff, { name = '', email = '' } = {}) {
+  const people = (staff || []).filter((s) => s.type !== 'contractor')
+  const find = (toks) => {
+    if (toks.length < 2) return null
+    const hit = people.filter((s) => sameTokens(nameTokens(s.name), toks))
+    return hit.length === 1 ? hit[0] : null
+  }
+  const byName = find(nameTokens(name))
+  if (byName) return { person: byName, how: 'name' }
+  const byEmail = find(nameTokens(String(email).split('@')[0]).filter((t) => !/^[0-9]+$/.test(t)))
+  if (byEmail) return { person: byEmail, how: 'email' }
+  return null
 }

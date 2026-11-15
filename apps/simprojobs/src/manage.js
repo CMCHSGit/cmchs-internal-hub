@@ -9,7 +9,8 @@
    - text is only ever ADDED to the end of a job's description or notes (never replaced: a job's description can be rich text, tables and
      all, which a phone's plain text box would flatten), and the relay refuses a description change that isn't an addition to the end;
    - the title can be changed, and Job Type, Charge category and Priority (the custom fields the new-job form sets);
-   - Close is what SimproSync does: Stage Complete, then Status "Job : Completed".
+   - Close starts on what SimproSync does, Stage Complete then Status "Job : Completed", and the person can pick another stage or status and add a
+     note to the end of the job's notes (all three optional: whatever is left as it is isn't touched).
    A job that is Invoiced or Archived can't be changed here. */
 import { SendError, ok, simproErr } from '../../testbench/src/simpro-api.js'
 import { customerName, searchJobs, statusName, whereFound } from '../../simprosearch/src/search.js'
@@ -17,9 +18,10 @@ import { htmlToText } from '../../simprosearch/src/html.js'
 import { cleanText, cleanTitle, titleProblem, toHtml } from './draft.js'
 
 export const RECENT_PAGE = 30
-/** Stages a job can still be changed in here, and the ones it can be closed from. */
+/** Stages a job can still be changed in here (edited, closed, or moved to another stage). */
 export const EDITABLE_STAGES = ['Pending', 'Progress', 'Complete']
-export const CLOSABLE_STAGES = ['Pending', 'Progress']
+/** The stages a job can be set to: Simpro's four, which is all its job update accepts (Invoiced is Simpro's own doing). */
+export const STAGE_CHOICES = ['Pending', 'Progress', 'Complete', 'Archived']
 /** The stage chips on the Find screen ('' is "any"). */
 export const STAGE_CHIPS = ['Pending', 'Progress', 'Complete']
 /** A typed addition to a job's description or notes: an update, not a rewrite. */
@@ -100,14 +102,26 @@ export function fieldValue(job, fieldId) {
 }
 
 export const canEdit = (job) => EDITABLE_STAGES.includes(job?.stage)
-export const canClose = (job) => CLOSABLE_STAGES.includes(job?.stage)
+/** Whether the Close screen (note, stage, status) is open to the job: the same jobs as editing. */
+export const canClose = (job) => canEdit(job)
 
-/** Simpro's "Job : Completed" status, the one closing a job sets (the same lookup SimproSync makes), or null. */
-export async function loadCompletedStatus(call, companyId) {
+/**
+ * The job statuses Simpro has, [{ id, name }] in its order. The list also holds lead and quote statuses, so the ones named "Job …" are
+ * kept when there are any (every status otherwise). Throws SendError.
+ */
+export async function loadStatusCodes(call, companyId) {
   const r = await call('GET', `/companies/${companyId}/setup/statusCodes/projects/`)
   if (!ok(r) || !Array.isArray(r.data)) throw new SendError(`Status codes: ${simproErr(r)}`, r.status >= 500 || r.status === 429)
-  const hit = r.data.find((c) => norm(c.Name) === 'job : completed')
-  return hit ? { id: hit.ID, name: String(hit.Name).trim() } : null
+  const all = r.data.filter((c) => c && c.ID != null && c.Name).map((c) => ({ id: c.ID, name: String(c.Name).trim() }))
+  const jobs = all.filter((c) => /^job\b/i.test(c.name))
+  return jobs.length ? jobs : all
+}
+
+/** Simpro's "Job : Completed" status, the one closing a job starts on (the same lookup SimproSync makes), or null. */
+export const completedStatus = (codes) => (codes || []).find((c) => norm(c.name) === 'job : completed') || null
+
+export async function loadCompletedStatus(call, companyId) {
+  return completedStatus(await loadStatusCodes(call, companyId))
 }
 
 // ── Changing ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -175,16 +189,40 @@ export function buildEditPlan({ job, changes = {}, setup, companyId }) {
   return plan
 }
 
-/** The plan for closing a job: Stage Complete, then Status "Job : Completed", as SimproSync does. Throws Error in words. */
-export function buildClosePlan({ job, statusCode, companyId }) {
-  if (!canClose(job)) throw new Error(`Job ${job?.id} is ${job?.stage || 'not open'}, so there is nothing to close.`)
-  if (!statusCode?.id) throw new Error('Simpro has no “Job : Completed” status, so a job can’t be closed from here.')
+/**
+ * The plan for closing a job, or moving it to another stage or status: an optional note added to the end of its notes, then the stage, then
+ * the status, each its own step and each only if it differs from what the job has now. It starts on what SimproSync does (stage Complete,
+ * status "Job : Completed") when the page passes those. Throws Error in words (including "Nothing to change yet").
+ */
+export function buildClosePlan({ job, stage = 'Complete', statusCode = null, addNotes = '', companyId }) {
+  if (!canClose(job)) throw new Error(`Job ${job?.id} is ${job?.stage || 'not open'}, so it can’t be changed here.`)
+  if (!STAGE_CHOICES.includes(stage)) throw new Error('Choose one of Simpro’s stages.')
+  const note = cleanText(addNotes)
+  if (note.length > MAX_ADD) throw new Error(`A note can be up to ${MAX_ADD} characters.`)
   const path = `/companies/${companyId}/jobs/${job.id}`
-  return [
-    { id: 'stage', title: 'Set the stage to Complete', facts: [['Stage', `${job.stage} → Complete`]], request: () => ({ method: 'PATCH', path, body: { Stage: 'Complete' } }) },
+  const plan = []
+  // The note goes first, while the job is still open; it is read fresh just before it is written, so a note added in Simpro meanwhile is kept.
+  if (note) {
+    plan.push({
+      id: 'notes', title: 'Add a note', facts: [['Added to the end of the notes', note]],
+      prepare: async (call, ctx) => {
+        const r = await call('GET', path)
+        if (!ok(r) || !r.data) throw new SendError(`Could not read the job first, so nothing was changed: ${simproErr(r)}`, false)
+        if (!EDITABLE_STAGES.includes(r.data.Stage)) throw new Error(`The job is ${r.data.Stage} now, so it can’t be changed here.`)
+        ctx.fresh = r.data
+      },
+      request: (_s, ctx) => ({ method: 'PATCH', path, body: { Notes: String(ctx.fresh?.Notes || '') + toHtml(note) } }),
+    })
+  }
+  if (stage !== job.stage) {
+    plan.push({ id: 'stage', title: `Set the stage to ${stage}`, facts: [['Stage', `${job.stage || 'none'} → ${stage}`]], request: () => ({ method: 'PATCH', path, body: { Stage: stage } }) })
+  }
+  if (statusCode?.id && statusCode.id !== job.statusId) {
     // A bare number: Simpro refuses { Status: { ID } } (SimproSync and the Test Bench do the same).
-    { id: 'status', title: `Set the status to “${statusCode.name}”`, facts: [['Status', `${job.status || 'not set'} → ${statusCode.name}`]], request: () => ({ method: 'PATCH', path, body: { Status: statusCode.id } }) },
-  ]
+    plan.push({ id: 'status', title: `Set the status to “${statusCode.name}”`, facts: [['Status', `${job.status || 'not set'} → ${statusCode.name}`]], request: () => ({ method: 'PATCH', path, body: { Status: statusCode.id } }) })
+  }
+  if (!plan.length) throw new Error('Nothing to change yet.')
+  return plan
 }
 
 /** The plain-words state of a change run (see plan.js runPlan): done, refused (nothing changed), unsure (no answer), or partial. */

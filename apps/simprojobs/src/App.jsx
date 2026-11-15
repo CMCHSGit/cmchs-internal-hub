@@ -8,12 +8,12 @@ import { auth } from '../../schedule/src/firebase.js'
 import { Alert, Badge, Button, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from '../../testbench/src/simpro-api.js'
-import { DEFAULTS, friendly, loadSetup, pickDefault, runChecks } from './lookups.js'
+import { DEFAULTS, friendly, loadSetup, loadStaff, matchStaff, pickDefault, runChecks } from './lookups.js'
 import { MAX_TEXT, MAX_TITLE, cleanTitle, hasWork, missing, preview, titleProblem } from './draft.js'
 import { buildPlan, describeRun, runPlan, settleRun } from './plan.js'
 import { ReviewSheet } from './Review.jsx'
-import { CustomerSheet, OptionSheet, SiteSheet } from './Sheets.jsx'
-import { readSetup, writeSetup } from './setupCache.js'
+import { CustomerSheet, OptionSheet, SiteSheet, StaffSheet } from './Sheets.jsx'
+import { readSetup, readStaff, writeSetup, writeStaff } from './setupCache.js'
 import FindJobs from './Jobs.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
@@ -60,7 +60,7 @@ function PickRow({ label, value, placeholder, disabled, note, error, onClick }) 
 }
 
 /** The New job tab. */
-function NewJob({ call, companyId }) {
+function NewJob({ call, companyId, who }) {
   // The form. A choice is { id, name } (a customer is { ID, kind, name, individual }; a site is { id, name }).
   const [form, setForm] = useState(() => readDraft().form || {})
   // The run (making the job) is kept with the form: a phone that sleeps or reloads mid-way must still know which steps are done.
@@ -93,11 +93,29 @@ function NewJob({ call, companyId }) {
     started.current = true
     setForm((f) => withDefaults(f, setup))
   }, [setup])
+  // The technician is optional. Simpro's staff are read once (kept half an hour); if the person signed in is exactly one Simpro employee
+  // (by their Microsoft name, else their email's name), they are the technician to start with, and can change or clear it.
+  const [staff, setStaff] = useState(() => readStaff(companyId))
+  const [staffError, setStaffError] = useState('')
+  useEffect(() => {
+    if (staff) return undefined
+    let live = true
+    loadStaff(call, companyId)
+      .then((list) => { if (live) { setStaff(list); writeStaff(companyId, list) } })
+      .catch((e) => { if (live) setStaffError(friendly(e)) })
+    return () => { live = false }
+  }, [call, companyId, staff])
+  const me = useMemo(() => (staff && who ? matchStaff(staff, who)?.person || null : null), [staff, who])
+  const withTechnician = (f) => (me ? { ...f, technician: { id: me.id, name: me.name, type: me.type } } : f)
+  useEffect(() => {
+    // Only a form nobody has decided on: an explicit "No technician" is null, and stays that way.
+    if (me) setForm((f) => (f.technician === undefined ? withTechnician(f) : f))
+  }, [me]) // eslint-disable-line react-hooks/exhaustive-deps
   const [confirmDialog, confirm] = useConfirm()
   const startAgain = async () => {
     if (run) return newJob()
     if (hasWork(form) && !(await confirm({ title: 'Start again?', message: 'This clears the customer, site, description and notes you have entered on this page. Nothing has been sent to Simpro.', confirmLabel: 'Clear the form', danger: true }))) return
-    setForm(withDefaults({}, setup))
+    setForm(withTechnician(withDefaults({}, setup)))
   }
 
   // Making the job. What is shown on the review screen is the plan built from the form; once the button is tapped the plan is frozen
@@ -126,7 +144,7 @@ function NewJob({ call, companyId }) {
     if (busy.current) return
     const st = run && frozen ? describeRun(frozen, run).state : ''
     if ((st === 'partial' || st === 'unsure') && !(await confirm({ title: 'Start a new job?', message: 'The earlier job stays in Simpro as far as it got; this only clears the form. Look in Simpro first if you are not sure it was made.', confirmLabel: 'Start a new job' }))) return
-    setRun(null); setForm(withDefaults({}, setup)); close()
+    setRun(null); setForm(withTechnician(withDefaults({}, setup))); close()
   }
 
   // Which picker is open lives in the address (#/pick/customer), so the phone's Back closes it.
@@ -152,7 +170,7 @@ function NewJob({ call, companyId }) {
   const [checking, setChecking] = useState(false)
   const check = async () => {
     setChecking(true); setChecks(null)
-    try { setChecks(await runChecks(call, companyId)) } catch (e) { setChecks([{ label: 'Check', state: 'fail', detail: friendly(e) }]) } finally { setChecking(false) }
+    try { setChecks(await runChecks(call, companyId, who)) } catch (e) { setChecks([{ label: 'Check', state: 'fail', detail: friendly(e) }]) } finally { setChecking(false) }
   }
 
   const todo = missing(form)
@@ -188,6 +206,12 @@ function NewJob({ call, companyId }) {
             />
           )
         })}
+        <PickRow
+          label="Technician (optional)" value={form.technician?.name}
+          placeholder={staffError ? 'Not available' : !staff ? 'Loading from Simpro…' : 'No technician'}
+          disabled={!staff} note={me && form.technician?.id === me.id ? <Badge tone="neutral">You</Badge> : null} error={staffError}
+          onClick={() => open('technician')}
+        />
         {setupBusy && <p className="sj-hint"><span className="sj-dot" aria-hidden="true" /> Refreshing the lists from Simpro…</p>}
       </div>
 
@@ -226,6 +250,7 @@ function NewJob({ call, companyId }) {
           <div><dt>Customer</dt><dd>{form.customer?.name || '—'}</dd></div>
           <div><dt>Site</dt><dd>{form.site?.name || '—'}</dd></div>
           {OPTION_FIELDS.map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{form[key]?.name || '—'}</dd></div>)}
+          <div><dt>Technician</dt><dd>{form.technician?.name || 'None'}</dd></div>
           <div><dt>Title</dt><dd>{cleanTitle(form.title) || '—'}</dd></div>
           <div><dt>Description</dt><dd>{preview(form.description) || '—'}</dd></div>
           <div><dt>Notes</dt><dd>{preview(form.notes) || 'None'}</dd></div>
@@ -253,6 +278,7 @@ function NewJob({ call, companyId }) {
       </details>
 
       {confirmDialog}
+      {sheet === 'technician' && staff && <StaffSheet staff={staff} selected={form.technician} you={me} onPick={(p) => { set('technician', p ? { id: p.id, name: p.name, type: p.type } : null); close() }} onClose={close} />}
       {sheet === 'review' && plan && <ReviewSheet plan={plan} run={run} running={running} onCreate={create} onDiscard={discardRun} onNew={newJob} onClose={close} />}
       {sheet === 'customer' && <CustomerSheet call={call} companyId={companyId} selected={form.customer} onPick={chooseCustomer} onClose={close} />}
       {sheet === 'site' && form.customer && <SiteSheet call={call} companyId={companyId} customer={form.customer} selected={form.site} onPick={pickSite} onClose={close} />}
@@ -290,6 +316,8 @@ export default function SimproJobs() {
     return () => { live = false }
   }, [call]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Who is signed in (their Microsoft name and email), to start the optional technician on them when they are one Simpro employee.
+  const who = useMemo(() => ({ name: auth?.currentUser?.displayName || '', email: auth?.currentUser?.email || '' }), [booting]) // eslint-disable-line react-hooks/exhaustive-deps
   const [view, setView] = useState(viewFromHash)
   useEffect(() => {
     const on = () => setView(viewFromHash())
@@ -321,7 +349,7 @@ export default function SimproJobs() {
         )}
       </div>
       {/* The company is the key: choosing another remounts the tab, so nothing from one company's lists is used for another's. */}
-      {view === 'find' ? <FindJobs key={companyId} call={call} companyId={companyId} /> : <NewJob key={companyId} call={call} companyId={companyId} />}
+      {view === 'find' ? <FindJobs key={companyId} call={call} companyId={companyId} /> : <NewJob key={companyId} call={call} companyId={companyId} who={who} />}
     </div>
   )
 }

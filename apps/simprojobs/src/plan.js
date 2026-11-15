@@ -13,12 +13,14 @@ export const JOB_TYPE = 'Service'
 
 /**
  * The body of the first request: only what the form holds (the title is Simpro's job "Name"), and Stage Pending (a new job; the relay only
- * lets this tool add to a Pending job). No dates, status or people: Simpro's own defaults apply.
+ * lets this tool add to a Pending job), and the technician (a Simpro staff id) if one was chosen: that is optional. No dates or status: Simpro's
+ * own defaults apply.
  */
 export function jobBody(form) {
   const body = { Type: JOB_TYPE, Name: cleanTitle(form.title), Customer: form.customer.ID, Site: form.site.id, Description: toHtml(form.description), Stage: 'Pending' }
   const notes = toHtml(form.notes)
   if (notes) body.Notes = notes
+  if (form.technician?.id) body.Technicians = form.technician.id
   return body
 }
 
@@ -44,7 +46,7 @@ export function buildPlan(form, setup, companyId) {
     {
       id: 'job', title: 'Create the job in Simpro',
       facts: [
-        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Title', cleanTitle(form.title)], ['Customer', form.customer.name], ['Site', form.site.name],
+        ['Type', JOB_TYPE], ['Stage', 'Pending'], ['Title', cleanTitle(form.title)], ['Customer', form.customer.name], ['Site', form.site.name], ['Technician', form.technician?.name || 'None'],
         ['Description', cleanText(form.description)], ['Notes', notes || 'None'],
       ],
       request: () => ({ method: 'POST', path: base, body: jobBody(form) }),

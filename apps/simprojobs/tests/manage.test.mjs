@@ -4,7 +4,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
-import { CLOSABLE_STAGES, MAX_ADD, buildClosePlan, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, groupResults, jobTitle, loadCompletedStatus, loadJobDetail, loadRecentJobs, normaliseJob, recentJobsPath } from '../src/manage.js'
+import { STAGE_CHOICES, MAX_ADD, buildClosePlan, completedStatus, loadStatusCodes, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, groupResults, jobTitle, loadCompletedStatus, loadJobDetail, loadRecentJobs, normaliseJob, recentJobsPath } from '../src/manage.js'
 import { runPlan } from '../src/plan.js'
 import { SendError, makeCall } from '../../testbench/src/simpro-api.js'
 
@@ -161,13 +161,13 @@ test('reading a job: its facts and custom field values; a missing job is said so
   await assert.rejects(() => loadJobDetail(call, 3, 999), (e) => e instanceof SendError && /Job 999 was not found/.test(e.message))
 })
 
-test('who can be changed: Pending, Progress and Complete; closed from Pending and Progress only', () => {
-  for (const [id, edit, close] of [[101, true, true], [102, true, true], [103, true, false], [105, false, false], [106, false, false]]) {
+test('who can be changed: Pending, Progress and Complete, for editing and for the Close screen alike; never Invoiced or Archived', () => {
+  for (const [id, can] of [[101, true], [102, true], [103, true], [105, false], [106, false]]) {
     const j = normaliseJob(JOBS[id])
-    assert.equal(canEdit(j), edit, 'edit ' + id)
-    assert.equal(canClose(j), close, 'close ' + id)
+    assert.equal(canEdit(j), can, 'edit ' + id)
+    assert.equal(canClose(j), can, 'close ' + id)
   }
-  assert.deepEqual(CLOSABLE_STAGES, ['Pending', 'Progress'])
+  assert.deepEqual(STAGE_CHOICES, ['Pending', 'Progress', 'Complete', 'Archived'])
 })
 
 test('an edit adds to the end of the text as it is when the change is made, keeps rich text, and the relay accepts it', async () => {
@@ -245,11 +245,71 @@ test('closing: Stage Complete then Status "Job : Completed" as a bare number, ac
   assert.equal(describeChange(plan, run).state, 'done')
 })
 
-test('closing refuses what is already closed, and a Simpro with no "Job : Completed" status', async () => {
+test('closing: an invoiced or archived job is refused, a job already complete has nothing to do, and a missing "Job : Completed" only drops the status step', async () => {
   const st = { id: 66, name: 'Job : Completed' }
-  for (const id of [103, 105, 106]) assert.throws(() => buildClosePlan({ job: normaliseJob(JOBS[id]), statusCode: st, companyId: 3 }), /nothing to close/)
-  assert.throws(() => buildClosePlan({ job: normaliseJob(JOBS[101]), statusCode: null, companyId: 3 }), /no “Job : Completed” status/)
+  for (const id of [105, 106]) assert.throws(() => buildClosePlan({ job: normaliseJob(JOBS[id]), statusCode: st, companyId: 3 }), /can’t be changed here/)
+  assert.throws(() => buildClosePlan({ job: normaliseJob(JOBS[103]), statusCode: st, companyId: 3 }), /Nothing to change yet/) // already Complete with that status
+  const noStatus = buildClosePlan({ job: normaliseJob(JOBS[101]), statusCode: null, companyId: 3 })
+  assert.deepEqual(noStatus.map((s) => s.id), ['stage'])
   assert.equal(await loadCompletedStatus(fakeSimpro({ noCompleted: true }).call, 3), null)
+})
+
+test('the Close screen: a note, any stage, any status; each only if it differs, in the order note, stage, status', async () => {
+  const job = normaliseJob(JOBS[101]) // Progress, "Job : In progress"
+  const st = { id: 66, name: 'Job : Completed' }
+  // The usual close, plus a note.
+  const withNote = buildClosePlan({ job, statusCode: st, addNotes: 'Replaced the battery & tested <ok>\nCustomer signed off', companyId: 3 })
+  assert.deepEqual(withNote.map((s) => s.id), ['notes', 'stage', 'status'])
+  assert.deepEqual(withNote[0].facts, [['Added to the end of the notes', 'Replaced the battery & tested <ok>\nCustomer signed off']])
+  const fresh = { ...JOBS[101], Notes: 'Existing<br>notes, and one added in Simpro since' }
+  const { call, writes } = fakeSimpro({ fresh: { 101: fresh } })
+  const run = await runPlan(call, withNote, {}, () => {}, {})
+  assert.equal(run.failed, null)
+  assert.deepEqual(writes.map((w) => w.body), [
+    { Notes: 'Existing<br>notes, and one added in Simpro since<p>Replaced the battery &amp; tested &lt;ok&gt;<br>Customer signed off</p>' }, { Stage: 'Complete' }, { Status: 66 },
+  ])
+  const r = relay({ 101: fresh })
+  for (const w of writes) assert.equal(r.verdict(w), '', JSON.stringify(w.body))
+  // Another stage and status than the usual: Archived, with the status left as it is.
+  const archive = buildClosePlan({ job, stage: 'Archived', statusCode: null, companyId: 3 })
+  assert.deepEqual(archive.map((s) => s.facts[0]), [['Stage', 'Progress → Archived']])
+  // Back to Pending with a different status, no note.
+  const reopen = buildClosePlan({ job: normaliseJob(JOBS[103]), stage: 'Progress', statusCode: { id: 4, name: 'Job : In progress' }, companyId: 3 })
+  assert.deepEqual(reopen.map((s) => s.facts[0]), [['Stage', 'Complete → Progress'], ['Status', 'Job : Completed → Job : In progress']])
+  // Only a note: the stage and status stay.
+  const noteOnly = buildClosePlan({ job, stage: 'Progress', statusCode: { id: 4, name: 'Job : In progress' }, addNotes: 'Just a note', companyId: 3 })
+  assert.deepEqual(noteOnly.map((s) => s.id), ['notes'])
+  // Only the stage, only the status.
+  assert.deepEqual(buildClosePlan({ job, stage: 'Complete', statusCode: { id: 4, name: 'Job : In progress' }, companyId: 3 }).map((s) => s.id), ['stage'])
+  assert.deepEqual(buildClosePlan({ job, stage: 'Progress', statusCode: st, companyId: 3 }).map((s) => s.id), ['status'])
+})
+
+test('the Close screen refuses what makes no sense, in words, and a note that can’t be read first writes nothing', async () => {
+  const job = normaliseJob(JOBS[101])
+  assert.throws(() => buildClosePlan({ job, stage: 'Invoiced', companyId: 3 }), /Choose one of Simpro’s stages/)
+  assert.throws(() => buildClosePlan({ job, stage: 'Done', companyId: 3 }), /Choose one of Simpro’s stages/)
+  assert.throws(() => buildClosePlan({ job, stage: 'Progress', addNotes: 'x'.repeat(MAX_ADD + 1), companyId: 3 }), /up to 5000 characters/)
+  assert.throws(() => buildClosePlan({ job, stage: 'Progress', addNotes: '  \n ', companyId: 3 }), /Nothing to change yet/)
+  const plan = buildClosePlan({ job, stage: 'Complete', addNotes: 'A note', companyId: 3 })
+  const { call, writes } = fakeSimpro({ fresh: { 101: { ...JOBS[101], Stage: 'Invoiced' } } })
+  const run = await runPlan(call, plan, {}, () => {}, {})
+  assert.equal(writes.length, 0) // the job became invoiced meanwhile: neither the note nor the stage was sent
+  assert.match(run.failed.message, /Invoiced now/)
+  assert.equal(describeChange(plan, run).state, 'refused')
+})
+
+test('status choices: the job statuses Simpro has, "Job : Completed" found among them', async () => {
+  const codes = [{ ID: 1, Name: 'Lead : New' }, { ID: 3, Name: 'Job : New' }, { ID: 4, Name: 'Job : In progress' }, { ID: 66, Name: ' Job : Completed ' }, { ID: 70, Name: 'Quote : Won' }]
+  const fetchFn = async () => ({ status: 200, json: async () => ({ success: true, results: [{ status: 200, data: codes }] }) })
+  const list = await loadStatusCodes(makeCall({ getToken: async () => 't', proxyUrl: 'x', fetchFn }), 3)
+  assert.deepEqual(list, [{ id: 3, name: 'Job : New' }, { id: 4, name: 'Job : In progress' }, { id: 66, name: 'Job : Completed' }])
+  assert.deepEqual(completedStatus(list), { id: 66, name: 'Job : Completed' })
+  assert.equal(completedStatus([{ id: 1, name: 'Job : New' }]), null)
+  assert.equal(completedStatus(null), null)
+  // With no "Job …" names at all, every status is offered.
+  const odd = [{ ID: 1, Name: 'Open' }, { ID: 2, Name: 'Done' }]
+  const fetch2 = async () => ({ status: 200, json: async () => ({ success: true, results: [{ status: 200, data: odd }] }) })
+  assert.deepEqual((await loadStatusCodes(makeCall({ getToken: async () => 't', proxyUrl: 'x', fetchFn: fetch2 }), 3)).map((c) => c.name), ['Open', 'Done'])
 })
 
 test('closing: a refused stage stops before the status, and the state says what was and wasn’t done', async () => {
