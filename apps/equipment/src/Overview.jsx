@@ -74,7 +74,13 @@ function Found({ q, s, loans }) {
         <span className="eq-kind eq-kind-equipment">Equipment</span> {hits.equipment.length}
         <span className="eq-kind eq-kind-loan">Loan</span> {hits.loans.length}
       </p>
-      {nothing && <p className="eq-note">Nothing matches that.</p>}
+      {nothing && <p className="eq-note">Nothing matches that. Check the spelling, or try fewer words.</p>}
+      {hits.close && (
+        <p className="eq-note eq-found-close">
+          {[hits.close.equipment && `${hits.close.equipment} ${hits.close.equipment === 1 ? 'device' : 'devices'}`, hits.close.loans && `${hits.close.loans} ${hits.close.loans === 1 ? 'loan' : 'loans'}`].filter(Boolean).join(' and ')}
+          {hits.close.equipment + hits.close.loans === 1 ? ' is a close match' : ' are close matches'}, spelled a little differently from what you typed. They come last in each list.
+        </p>
+      )}
       {!nothing && (
         <div className="card eq-rows">
           {hits.equipment.slice(0, SHOWN).map((e) => {
