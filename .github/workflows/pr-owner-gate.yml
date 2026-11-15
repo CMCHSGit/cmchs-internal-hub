@@ -1,0 +1,55 @@
+# Holds a pull request that touches the files whose mistakes cost the most (the same list as
+# .github/CODEOWNERS: this folder, rules/, backend/, scripts/, shared/firebase.js, package files)
+# until someone other than its author has approved it. Every other pull request passes at once,
+# so the ruleset can let those merge by themselves once "Build and test" passes.
+# The ruleset "main: reviewed changes, no force-push" requires the job below.
+#
+# Why this file and not the ruleset's own review rule: that rule can only ask for N approvals on
+# every pull request, or none. And a CODEOWNERS review is not enforced when N is 0.
+#
+# pull_request_target runs THIS file as it is on main, never the pull request's copy, and nothing
+# from the pull request is checked out or run, so a pull request cannot weaken or skip the gate by
+# editing it. It only reads the list of changed files and the reviews. After an approval, re-run
+# the job (Actions -> this run -> Re-run jobs) or push to the branch: it reads the reviews when it runs.
+# The repository owner can still merge a held pull request with an admin override.
+name: Owner gate
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gate:
+    name: Owner approval for sensitive files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check changed files and approvals
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | .filename, (.previous_filename // empty)')
+          sensitive=$(printf '%s\n' "$files" | grep -E '^(\.github/|rules/|backend/|scripts/|shared/firebase\.js$|package(-lock)?\.json$|apps/[^/]+/package(-lock)?\.json$)' | sort -u || true)
+          if [ -z "$sensitive" ]; then
+            echo "No sensitive files changed: nothing to hold."
+            exit 0
+          fi
+          echo "This pull request changes files that need an approval from someone other than its author:"
+          printf '  %s\n' $sensitive
+          approvals=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" --jq "[.[] | select(.state==\"APPROVED\" and .user.login != \"$AUTHOR\" and .commit_id == \"$HEAD_SHA\" and (.author_association | IN(\"OWNER\",\"MEMBER\",\"COLLABORATOR\")))] | length" | paste -sd+ | bc)
+          if [ "${approvals:-0}" -ge 1 ]; then
+            echo "Approved on the latest commit ($approvals approval)."
+            exit 0
+          fi
+          echo "::error::Held for the owner: approve this pull request (someone other than its author), then re-run this job. The repository owner can instead merge it with an admin override."
+          exit 1
