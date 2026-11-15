@@ -18,16 +18,22 @@ Several people work on these repos with Claude, often at the same time.
 
 - **Pull before you start, and again before you commit.**
 - **Changes reach `main` through a pull request** (branch ruleset "main: reviewed
-  changes, no force-push", since 10 Nov 2026): a direct push is refused (`GH013`)
-  unless it comes from a repository admin. Verify first: `npm run build` passes and
-  the tests pass (`npm test -w apps/schedule`, `npm test -w apps/hub`, plus the
+  changes, no force-push"; checks required since 16 Nov 2026): a direct push is refused
+  (`GH013`) unless it comes from a repository admin. Verify first: `npm run build`
+  passes and the tests pass (`npm test -w apps/schedule`, `npm test -w apps/hub`, plus the
   app's own, e.g. `npm test --prefix apps/testbench`). Then
   `git push origin HEAD:refs/heads/<short-branch-name>` (the working tree is shared,
   so do not switch branches or stash), `gh pr create --base main`, and bind the PR
-  (ccd_pr tools). One approval is needed; anything under `.github/`, `rules/`,
-  `backend/`, `scripts/` or a `package.json` / lock file needs the owner's
-  (CODEOWNERS). **Merging deploys the whole site** through GitHub Actions within a
-  couple of minutes: after it, check the live page actually shows the change. A
+  (ccd_pr tools). **No human approval is needed for an ordinary change:** two checks
+  must pass ("Build and test", which builds the site and runs every app's tests, and
+  "Owner approval for sensitive files", which passes at once), and then the PR can merge
+  itself: `gh pr merge <n> --auto --squash` (the ccd_pr auto-merge setting does the same).
+  **A PR that touches `.github/`, `rules/`, `backend/`, `scripts/`, `shared/firebase.js` or a
+  `package.json` / lock file is held** until someone other than its author approves it
+  (`.github/workflows/pr-owner-gate.yml`); the owner can instead merge it with an admin
+  override (`gh pr merge --admin`). Do not use the override for these yourself unless the
+  user told you to for that PR. **Merging deploys the whole site** through GitHub Actions
+  within a couple of minutes: after it, check the live page actually shows the change. A
   commit made on local `main` and pushed this way is the same commit after a
   merge, so `git pull` afterwards is clean.
 - **The demo tracker is `apps/equipment`** (read its `CLAUDE.md` first). `/demo/`
