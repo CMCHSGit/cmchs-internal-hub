@@ -126,30 +126,114 @@ export const FIELDS = [
   ['TileUUID', 'Tile UUID'], ['BatterySerialNo', 'Battery serial no.'],
 ]
 
+/* ── Search: forgiving, and logical ──
+   A word matches when it is somewhere in the text exactly (accents ignored: "whangarei" finds Whangārei),
+   or when it matches with spaces and punctuation ignored ("epm12" finds "ePM 12M", "ac9 0400" finds "AC9-0400"),
+   or, for a plain word, with a slip of a letter or two in the places people look
+   things up by ("waikatoo", "benehart", "ultrasuond"). A word with a digit in it never gets a guess (asset and
+   serial numbers, "tv80"): a wrong digit is a different device. A search finds an item only if every word matches; exact matches always come
+   before close ones. */
+
+/** Lower case with accents removed. */
+const fold = (v) => String(v ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+/** Only letters and digits. */
+const squash = (s) => s.replace(/[^a-z0-9]+/g, '')
+
+/** How many slips a word is allowed: none for short words or any word with a digit; one up to 7 letters; two beyond. */
+function slipsAllowed(w) {
+  if (!/^[a-z]+$/.test(w) || w.length < 4) return 0
+  return w.length < 8 ? 1 : 2
+}
+
 /**
- * Search across what people look an item up by. Every word must match somewhere. Best matches first:
- * the model (exactly it first, then starting with it), then the asset number, then the serial number, then anything
- * else (description, location, who it's on loan to...); within each, by asset number.
+ * The fewest slips (a letter wrong, missing, extra, or two swapped) with which `w` is somewhere inside `text`,
+ * if that is at most `max`; else -1. (Sellers' algorithm with swaps.)
+ */
+function slipsInside(w, text, max) {
+  const n = w.length, m = text.length
+  if (!n || !m) return -1
+  let prev2 = null, prev = new Array(m + 1).fill(0)
+  for (let i = 1; i <= n; i++) {
+    const cur = new Array(m + 1)
+    cur[0] = i
+    for (let j = 1; j <= m; j++) {
+      let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (w[i - 1] === text[j - 1] ? 0 : 1))
+      if (i > 1 && j > 1 && w[i - 1] === text[j - 2] && w[i - 2] === text[j - 1]) v = Math.min(v, prev2[j - 2] + 1)
+      cur[j] = v
+    }
+    prev2 = prev; prev = cur
+  }
+  const best = Math.min(...prev.slice(1))
+  return best <= max ? best : -1
+}
+
+/** A record's text ready to search: every value (`all`), and the few fields a slip is forgiven in (`near`). */
+const prepare = (all, near) => ({
+  hay: all.map(fold).join(' '),
+  squashed: all.map((v) => squash(fold(v))).filter(Boolean),
+  near: near.map((v) => squash(fold(v))).filter(Boolean),
+})
+
+/** 0 for an exact match of `w`, 1–2 for a close one, -1 for none. */
+function wordMatch(w, doc) {
+  if (doc.hay.includes(w)) return 0
+  const sq = squash(w)
+  if (!sq) return 0 // punctuation on its own says nothing
+  if (doc.squashed.some((t) => t.includes(sq))) return 0
+  const max = slipsAllowed(sq)
+  if (!max) return -1
+  let best = -1
+  for (const t of doc.near) {
+    const d = slipsInside(sq, t, max)
+    if (d >= 0 && (best < 0 || d < best)) best = d
+  }
+  return best
+}
+
+/** The total slips over every word (0 = all exact), or -1 if a word isn't there at all. */
+function docMatch(words, doc) {
+  let total = 0
+  for (const w of words) {
+    const d = wordMatch(w, doc)
+    if (d < 0) return -1
+    total += d
+  }
+  return total
+}
+
+const searchWords = (q) => fold(q).trim().split(/\s+/).filter(Boolean)
+const NEAR_EQUIPMENT = ['Model', 'Description', 'CHSAssetNo', 'OnLoanTo', 'Location']
+
+/** An item's rank for these words (lower is better) and whether it needed a guess, or null if it doesn't match. */
+function equipmentMatch(e, words) {
+  // Every field, as the old search (Object.values): MACs, device IDs, battery serials and the rest too.
+  const values = Object.entries(e).filter(([k, v]) => !k.startsWith('_') && (typeof v === 'string' || typeof v === 'number')).map(([, v]) => v)
+  const slips = docMatch(words, prepare(values, NEAR_EQUIPMENT.map((k) => e[k])))
+  if (slips < 0) return null
+  if (slips > 0) return { r: 10 + slips, close: true }
+  const has = (v) => docMatch(words, prepare([v], [])) === 0
+  if (has(e.Model)) {
+    const m = squash(fold(e.Model)), asked = squash(words.join(''))
+    return { r: m === asked ? 0 : m.startsWith(asked) ? 1 : 2, close: false }
+  }
+  if (has(e.CHSAssetNo)) return { r: 3, close: false }
+  if (has(e.SerialNo)) return { r: 4, close: false }
+  return { r: 5, close: false }
+}
+
+const byAssetNo = (a, b) => String(a.CHSAssetNo ?? '').localeCompare(String(b.CHSAssetNo ?? ''), undefined, { numeric: true })
+
+/**
+ * Search across what people look an item up by. Every word must match somewhere (see above: accents, spacing and a
+ * slip or two are forgiven). Best matches first: the model (exactly it first, then starting with it), then the asset
+ * number, then the serial number, then anything else (description, location, who it's on loan to...); within each,
+ * by asset number. Close matches (a guess was needed) come after every exact one, fewest slips first.
  */
 export function searchEquipment(list, q) {
-  const words = String(q || '').toLowerCase().trim().split(/\s+/).filter(Boolean)
+  const words = searchWords(q)
   if (!words.length) return list
-  const all = (v) => { const t = String(v ?? '').toLowerCase(); return words.every((w) => t.includes(w)) }
-  const rank = (e) => {
-    // Every field, as the old search (Object.values): MACs, device IDs, battery serials and the rest too.
-    const hay = Object.entries(e).filter(([k, v]) => !k.startsWith('_') && (typeof v === 'string' || typeof v === 'number')).map(([, v]) => v)
-      .join(' ').toLowerCase()
-    if (!words.every((w) => hay.includes(w))) return -1
-    if (all(e.Model)) {
-      const m = String(e.Model).toLowerCase().trim()
-      return m === words.join(' ') ? 0 : m.startsWith(words[0]) ? 1 : 2
-    }
-    if (all(e.CHSAssetNo)) return 3
-    if (all(e.SerialNo)) return 4
-    return 5
-  }
-  return list.map((e) => ({ e, r: rank(e) })).filter((x) => x.r >= 0)
-    .sort((a, b) => a.r - b.r || String(a.e.CHSAssetNo ?? '').localeCompare(String(b.e.CHSAssetNo ?? ''), undefined, { numeric: true }))
+  return list.map((e) => ({ e, m: equipmentMatch(e, words) })).filter((x) => x.m)
+    .sort((a, b) => a.m.r - b.m.r || byAssetNo(a.e, b.e))
     .map((x) => x.e)
 }
 
@@ -813,26 +897,34 @@ export function addedText(g, r) {
     + '.'
 }
 
-/** Every word of `q` is somewhere in the loan's customer, location, account manager or Simpro job number. */
+/** A loan's slips for these words (0 exact, more is worse), or -1: customer, location, account manager and Simpro job number. */
+function loanMatch(x, words) {
+  const values = [x.loanTo, x.location, x.am, jobNumber(x.doc?.simproJobId)].filter((v) => v != null && v !== '')
+  return docMatch(words, prepare(values, [x.loanTo, x.location, x.am].filter((v) => v != null && v !== '')))
+}
+
+/** Every word of `q` is somewhere in the loan's customer, location, account manager or Simpro job number (a slip or two forgiven). */
 export function matchLoan(x, q) {
-  const words = String(q || '').toLowerCase().split(/\s+/).filter(Boolean)
-  if (!words.length) return true
-  const hay = [x.loanTo, x.location, x.am, jobNumber(x.doc?.simproJobId)].filter((v) => v != null && v !== '').join(' ').toLowerCase()
-  return words.every((w) => hay.includes(w))
+  const words = searchWords(q)
+  return !words.length || loanMatch(x, words) >= 0
 }
 
 /**
  * Overview's search: the equipment (searchEquipment: asset no., model, serial and every other field) and the
  * loans (matchLoan: customer, location, account manager, job number) looked up by the same words at once.
- * Equipment is best match first; loans newest start first. Nothing typed, nothing found.
+ * Equipment is best match first; loans exact matches first, then newest start first. Close matches (a slip
+ * forgiven) come last in each list, and `close` says how many of each there are (only present when there are some).
+ * Nothing typed, nothing found.
  */
 export function searchAll(q, { equipment = [], loans = [] } = {}) {
-  const t = String(q || '').trim()
-  if (!t) return { equipment: [], loans: [] }
-  return {
-    equipment: searchEquipment(equipment.filter(Boolean), t),
-    loans: loans.filter((g) => matchLoan(g, t)).sort((a, b) => (b.startDate || '0000').localeCompare(a.startDate || '0000')),
-  }
+  const words = searchWords(q)
+  if (!words.length) return { equipment: [], loans: [] }
+  const eq = equipment.filter(Boolean).map((e) => ({ e, m: equipmentMatch(e, words) })).filter((x) => x.m)
+    .sort((a, b) => a.m.r - b.m.r || byAssetNo(a.e, b.e))
+  const ln = loans.map((g) => ({ g, slips: loanMatch(g, words) })).filter((x) => x.slips >= 0)
+    .sort((a, b) => a.slips - b.slips || (b.g.startDate || '0000').localeCompare(a.g.startDate || '0000'))
+  const close = { equipment: eq.filter((x) => x.m.close).length, loans: ln.filter((x) => x.slips > 0).length }
+  return { equipment: eq.map((x) => x.e), loans: ln.map((x) => x.g), ...(close.equipment || close.loans ? { close } : {}) }
 }
 
 /** Why a new loan can't be made yet, or '' (old: submitBatchLoan's checks, in its order). */
