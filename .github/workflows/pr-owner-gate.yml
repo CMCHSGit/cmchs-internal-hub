@@ -46,7 +46,7 @@ jobs:
           fi
           echo "This pull request changes files that need an approval from someone other than its author:"
           printf '  %s\n' $sensitive
-          approvals=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" --jq "[.[] | select(.state==\"APPROVED\" and .user.login != \"$AUTHOR\" and .commit_id == \"$HEAD_SHA\" and (.author_association | IN(\"OWNER\",\"MEMBER\",\"COLLABORATOR\")))] | length" | paste -sd+ | bc)
+          approvals=$(gh api --paginate "repos/$REPO/pulls/$PR/reviews" --jq "[.[] | select(.state==\"APPROVED\" and .user.login != \"$AUTHOR\" and .commit_id == \"$HEAD_SHA\" and (.author_association | IN(\"OWNER\",\"MEMBER\",\"COLLABORATOR\")))] | length" | awk '{s+=$1} END{print s+0}')
           if [ "${approvals:-0}" -ge 1 ]; then
             echo "Approved on the latest commit ($approvals approval)."
             exit 0
