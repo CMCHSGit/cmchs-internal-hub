@@ -6,7 +6,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Camera, X } from 'lucide-react'
 import Scanner from './Scanner.jsx'
-import { assetStatus, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
+import { assetStatus, dateRange, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
 import BrowseEquipment from './BrowseEquipment.jsx'
 
 /** mode 'new' (a new loan: one still out is booked to follow) or 'add' (added to a loan: the same, except to a loan already started, where it's moved across). */
@@ -56,7 +56,8 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
             const st = assetStatus(s.equipment, s.upcoming, no, ctx)
             // Added to a loan already started, one out elsewhere is moved straight across (old: the basket); to one still to come it's booked to follow, as a new loan.
             const across = mode === 'add' && st.found && st.out && st.will === 'follow' && !(when.startDate && when.startDate > (when.today || s.today))
-            const tone = !st.found || across ? 'bad' : st.will === 'follow' ? 'warn' : st.out || st.next ? 'note' : 'ok'
+            const clashWith = st.waiting || [] // other bookings already waiting for it on these dates (clashesFor)
+            const tone = !st.found || across ? 'bad' : st.will === 'follow' || clashWith.length ? 'warn' : st.out || st.next ? 'note' : 'ok'
             return (
               <li key={no} className="eq-picked">
                 <span className="eq-picked-main">
@@ -67,7 +68,9 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
                       : st.will === 'follow' ? `${st.longTerm ? 'On a long-term loan (no return date)' : 'On loan'} to ${st.item.OnLoanTo}${st.item.LoanEndDate ? ` until ${fmtDate(st.item.LoanEndDate)}` : ''}: booked on this loan to follow when it’s back`
                         : st.will === 'reclaim' ? `Booked for ${st.item.OnLoanTo} from ${fmtDate(st.item.LoanStartDate)}, no clash: goes on this loan, and that booking keeps its claim`
                           : 'Free'}
-                    {st.next && ` · booked next for ${st.next.loanTo} from ${fmtDate(st.next.startDate)}`}
+                    {clashWith.length > 0
+                      ? clashWith.map((c) => ` · ⚠ clashes: ${c.loanTo} is waiting for it ${dateRange(c.startDate, c.endDate)}`).join('')
+                      : st.next && ` · booked next for ${st.next.loanTo} from ${fmtDate(st.next.startDate)}`}
                   </span>
                 </span>
                 <button type="button" className="icon-btn icon-btn-sm" aria-label={`Take ${no} off`} onClick={() => onChange(picked.filter((x) => x !== no))}><X size={14} /></button>

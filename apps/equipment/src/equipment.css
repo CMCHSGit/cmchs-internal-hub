@@ -398,3 +398,6 @@
 /* Notes boxes grow to fit their text (AutoText.jsx): no scroll bar inside a small box. */
 textarea.eq-autotext { overflow-y: hidden; }
 .eq-lf textarea.eq-autotext { min-height: 0; }
+
+/* Clashes (clashesFor in model.js): one device wanted by two loans or bookings on overlapping dates. */
+.eq-clash { color: var(--status-critical); font-weight: 600; }

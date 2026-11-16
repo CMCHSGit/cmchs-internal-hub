@@ -9,7 +9,7 @@ import { ChevronDown } from 'lucide-react'
 import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
 import { AdminDialog } from './Items.jsx'
-import { auditTone, AUDIT_LABELS, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, startsSoon } from './model.js'
+import { auditTone, AUDIT_LABELS, clashesFor, dateRange, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, startsSoon } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -111,6 +111,18 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
   const demoType = g.doc?.demoType || ''
   const ready = readinessOf(g, { loanMeta: s.loanMeta, today: s.today })
   const byId = (id, assetNo) => s.equipment.find((e) => e.id === id || e.CHSAssetNo === assetNo)
+  // Devices someone else wants on overlapping dates (clashesFor): a booking waiting for the same device, or the loan
+  // holding it not back before this starts. Nothing else compares one loan's devices with another's, so without this
+  // two bookings could both wait for one TV80 with nothing on either card (16 Nov 2026).
+  const clashCtx = { equipment: s.equipment, upcoming: s.upcoming, testMode: s.testMode }
+  const clashes = useMemo(() => {
+    const m = new Map()
+    for (const no of [...g.items.map((e) => e.CHSAssetNo), ...g.pending.map((p) => p.CHSAssetNo)]) {
+      const c = clashesFor(no, g, clashCtx)
+      if (c.length) m.set(no, c)
+    }
+    return m
+  }, [g, s.equipment, s.upcoming, s.testMode]) // eslint-disable-line react-hooks/exhaustive-deps
   // Each device's later bookings, soonest first (old: buildLoanDeviceRow's "Scheduled for …", "Then scheduled for …").
   const nextFor = (no) => (s.upcoming || []).filter((u) => u.id !== g.batchId && (s.testMode || !String(u.id || '').startsWith('testbatch_')) && (u.items || []).some((i) => i.CHSAssetNo === no))
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
@@ -156,6 +168,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
         </span>
         <span className="eq-loan-badges">
           {g.overdue && <Badge tone="critical">Overdue</Badge>}
+          {clashes.size > 0 && <Badge tone="critical">{clashes.size === 1 ? 'Clash' : `${clashes.size} clashes`}</Badge>}
           {ready.notTested && <Badge tone="orange">Not tested</Badge>}
           {g.kind === 'scheduled' && !ready.tested && !ready.noTestRequired && <Badge tone="neutral">Awaiting test</Badge>}
           {upcomingKind && (soon ? <Badge tone="orange">{days <= 0 ? 'Starts today' : days === 1 ? 'Starts tomorrow' : `Starts in ${days} days`}</Badge> : <Badge tone="purple">{g.kind === 'booking' ? 'Booked' : 'Scheduled'}</Badge>)}
@@ -171,26 +184,34 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
           <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
           {g.notes && <p className="eq-loan-notes">{g.notes}</p>}
           <ul className="eq-devices">
-            {g.items.map((e) => <Device key={e.id} e={e} next={nextFor(e.CHSAssetNo)} onRemove={() => setRemoving({ e })} />)}
+            {g.items.map((e) => <Device key={e.id} e={e} g={g} next={nextFor(e.CHSAssetNo)} clashes={clashes.get(e.CHSAssetNo) || []} onRemove={() => setRemoving({ e })} />)}
             {g.kind !== 'booking' && waiting > 0 && (
               <li className="eq-device-head">{`⏳ Awaiting return before pickup (${waiting} of ${g.pending.length})`}</li>
             )}
             {g.pending.map((p) => {
               const e = byId(p.id, p.CHSAssetNo)
               const held = heldUpBy(e, g, s.today), now = held?.e || null // a later booking's claim doesn't hold this one up
+              const free = !!e && (!held || held.why === 'later') // on the shelf (or only pencilled in for after this)
               return (
                 <li key={'p' + (p.id || p.CHSAssetNo)} className="eq-device pending">
                   <a className="eq-strong" href={e ? '#/equipment?item=' + encodeURIComponent(e.id) : undefined}>{p.CHSAssetNo}</a> {p.Model || e?.Model}
-                  {/* A note only when something is holding it up; a free device just sits on the list. */}
+                  {/* Why it's waiting: held by another loan, or free now; and anyone else who wants it on the same dates. */}
+                  {free && !(clashes.get(p.CHSAssetNo) || []).length && <span className="eq-small text-muted">Free now</span>}
                   {(held?.why === 'out' || held?.why === 'booked') && (() => {
                     const text = held.why === 'out' ? `Still on loan to ${now.OnLoanTo}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
                       : `Booked to ${now.OnLoanTo} from ${fmtDate(now.LoanStartDate)}${now.LoanEndDate ? `, due back ${fmtDate(now.LoanEndDate)}` : ''}`
+                    // Held by a loan that isn't back before this one starts: a clash, not just a wait.
+                    const late = (clashes.get(p.CHSAssetNo) || []).some((c) => c.kind === 'holding')
+                    const label = late ? `⚠ Clash: ${text}, after this starts` : text
                     const i = holders.findIndex((x) => x.nos.includes(p.CHSAssetNo))
                     // Opens the loan holding it, Transfer ready with this loan chosen and everything it waits on from there ticked.
                     return i >= 0
-                      ? <a className="eq-small eq-reassign" href={'#/loans?' + new URLSearchParams(reassignParams(g, holders, i)).toString()} title="Open the loan holding it and move it here">{text} · move it here →</a>
-                      : <span className="eq-small">{text}</span>
+                      ? <a className={`eq-small eq-reassign${late ? ' eq-clash' : ''}`} href={'#/loans?' + new URLSearchParams(reassignParams(g, holders, i)).toString()} title="Open the loan holding it and move it here">{label} · move it here →</a>
+                      : <span className={`eq-small${late ? ' eq-clash' : ''}`}>{label}</span>
                   })()}
+                  {(clashes.get(p.CHSAssetNo) || []).filter((c) => c.kind === 'waiting').map((c) => (
+                    <span key={c.id} className="eq-small eq-clash">⚠ Clash: {c.loanTo} is also waiting for it, {dateRange(c.startDate, c.endDate)}{free ? ' (it’s free now: the booking that starts first gets it)' : ''}</span>
+                  ))}
                   <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${p.CHSAssetNo} off the booking`} title="Take off the booking" onClick={() => setRemoving({ p })}>×</button>
                 </li>
               )
@@ -232,12 +253,15 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
   )
 }
 
-function Device({ e, next = [], onRemove }) {
+function Device({ e, g, next = [], clashes = [], onRemove }) {
+  const clashing = new Set(clashes.filter((c) => c.kind === 'waiting').map((c) => c.id))
   return (
     <li className="eq-device">
       <span><a className="eq-strong" href={'#/equipment?item=' + encodeURIComponent(e.id)} title="Open its record">{e.CHSAssetNo}</a> {e.Model}{e.Description && <span className="text-muted"> · {e.Description}</span>}</span>
       {e.SerialNo && <span className="eq-small eq-mono">{e.SerialNo}</span>}
-      {next.map((u, i) => <span key={u.id} className="eq-small eq-next">{i ? '↪ Then scheduled' : '⏳ Scheduled'} for {u.loanTo} from {fmtDate(u.startDate)}{u.endDate ? ` – ${fmtDate(u.endDate)}` : ''}</span>)}
+      {next.map((u, i) => (clashing.has(u.id)
+        ? <span key={u.id} className="eq-small eq-clash">⚠ Clash: {u.loanTo} wants it from {fmtDate(u.startDate)}{g?.endDate ? `, before this loan ends (${fmtDate(g.endDate)})` : ', while this loan has it'}</span>
+        : <span key={u.id} className="eq-small eq-next">{i ? '↪ Then scheduled' : '⏳ Scheduled'} for {u.loanTo} from {fmtDate(u.startDate)}{u.endDate ? ` – ${fmtDate(u.endDate)}` : ''}</span>))}
       {onRemove && <button type="button" className="icon-btn icon-btn-sm eq-device-x" aria-label={`Take ${e.CHSAssetNo} off this loan`} title="Take off this loan (admin)" onClick={onRemove}>×</button>}
     </li>
   )
