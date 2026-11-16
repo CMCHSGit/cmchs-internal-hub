@@ -830,6 +830,34 @@ export function heldUpBy(e, g, today = nzDate()) {
 }
 
 /**
+ * Other claims on device `no` whose dates overlap loan or booking `g`: the loan it is on now (if not `g`) and
+ * every other booking waiting for it. One device can't be in two places, so each is a clash the tracker points
+ * out: two bookings both waiting for one free device (only the earlier gets it when it starts), a booking that
+ * starts before the loan holding its device is due back, a loan whose device is wanted by a booking that starts
+ * before it ends. [{ kind: 'holding' | 'waiting', id, loanTo, startDate, endDate }], soonest first.
+ */
+export function clashesFor(no, g, { equipment = [], upcoming = [], testMode = false } = {}) {
+  const key = String(no || '').trim().toLowerCase()
+  if (!key || !g) return []
+  const own = (id) => !!id && (id === g.batchId || id === g.key)
+  const overlaps = (start, end) => datesOverlap(start || '', end || '', g.startDate || '', g.endDate || '')
+  const out = []
+  const e = findAsset(equipment, no)
+  if (e && isOut(e) && !own(e.BatchID) && !(!e.BatchID && e.OnLoanTo === g.loanTo) && overlaps(e.LoanStartDate, e.LoanEndDate)) {
+    out.push({ kind: 'holding', id: e.BatchID || '', loanTo: e.OnLoanTo, startDate: e.LoanStartDate || '', endDate: e.LoanEndDate || '' })
+  }
+  for (const u of upcoming) {
+    if (!u || own(u.id) || (!testMode && isTestBatch(u.id))) continue
+    if (!(u.items || []).some((i) => String(i.CHSAssetNo || '').trim().toLowerCase() === key)) continue
+    if (overlaps(u.startDate, u.endDate)) out.push({ kind: 'waiting', id: u.id, loanTo: u.loanTo || '', startDate: u.startDate || '', endDate: u.endDate || '' })
+  }
+  return out.sort((a, b) => (a.startDate || '').localeCompare(b.startDate || ''))
+}
+
+/** "17-Nov-2026 – 20-Nov-2026", or from a date with no end. */
+export const dateRange = (start, end) => (start ? fmtDate(start) : '') + (end ? ` – ${fmtDate(end)}` : start ? ' on' : '')
+
+/**
  * The devices a loan or booking `g` is still waiting on, grouped by the loan holding them (old: openStuckLoanReassign,
  * for every holder, not just the first): [{ key: 'loan:…', from, nos }], in the order the waiting devices are listed.
  * A device booked to someone from after `g` ends doesn't hold it up, so it isn't here.
@@ -965,7 +993,9 @@ export function assetStatus(equipment, upcoming, no, { startDate = '', endDate =
   // What planNewLoan does with it: on the loan now; booked to follow (still out); or on it now with the later booking keeping its claim.
   const will = !out ? 'now' : notStarted && !clash ? 'reclaim' : 'follow'
   const next = upcomingFor(e, upcoming, testMode)
-  return { found: true, item: e, out, clash, will, longTerm: out && isLoanLongTerm(e.BatchID, { loanMeta, loanDocs }), next: next && next.loanTo !== loanTo ? next : null }
+  // Other bookings already waiting for it on overlapping dates: this loan would clash with them.
+  const waiting = clashesFor(no, { loanTo, startDate, endDate }, { equipment, upcoming, testMode }).filter((c) => c.kind === 'waiting' && c.loanTo !== loanTo)
+  return { found: true, item: e, out, clash, will, longTerm: out && isLoanLongTerm(e.BatchID, { loanMeta, loanDocs }), next: next && next.loanTo !== loanTo ? next : null, waiting }
 }
 
 /**
