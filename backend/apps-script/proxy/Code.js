@@ -1865,6 +1865,9 @@ const SIMPRO_QUERY_PAGING = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5})(?:&|$))+$/;
 const SIMPRO_QUERY_CUSTOMER_LIST = /^(?=(?:.*&)?columns=)(?:(?:columns=ID(?:,(?:Type|CompanyName|GivenName|FamilyName|Archived))*|pageSize=\d{1,3}|page=\d{1,5}|orderby=-?(?:ID|CompanyName|GivenName|FamilyName)|search=(?:any|all)|(?:CompanyName|GivenName|FamilyName)=(?:[A-Za-z0-9.\-_]|%25|%20){1,200})(?:&|$))+$/;
 // The sites list: paging (SimproSync), plus the new-job form's customer filter and its small column set.
 const SIMPRO_QUERY_SITE_LIST = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5}|columns=ID(?:,(?:Name|Customers|Archived))*|orderby=-?(?:ID|Name)|Customers\.ID=\d{1,9})(?:&|$))+$/;
+// The staff list (the new-job form's optional technician): a staff member is only an ID, a name and a type, so that is all that can be
+// selected; paging, an ordering and the staff type are the only other pieces.
+const SIMPRO_QUERY_STAFF_LIST = /^(?:(?:pageSize=\d{1,3}|page=\d{1,5}|columns=ID(?:,(?:Name|Type|TypeId))*|orderby=-?(?:ID|Name)|Type=(?:employee|contractor|plant))(?:&|$))+$/;
 
 const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/$/],
@@ -1872,6 +1875,8 @@ const SIMPRO_SYNC_ALLOWLIST = [
   [['get'],        /^\/companies\/\d+\/setup\/statusCodes\/projects\/$/],
   // Sites: paging as before, plus the new-job form's customer filter (SIMPRO_QUERY_SITE_LIST: nothing else is selectable).
   [['get'],        /^\/companies\/\d+\/sites\/$/, SIMPRO_QUERY_SITE_LIST],
+  // Staff (name, id and type only: SIMPRO_QUERY_STAFF_LIST), for the new-job form's optional technician. Not a staff member's own record.
+  [['get'],        /^\/companies\/\d+\/staff\/$/, SIMPRO_QUERY_STAFF_LIST],
   // Simpro Jobs (read only): the pickers of the new-job form. The customers list, and only that list (not the per-type ones), with
   // columns= required and limited to the picker's own (SIMPRO_QUERY_CUSTOMER_LIST). A customer's own record also holds banking and
   // contacts, so it is only readable for its linked sites: the query must be columns=ID,Sites (rule[3] = a query is required,
@@ -1919,7 +1924,7 @@ const SIMPRO_SYNC_MAX_NOTES = 50000;
 
 // Simpro Jobs: what making a job may carry. A new job is a Service job with a customer, a site and a description, and optionally
 // notes; nothing else (no name, dates, stage, status, people or tags) can be set here.
-const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Name', 'Customer', 'Site', 'Description', 'Notes', 'Stage'];
+const SIMPRO_JOBS_CREATE_FIELDS = ['Type', 'Name', 'Customer', 'Site', 'Description', 'Notes', 'Stage', 'Technicians'];
 const SIMPRO_JOBS_MAX_HTML = 130000;   // the page caps typed text at 20,000 characters; escaped into HTML (a quote becomes &quot;) it is up to 6 times that, plus tags
 const SIMPRO_JOBS_MAX_FIELD_VALUE = 200;
 
@@ -1967,6 +1972,7 @@ function simproSyncJobWriteError_(method, path, body, requestCount) {
   if (body.Type !== 'Service') return 'makes a job that is not a Service job';
   if ('Name' in body && !simproJobsTitleOk_(body.Name)) return 'has a title that is not one line of plain text up to ' + SIMPRO_JOBS_MAX_TITLE + ' characters';
   if (!simproJobsPositiveInt_(body.Customer) || !simproJobsPositiveInt_(body.Site)) return 'has no customer or site';
+  if ('Technicians' in body && !simproJobsPositiveInt_(body.Technicians)) return 'has a technician that is not a staff id';
   if (typeof body.Description !== 'string' || !body.Description.trim() || body.Description.length > SIMPRO_JOBS_MAX_HTML) return 'has no description, or one that is too long';
   if ('Notes' in body && (typeof body.Notes !== 'string' || body.Notes.length > SIMPRO_JOBS_MAX_HTML)) return 'has notes that are not text or are too long';
   if (!simproJobsPlainHtml_(body.Description) || ('Notes' in body && !simproJobsPlainHtml_(body.Notes))) return 'has markup other than paragraphs and line breaks';

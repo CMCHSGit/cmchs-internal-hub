@@ -8,7 +8,7 @@ import SafeHtml from '../../simprosearch/src/SafeHtml.jsx'
 import { friendly, loadSetup } from './lookups.js'
 import { MAX_TITLE, titleProblem } from './draft.js'
 import {
-  MAX_ADD, STAGE_CHIPS, buildClosePlan, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, loadCompletedStatus, loadJobDetail, loadRecentJobs,
+  MAX_ADD, STAGE_CHIPS, STAGE_CHOICES, buildClosePlan, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, completedStatus, loadStatusCodes, loadJobDetail, loadRecentJobs,
 } from './manage.js'
 import { runPlan } from './plan.js'
 import { Sheet } from './Sheets.jsx'
@@ -248,23 +248,75 @@ function EditSheet({ call, companyId, job, setup, onClose, onDone }) {
   )
 }
 
+/**
+ * Close job. It starts on what closing means (stage Complete, status "Job : Completed") with a box for a note, and the person can pick another
+ * stage or another status, or leave the status as it is. Then the review screen, which is the only thing that sends anything: it lists just the
+ * steps that change something (the note, the stage, the status), each from what it is to what it will be.
+ */
 function CloseSheet({ call, companyId, job, onClose, onDone }) {
-  const [status, setStatus] = useState({ busy: true, value: null, error: '' })
+  const [codes, setCodes] = useState({ busy: true, list: [], error: '' })
+  const [stage, setStage] = useState('Complete')
+  const [statusId, setStatusId] = useState('') // '' is "leave the status as it is"
+  const [note, setNote] = useState('')
+  const [review, setReview] = useState(false)
+  const touchedStatus = useRef(false)
   useEffect(() => {
     let live = true
-    loadCompletedStatus(call, companyId)
-      .then((value) => { if (live) setStatus({ busy: false, value, error: '' }) })
-      .catch((e) => { if (live) setStatus({ busy: false, value: null, error: friendly(e) }) })
+    loadStatusCodes(call, companyId)
+      .then((list) => {
+        if (!live) return
+        setCodes({ busy: false, list, error: '' })
+        const done = completedStatus(list)
+        if (done && !touchedStatus.current) setStatusId(String(done.id)) // the usual choice, unless the person has already picked
+      })
+      .catch((e) => { if (live) setCodes({ busy: false, list: [], error: friendly(e) }) })
     return () => { live = false }
   }, [call, companyId])
-  const built = useMemo(() => { if (status.busy || status.error) return {}; try { return { plan: buildClosePlan({ job, statusCode: status.value, companyId }) } } catch (e) { return { error: e.message } } }, [status, job, companyId])
+
+  const statusCode = codes.list.find((c) => String(c.id) === statusId) || null
+  const built = useMemo(() => {
+    try { return { plan: buildClosePlan({ job, stage, statusCode, addNotes: note, companyId }) } } catch (e) { return { error: e.message } }
+  }, [job, stage, statusCode, note, companyId])
   const change = useChange(call, built.plan)
+  const closing = stage === 'Complete'
+
+  if (review && built.plan) {
+    return (
+      <ChangeSheet
+        title={`Review: ${closing ? 'close' : 'change'} job ${job.id}`}
+        intro="Only what is listed here changes; nothing else about the job is touched. A note is added to the end of the notes."
+        plan={built.plan} change={change} confirmLabel={closing ? 'Close job in Simpro' : 'Make this change in Simpro'} onClose={() => setReview(false)} onDone={onDone}
+      />
+    )
+  }
   return (
-    <>
-      {status.busy && <Sheet title={`Close job ${job.id}`} onClose={onClose}><div className="sj-busy" role="status"><Spinner size={20} /> Checking Simpro’s status list…</div></Sheet>}
-      {!status.busy && (status.error || built.error) && <Sheet title={`Close job ${job.id}`} onClose={onClose}><Alert tone="critical" title="This job can’t be closed from here">{status.error || built.error}</Alert></Sheet>}
-      {built.plan && <ChangeSheet title={`Close job ${job.id}`} intro="This marks the job complete: its stage becomes Complete and its status “Job : Completed”. It is not invoiced or archived." plan={built.plan} change={change} confirmLabel="Close job in Simpro" onClose={onClose} onDone={onDone} />}
-    </>
+    <Sheet title={`Close job ${job.id}`} onClose={onClose}>
+      <p className="sj-hint">Closing marks the job Complete. You can add a note, or choose a different stage or status instead. Then review it: nothing goes to Simpro until you confirm.</p>
+      <label className="field">
+        <span className="field-label">Add a note <span className="sj-opt">(optional)</span></span>
+        <textarea className="input sj-text" rows={4} maxLength={MAX_ADD} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Goes after the existing notes, e.g. what was done" />
+      </label>
+      <label className="field">
+        <span className="field-label">Stage</span>
+        <select className="sj-select" value={stage} onChange={(e) => setStage(e.target.value)}>
+          {STAGE_CHOICES.map((s) => <option key={s} value={s}>{s === job.stage ? `${s} (as it is now)` : s}</option>)}
+        </select>
+      </label>
+      <label className="field">
+        <span className="field-label">Status</span>
+        <select className="sj-select" value={statusId} disabled={codes.busy || !codes.list.length} onChange={(e) => { touchedStatus.current = true; setStatusId(e.target.value) }}>
+          <option value="">{codes.busy ? 'Loading Simpro’s statuses…' : `Leave as it is${job.status ? `: ${job.status}` : ''}`}</option>
+          {codes.list.map((c) => <option key={c.id} value={String(c.id)}>{c.id === job.statusId ? `${c.name} (as it is now)` : c.name}</option>)}
+        </select>
+        {codes.error && <span className="sj-pick-error" role="alert">{codes.error} The stage and note can still be changed.</span>}
+        {!codes.busy && !codes.error && !completedStatus(codes.list) && <span className="sj-hint">Simpro has no “Job : Completed” status, so choose one if you want the status changed.</span>}
+      </label>
+      <div className="sj-review-actions">
+        <Button variant="primary" size="lg" block disabled={!built.plan} onClick={() => setReview(true)}>Review</Button>
+        {built.error === 'Nothing to change yet.' && <p className="sj-hint">Everything is already as chosen: add a note or pick a different stage or status.</p>}
+        {built.error && built.error !== 'Nothing to change yet.' && <p className="sj-pick-error" role="alert">{built.error}</p>}
+      </div>
+    </Sheet>
   )
 }
 

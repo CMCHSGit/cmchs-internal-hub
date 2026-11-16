@@ -64,6 +64,7 @@ function fakeSimpro(opts = {}) {
       return reply(200, SITES.filter((s) => s.Customers.some((x) => x.ID === +params['Customers.ID'])))
     }
     if (/setup\/accounts\/costCenters\/$/.test(p)) return reply(200, [{ ID: 15, Name: 'Service' }, { ID: 16, Name: 'Install' }, { ID: 17, Name: 'Old one', Archived: true }])
+    if (/\/staff\/$/.test(p)) return reply(200, [{ ID: 5, Name: 'Pat Staff', Type: 'employee' }])
     if (/setup\/customFields\/projects\/$/.test(p)) return reply(200, FIELDS)
     if ((m = p.match(/setup\/customFields\/projects\/(\d+)$/))) return reply(200, { ID: +m[1], ListItems: LIST_ITEMS[m[1]] ?? null })
     return reply(404, { errors: [{ message: 'unknown path in the pretend Simpro: ' + p }] })

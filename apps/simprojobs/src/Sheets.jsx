@@ -162,3 +162,25 @@ export function OptionSheet({ title, options, selected, onPick, onClose, default
     </Sheet>
   )
 }
+
+// ── The technician (optional) ──────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Simpro's staff, filtered as you type, with "No technician" first so the choice can always be undone. `you` marks the person signed in. */
+export function StaffSheet({ staff, selected, you, onPick, onClose }) {
+  const [q, setQ] = useState('')
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return t ? staff.filter((s) => s.name.toLowerCase().includes(t)) : staff
+  }, [q, staff])
+  return (
+    <Sheet title="Technician" onClose={onClose} search={staff.length > 8 ? { value: q, onChange: setQ, placeholder: 'Search staff by name', autoFocus: false } : null}>
+      <ul className="sj-list">
+        <Row primary="No technician" sub="Leave it for the office to assign" selected={!selected} onClick={() => onPick(null)} />
+        {shown.map((s) => (
+          <Row key={s.id} primary={s.name} sub={[you?.id === s.id ? 'You' : '', s.type === 'contractor' ? 'Contractor' : ''].filter(Boolean).join(' · ')} selected={selected?.id === s.id} onClick={() => onPick(s)} />
+        ))}
+      </ul>
+      {!shown.length && <p className="sj-empty">No one matches “{q.trim()}”.</p>}
+    </Sheet>
+  )
+}
