@@ -71,9 +71,96 @@ export function groupResults({ jobs = [], fields = [], terms = [] } = {}) {
   return { groups, terms, notSearched, total: jobs.length }
 }
 
-/** Jobs with every typed word in them (any place), in the three sections. Throws SendError when Simpro answered none of the questions. */
-export async function findJobs(call, companyId, text, { stage = '' } = {}) {
-  return groupResults(await searchJobs(call, companyId, text, { groups: ['text', 'names'], stage }))
+// ── Filtering by the technician a job is assigned to ──────────────────────────────────────────────────────────────────────────
+
+export const TECH_PAGE = 100       // jobs shown for a technician with nothing typed
+const ID_PAGE = 250
+const ID_PAGES = 4                 // with a search: the technician's newest 1,000 jobs are checked against the results
+const SCAN_PAGES = 3               // if Simpro can't filter: the newest 750 jobs are read and filtered here
+const TECH_COLUMNS = 'ID,Name,Description,Customer,Site,Stage,Status,Technicians'
+
+/** The staff ids a job row lists as its technicians (Simpro gives objects { ID, Name, … }; a bare number is read too). */
+export function technicianIds(j) {
+  const t = j?.Technicians
+  const list = Array.isArray(t) ? t : t ? [t] : []
+  return list.map((x) => (x && typeof x === 'object' ? x.ID : x)).filter((x) => x != null).map(Number)
+}
+const hasTechnicians = (j) => !!j && Object.prototype.hasOwnProperty.call(j, 'Technicians')
+
+function positiveId(v) {
+  const id = Number(v)
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Choose a technician.')
+  return id
+}
+
+function jobsQuery(companyId, { columns, filter = '', stage = '', page = 1, pageSize, ordered = true }) {
+  const parts = [`columns=${columns}`]
+  if (filter) parts.push(filter)
+  parts.push(`pageSize=${pageSize}`)
+  if (ordered) parts.push('orderby=-ID')
+  if (stage) parts.push('Stage=' + stage)
+  if (page > 1) parts.push('page=' + page)
+  return `/companies/${companyId}/jobs/?${parts.join('&')}`
+}
+
+/**
+ * The jobs a technician is assigned to, newest first. Simpro is asked to filter (Technicians.ID); the answer is trusted only if EVERY row
+ * says that technician is on it, because a filter Simpro ignores would hand back unrelated jobs. If it refuses the filter, or ignores it,
+ * the newest jobs are read with their technicians and filtered here, and `via: 'scan'` says so. If this Simpro doesn't list technicians
+ * in the job list at all, nothing can be filtered and it says that. Returns { jobs (raw rows), via, capped, scanned }.
+ */
+async function readTechnicianJobs(call, companyId, id, { stage, pageSize, pages }) {
+  const mine = []
+  let trusted = true
+  let capped = false
+  for (let page = 1; page <= pages && trusted; page++) {
+    const r = await call('GET', jobsQuery(companyId, { columns: TECH_COLUMNS, filter: `Technicians.ID=${id}`, stage, page, pageSize }))
+    if (!ok(r) || !Array.isArray(r.data)) { trusted = false; break }
+    const rows = r.data.filter((j) => j && j.ID)
+    if (rows.length && !rows.every((j) => hasTechnicians(j) && technicianIds(j).includes(id))) { trusted = false; break }
+    mine.push(...rows)
+    if (r.data.length < pageSize) return { jobs: mine, via: 'simpro', capped: false, scanned: 0 }
+    capped = page === pages
+  }
+  if (trusted) return { jobs: mine, via: 'simpro', capped, scanned: 0 }
+
+  const jobs = []
+  let scanned = 0
+  let more = false
+  for (let page = 1; page <= SCAN_PAGES; page++) {
+    const s = await call('GET', jobsQuery(companyId, { columns: TECH_COLUMNS, stage, page, pageSize: ID_PAGE }))
+    if (!ok(s) || !Array.isArray(s.data)) {
+      if (page === 1) throw new SendError(`Jobs: ${simproErr(s)}`, s.status >= 500 || s.status === 429)
+      break
+    }
+    if (s.data.length && !s.data.some(hasTechnicians)) throw new SendError('This Simpro doesn’t list a job’s technicians in the job list, so jobs can’t be filtered by technician here.', false)
+    scanned += s.data.length
+    for (const j of s.data) if (j && j.ID && technicianIds(j).includes(id)) jobs.push(j)
+    more = s.data.length >= ID_PAGE
+    if (!more) break
+  }
+  return { jobs, via: 'scan', capped: more, scanned }
+}
+
+/** The jobs a technician is assigned to (nothing typed): rows for the list, and how it was found. */
+export async function loadJobsByTechnician(call, companyId, technicianId, { stage = '' } = {}) {
+  const r = await readTechnicianJobs(call, companyId, positiveId(technicianId), { stage, pageSize: TECH_PAGE, pages: 1 })
+  return { rows: r.jobs.map(jobRow), more: r.capped, via: r.via, scanned: r.scanned }
+}
+
+/**
+ * Jobs with every typed word in them (any place), in the three sections; with `technician` ({ id }) only those that technician is assigned
+ * to (the search's results checked against that technician's jobs). Throws SendError when Simpro answered none of the questions.
+ * `technician` on the answer says how the filter was done and whether it covered everything: { via, capped, scanned }.
+ */
+export async function findJobs(call, companyId, text, { stage = '', technician = null } = {}) {
+  const found = groupResults(await searchJobs(call, companyId, text, { groups: ['text', 'names'], stage }))
+  if (!technician) return found
+  const t = await readTechnicianJobs(call, companyId, positiveId(technician.id), { stage, pageSize: ID_PAGE, pages: ID_PAGES })
+  const ids = new Set(t.jobs.map((j) => String(j.ID)))
+  const keep = (list) => list.filter((g) => ids.has(String(g.row.id)))
+  const groups = { names: keep(found.groups.names), description: keep(found.groups.description), notes: keep(found.groups.notes) }
+  return { ...found, groups, total: groups.names.length + groups.description.length + groups.notes.length, technician: { via: t.via, capped: t.capped, scanned: t.scanned } }
 }
 
 // ── Reading one job ─────────────────────────────────────────────────────────────────────────────────────────────────────────

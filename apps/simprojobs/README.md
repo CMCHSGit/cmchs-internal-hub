@@ -109,3 +109,15 @@ cleared). It goes in the create request as `Technicians` (the staff id; Simpro's
 Not on the Edit screen yet: Simpro's docs describe a job's technicians as a list, and replacing it could drop people, so that waits for a look at a real job.
 - Relay: `GET /staff/` is read for the list with a whitelist of query pieces (columns `ID,Name,Type,TypeId` only, paging, ordering, staff type), never a staff member's own
   record; `Technicians` is accepted on create as a whole-number id only. Needs the relay redeploy. Check Simpro shows how many staff were found and whether you were matched.
+
+## Filtering jobs by technician (the Find tab)
+
+A **Technician** dropdown on the Find tab (Anyone, **Me** when the person signed in is exactly one Simpro employee, then everyone) narrows the list to the jobs that
+person is assigned to. With nothing typed it lists their newest jobs; with a search it keeps only the results that are theirs, in the same three sections; the stage
+chips still apply. Nothing is written, and there is no relay change: the job list already takes this kind of filter.
+- **How:** Simpro is asked to filter (`Technicians.ID=…`) and the answer is trusted only if **every row** lists that technician, because a filter Simpro silently ignores
+  would hand back unrelated jobs. If it refuses or ignores the filter, the newest 750 jobs are read with their technicians and filtered here, and the page says so ("Simpro
+  couldn't filter by technician itself, so the newest N jobs were checked"). If this Simpro doesn't list a job's technicians in the job list at all, the page says it can't
+  be filtered. With a search, the technician's newest 1,000 jobs are checked against the results (and a note says if that cut anything off).
+- **Check Simpro** has a "Jobs by technician" line saying which of those it is on this Simpro (counts only, tried on you or the first employee). Unproven until a real run:
+  the docs don't say whether the job list takes this filter.

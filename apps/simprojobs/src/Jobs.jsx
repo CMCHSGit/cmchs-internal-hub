@@ -5,14 +5,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button, Loading, Spinner } from '../../../shared/ui/index.jsx'
 import SafeHtml from '../../simprosearch/src/SafeHtml.jsx'
-import { friendly, loadSetup } from './lookups.js'
+import { friendly, loadSetup, loadStaff, matchStaff } from './lookups.js'
 import { MAX_TITLE, titleProblem } from './draft.js'
 import {
-  MAX_ADD, STAGE_CHIPS, STAGE_CHOICES, buildClosePlan, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, completedStatus, loadStatusCodes, loadJobDetail, loadRecentJobs,
+  MAX_ADD, STAGE_CHIPS, STAGE_CHOICES, buildClosePlan, buildEditPlan, canClose, canEdit, describeChange, fieldValue, findJobs, completedStatus, loadStatusCodes, loadJobDetail, loadJobsByTechnician, loadRecentJobs,
 } from './manage.js'
 import { runPlan } from './plan.js'
 import { Sheet } from './Sheets.jsx'
-import { readSetup, writeSetup } from './setupCache.js'
+import { readSetup, readStaff, writeSetup, writeStaff } from './setupCache.js'
 
 const routeFromHash = () => {
   const m = /^#\/job\/(\d+)(?:\/(edit|close))?/.exec(location.hash)
@@ -52,22 +52,39 @@ const SECTIONS = [
   ['notes', 'In the notes', 'Jobs found only by what is written in their notes.'],
 ]
 
-function FindList({ call, companyId }) {
-  const [q, setQ] = useState(() => { try { return sessionStorage.getItem('simprojobs.find.q') || '' } catch { return '' } })
-  const [stage, setStage] = useState(() => { try { return sessionStorage.getItem('simprojobs.find.stage') || '' } catch { return '' } })
+function FindList({ call, companyId, who }) {
+  const kept = (key) => { try { return sessionStorage.getItem(key) || '' } catch { return '' } }
+  const [q, setQ] = useState(() => kept('simprojobs.find.q'))
+  const [stage, setStage] = useState(() => kept('simprojobs.find.stage'))
+  const [tech, setTech] = useState(() => kept('simprojobs.find.tech')) // a staff id, '' for anyone
   const [state, setState] = useState({ busy: true, error: '', recent: null, found: null })
   const ask = useRef(0)
-  useEffect(() => { try { sessionStorage.setItem('simprojobs.find.q', q); sessionStorage.setItem('simprojobs.find.stage', stage) } catch { /* not kept */ } }, [q, stage])
+  useEffect(() => { try { sessionStorage.setItem('simprojobs.find.q', q); sessionStorage.setItem('simprojobs.find.stage', stage); sessionStorage.setItem('simprojobs.find.tech', tech) } catch { /* not kept */ } }, [q, stage, tech])
 
-  const run = useCallback(async (text, chosenStage) => {
+  // Simpro's staff, for the technician filter (kept half an hour, shared with the New job form). "Me" is the person signed in when they are exactly one employee.
+  const [staff, setStaff] = useState(() => readStaff(companyId))
+  const [staffError, setStaffError] = useState('')
+  useEffect(() => {
+    if (staff) return undefined
+    let live = true
+    loadStaff(call, companyId)
+      .then((list) => { if (live) { setStaff(list); writeStaff(companyId, list) } })
+      .catch((e) => { if (live) setStaffError(friendly(e)) })
+    return () => { live = false }
+  }, [call, companyId, staff])
+  const me = useMemo(() => (staff && who ? matchStaff(staff, who)?.person || null : null), [staff, who])
+  const techName = tech ? (staff || []).find((s) => String(s.id) === tech)?.name || `staff ${tech}` : ''
+
+  const run = useCallback(async (text, chosenStage, chosenTech) => {
     const mine = ++ask.current
     setState((s) => ({ ...s, busy: true, error: '' }))
     try {
+      const technician = chosenTech ? { id: chosenTech } : null
       if (text.trim()) {
-        const found = await findJobs(call, companyId, text, { stage: chosenStage })
+        const found = await findJobs(call, companyId, text, { stage: chosenStage, technician })
         if (mine === ask.current) setState({ busy: false, error: '', recent: null, found })
       } else {
-        const recent = await loadRecentJobs(call, companyId, { stage: chosenStage })
+        const recent = technician ? await loadJobsByTechnician(call, companyId, chosenTech, { stage: chosenStage }) : await loadRecentJobs(call, companyId, { stage: chosenStage })
         if (mine === ask.current) setState({ busy: false, error: '', recent, found: null })
       }
     } catch (e) {
@@ -78,12 +95,14 @@ function FindList({ call, companyId }) {
   // The first answer at once; then a short pause after the last key press, so typing doesn't ask Simpro for every letter.
   const first = useRef(true)
   useEffect(() => {
-    if (first.current) { first.current = false; run(q, stage); return }
-    const t = setTimeout(() => run(q, stage), q.trim() ? 450 : 0)
+    if (first.current) { first.current = false; run(q, stage, tech); return }
+    const t = setTimeout(() => run(q, stage, tech), q.trim() ? 450 : 0)
     return () => clearTimeout(t)
-  }, [q, stage, run])
+  }, [q, stage, tech, run])
 
   const { busy, error, recent, found } = state
+  const scanNote = (t) => t?.via === 'scan' && `Simpro couldn’t filter by technician itself, so the newest ${t.scanned} jobs were checked for ${techName}.`
+  const capNote = (t) => t?.via === 'simpro' && t.capped && 'Only the newest of that technician’s jobs were checked.'
   return (
     <div className="sj-find">
       <div className="sj-card sj-find-box">
@@ -94,21 +113,31 @@ function FindList({ call, companyId }) {
             value={q} onChange={(e) => setQ(e.target.value)} placeholder="Job number, title, customer, site, or words in the description or notes"
           />
         </label>
+        <label className="field">
+          <span className="field-label">Technician</span>
+          <select className="sj-select" value={tech} disabled={!staff && !staffError} onChange={(e) => setTech(e.target.value)}>
+            <option value="">{!staff && !staffError ? 'Loading staff…' : 'Anyone'}</option>
+            {me && <option value={String(me.id)}>Me ({me.name})</option>}
+            {(staff || []).filter((s) => !me || s.id !== me.id).map((s) => <option key={s.id} value={String(s.id)}>{s.name}{s.type === 'contractor' ? ' (contractor)' : ''}</option>)}
+          </select>
+          {staffError && <span className="sj-pick-error" role="alert">{staffError} Jobs can still be found without this filter.</span>}
+        </label>
         <div className="sj-chips" role="group" aria-label="Stage">
           {['', ...STAGE_CHIPS].map((s) => (
             <button key={s || 'any'} type="button" className={`tag${stage === s ? ' tag-selected' : ''}`} aria-pressed={stage === s} onClick={() => setStage(s)}>{s || 'Any stage'}</button>
           ))}
         </div>
-        <p className="sj-hint">Every word you type must be in the job somewhere. Results list the job number and title first, then jobs found only by their description, then only by their notes.</p>
+        <p className="sj-hint">Every word you type must be in the job somewhere. Results list the job number and title first, then jobs found only by their description, then only by their notes. A technician narrows it to the jobs they are assigned to.</p>
       </div>
 
-      {error && <Alert tone="critical" title="Couldn’t load jobs" action={<Button size="sm" variant="secondary" onClick={() => run(q, stage)}>Try again</Button>}>{error}</Alert>}
-      {busy && <div className="sj-busy" role="status"><Spinner size={20} /> {q.trim() ? 'Searching Simpro…' : 'Loading the newest jobs…'}</div>}
+      {error && <Alert tone="critical" title="Couldn’t load jobs" action={<Button size="sm" variant="secondary" onClick={() => run(q, stage, tech)}>Try again</Button>}>{error}</Alert>}
+      {busy && <div className="sj-busy" role="status"><Spinner size={20} /> {q.trim() ? 'Searching Simpro…' : tech ? `Finding ${techName || 'their'} jobs…` : 'Loading the newest jobs…'}</div>}
 
       {!error && recent && (
         <section className="sj-card">
-          <h2 className="sj-h2">Newest jobs{stage ? ` · ${stage}` : ''}</h2>
-          {recent.rows.length ? <ul className="sj-results">{recent.rows.map((r) => <ResultRow key={r.id} row={r} />)}</ul> : <p className="sj-empty">No jobs to show.</p>}
+          <h2 className="sj-h2">{tech ? `Jobs assigned to ${techName}` : 'Newest jobs'}{stage ? ` · ${stage}` : ''}</h2>
+          {recent.rows.length ? <ul className="sj-results">{recent.rows.map((r) => <ResultRow key={r.id} row={r} />)}</ul> : <p className="sj-empty">{tech ? `No ${stage ? stage + ' ' : ''}job is assigned to ${techName}.` : 'No jobs to show.'}</p>}
+          {tech && scanNote(recent) && <p className="sj-hint">{scanNote(recent)}</p>}
           {recent.more && <p className="sj-hint">Showing the newest {recent.rows.length}. Type something to search them all.</p>}
         </section>
       )}
@@ -116,7 +145,8 @@ function FindList({ call, companyId }) {
       {!error && found && (
         <>
           {found.notSearched.length > 0 && <Alert tone="warning" title="Simpro wouldn’t search everywhere">It did not search: {found.notSearched.join(', ')}. Results may be missing jobs that only match there.</Alert>}
-          {!found.total && !busy && <p className="sj-empty">No job has {found.terms.length > 1 ? 'all of those words' : 'that'} in it{stage ? ` in stage ${stage}` : ''}.</p>}
+          {tech && (scanNote(found.technician) || capNote(found.technician)) && <p className="sj-hint">{scanNote(found.technician) || capNote(found.technician)}</p>}
+          {!found.total && !busy && <p className="sj-empty">No job has {found.terms.length > 1 ? 'all of those words' : 'that'} in it{stage ? ` in stage ${stage}` : ''}{tech ? ` and is assigned to ${techName}` : ''}.</p>}
           {SECTIONS.map(([key, title, hint]) => found.groups[key].length > 0 && (
             <section className="sj-card" key={key}>
               <h2 className="sj-h2">{title} <span className="sj-count">{found.groups[key].length}</span></h2>
@@ -383,7 +413,7 @@ function JobView({ call, companyId, jobId, sheet, openSheet, closeSheet }) {
 }
 
 /** The Find tab: the list, or one job (and its edit and close screens), by the address (#/find, #/job/123, #/job/123/edit). */
-export default function FindJobs({ call, companyId }) {
+export default function FindJobs({ call, companyId, who }) {
   const [route, setRoute] = useState(routeFromHash)
   const pushed = useRef(false)
   useEffect(() => {
@@ -401,5 +431,5 @@ export default function FindJobs({ call, companyId }) {
   }, [])
   return route.job
     ? <JobView key={route.job} call={call} companyId={companyId} jobId={route.job} sheet={route.sheet} openSheet={openSheet} closeSheet={closeSheet} />
-    : <FindList call={call} companyId={companyId} />
+    : <FindList call={call} companyId={companyId} who={who} />
 }

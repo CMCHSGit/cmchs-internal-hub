@@ -349,7 +349,7 @@ export default function SimproJobs() {
         )}
       </div>
       {/* The company is the key: choosing another remounts the tab, so nothing from one company's lists is used for another's. */}
-      {view === 'find' ? <FindJobs key={companyId} call={call} companyId={companyId} /> : <NewJob key={companyId} call={call} companyId={companyId} who={who} />}
+      {view === 'find' ? <FindJobs key={companyId} call={call} companyId={companyId} who={who} /> : <NewJob key={companyId} call={call} companyId={companyId} who={who} />}
     </div>
   )
 }
