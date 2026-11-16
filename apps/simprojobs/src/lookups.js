@@ -12,6 +12,7 @@
                  which is found by name. In CHS's Simpro (confirmed live, 13 Nov 2026) they are "Job Type", "Charge category - CHS" and
                  "Priority (incl callouts) - CHS"; Simpro's own "response times" list, which the docs suggest for priority, is empty there. */
 import { SendError, ok, simproErr } from '../../testbench/src/simpro-api.js'
+import { loadJobsByTechnician } from './manage.js'
 
 export const PAGE_SIZE = 30
 export const SETUP_PAGE = 250
@@ -235,6 +236,16 @@ export async function runChecks(call, companyId, who) {
     const staff = await loadStaff(call, companyId)
     const me = who ? matchStaff(staff, who) : null
     add('Staff (technician)', staff.length ? 'ok' : 'warn', `${staff.length} employees and contractors${who ? (me ? `; you were found as a Simpro employee (by your ${me.how})` : '; you were not matched to one Simpro employee, so the technician starts empty') : ''}`)
+  })
+  // Whether the Find tab's technician filter is done by Simpro or by reading the newest jobs here. Tried on you (or the first employee); counts only.
+  await attempt('Jobs by technician', async () => {
+    const staff = await loadStaff(call, companyId)
+    const pick = (who && matchStaff(staff, who)?.person) || staff.find((s) => s.type !== 'contractor')
+    if (!pick) return add('Jobs by technician', 'warn', 'there is no employee to try it on')
+    const r = await loadJobsByTechnician(call, companyId, pick.id)
+    add('Jobs by technician', 'ok', r.via === 'simpro'
+      ? `Simpro filters by technician itself (${r.rows.length}${r.more ? '+' : ''} jobs found for one employee)`
+      : `Simpro can’t filter by technician, so the newest ${r.scanned} jobs are read and filtered instead (${r.rows.length} found for one employee)`)
   })
   add('Job custom fields in Simpro', setup.fieldNames.length ? 'ok' : 'warn', setup.fieldNames.length ? setup.fieldNames.map((f) => `${f.name} (${f.type})`).join(', ') : 'none listed')
   return out
