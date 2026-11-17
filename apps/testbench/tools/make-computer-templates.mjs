@@ -1,4 +1,4 @@
-// Builds the two computer / IT equipment templates for the Test Bench (Class I and Class II).
+// Builds the computer / IT equipment templates for the Test Bench (Class I and Class II, and the Cybernet CyberMed G22 PC with its Class II supply).
 // Run: node apps/testbench/tools/make-computer-templates.mjs [outDir]   (default apps/testbench/templates)
 // The files go into the SharePoint Templates folder (Service\Test Software\CHS Test Bench\Templates); the bench picks them up there.
 // Step ids are fixed on purpose: autosave and Reload template match steps by id.
@@ -71,9 +71,43 @@ const classII = {
   ],
 }
 
+// Cybernet CyberMed G22 all-in-one PC (medical grade, fitted behind a Mindray BeneVision monitor) with its EDAC EPU120MG-21856 external
+// medical power supply (EM11011M-190: 100-240 V~ 2.0-1.0 A in, 19.0 V 6.31 A 120 W out, 4-pin DIN). The supply has no protective earth: the
+// "GND" on its label is the 0 V return pin of the DC plug, not mains earth, so the system is Class II: no earth continuity, mains-to-earth
+// insulation or earth leakage, and no touch current (B10.1 covers Class I only, as in the Class II computer template above).
+// The tolerance on the DC output reading is +/-5% of the 19.0 V rating (18.05 to 19.95 V): CHS's choice, the label gives none. Jonathan to confirm.
+const cybernetG22 = {
+  name: 'Cybernet CyberMed G22 PC with EDAC EPU120MG-21856 power supply – Class II',
+  desc: 'Cybernet CyberMed G22 all-in-one medical PC and its EDAC EPU120MG-21856 external power supply (19.0 V, 6.31 A, 120 W, 4-pin DIN output). The supply has no protective earth (GND on its label is the 0 V return of the DC plug), so this is tested as Class II: AS/NZS 3551:2012+A2 Appendix B insulation over 1 Mohm at 500 V from mains to the accessible parts and the DC output (B9.3), then the DC output voltage, then function. No earth continuity, mains-to-earth insulation or earth leakage (no protective earth), and no touch current: B10.1 covers Class I equipment only. The DC output limit is the 19.0 V rating plus or minus 5%; the label gives no tolerance.',
+  category: 'Computers',
+  dut: [...DUT, 'Power supply serial'],
+  steps: [
+    step('visual', 'check', 'Visual inspection', 'Unplug the supply from the mains and from the PC before inspecting. Do not open the PC or the supply.', {
+      items: [
+        'Power supply: case undamaged (no cracks, heat marks or signs of liquid); label legible (EDAC EPU120MG-21856, model EM11011M-190, 19.0 V 6.31 A, I.T.E. and medical power supply markings); no earth pin or earth marking on the AC side.',
+        'AC lead: plug, cable and connector undamaged; plug pins straight and secure; strain relief intact; two-core lead.',
+        'DC lead: cable and ferrite undamaged; the 4-pin DIN plug is clean and its pins are straight, not burnt or loose; the lead is clipped away from the PC vents and the mounting.',
+        'PC: case, screen and rear plate undamaged; no cracks, missing screws or signs of liquid; ports and sockets undamaged; cable clips and mounting secure on the monitor.',
+        'Labels legible on the PC (Cybernet CyberMed G22) and the supply. Record the PC serial number and the power supply serial number (S/N on its label).'] }),
+    step('mains', 'esa_mains', 'Mains voltage', 'Plug the ESA612 into the mains supply. Nothing needs to be connected to the equipment outlet for this step.'),
+    step('ins-mains-ne', 'esa_ins', 'Insulation: mains to the DC output and the PC', 'Plug the supply’s AC lead into the ESA612 equipment outlet, with the DC plug connected to the PC and the PC shut down (not asleep). Mains pins (live and neutral linked by the ESA612) to the accessible parts, at 500 V.\nClip the red test lead to the metal shell of the DC plug and link the PC’s accessible metal parts to it with a shorting clip or foil: a rear plate screw, the port shells and the mounting screws. Disconnect network cables and peripherals.\nMust be over 1 Mohm. If it is under 10 Mohm, it must be at least 80% of the acceptance test value (B9.3). If it fails, repeat with the supply alone, its DC plug disconnected from the PC, the lead on the DC pins and shell, to tell whether the supply or the PC is at fault.', { target: 'MAINS_NE', volts: 'HIGH', lo: 1 }),
+    step('dc-output', 'check', 'Power supply DC output voltage', 'Do this after the insulation test, with the supply on the mains (the ESA612 outlet, or a wall socket) and connected to the PC, the PC switched on and running. Measure at the DC plug with a multimeter (back-probe the connector, do not short the pins).\nRated 19.0 V; limit is the rating plus or minus 5%. If the PC cannot be run from this supply (a faulty supply), measure with the PC disconnected and note it.', {
+      items: ['DC output stable: no flicker, buzzing or hot-spot on the supply while the PC runs.'],
+      readings: [{ label: 'DC output voltage at the 4-pin plug, PC connected and running (rated 19.0 V; 18.05 to 19.95 V)', unit: 'V', lo: 18.05, hi: 19.95 }] }),
+    step('functional', 'check', 'Power on and function', 'Do this after the electrical safety tests. Run the PC from the supply being tested.', {
+      items: [
+        'Powers on from this supply and reaches the operating system without error messages; the supply is warm at most, not hot, after the PC has run a few minutes.',
+        'Display and touch (if fitted) work, with no dead pixels, lines or dim areas; connected peripherals work.',
+        'Network and USB ports work; a data connection to the monitor (if used) is working.',
+        'Fans run and vents are clear of dust and blockage.',
+        'Equipment clean and fit for the clinical area; test label applied to the PC and to the power supply.'],
+    }),
+  ],
+}
+
 fs.mkdirSync(outDir, { recursive: true })
-for (const [t, file] of [[classI, 'Computer - IT equipment - Class I - Test Bench template.json'], [classII, 'Computer - IT equipment - Class II - Test Bench template.json']]) {
-  const template = { ...t, dut: DUT, appliedParts: [], models: [], showNA: false, esaAuto: true, esaHalt: true }
+for (const [t, file] of [[classI, 'Computer - IT equipment - Class I - Test Bench template.json'], [classII, 'Computer - IT equipment - Class II - Test Bench template.json'], [cybernetG22, 'Cybernet CyberMed G22 PC with EDAC power supply - Class II - Test Bench template.json']]) {
+  const template = { ...t, dut: t.dut || DUT, appliedParts: [], models: [], showNA: false, esaAuto: true, esaHalt: true }
   fs.writeFileSync(path.join(outDir, file), JSON.stringify({ format: 'chs-test-bench-template', version: 1, template }, null, 1) + '\n', 'utf8')
   console.log(file, template.steps.length, 'steps')
 }
