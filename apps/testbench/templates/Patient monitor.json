@@ -6,7 +6,7 @@
   "name": "Patient monitor",
   "highlight": true,
   "desc": "Class I, CF applied parts. Limits from the CHS Ansur template.",
-  "updated": 1794967493771,
+  "updated": 1794969769297,
   "appliedParts": [
    {
     "id": "fip2duaxhzj7",
@@ -26,8 +26,11 @@
    "Manufacturer",
    "Model",
    "Customer",
+   "Location",
    "CHS asset #",
-   "Customer asset #"
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
   ],
   "steps": [
    {
@@ -379,29 +382,21 @@
     }
    },
    {
-    "id": "ibp-zero",
+    "id": "ojzvomkrpvoi",
     "type": "ps_custom",
-    "title": "IBP: zero",
-    "instructions": "Connect the IBP cables to the ProSim 8. The simulator sets IBP channels 1 and 2 to 0 mmHg. Zero each IBP channel on the monitor now, then go on to the next step. Mark channel 2 N/A if the monitor has only one IBP channel.",
+    "title": "Zero IBP",
+    "instructions": "",
     "images": [],
     "hold": 0,
     "params": {
      "text": "IBPS=1,+000\nIBPS=2,+000",
      "monitor": {
-      "enabled": true,
-      "label": "IBP channel 1 zeroed on the monitor",
+      "enabled": false,
+      "label": "Reading on monitor",
       "unit": "",
       "lo": "",
       "hi": ""
-     },
-     "extra": [
-      {
-       "label": "IBP channel 2 zeroed on the monitor",
-       "unit": "",
-       "lo": "",
-       "hi": ""
-      }
-     ]
+     }
     }
    },
    {
@@ -433,12 +428,30 @@
    {
     "id": "lohvonqpod3n",
     "type": "ps_custom",
-    "title": "IBP: ART and LV waveforms",
+    "title": "IBP: ART waveforms",
     "instructions": "The simulator outputs ART on channel 1 and LV on channel 2. Swap the channels with a second run if needed, so each channel is checked with both waves.",
     "images": [],
     "hold": 0,
     "params": {
-     "text": "IBPW=1,ART\nIBPW=2,LV",
+     "text": "IBPW=1,ART\nIBPW=2,ART\nIBPP=1,120,080\nIBPP=2,120,080",
+     "monitor": {
+      "enabled": true,
+      "label": "The ART and LV waves for each IBP channel are displayed correctly.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "62e4943mzh9u",
+    "type": "ps_custom",
+    "title": "IBP: LV waveforms",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPW=1,LV\nIBPW=2,LV\nIBPP=1,120,000\nIBPP=2,120,000",
      "monitor": {
       "enabled": true,
       "label": "The ART and LV waves for each IBP channel are displayed correctly.",

@@ -375,3 +375,8 @@ qualifies (`clearableIds`, each tried once per page load), so the button only sh
 - The four Masimo templates had lost `manufacturer: Masimo` (saved from a bench tab opened before 10 Nov, which didn't know the field): put back.
 - Synced every template from SharePoint. The BatteryFeed template was saved from the bench (blue highlight), which gives steps fresh ids, so its
   test now matches steps by title. "Patient monitor.json" (an engineer's own template, earth leakage 500/1000 µA) is checked for structure only.
+
+## Testing engineer on every template (18/11/2026)
+- "Patient monitor" (an engineer's template started from the built-in sample) had no Location, Testing company or Testing engineer, so the
+  start screen and Device details had nowhere for them. Added in SharePoint (lines added only). The built-in samples and a "New template" now
+  start with the same fields as the other monitor templates. A test checks every shared template has Testing engineer.
