@@ -380,3 +380,13 @@ qualifies (`clearableIds`, each tried once per page load), so the button only sh
 - "Patient monitor" (an engineer's template started from the built-in sample) had no Location, Testing company or Testing engineer, so the
   start screen and Device details had nowhere for them. Added in SharePoint (lines added only). The built-in samples and a "New template" now
   start with the same fields as the other monitor templates. A test checks every shared template has Testing engineer.
+
+## Mindray Vetal 3 Veterinary Monitor template (18/11/2026)
+File `Mindray Vetal 3 Veterinary Monitor - Test Bench template.json` (made by `tools/make-vetal3-template.mjs`), 16 steps, in a new group
+**Vet patient monitors**. From the CHS Ansur template "SN-Vetal 3 AS-NZS 3551 EST and PVT" (record AW2-58004046A, 17.12.2025), performance per
+the Vetal 3 service manual 5.4.1–5.4.6: visual (6 items, battery); mains, PE, insulation mains–PE, enclosure, earth leakage, patient leakage,
+MAP normal and reversed; self-test; ProSim ECG 80 bpm (79–81) and square wave (95–105 % of the scale), respiration 40 rpm (38–42), temperature
+37.0 °C (36.9–37.1, two channels); typed SpO2 (95–100 %), NIBP at 50 (47–53) and 200 mmHg (197–203), CO2 leak (max 10 ml/min) and accuracy
+(5.7–6.3 %). **Differs from Ansur:** PE 0.2 ohm added (Ansur had none for this Class I monitor); enclosure 100/500/500 µA (Ansur's were
+swapped, 500/100/500); earth leakage 5000/10000 µA (B11.6; Ansur 500/1000); applied parts CF on RA as for the Mindray human monitors (Ansur
+measured patient leakage as type B but MAP with CF limits) — for Jonathan to confirm against the label.
