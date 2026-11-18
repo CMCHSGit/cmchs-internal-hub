@@ -1685,7 +1685,7 @@ function defaultTemplates() {
   const t1 = {
     id: uid(), name: 'Patient monitor', highlight: true, desc: 'Class I, CF applied parts. Limits from the CHS Ansur template.', updated: Date.now(),
     appliedParts: [{ id: uid(), name: 'ECG, SpO2, Temp', apclass: 'CF', leads: [...LEADS] }],
-    dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'CHS asset #', 'Customer asset #'],
+    dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'Location', 'CHS asset #', 'Customer asset #', 'Testing company', 'Testing engineer'],
     steps: [
       clone(vis),
       newStep('esa_mains'),
@@ -1709,7 +1709,7 @@ function defaultTemplates() {
   };
   const t2 = {
     id: uid(), name: 'Mindray TM80', highlight: true, desc: 'Performance verification only. Matches the TM80 Ansur template.', updated: Date.now(),
-    dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'Customer asset #'],
+    dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'Location', 'Customer asset #', 'Testing company', 'Testing engineer'],
     steps: [
       clone(vis),
       newStep('ps_nsr', { title: 'ECG heart rate' }),
@@ -1724,7 +1724,7 @@ function defaultTemplates() {
   };
   const t3 = {
     id: uid(), name: 'ECG modes – NSR, performance, paced', desc: 'Holds each ECG mode for 8 seconds.', updated: Date.now(),
-    dut: ['Serial number', 'Model'],
+    dut: ['Serial number', 'Model', 'Testing company', 'Testing engineer'],
     steps: [
       newStep('ps_nsr', { hold: 8, params: { monitor: { enabled: false, label: 'Heart rate on monitor', unit: 'bpm', lo: '', hi: '' } } }),
       newStep('ps_perf', { hold: 8 }),
@@ -2253,7 +2253,7 @@ const Builder = {
 
   /* ----- template actions ----- */
   async newTemplate() {
-    const t = { id: uid(), name: 'New template', desc: '', category: '', updated: Date.now(), dut: ['Serial number', 'Manufacturer', 'Model', 'Customer'], steps: [] };
+    const t = { id: uid(), name: 'New template', desc: '', category: '', updated: Date.now(), dut: ['Serial number', 'Manufacturer', 'Model', 'Customer', 'Location', 'CHS asset #', 'Customer asset #', 'Testing company', 'Testing engineer'], steps: [] };
     await Store.add(t); this.tplId = t.id; this.selId = null; this.renderAll(); $('#tplName').focus(); $('#tplName').select();
   },
   async duplicate() {

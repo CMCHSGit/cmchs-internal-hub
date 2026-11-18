@@ -82,9 +82,19 @@ test('IBP is zeroed from the bench (ProSim channels at 0 mmHg) right before the 
   for (const f of ['Patient Monitor and OR Modules', 'Mindray N1 with N1 TDS', 'Mindray D30-D60', 'Mindray IBP Module', 'Patient monitor.json']) {
     const file = files.find((x) => x.includes(f)); assert.ok(file, f)
     const steps = JSON.parse(readFileSync(new URL(file, dir), 'utf8')).template.steps
-    const z = steps.findIndex((s) => s.title === 'IBP: zero'); assert.ok(z >= 0, `${f} has the zero step`)
+    const z = steps.findIndex((s) => (s.params && s.params.text) === 'IBPS=1,+000\nIBPS=2,+000'); assert.ok(z >= 0, `${f} has the zero step`)   // by its commands: engineers rename steps
     assert.equal(steps[z].type, 'ps_custom'); assert.equal(steps[z].params.text, 'IBPS=1,+000\nIBPS=2,+000')
     assert.ok(/IBPS=1,\+200|IBP Performance Test/.test(JSON.stringify(steps[z + 1].params) + steps[z + 1].title), `${f}: the static pressure comes next`)
     if (f === 'Mindray D30-D60') assert.deepEqual(steps[z].models, ['D60'], 'D60 only, like its IBP steps')
   }
+})
+
+test('every template, the built-in samples and a new template ask for the testing company and engineer', () => {
+  for (const f of files) {
+    const dut = JSON.parse(readFileSync(new URL(f, dir), 'utf8')).template.dut || []
+    assert.ok(dut.some((k) => /^testing engineer/i.test(k.trim())), `${f} has Testing engineer`)
+  }
+  const builtIn = [...html.matchAll(/dut: (\[[^\]]*\])/g)].map((m) => m[1])
+  assert.ok(builtIn.length >= 4)
+  for (const d of builtIn) assert.ok(d.includes("'Testing company'") && d.includes("'Testing engineer'"), d)
 })
