@@ -406,3 +406,11 @@ fitted); network, battery and production test. `IBPP` (dynamic pressure) is from
   stays blocked. The simulated ProSim answers `PRESS`/`PRESSX` with a slowly rising pressure. Not yet tried on the real ProSim.
 - Vetal 3 (in SharePoint, kept the engineer's edits): NIBP accuracy (5.4.4) is a gauge step (monitor reading with the ProSim at 50 mmHg,
   47–53; at 200 mmHg, 197–203). SpO2 is a ProSim step (97 %, Mindray type, 95–100 %), as the engineer had already set it.
+
+## Buttons that seemed not to work (19/11/2026)
+- While the device was powered from the ESA612 outlet (after the electrical tests, to charge), the power button was rebuilt on every current
+  reading, so most presses on its icon were lost (1 in 6 got through in a test; now 6 in 6). Only its text changes now.
+- Next step, Back, Skip and changing step no longer do nothing without a word while a measurement or the electrical safety sequence is
+  running: they say to wait and write a line in the Log ("… waited: …"), so a stuck state shows up in a copied log.
+- Stop test says "Stopping the measurement…" if the ESA612 takes more than a few seconds to finish, instead of looking dead.
+- After marking a reading N/A the cursor no longer goes back into that empty box.

@@ -293,6 +293,7 @@ Give steps stable ids in template files. Autosave, Reload template and resume al
 15. **Assuming a deploy worked.** One SharePoint deploy silently left the old file in place. Check the deployed file's checksum after every deploy.
 16. **Fake folder handles in tests can't be stored in IndexedDB** (DataCloneError). Real handles can. `Results.cached` keeps the folder in memory as well.
 17. **Dialogs with 4 buttons clipped the footer.** It now wraps; keep dialogs to 4 buttons or fewer.
+18. **Redrawing a button while it can be pressed loses the click.** `Power.render()` rebuilt the power button (icon and all) on every ESA612 current reading, about five a second, so a press that began on the icon was dropped and the outlet was hard to switch off. Update only the text (`.pw-label`). And never drop a click silently: `Runner.stillRunning()` says why Next, Back, Skip or a step change has to wait, and logs it.
 
 ## 11. Open items and backlog
 

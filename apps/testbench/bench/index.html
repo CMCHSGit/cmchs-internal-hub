@@ -2909,8 +2909,21 @@ const Runner = {
     const sk = $('#stSkip'); if (sk) { const st = this.res().status; sk.hidden = st === 'skipped'; sk.textContent = st === 'pending' ? 'Skip step' : 'Skip this step'; }
   },
 
+  /** True (and says so) while a measurement or the electrical safety sequence is running, when moving between steps has to wait.
+      Clicks used to be dropped without a word here, which looked like Next step not working. */
+  stillRunning(what) {
+    if (!this.busy && !this.autoRunning) return false;
+    const why = this.autoRunning ? 'the electrical safety sequence is still running' : 'a measurement is still running';
+    const now = Date.now();
+    if (!this.waitSaid || now - this.waitSaid > 1500) {   // one message for a burst of clicks
+      this.waitSaid = now;
+      toast(this.autoRunning ? 'Wait for the electrical safety sequence to finish, or use Stop sequence.' : 'Wait for the measurement to finish first.', 3500);
+      log('in', 'RUN', `${what} waited: ${why}`);
+    }
+    return true;
+  },
   go(i) {
-    if (this.busy || this.autoRunning) return;
+    if (this.stillRunning('Moving to another step')) return;
     this.stopHold();
     this.run.idx = Math.max(0, Math.min(this.steps.length - 1, i));
     this.renderList(); this.renderStage();
@@ -2945,6 +2958,7 @@ const Runner = {
     if (this.autoRunning) { $('#stBack').disabled = true; $('#stNext').disabled = true; $('#stSkip')?.setAttribute('disabled', ''); }
     $('#stBack').addEventListener('click', () => this.go(this.run.idx - 1));
     $('#stSkip')?.addEventListener('click', async () => {
+      if (this.stillRunning('Skip step')) return;
       const r = this.res();
       // A step already answered (a Pass clicked by mistake, say): say what will happen, then clear what was recorded so it can't reach the report.
       if (r.status !== 'pending') {
@@ -3040,7 +3054,8 @@ const Runner = {
       const k = cs.findIndex((_, i) => !r.rows[i]); toast('Enter the remaining readings, then press Enter.'); $(`#ck${k}`)?.focus();
     });
     $('#allPass')?.addEventListener('click', () => { cs.forEach((c, k) => { if (c.kind === 'pf' && !r.rows[k]) r.rows[k] = { label: c.label, result: 'pass', display: '', limit: '' }; }); upd(); $('#stageBody').innerHTML = this.bodyHtml(s); this.bindBody(s); });
-    if (nums.length && !this.busy) { const first = nums.find(x => x.value === '') || null; if (first) setTimeout(() => first.focus({ preventScroll: true }), 0); }
+    // The first reading still to type (one marked N/A is answered, so the cursor doesn't go there).
+    if (nums.length && !this.busy) { const first = nums.find(x => x.value === '' && r.rows[+x.dataset.cknum]?.result !== 'na') || null; if (first) setTimeout(() => first.focus({ preventScroll: true }), 0); }
   },
   esaButtons(s, r) {
     const blk = this.esaBlock(); const dis = Devices.esa || 'serial' in navigator ? '' : 'disabled';  // the ESA612 connects when Start is pressed
@@ -3082,7 +3097,7 @@ const Runner = {
   },
 
   async next(fromButton) {
-    if (this.busy || this.autoRunning) return;
+    if (fromButton ? this.stillRunning('Next step') : (this.busy || this.autoRunning)) return;
     const r = this.res();
     if (fromButton && r.status === 'pending') {
       const T = TYPES[this.step.type];
@@ -3455,7 +3470,13 @@ const Runner = {
     this.abortFlag = true; this.autoStop = true; this.recordNow = true; this.stopHold();
     await this.safeOff(Devices.esa);
     if (Devices.ps) for (const c of ['ECGRUN=FALSE', 'RESPRUN=FALSE', 'NIBPRUN=FALSE']) await Devices.ps.send(c).catch(() => {});
-    while (this.busy || this.autoRunning) await wait(100);
+    // The measurement ends by itself (outlet off) before the test can finish. That can take a while when the ESA612 is mid-command,
+    // so say so instead of looking as if Stop test did nothing. Not cut short: a half-done setup could switch the outlet back on.
+    const t0 = Date.now(); let said = false;
+    while (this.busy || this.autoRunning) {
+      if (!said && Date.now() - t0 > 2500) { said = true; toast('Stopping the measurement… the test closes when the ESA612 has finished.', 5000); log('in', 'RUN', 'Stop test: waiting for the measurement to end'); }
+      await wait(100);
+    }
     this.finish(ok === 'stop');
   },
   overall() { return overallOf(this.run); },
@@ -3911,14 +3932,20 @@ const Diag = {
    front panel's current measurement does, and shows the current it draws. Any ESA612 measurement switches it off first. */
 const Power = {
   on: false, amps: null, busy: false,
+  // Called for every current reading (about five a second while the device is powered). Only the label's text changes: replacing the
+  // button's icon each time meant a press that started on the icon lost its click (seen 19/11/2026: the outlet couldn't be switched off).
   render() {
     const link = Devices.esa;
+    const text = this.on ? `Device power on${this.amps != null ? ` · ${fmtNum(this.amps)} A` : ''}` : 'Power the device';
+    const title = !link ? 'Connect the ESA612 first' : this.on ? 'Switch the ESA612 equipment outlet off' : 'Switch on mains to the device from the ESA612 equipment outlet (for charging or running it)';
     $$('[data-power]').forEach(b => {
-      b.disabled = !link || this.busy;
+      const dis = !link || this.busy; if (b.disabled !== dis) b.disabled = dis;
       b.classList.toggle('on', this.on);
       b.setAttribute('aria-pressed', String(this.on));
-      b.innerHTML = `${icon('zap')}${this.on ? `Device power on${this.amps != null ? ` · ${fmtNum(this.amps)} A` : ''}` : 'Power the device'}`;
-      b.title = !link ? 'Connect the ESA612 first' : this.on ? 'Switch the ESA612 equipment outlet off' : 'Switch on mains to the device from the ESA612 equipment outlet (for charging or running it)';
+      let label = b.querySelector('.pw-label');
+      if (!label) { b.innerHTML = `${icon('zap')}<span class="pw-label"></span>`; label = b.querySelector('.pw-label'); }
+      if (label.textContent !== text) label.textContent = text;
+      if (b.title !== title) b.title = title;
     });
   },
   async toggle() { if (this.on) await this.off(); else await this.start(); },
