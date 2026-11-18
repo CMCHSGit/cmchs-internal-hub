@@ -100,22 +100,24 @@ export function whereFound(job, terms) {
 }
 
 /**
- * Jobs with `text` in the chosen places. Each field is asked on its own, since a field Simpro won't filter on fails the whole
+ * Jobs with `text` in the chosen places. `extra`: jobs already found some other way, one Map per word (id to { job, found, assets }), e.g. the jobs a
+ * matching customer asset is attached to (attached.js); they count as that word being found. Each field is asked on its own, since a field Simpro won't filter on fails the whole
  * request and one refusal shouldn't take the others down. Returns:
  *   jobs   [{ job, found: ['Notes', …] }]  newest job number first
  *   fields [{ key, label, status: 'ok' | 'refused' | 'unreachable', count, more }]  what Simpro said to each question
  */
-export async function searchJobs(call, companyId, text, { groups = ['text', 'names'], stage = '' } = {}) {
+export async function searchJobs(call, companyId, text, { groups = ['text', 'names'], stage = '', extra = null } = {}) {
   const terms = parseTerms(text)
   if (!terms.length) return { jobs: [], fields: [], terms: [] }
   const wanted = JOB_FIELDS.filter((f) => groups.includes(f.group))
 
   // One entry per word: the jobs that have that word somewhere (a Map of id to { job, found }).
   const perTerm = []
-  const noteIn = (map, job, label) => {
+  const noteIn = (map, job, label, asset = '') => {
     const key = String(job.ID)
-    const have = map.get(key) || { job, found: [] }
+    const have = map.get(key) || { job, found: [], assets: [] }
     if (!have.found.includes(label)) have.found.push(label)
+    if (asset && !have.assets.includes(asset)) have.assets.push(asset)
     // Keep the row that carries the most columns.
     if (Object.keys(job).length > Object.keys(have.job).length) have.job = job
     map.set(key, have)
@@ -160,7 +162,15 @@ export async function searchJobs(call, companyId, text, { groups = ['text', 'nam
     absorb(terms[0], first)
     for (const term of terms.slice(1)) absorb(term, await runTerm(term, columns))
   }
-  if (wanted.length && summary.every((f) => f.status !== 'ok') && !(byNumber && byNumber.size)) {
+  // With no job fields asked for (only assets), each word still gets a Map to put the attached jobs in.
+  while (perTerm.length < terms.length) perTerm.push(new Map())
+  if (extra) {
+    terms.forEach((_, i) => {
+      for (const e of (extra[i] || new Map()).values()) for (const l of e.found) noteIn(perTerm[i], e.job, l, (e.assets || [])[0] || '')
+    })
+  }
+  const gotExtra = !!extra && extra.some((m) => m && m.size)
+  if (wanted.length && summary.every((f) => f.status !== 'ok') && !(byNumber && byNumber.size) && !gotExtra) {
     throw new SendError(`Simpro didn’t answer the search (${summary.map((f) => f.code || 'no answer').join(', ')}). Try the exact job number.`, summary.some((f) => f.status === 'unreachable'))
   }
   // The job with that number is one more way the lone word can match, not another word to satisfy.
@@ -170,24 +180,26 @@ export async function searchJobs(call, companyId, text, { groups = ['text', 'nam
   }
 
   // A job must have every word (each in any place): the jobs found for all of them.
-  const [head, ...rest] = perTerm.length ? perTerm : [new Map()]
+  const [head, ...rest] = perTerm
   const jobs = []
   for (const [id, entry] of head) {
     if (!rest.every((m) => m.has(id))) continue
     const found = [...entry.found]
+    const assets = [...(entry.assets || [])]
     let job = entry.job
     for (const m of rest) {
       const other = m.get(id)
       for (const label of other.found) if (!found.includes(label)) found.push(label)
+      for (const a of other.assets || []) if (!assets.includes(a)) assets.push(a)
       if (Object.keys(other.job).length > Object.keys(job).length) job = other.job
     }
-    jobs.push({ job, found })
+    jobs.push({ job, found, assets })
   }
   jobs.sort((a, b) => Number(b.job.ID) - Number(a.job.ID))
   return { jobs, fields: summary, terms }
 }
 
-/** A customer asset's serial number and model, from its custom fields (the same reading SimproSync uses). */
+/** A customer asset's serial number, asset numbers and model, from its custom fields (the same reading SimproSync uses). */
 export function assetFacts(a) {
   const val = (name) => {
     const c = (a?.CustomFields || []).find((f) => String(f?.CustomField?.Name || '').trim().toLowerCase() === name)
@@ -196,6 +208,8 @@ export function assetFacts(a) {
   return {
     id: a?.ID,
     serial: val('serial number'),
+    assetNumber: val('chs asset number'),
+    customerNumber: val('customer asset number'),
     model: val('device model') || val('model'),
     type: a?.AssetType?.Name || '',
     site: a?.Site?.Name || '',
@@ -223,18 +237,23 @@ export async function searchAssets(call, companyId, text) {
       filters[i].count += r.data.length
       for (const a of r.data) {
         const facts = assetFacts(a)
-        // Only rows whose own serial really contains this word: a filter Simpro ignored can't flood the page.
-        if (facts.serial.toLowerCase().includes(term.toLowerCase())) seen.set(String(facts.id), facts)
+        // Only rows whose own serial or asset number really contains this word: a filter Simpro ignored can't flood the page.
+        if (assetIdText(facts).includes(term.toLowerCase())) seen.set(String(facts.id), facts)
       }
     })
   }
   // With several words, the other words may be the asset's site or model ("DF-12345 Waitemata"): all of them must be in what is known of it.
   const assets = [...seen.values()].filter((a) => {
-    const hay = [a.serial, a.model, a.type, a.site].join(' ').toLowerCase()
-    return terms.every((t) => hay.includes(t.toLowerCase()))
+    return terms.every((t) => assetMatchesTerm(a, t))
   })
   return { assets, filters }
 }
+
+/** The numbers that identify an asset (serial, CHS asset number, customer asset number), lower case, for matching. */
+export const assetIdText = (a) => [a.serial, a.assetNumber, a.customerNumber].join(' ').toLowerCase()
+
+/** Is this word in what is known of the asset: its numbers, model, type or site? */
+export const assetMatchesTerm = (a, term) => [assetIdText(a), a.model, a.type, a.site].join(' ').toLowerCase().includes(String(term).toLowerCase())
 
 /**
  * The read-only check behind the page's "What can Simpro search?" button. For every place Simpro might be asked, two questions: a
@@ -284,13 +303,13 @@ export async function loadJob(call, companyId, id) {
   if (!ok(r) || !r.data || typeof r.data !== 'object') throw new SendError(`Job ${id}: ${simproErr(r)}`, r.status >= 500)
   const job = r.data
   const centres = []
-  const secs = await settle(call, 'GET', `/companies/${companyId}/jobs/${id}/sections/`)
+  const secs = await settle(call, 'GET', `/companies/${companyId}/jobs/${id}/sections/?pageSize=250`)
   const sections = ok(secs) && Array.isArray(secs.data) ? secs.data.slice(0, 10) : []
   await Promise.all(sections.map(async (s) => {
-    const ccs = await settle(call, 'GET', `/companies/${companyId}/jobs/${id}/sections/${s.ID}/costCenters/`)
+    const ccs = await settle(call, 'GET', `/companies/${companyId}/jobs/${id}/sections/${s.ID}/costCenters/?pageSize=250`)
     const list = ok(ccs) && Array.isArray(ccs.data) ? ccs.data.slice(0, 20) : []
     await Promise.all(list.map(async (cc) => {
-      const ar = await settle(call, 'GET', `/companies/${companyId}/jobs/${id}/sections/${s.ID}/costCenters/${cc.ID}/assets/`)
+      const ar = await settle(call, 'GET', `/companies/${companyId}/jobs/${id}/sections/${s.ID}/costCenters/${cc.ID}/assets/?pageSize=250`)
       const assets = ok(ar) && Array.isArray(ar.data) ? ar.data.slice(0, 40) : []
       centres.push({ section: s.Name || s.ID, name: cc.Name || cc.CostCenter?.Name || String(cc.ID), assets })
     }))
