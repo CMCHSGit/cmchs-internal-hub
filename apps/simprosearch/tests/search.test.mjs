@@ -207,7 +207,7 @@ test('assets are found by serial; rows that don’t really contain it are droppe
 })
 
 test('assetFacts reads serial and model from custom fields', () => {
-  assert.deepEqual(assetFacts(ASSETS[1]), { id: 9002, serial: 'YY-2002', model: '', type: 'Mindray', site: 'Main site', siteId: 8, archived: false })
+  assert.deepEqual(assetFacts(ASSETS[1]), { id: 9002, serial: 'YY-2002', assetNumber: '', customerNumber: '', model: '', type: 'Mindray', site: 'Main site', siteId: 8, archived: false })
   assert.equal(assetFacts({}).serial, '')
 })
 

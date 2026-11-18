@@ -5,13 +5,16 @@ import { auth } from '../../schedule/src/firebase.js'
 import { Alert, Badge, Button, Loading, Tag } from '../../../shared/ui/index.jsx'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, listCompanies, makeCall } from '../../testbench/src/simpro-api.js'
-import { GROUPS, MAX_PAGES, PAGE_SIZE, STAGES, VERDICT_TEXT, checkSearch, customerName, loadJob, parseTerms, searchAssets, searchJobs, statusName, whereFound } from './search.js'
+import { GROUPS, MAX_PAGES, PAGE_SIZE, STAGES, VERDICT_TEXT, checkSearch, customerName, assetFacts, loadJob, parseTerms, searchAssets, searchJobs, statusName, whereFound } from './search.js'
 import { htmlToText, splitByTerms } from './html.js'
 import SafeHtml from './SafeHtml.jsx'
 import ExportPanel from './ExportPanel.jsx'
+import { SCAN_PAGES, SITE_JOBS, assetJobsByTerm, findAttachedJobs, scanAssets } from './attached.js'
+import { makeBatchGet } from './bulk.js'
 import BulkExport from './BulkExport.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
+const MAX_ASSETS = 10 // customer assets whose jobs are looked up at once
 const jobFromHash = () => (/^#\/job\/(\d+)/.exec(location.hash) || [])[1] || ''
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
@@ -21,6 +24,14 @@ function stageTone(stage) {
 
 export default function SimproSearch() {
   const call = useMemo(() => makeCall({
+    proxyUrl: PROXY_URL,
+    getToken: async () => {
+      if (!auth?.currentUser) throw new SendError('Sign in to the hub to use Simpro.', false)
+      return auth.currentUser.getIdToken()
+    },
+  }), [])
+
+  const batchGet = useMemo(() => makeBatchGet({
     proxyUrl: PROXY_URL,
     getToken: async () => {
       if (!auth?.currentUser) throw new SendError('Sign in to the hub to use Simpro.', false)
@@ -55,6 +66,7 @@ export default function SimproSearch() {
   const [groups, setGroups] = useState(['text', 'names', 'assets'])
   const [stage, setStage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState('')
   const [note, setNote] = useState('')
   const [result, setResult] = useState(null) // { text, jobs, fields, assets, assetFilters }
   const [checking, setChecking] = useState(false)
@@ -67,24 +79,55 @@ export default function SimproSearch() {
   }
   const toggleGroup = (id) => setGroups((g) => (g.includes(id) ? g.filter((x) => x !== id) : [...g, id]))
 
-  async function find(e) {
-    e?.preventDefault()
+  async function find(e, { scan = false } = {}) {
+    e?.preventDefault?.()
     const text = q.trim()
     if (!text) return setNote('Type a job number, a serial number or some words to look for.')
     if (!groups.length) return setNote('Choose somewhere to look.')
     const mine = ++searchId.current
-    setBusy(true); setNote(''); setResult(null)
+    const gone = () => searchId.current !== mine // a newer search has started
+    const terms = parseTerms(text)
+    setBusy(true); setNote(''); setResult(null); setProgress('')
     try {
-      const [jobsAnswer, assetsAnswer] = await Promise.all([
-        groups.some((g) => g !== 'assets') ? searchJobs(call, companyId, text, { groups: groups.filter((g) => g !== 'assets'), stage }) : { jobs: [], fields: [] },
-        groups.includes('assets') ? searchAssets(call, companyId, text).catch(() => ({ assets: [], filters: [], failed: true })) : { assets: [], filters: [] },
-      ])
-      if (mine !== searchId.current) return
-      setResult({ id: mine, text, terms: parseTerms(text), jobs: jobsAnswer.jobs, fields: jobsAnswer.fields, assets: assetsAnswer.assets, assetFilters: assetsAnswer.filters })
+      const jobGroups = groups.filter((g) => g !== 'assets')
+      let assetsAnswer = { assets: [], filters: [] }
+      let extra = null, attached = null, assetsCut = 0
+      if (groups.includes('assets')) {
+        if (scan) {
+          setProgress('Reading every customer asset…')
+          const found = await scanAssets({ batchGet, companyId, terms, assetFacts, isCancelled: gone, onProgress: ({ pages, found: n }) => setProgress('Read ' + pages + ' pages of customer assets (' + n + ' found so far)…') })
+          assetsAnswer = { assets: found.assets, filters: [], scanned: true, scanCapped: found.capped }
+        } else {
+          assetsAnswer = await searchAssets(call, companyId, text).catch(() => ({ assets: [], filters: [], failed: true }))
+        }
+        if (gone()) return
+        if (assetsAnswer.assets.length) {
+          // The jobs those assets are attached to: Simpro can't be asked directly, so the jobs at their sites are looked through.
+          const use = assetsAnswer.assets.slice(0, MAX_ASSETS)
+          assetsCut = assetsAnswer.assets.length - use.length
+          setProgress('Looking for the jobs those assets are attached to…')
+          attached = await findAttachedJobs({
+            call, batchGet, companyId, assets: use, stage, isCancelled: gone,
+            onProgress: ({ done, total, what }) => setProgress(what === 'sites' ? 'Listing the jobs at the asset’s site…' : 'Looking through ' + what + ': ' + done + ' of ' + total + '…'),
+          }).catch((err) => ({ failed: err.message || String(err), byAsset: new Map() }))
+          if (gone()) return
+          extra = assetJobsByTerm(terms, use, attached.byAsset)
+        }
+      }
+      setProgress('')
+      const jobsAnswer = jobGroups.length || extra
+        ? await searchJobs(call, companyId, text, { groups: jobGroups, stage, extra })
+        : { jobs: [], fields: [], terms }
+      if (gone()) return
+      setResult({
+        id: mine, text, terms, jobs: jobsAnswer.jobs, fields: jobsAnswer.fields, assets: assetsAnswer.assets, assetFilters: assetsAnswer.filters,
+        scanned: !!assetsAnswer.scanned, scanCapped: !!assetsAnswer.scanCapped, assetsCut,
+        attached: attached && { scanned: attached.scanned, capped: attached.capped, refused: attached.refused, failed: attached.failed || '' },
+      })
     } catch (err) {
-      if (mine === searchId.current) setNote(err.message || String(err))
+      if (!gone()) setNote(err.message || String(err))
     } finally {
-      if (mine === searchId.current) setBusy(false)
+      if (!gone()) { setBusy(false); setProgress('') }
     }
   }
 
@@ -147,7 +190,8 @@ export default function SimproSearch() {
 
             {note && <p className="ds-note" role="status">{note}</p>}
             {busy && <Loading />}
-            {result && <Results key={result.id} result={result} stage={stage} onOpen={open} call={call} companyId={companyId} />}
+            {busy && progress && <p className="ds-note" role="status">{progress}</p>}
+            {result && <Results key={result.id} result={result} stage={stage} onOpen={open} call={call} companyId={companyId} onScan={() => find(null, { scan: true })} canScan={groups.includes('assets')} />}
 
             <BulkExport call={call} companyId={companyId} />
 
@@ -163,8 +207,8 @@ export default function SimproSearch() {
   )
 }
 
-function Results({ result, stage, onOpen, call, companyId }) {
-  const { text, terms, jobs, fields, assets, assetFilters } = result
+function Results({ result, stage, onOpen, call, companyId, onScan, canScan }) {
+  const { text, terms, jobs, fields, assets, assetFilters, attached, assetsCut } = result
   // Which jobs go in an export: all of them until some are unticked.
   const [picked, setPicked] = useState(() => new Set(jobs.map((j) => String(j.job.ID))))
   const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n })
@@ -174,7 +218,7 @@ function Results({ result, stage, onOpen, call, companyId }) {
   return (
     <section className="ds-results" aria-label="Results">
       <p className="ds-count">
-        <strong>{plural(jobs.length, 'job', 'jobs')}</strong> mention {terms.map((t, i) => <span key={t}>{i > 0 && (i === terms.length - 1 ? ' and ' : ', ')}“{t}”</span>)}{terms.length > 1 ? ' (all of them)' : ''}{stage ? ` (stage ${stage})` : ''}
+        <strong>{plural(jobs.length, 'job', 'jobs')}</strong> {jobs.length === 1 ? 'matches' : 'match'} {terms.map((t, i) => <span key={t}>{i > 0 && (i === terms.length - 1 ? ' and ' : ', ')}“{t}”</span>)}{terms.length > 1 ? ' (all of them)' : ''}{stage ? ` (stage ${stage})` : ''}
         {assets.length > 0 && <> and <strong>{plural(assets.length, 'customer asset', 'customer assets')}</strong> have that serial number</>}.
       </p>
       {refused.length > 0 && (
@@ -183,6 +227,21 @@ function Results({ result, stage, onOpen, call, companyId }) {
         </Alert>
       )}
       {more.length > 0 && <p className="ds-muted">Only the first {PAGE_SIZE * MAX_PAGES} for each word and place are read. {more.map((f) => f.label).join(', ')} may have more: add more words to narrow it.</p>}
+      {attached && (attached.failed || attached.refused || attached.capped || assetsCut > 0) && (
+        <Alert tone="warning" title="The jobs for those assets may not all be listed">
+          {attached.failed && <>Simpro stopped answering while the jobs were looked through ({attached.failed}). </>}
+          {attached.refused && <>Simpro wouldn’t list all the jobs at the asset’s site. </>}
+          {attached.capped && <>Only the newest {SITE_JOBS} jobs at a site are looked through, so an older job with it attached may be missing. </>}
+          {assetsCut > 0 && <>{assetsCut} more matching assets weren’t looked up: add a word to narrow the search. </>}
+        </Alert>
+      )}
+      {canScan && assets.length === 0 && !result.scanned && (
+        <p className="ds-muted">
+          No customer asset has that serial or asset number as far as Simpro’s own search can tell.{' '}
+          <button type="button" className="link-btn" onClick={onScan}>Look through every customer asset for it</button> (slower: it reads them all).
+        </p>
+      )}
+      {result.scanned && assets.length === 0 && <p className="ds-muted">None of the customer assets read has that serial or asset number{result.scanCapped ? ' (only the first ' + SCAN_PAGES * 250 + ' were read)' : ''}.</p>}
       {assetFilters.length > 0 && assets.length === 0 && assetFilters.every((f) => f.status !== 'ok') && (
         <p className="ds-muted">Simpro wouldn’t search customer assets by serial number. Serial numbers written in job descriptions and notes are still searched.</p>
       )}
@@ -192,8 +251,9 @@ function Results({ result, stage, onOpen, call, companyId }) {
           <h2 className="ds-h2">Customer assets</h2>
           {assets.map((a) => (
             <div key={a.id} className="ds-card ds-asset">
-              <span className="ds-mono"><HighlightText text={a.serial} terms={terms} /></span>
+              <span className="ds-mono"><HighlightText text={a.serial || '—'} terms={terms} /></span>
               <span>{[a.model, a.type].filter(Boolean).join(' · ')}</span>
+              {(a.assetNumber || a.customerNumber) && <span className="ds-muted">{[a.assetNumber && 'CHS asset no. ' + a.assetNumber, a.customerNumber && 'customer asset no. ' + a.customerNumber].filter(Boolean).join(' · ')}</span>}
               <span className="ds-muted">{a.site || 'No site'} · asset {a.id}{a.archived ? ' · archived' : ''}</span>
             </div>
           ))}
@@ -211,7 +271,7 @@ function Results({ result, stage, onOpen, call, companyId }) {
         </>
       )}
       <ul className="ds-hits">
-        {jobs.map(({ job, found }) => <Hit key={job.ID} job={job} found={found} terms={terms} onOpen={onOpen} checked={picked.has(String(job.ID))} onToggle={() => toggle(String(job.ID))} />)}
+        {jobs.map(({ job, found, assets: viaAssets }) => <Hit key={job.ID} job={job} found={found} viaAssets={viaAssets} terms={terms} onOpen={onOpen} checked={picked.has(String(job.ID))} onToggle={() => toggle(String(job.ID))} />)}
       </ul>
       {jobs.length === 0 && assets.length === 0 && <p className="ds-muted">Nothing matched {terms.length > 1 ? 'all of those words together' : `“${text}”`}. Try fewer words, or one distinctive piece such as a serial number.</p>}
     </section>
@@ -222,8 +282,9 @@ function HighlightText({ text, terms }) {
   return splitByTerms(text, terms).map((p, i) => (p.hit ? <mark key={i}>{p.text}</mark> : <span key={i}>{p.text}</span>))
 }
 
-function Hit({ job, found, terms, onOpen, checked, onToggle }) {
+function Hit({ job, found, viaAssets = [], terms, onOpen, checked, onToggle }) {
   const places = whereFound(job, terms)
+  const textFound = found.filter((f) => f !== 'Attached asset')
   return (
     <li className="ds-card ds-hit">
       <div className="ds-hit-head">
@@ -237,9 +298,10 @@ function Hit({ job, found, terms, onOpen, checked, onToggle }) {
         ? places.map((p) => (
           <div key={p.label} className="ds-snip"><strong>In {p.label.toLowerCase()}</strong> {p.snip.cutStart && '…'}<HighlightText text={p.snip.before + p.snip.hit + p.snip.after} terms={terms} />{p.snip.cutEnd && '…'}</div>
         ))
-        : <div className="ds-snip"><strong>Matched in</strong> {found.join(', ').toLowerCase()}</div>}
-      {places.length > 0 && found.some((f) => !places.some((p) => p.label === f)) && (
-        <div className="ds-muted">Also matched in {found.filter((f) => !places.some((p) => p.label === f)).join(', ').toLowerCase()}</div>
+        : textFound.length > 0 && <div className="ds-snip"><strong>Matched in</strong> {textFound.join(', ').toLowerCase()}</div>}
+      {viaAssets.length > 0 && <div className="ds-snip"><strong>Attached asset</strong> <HighlightText text={viaAssets.join(', ')} terms={terms} /></div>}
+      {places.length > 0 && textFound.some((f) => !places.some((p) => p.label === f)) && (
+        <div className="ds-muted">Also matched in {textFound.filter((f) => !places.some((p) => p.label === f)).join(', ').toLowerCase()}</div>
       )}
     </li>
   )
