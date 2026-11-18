@@ -123,3 +123,13 @@ test('a step dragged to another template is copied there, never taken as a posit
   assert.match(html, /d\.win === WINDOW_ID && d\.tpl === this\.tpl\.id && f >= 0/, 'moved only within the same template in the same window')
   assert.match(html, /Copied “\$\{c\.title\}” to the end of \$\{t\.name\}/, 'dropping on a template’s name in the list copies it there')
 })
+
+test('the pressure gauge step: the ProSim measures, the bench only reads it (PRESSX, quietly), nothing is set', () => {
+  assert.match(html, /ps_gauge: \{ group: 'ps', label: 'Pressure gauge \(ProSim\)'/)
+  assert.match(html, /cmds: \(\) => \[\], summary: \(\) => 'ProSim pressure, read live \(PRESSX\)'/, 'sends no commands')
+  assert.match(html, /Devices\.ps\.send\('PRESSX', \{ timeout: 1500, retries: 0, quiet: true \}\)/, 'polls quietly, no retries')
+  assert.match(html, /stopHold\(\) \{[^\n]*this\.stopGauge\(\);/, 'stops when the step changes')
+  assert.match(html, /if \(!this\.quiet\) log\('tx'/, 'quiet polls stay out of the log')
+  assert.ok(!/'PRESSX'|'PRESS'/.test(html.slice(html.indexOf('const PS_BLOCK'), html.indexOf('\n', html.indexOf('const PS_BLOCK')))), 'reading is not blocked')
+  assert.match(html, /PS_BLOCK = \['RESET', 'PAIR', 'UNPAIR', 'PS=', 'PST=', 'NIBPLEAK', 'NIBPPOP', 'ZPRESS', 'CZPRESS'\]/, 'the pump stays blocked')
+})

@@ -2,11 +2,28 @@
  "format": "chs-test-bench-template",
  "version": 1,
  "template": {
+  "id": "v9um6wixbawf",
   "name": "Mindray Vetal 3 Veterinary Monitor",
-  "desc": "Mindray Vetal 3 veterinary patient monitor (Class I; ECG, Resp, SpO2, NIBP, Temp, CO2 where fitted). From the CHS Ansur template “SN-Vetal 3 AS-NZS 3551 EST and PVT” (record AW2-58004046A, 17.12.2025); performance checks from the Vetal 3 service manual 5.4.1–5.4.6. Electrical safety to AS/NZS 3551:2012+A2. Where it differs from Ansur: protective earth 0.2 ohm added (Ansur had no PE test for this Class I monitor); enclosure 100/500/500 µA (Ansur had 500/100/500, swapped); earth leakage 5000/10000 µA (B11.6; Ansur 500/1000); applied parts type CF on RA as for the Mindray human monitors (Ansur measured patient leakage as type B and mains on applied parts with CF limits) — to confirm against the monitor’s label. ECG, respiration and temperature are ProSim 8 steps; SpO2, NIBP and CO2 readings are typed.",
+  "desc": "Mindray Vetal 3 veterinary patient monitor (Class I; ECG, Resp, SpO2, NIBP, Temp, CO2 where fitted). From the CHS Ansur template “SN-Vetal 3 AS-NZS 3551 EST and PVT” (record AW2-58004046A, 17.12.2025); performance checks from the Vetal 3 service manual 5.4.1–5.4.6. Electrical safety to AS/NZS 3551:2012+A2. Where it differs from Ansur: protective earth 0.2 ohm added (Ansur had no PE test for this Class I monitor); enclosure 100/500/500 µA (Ansur had 500/100/500, swapped); earth leakage 5000/10000 µA (B11.6; Ansur 500/1000); applied parts type CF on RA as for the Mindray human monitors (Ansur measured patient leakage as type B and mains on applied parts with CF limits) — to confirm against the monitor’s label. ECG, respiration and temperature are ProSim 8 steps; SpO2, NIBP accuracy reads the ProSim as the reference gauge (it doesn’t pump); CO2 readings are typed.",
   "category": "Vet patient monitors",
+  "highlight": true,
   "manufacturer": "Mindray",
+  "color": "teal",
+  "updated": 1794974356916,
   "models": [],
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "wnqdlqn6bawf",
+    "name": "ECG, SpO2, Temp",
+    "apclass": "CF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
   "dut": [
    "Serial number",
    "Manufacturer",
@@ -18,21 +35,9 @@
    "Testing company",
    "Testing engineer"
   ],
-  "esaAuto": true,
-  "esaHalt": true,
-  "appliedParts": [
-   {
-    "id": "ap1",
-    "name": "ECG, SpO2, Temp",
-    "apclass": "CF",
-    "leads": [
-     "RA"
-    ]
-   }
-  ],
   "steps": [
    {
-    "id": "visual",
+    "id": "kvvrixv1bawf",
     "type": "check",
     "title": "Visual inspection",
     "instructions": "Inspect the monitor, cables and accessories.",
@@ -50,16 +55,19 @@
     }
    },
    {
-    "id": "mains",
+    "id": "ouivrrlgbawf",
     "type": "esa_mains",
     "title": "Mains voltage",
     "instructions": "Plug the ESA612 into the mains supply you are testing from.",
     "images": [],
     "hold": 0,
-    "params": {}
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
    },
    {
-    "id": "pe",
+    "id": "yxhh33gjbawf",
     "type": "esa_pe",
     "title": "Protective earth resistance",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw or the equipotential terminal. Not in the Ansur template; AS/NZS 3551 B8.6 (0.2 ohm).",
@@ -70,7 +78,7 @@
     }
    },
    {
-    "id": "ins-mins",
+    "id": "dlzx4riybawf",
     "type": "esa_ins",
     "title": "Insulation: mains to protective earth",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet and switch the monitor on. Don’t touch the monitor during the test.",
@@ -83,7 +91,7 @@
     }
    },
    {
-    "id": "encl",
+    "id": "hemjqao3bawf",
     "type": "esa_encl",
     "title": "Enclosure leakage",
     "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the monitor.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
@@ -107,7 +115,7 @@
     }
    },
    {
-    "id": "earthl",
+    "id": "otgxyqthbawf",
     "type": "esa_earthl",
     "title": "Earth leakage",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet. The monitor will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
@@ -127,7 +135,7 @@
     }
    },
    {
-    "id": "pat",
+    "id": "2m1sajcwbawf",
     "type": "esa_pat",
     "title": "Patient leakage",
     "instructions": "Connect the ECG leads, SpO2 sensor and temperature probe (all on the RA post). Connect the monitor’s mains lead to the ESA612 equipment outlet.",
@@ -149,7 +157,7 @@
     }
    },
    {
-    "id": "map",
+    "id": "o3iz754mbawf",
     "type": "esa_map",
     "title": "Mains on applied parts",
     "instructions": "Connect the ECG leads, SpO2 sensor and temperature probe (all on the RA post). Connect the monitor’s mains lead to the ESA612 equipment outlet. Measured with mains normal and reversed, as in the Ansur template.",
@@ -164,7 +172,7 @@
     }
    },
    {
-    "id": "selftest",
+    "id": "8y158vygbawf",
     "type": "check",
     "title": "Startup self-test",
     "instructions": "",
@@ -177,7 +185,7 @@
     }
    },
    {
-    "id": "ecg-hr",
+    "id": "j6415az3bawf",
     "type": "ps_nsr",
     "title": "ECG: heart rate (5.4.1)",
     "instructions": "Connect the ECG leads to the ProSim 8. The simulator is set to ECG sinus rhythm, 80 bpm, 1 mV. Enter the HR shown on the monitor.",
@@ -205,7 +213,7 @@
     }
    },
    {
-    "id": "ecg-cal",
+    "id": "o2tcag7pbawf",
     "type": "ps_perf",
     "title": "ECG: calibration square wave (5.4.1)",
     "instructions": "The simulator outputs a square wave. Set the ECG filter on the monitor to Diagnostic and compare the wave with the scale. Enter its amplitude as a percentage of the scale.",
@@ -223,7 +231,7 @@
     }
    },
    {
-    "id": "resp",
+    "id": "zxcaom9kbawf",
     "type": "ps_resp",
     "title": "Respiration (5.4.2)",
     "instructions": "The simulator outputs respiration at 40 rpm (on the ECG leads). Enter the Resp rate shown on the monitor.",
@@ -249,42 +257,102 @@
     }
    },
    {
-    "id": "spo2",
-    "type": "check",
-    "title": "SpO2 (5.4.3)",
-    "instructions": "Measure SpO2 and enter the reading.",
+    "id": "giya20pf85p9",
+    "type": "ps_spo2",
+    "title": "SpO2",
+    "instructions": "Connect the SpO2 sensor to the ProSim 8 finger.",
     "images": [],
     "hold": 0,
     "params": {
-     "items": [
-      "A Pleth wave and PR value are displayed."
-     ],
-     "readings": [
+     "sat": 97,
+     "probe": "MINDR",
+     "monitor": {
+      "enabled": true,
+      "label": "SpO2 on monitor",
+      "unit": "%",
+      "lo": 95,
+      "hi": 100
+     },
+     "extra": [
       {
-       "label": "SpO2 reading (95–100 %)",
-       "unit": "%",
-       "lo": 95,
-       "hi": 100
+       "label": "A Pleth wave and PR value are displayed.",
+       "unit": "",
+       "lo": "",
+       "hi": ""
       }
      ]
     }
    },
    {
-    "id": "nibp",
-    "type": "check",
+    "id": "0plyt1mkbawf",
+    "type": "ps_gauge",
     "title": "NIBP accuracy (5.4.4)",
-    "instructions": "Check the NIBP pressure reading against the reference manometer at 50 and 200 mmHg (NIBP accuracy test in the maintenance menu). Enter what the monitor shows.",
+    "instructions": "The ProSim 8 is the reference gauge: it reads the pressure and shows it here; it doesn’t pump.\n1. Connect the monitor’s NIBP hose to the ProSim 8 pressure port through a T-piece with the cuff (around a mandrel) and a hand bulb.\n2. Start the NIBP accuracy test in the monitor’s maintenance menu.\n3. Pump until the ProSim reads 50 mmHg and enter what the monitor shows; then pump to 200 mmHg and enter it again.",
     "images": [],
     "hold": 0,
     "params": {
-     "items": [],
-     "readings": [
+     "monitor": {
+      "enabled": true,
+      "label": "Monitor reading with the ProSim at 50 mmHg (47–53)",
+      "unit": "mmHg",
+      "lo": 47,
+      "hi": 53
+     },
+     "extra": [
+      {
+       "label": "Monitor reading with the ProSim at 200 mmHg (197–203)",
+       "unit": "mmHg",
+       "lo": 197,
+       "hi": 203
+      }
+     ]
+    }
+   },
+   {
+    "id": "flriaufhavo1",
+    "type": "ps_nibp",
+    "title": "NIBP (dynamic)",
+    "instructions": "Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor. Check the NIBP pressure reading against the reference manometer at 50 and 200 mmHg (NIBP accuracy test in the maintenance menu). Enter what the monitor shows.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "sys": 50,
+     "dia": 0,
+     "monitor": {
+      "enabled": false,
+      "label": "Systolic on monitor",
+      "unit": "mmHg",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
       {
        "label": "Reading at 50 mmHg (47–53)",
        "unit": "mmHg",
        "lo": 47,
        "hi": 53
-      },
+      }
+     ]
+    }
+   },
+   {
+    "id": "zszf9duoceeh",
+    "type": "ps_nibp",
+    "title": "NIBP (dynamic)",
+    "instructions": "Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor. Check the NIBP pressure reading against the reference manometer at 50 and 200 mmHg (NIBP accuracy test in the maintenance menu). Enter what the monitor shows.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "sys": 200,
+     "dia": 0,
+     "monitor": {
+      "enabled": false,
+      "label": "Systolic on monitor",
+      "unit": "mmHg",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
       {
        "label": "Reading at 200 mmHg (197–203)",
        "unit": "mmHg",
@@ -295,7 +363,7 @@
     }
    },
    {
-    "id": "temp",
+    "id": "sxres5xcbawf",
     "type": "ps_temp",
     "title": "Temperature (5.4.5)",
     "instructions": "The simulator outputs 37.0 °C. Connect the temperature cable to the ProSim 8 and enter each channel’s reading. Mark channel 2 N/A if the monitor has one temperature channel.",
@@ -321,7 +389,7 @@
     }
    },
    {
-    "id": "co2",
+    "id": "6yj4hn40bawf",
     "type": "check",
     "title": "CO2 (5.4.6)",
     "instructions": "Only if CO2 is fitted; otherwise skip this step.\n1. Leak test: block the gas inlet and read the flow rate.\n2. Apply the calibration gas and enter the displayed CO2.",

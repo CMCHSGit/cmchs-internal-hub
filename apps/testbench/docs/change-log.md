@@ -398,3 +398,11 @@ ESA612 block with five insulation tests, earth leakage 5000/10000 µA (B11.6), C
 respiration and temperature (copied from Patient Monitor and OR Modules); IBP zero, static 200 mmHg, ART wave 120/80 and LV wave 120/0 on both
 ProSim channels (as the engineers set up in their Patient monitor template); SpO2 (finger, 95–100 %) and NIBP; sidestream CO2 (skip if not
 fitted); network, battery and production test. `IBPP` (dynamic pressure) is from the ProSim 8 manual; first used on the real ProSim 18/11.
+
+## ProSim as a pressure gauge; Vetal 3 SpO2 and NIBP on the ProSim (19/11/2026)
+- New simulator step **Pressure gauge (ProSim)** (`ps_gauge`): sends nothing; while it is on screen the bench reads the ProSim's pressure
+  (`PRESSX`, about once a second, kept out of the log) and shows it large, above the typed monitor readings. For static NIBP accuracy checks
+  with the ProSim as the reference gauge: the monitor's accuracy mode and a hand bulb make the pressure; the ProSim's own pump (`PS`/`PST`)
+  stays blocked. The simulated ProSim answers `PRESS`/`PRESSX` with a slowly rising pressure. Not yet tried on the real ProSim.
+- Vetal 3 (in SharePoint, kept the engineer's edits): NIBP accuracy (5.4.4) is a gauge step (monitor reading with the ProSim at 50 mmHg,
+  47–53; at 200 mmHg, 197–203). SpO2 is a ProSim step (97 %, Mindray type, 95–100 %), as the engineer had already set it.

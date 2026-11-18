@@ -2,10 +2,26 @@
  "format": "chs-test-bench-template",
  "version": 1,
  "template": {
+  "id": "608bo5qgbaw8",
   "name": "Mindray ePM12 Patient Monitor",
   "desc": "Mindray ePM12 patient monitor (Class I), applied parts type CF (SpO2, ECG, Temp) on RA. From the CHS Ansur template “Patient Monitor AS-NZS 3551 EST and PVT” as used for the ePM12 on 30.09.2026. Electrical limits from AS/NZS 3551:2012+A2 (earth leakage 5000/10000 µA, B11.6; mains to applied parts over 1 Mohm, B9.3). ECG, respiration, temperature and IBP are ProSim 8 steps; IBP is zeroed from the bench first, then 200 mmHg static, then ART (120/80) and LV (120/0) waves on both ProSim channels. SpO2 (healthy finger), NIBP and CO2 are typed or checked by hand.",
   "category": "Monitoring",
   "highlight": true,
+  "color": "green",
+  "updated": 1794972627532,
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "432n7znbbaw8",
+    "name": "SpO2, ECG, Temp",
+    "apclass": "CF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
   "dut": [
    "Serial number",
    "Manufacturer",
@@ -17,21 +33,9 @@
    "Testing company",
    "Testing engineer"
   ],
-  "esaAuto": true,
-  "esaHalt": true,
-  "appliedParts": [
-   {
-    "id": "ap1",
-    "name": "SpO2, ECG, Temp",
-    "apclass": "CF",
-    "leads": [
-     "RA"
-    ]
-   }
-  ],
   "steps": [
    {
-    "id": "visual",
+    "id": "xbwziz6qbaw9",
     "type": "check",
     "title": "Visual inspection",
     "instructions": "Inspect the monitor, cables and accessories.",
@@ -48,16 +52,19 @@
     }
    },
    {
-    "id": "mains",
+    "id": "pc1ohswfbaw9",
     "type": "esa_mains",
     "title": "Mains voltage",
     "instructions": "Plug the ESA612 into the mains supply you are testing from.",
     "images": [],
     "hold": 0,
-    "params": {}
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
    },
    {
-    "id": "pe",
+    "id": "fk7tl1x9baw9",
     "type": "esa_pe",
     "title": "Protective earth resistance",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
@@ -68,7 +75,7 @@
     }
    },
    {
-    "id": "ins-mins",
+    "id": "bauwt0r4baw9",
     "type": "esa_ins",
     "title": "Insulation: mains to protective earth",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet and switch the monitor on. Don’t touch the monitor during the test.",
@@ -81,7 +88,7 @@
     }
    },
    {
-    "id": "ins-apins",
+    "id": "dwd4xc96baw9",
     "type": "esa_ins",
     "title": "Insulation: applied parts to protective earth",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet and switch the monitor on. Don’t touch the monitor during the test. Recorded only.",
@@ -94,7 +101,7 @@
     }
    },
    {
-    "id": "ins-mains-ap",
+    "id": "ln4aj9jrbaw9",
     "type": "esa_ins",
     "title": "Insulation: mains to applied parts",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet and switch the monitor on. Don’t touch the monitor during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3).",
@@ -107,7 +114,7 @@
     }
    },
    {
-    "id": "ins-mains-ne",
+    "id": "vv0vr2pbbaw9",
     "type": "esa_ins",
     "title": "Insulation: mains to non-earth accessible conductive part",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet and switch the monitor on. Don’t touch the monitor during the test.",
@@ -120,7 +127,7 @@
     }
    },
    {
-    "id": "ins-ap-ne",
+    "id": "oduhwicpbaw9",
     "type": "esa_ins",
     "title": "Insulation: applied parts to non-earth accessible conductive part",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet and switch the monitor on. Don’t touch the monitor during the test. Recorded only.",
@@ -133,7 +140,7 @@
     }
    },
    {
-    "id": "encl",
+    "id": "cyagfof3baw9",
     "type": "esa_encl",
     "title": "Enclosure leakage",
     "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the monitor.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
@@ -157,7 +164,7 @@
     }
    },
    {
-    "id": "earthl",
+    "id": "bisx3wfbbaw9",
     "type": "esa_earthl",
     "title": "Earth leakage",
     "instructions": "Connect the monitor’s mains lead to the ESA612 equipment outlet. The monitor will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
@@ -177,7 +184,7 @@
     }
    },
    {
-    "id": "pat",
+    "id": "4fwepo2sbaw9",
     "type": "esa_pat",
     "title": "Patient leakage",
     "instructions": "Connect the ECG leads, SpO2 sensor and temperature probe (all on the RA post). Connect the monitor’s mains lead to the ESA612 equipment outlet.",
@@ -199,7 +206,7 @@
     }
    },
    {
-    "id": "map",
+    "id": "5xincy0nbaw9",
     "type": "esa_map",
     "title": "Mains on applied parts",
     "instructions": "Connect the ECG leads, SpO2 sensor and temperature probe (all on the RA post). Connect the monitor’s mains lead to the ESA612 equipment outlet.",
@@ -213,7 +220,7 @@
     }
    },
    {
-    "id": "ecg",
+    "id": "fw1lsstxbaw9",
     "type": "ps_nsr",
     "title": "ECG: heart rate, waveform and lead off",
     "instructions": "Connect the ECG leads to the ProSim 8. The simulator is set to ECG sinus rhythm, 60 bpm, 1 mV.\n1. Enter the HR shown on the monitor (60±1 bpm).\n2. Check the ECG waves are displayed correctly without noise.\n3. Disconnect each lead in turn and check the matching lead off message appears. Reconnect all leads.",
@@ -247,7 +254,7 @@
     }
    },
    {
-    "id": "ecg-cal",
+    "id": "ihaadyjybaw9",
     "type": "ps_perf",
     "title": "ECG: calibration square wave",
     "instructions": "The simulator outputs a square wave (performance). Set the ECG filter on the monitor to Diagnostic and verify the wave scale difference does not exceed 5%.",
@@ -265,7 +272,7 @@
     }
    },
    {
-    "id": "ecg-paced",
+    "id": "y1jd8ysrbaw9",
     "type": "ps_paced",
     "title": "ECG: paced signals",
     "instructions": "The simulator outputs a paced signal. Set Paced to Yes on the monitor and check the pace pulse marks on the screen.",
@@ -284,7 +291,7 @@
     }
    },
    {
-    "id": "resp",
+    "id": "14yw8yg4baw9",
     "type": "ps_resp",
     "title": "Respiration",
     "instructions": "The simulator outputs respiration at 20 rpm. Verify the Resp wave is not distorted and enter the Resp rate shown on the monitor (20±2).",
@@ -310,7 +317,7 @@
     }
    },
    {
-    "id": "temp",
+    "id": "x5hrwguwbaw9",
     "type": "ps_temp",
     "title": "Temperature",
     "instructions": "The simulator outputs 37.0 °C. Check every temperature channel on the monitor.",
@@ -328,7 +335,7 @@
     }
    },
    {
-    "id": "ibp-zero",
+    "id": "2uu12kpbbaw9",
     "type": "ps_custom",
     "title": "IBP: zero",
     "instructions": "Connect the IBP cables from ProSim BP1 and BP2 to the monitor. The simulator sets both channels to 0 mmHg. Zero each IBP channel on the monitor now, then go on. Mark channel 2 N/A if the monitor has only one IBP channel.",
@@ -354,7 +361,7 @@
     }
    },
    {
-    "id": "ibp-static",
+    "id": "vgcw3e8jbaw9",
     "type": "ps_custom",
     "title": "IBP: static pressure, both channels",
     "instructions": "The simulator sets both ProSim channels to 200 mmHg. Enter what the monitor shows (196–204 mmHg). Mark channel 2 N/A if the monitor has only one IBP channel.",
@@ -380,7 +387,7 @@
     }
    },
    {
-    "id": "ibp-art",
+    "id": "2nwbjglrbaw9",
     "type": "ps_custom",
     "title": "IBP: ART wave",
     "instructions": "The simulator outputs an arterial wave at 120/80 on both ProSim channels. Set each monitor IBP channel’s label to ART. Wait a few seconds for it to settle (a short “interference” message is normal after a change).",
@@ -406,7 +413,7 @@
     }
    },
    {
-    "id": "ibp-lv",
+    "id": "m2w5ksr4baw9",
     "type": "ps_custom",
     "title": "IBP: LV wave",
     "instructions": "The simulator outputs a left-ventricle wave at 120/0 on both ProSim channels. Set each monitor IBP channel’s label to LV (or P1 / P2). Wait a few seconds for it to settle.",
@@ -432,7 +439,7 @@
     }
    },
    {
-    "id": "spo2-nibp",
+    "id": "i0dkhtxcbaw9",
     "type": "check",
     "title": "SpO2 and NIBP",
     "instructions": "SpO2: measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.\nNIBP: check accuracy against the simulator, the leak test and the overpressure test (Adult/Peds and Neo).",
@@ -457,7 +464,7 @@
     }
    },
    {
-    "id": "co2",
+    "id": "l61rdns5baw9",
     "type": "check",
     "title": "Sidestream CO2",
     "instructions": "Only if sidestream CO2 is fitted; otherwise skip this step.\n1. Block the gas inlet of the module or watertrap and check for the CO2 Filterline Err alarm.\n2. Apply the calibration gas and enter the displayed CO2.",
@@ -478,7 +485,7 @@
     }
    },
    {
-    "id": "network-battery",
+    "id": "b55aqm8qbaw9",
     "type": "check",
     "title": "Network, battery and production test",
     "instructions": "Run the production test under factory maintenance.",
