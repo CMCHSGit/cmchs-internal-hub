@@ -103,3 +103,23 @@ test('empty start-screen fields: Mindray, CHS, and the engineer signed in to the
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   assert.match(section, /meName: who\.current\.name/)
 })
+
+test('a step dragged to another template is copied there, never taken as a position in that template', () => {
+  const a = html.indexOf('const copyOfStep = '), b = html.indexOf('async function copyStepsDialog(')
+  let n = 0
+  const ctx = { TYPES: { ps_perf: {}, esa_pat: {}, check: {} }, clone: (x) => JSON.parse(JSON.stringify(x)), uid: () => `id${++n}`,
+    tplModels: (t) => (t && Array.isArray(t.models) ? t.models : []),
+    newStep: (type, over) => ({ id: `new${++n}`, type, images: [], ...over }) }
+  const L = vm.runInNewContext(html.slice(a, b) + '; ({ copyOfStep, readStepDrag, addStepCopy, STEP_DRAG })', ctx)
+  const square = { id: 's14', type: 'ps_perf', title: 'ECG: calibration square wave', instructions: 'x', params: { wave: 'SQUARE=2.0' }, images: [], models: ['D60'] }
+  const dt = { getData: (k) => (k === L.STEP_DRAG ? JSON.stringify({ win: 'w1', tpl: 'n1', from: 'N1', id: 's14', step: square }) : '') }
+  const d = L.readStepDrag(dt)
+  assert.equal(d.step.title, 'ECG: calibration square wave', 'the drag carries the step itself')
+  const target = { steps: [{ id: 'p1', title: 'Visual' }, { id: 'p2', title: 'Sidestream CO2 Test and Calibration' }] }
+  const c = L.addStepCopy(target, d, 1)
+  assert.deepEqual(target.steps.map((s) => s.title), ['Visual', 'ECG: calibration square wave', 'Sidestream CO2 Test and Calibration'], 'the dragged step, where it was dropped')
+  assert.notEqual(c.id, 's14', 'a new id'); assert.equal(c.models, undefined, 'a model the template does not have: applies to all')
+  assert.equal(L.readStepDrag({ getData: () => '3' }), null, 'an old position-only drag is ignored, not used as a position')
+  assert.match(html, /d\.win === WINDOW_ID && d\.tpl === this\.tpl\.id && f >= 0/, 'moved only within the same template in the same window')
+  assert.match(html, /Copied “\$\{c\.title\}” to the end of \$\{t\.name\}/, 'dropping on a template’s name in the list copies it there')
+})
