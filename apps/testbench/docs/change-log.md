@@ -390,3 +390,11 @@ MAP normal and reversed; self-test; ProSim ECG 80 bpm (79–81) and square wave 
 (5.7–6.3 %). **Differs from Ansur:** PE 0.2 ohm added (Ansur had none for this Class I monitor); enclosure 100/500/500 µA (Ansur's were
 swapped, 500/100/500); earth leakage 5000/10000 µA (B11.6; Ansur 500/1000); applied parts CF on RA as for the Mindray human monitors (Ansur
 measured patient leakage as type B but MAP with CF limits) — for Jonathan to confirm against the label.
+
+## Mindray ePM12 Patient Monitor template (18/11/2026)
+File `Mindray ePM12 Patient Monitor - Test Bench template.json` (made by `tools/make-epm12-template.mjs`), 24 steps, group Monitoring. From the
+CHS Ansur record AC6-69082858 (30.09.2026), which used the generic "Patient Monitor AS-NZS 3551 EST and PVT" template (as the N1 set): visual;
+ESA612 block with five insulation tests, earth leakage 5000/10000 µA (B11.6), CF "SpO2, ECG, Temp" on RA; ProSim ECG, calibration, paced,
+respiration and temperature (copied from Patient Monitor and OR Modules); IBP zero, static 200 mmHg, ART wave 120/80 and LV wave 120/0 on both
+ProSim channels (as the engineers set up in their Patient monitor template); SpO2 (finger, 95–100 %) and NIBP; sidestream CO2 (skip if not
+fitted); network, battery and production test. `IBPP` (dynamic pressure) is from the ProSim 8 manual; first used on the real ProSim 18/11.

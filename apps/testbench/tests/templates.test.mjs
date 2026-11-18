@@ -10,7 +10,7 @@ const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8
 const files = readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
 
 test('there are templates for the monitors, modules, vital signs monitors and BeneHeart defibrillators', () => {
-  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle', 'Vetal 3']) {
+  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle', 'Vetal 3', 'ePM12']) {
     assert.ok(files.some((f) => f.includes(want)), `a template for ${want}`)
   }
 })
@@ -79,7 +79,7 @@ test('the BatteryFeed 20 charger station template: Class I, no applied parts, ea
 })
 
 test('IBP is zeroed from the bench (ProSim channels at 0 mmHg) right before the static-pressure step', () => {
-  for (const f of ['Patient Monitor and OR Modules', 'Mindray N1 with N1 TDS', 'Mindray D30-D60', 'Mindray IBP Module', 'Patient monitor.json']) {
+  for (const f of ['Patient Monitor and OR Modules', 'Mindray N1 with N1 TDS', 'Mindray D30-D60', 'Mindray IBP Module', 'Patient monitor.json', 'Mindray ePM12']) {
     const file = files.find((x) => x.includes(f)); assert.ok(file, f)
     const steps = JSON.parse(readFileSync(new URL(file, dir), 'utf8')).template.steps
     const z = steps.findIndex((s) => (s.params && s.params.text) === 'IBPS=1,+000\nIBPS=2,+000'); assert.ok(z >= 0, `${f} has the zero step`)   // by its commands: engineers rename steps
