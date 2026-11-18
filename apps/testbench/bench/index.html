@@ -905,11 +905,11 @@ class Link {
   }
   onLine(line) {
     if (this.stream) { log('rx', this.tag, line); this.stream(line); return; }
-    if (this.waiter && this.waiter.offer(line)) { log('rx', this.tag, line); return; }
+    if (this.waiter && this.waiter.offer(line)) { if (!this.quiet) log('rx', this.tag, line); return; }
     log('in', this.tag, `Ignored stale reply: ${line}`);
   }
   async write(s) {
-    log('tx', this.tag, showCtl(s));
+    if (!this.quiet) log('tx', this.tag, showCtl(s));
     // A write can stall if the device holds CTS low; don't hang the page forever.
     await Promise.race([this.writer.write(enc.encode(s)), wait(3000).then(() => { throw new Error('The device isn’t accepting data (write timed out)'); })]);
   }
@@ -946,13 +946,14 @@ class Link {
         // The ESA612 ignores a command sent straight after a long reply (seen after IDENT and SN), so leave a short gap.
         const since = Date.now() - this.lastReplyAt; if (since < this.gap) await wait(this.gap - since);
         const p = this.expectLine(expect, timeout);
-        await this.write(cmd + '\r\n');
+        this.quiet = !!opts.quiet;
+        try { await this.write(cmd + '\r\n'); } finally { if (!opts.quiet) this.quiet = false; }
         try {
-          const line = await p; this.lastReplyAt = Date.now(); this.stale = false;
+          const line = await p; this.lastReplyAt = Date.now(); this.stale = false; this.quiet = false;
           const err = this.error(line);
           if (err) { const e = new Error(`${cmd}: ${err.text}`); e.code = err.code; e.reply = line; throw e; }
           return line;
-        } catch (e) { lastErr = e; if (!e.timeout) throw e; }
+        } catch (e) { this.quiet = false; lastErr = e; if (!e.timeout) throw e; }
       }
       if (lastErr && lastErr.timeout) this.stale = true;   // it stopped answering: the next connect resets it (disconnect, then connect)
       throw new Error(`${cmd}: ${lastErr.message}`);
@@ -1052,6 +1053,7 @@ function simPort(kind, opts = {}) {
     if (c === 'REMOTE') { if (mode !== 'LOCAL') return reply('!02'); mode = 'RMAIN'; return reply('RMAIN'); }
     if (c === 'LOCAL') { mode = 'LOCAL'; return reply('LOCAL'); }
     if (mode !== 'RMAIN') return reply('!02');
+    if (c === 'PRESSX' || c === 'PRESS') { const v = (Date.now() / 100) % 2200 / 10; return reply(c === 'PRESS' ? `+${String(Math.round(v)).padStart(3, '0')}` : `+${v.toFixed(1).padStart(5, '0')}`); }   // a cuff being pumped slowly, 0–220 mmHg
     if (/^@?[A-Z0-9]+=/.test(c)) return reply('*');
     return reply('!01');
   };
@@ -1436,6 +1438,10 @@ const TYPES = {
     defaults: () => ({ ch: '1', p: 200, monitor: monitorCheck('IBP on monitor', 'mmHg', 196, 204) }), instructions: 'Zero the IBP channel on the monitor first.',
     fields: [{ key: 'ch', kind: 'select', label: 'Channel', options: [['1', '1'], ['2', '2']] }, { key: 'p', kind: 'num', label: 'Pressure (mmHg)', min: -10, max: 300 }, { key: 'monitor', kind: 'monitor' }],
     cmds: p => [`IBPS=${p.ch},${+p.p < 0 ? '-' : '+'}${pad(p.p, 3)}`], summary: s => `Channel ${s.params.ch}, ${s.params.p} mmHg` },
+  ps_gauge: { group: 'ps', label: 'Pressure gauge (ProSim)', icon: 'gauge', desc: 'ProSim reads the cuff pressure; sends nothing',
+    defaults: () => ({ monitor: monitorCheck('Reading on monitor', 'mmHg', '', '') }),
+    instructions: 'Connect the monitor’s NIBP hose to the ProSim 8 pressure port through a T-piece with the cuff and a hand bulb. Put the monitor in its NIBP accuracy (manometer) mode, pump to the pressure shown in the check, and compare.',
+    fields: [{ key: 'monitor', kind: 'monitor' }], cmds: () => [], summary: () => 'ProSim pressure, read live (PRESSX)' },
   ps_stop: { group: 'ps', label: 'Stop waveforms', icon: 'square', desc: 'ECG, respiration and NIBP off',
     defaults: () => ({}), instructions: '', fields: [], cmds: () => ['ECGRUN=FALSE', 'RESPRUN=FALSE', 'NIBPRUN=FALSE'], summary: () => 'ECG, respiration and NIBP off' },
   ps_custom: { group: 'ps', label: 'Custom commands', icon: 'code', desc: 'Any ProSim 8 command',
@@ -2974,6 +2980,11 @@ const Runner = {
         ${this.busy || this.autoRunning ? '' : `<div class="row" style="gap:18px;margin-top:10px">${s.type === 'esa_pe' ? `<label class="check"><input type="checkbox" data-pref="zeroLead" ${Prefs.get('zeroLead') ? 'checked' : ''}> Zero the test lead first</label>` : ''}${T.energises ? `<label class="check"><input type="checkbox" data-pref="confirmPower" ${Prefs.get('confirmPower') ? 'checked' : ''}> Ask before applying voltage</label>` : ''}</div>`}
         <div class="timer" id="esaTimer" hidden><div class="bar"><div id="esaBar"></div></div><span class="t" id="esaT"></span></div>`;
     }
+    if (s.type === 'ps_gauge') {
+      return `<div class="banner info">${icon('gauge')}<div><b>ProSim pressure:</b> <span class="mono" id="gaugeVal" style="font-size:20px;font-weight:700">${Devices.ps ? '…' : '—'}</span> mmHg
+        <br><span class="hint">${Devices.ps ? 'Read from the ProSim about once a second (PRESSX). The ProSim doesn’t pump; it only measures.' : 'Connect the ProSim 8 to see the pressure.'}</span></div></div>
+        ${this.checksHtml(s, r)}`;
+    }
     if (T.group === 'ps') {
       return `<div class="banner ${r.sent ? 'ok' : 'info'}">${icon(r.sent ? 'check' : 'info')}<div><b>${r.sent ? 'Simulator set:' : 'Simulator setting:'}</b> ${esc(T.summary(s, this.run.template))}<br><span class="mono" style="font-size:12.5px">${esc(T.cmds(p).join('  ·  '))}</span></div></div>
         <div class="row" style="margin-bottom:12px"><button type="button" class="btn secondary sm" id="psSend" ${Devices.ps ? '' : 'disabled'}>${icon('refresh')}${r.sent ? 'Send again' : 'Send to simulator'}</button></div>
@@ -3062,6 +3073,7 @@ const Runner = {
       $('#esaAuto')?.addEventListener('click', () => this.runAuto(this.autoFrom ?? this.run.idx));
       $('#esaStop')?.addEventListener('click', () => { this.autoStop = true; this.abortFlag = true; this.recordNow = true; });
     }
+    if (s.type === 'ps_gauge') this.startGauge(s);
     if (T.group === 'ps') {
       $('#psSend')?.addEventListener('click', () => this.sendPs(true));
       $('#holdPause')?.addEventListener('click', (e) => { this.holdPaused = !this.holdPaused; e.currentTarget.innerHTML = icon(this.holdPaused ? 'play' : 'pause'); e.currentTarget.setAttribute('aria-label', this.holdPaused ? 'Resume timer' : 'Pause timer'); });
@@ -3126,7 +3138,20 @@ const Runner = {
       if (left <= 0) { this.stopHold(); if (auto && this.step === s && !this.busy) { if (this.res().status === 'pending') this.res().status = 'done'; this.next(); } }
     }, 200);
   },
-  stopHold() { if (this.holdTimer) clearInterval(this.holdTimer); this.holdTimer = null; },
+  stopHold() { if (this.holdTimer) clearInterval(this.holdTimer); this.holdTimer = null; this.stopGauge(); },
+  /** The gauge step: asks the ProSim for its pressure about once a second while the step is on screen. Read-only; nothing is set. */
+  startGauge(s) {
+    this.stopGauge(); if (!Devices.ps) return;
+    let busy = false;
+    this.gaugeTimer = setInterval(async () => {
+      const el = $('#gaugeVal'); if (!el || this.step !== s || !Devices.ps) { this.stopGauge(); return; }
+      if (busy) return; busy = true;
+      try { const v = parseFloat(await Devices.ps.send('PRESSX', { timeout: 1500, retries: 0, quiet: true })); el.textContent = Number.isFinite(v) ? v.toFixed(1) : '—'; }
+      catch (e) { el.textContent = '—'; }
+      finally { busy = false; }
+    }, 1000);
+  },
+  stopGauge() { if (this.gaugeTimer) clearInterval(this.gaugeTimer); this.gaugeTimer = null; },
 
   /* ---------- ESA612 ---------- */
   async esaSend(link, cmd) {

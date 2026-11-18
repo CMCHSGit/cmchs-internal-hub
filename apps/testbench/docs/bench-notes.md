@@ -67,7 +67,7 @@ T = { id, name, desc, updated, dut: ['Serial number','Manufacturer','Model','Cus
 | `esa_encl` / `esa_earthl` | `{ conds: [{c: NC\|ON\|OE\|RNC\|RON\|ROE, hi}] }` |
 | `esa_pat` | `{ mode: together\|each, conds }` |
 | `esa_map` | `{ mode, pols: ['NORM'] }` |
-| `ps_nsr`, `ps_perf`, `ps_paced`, `ps_arr`, `ps_resp`, `ps_nibp`, `ps_temp`, `ps_ibp`, `ps_stop`, `ps_custom` | ProSim settings, plus `monitor: {enabled,label,unit,lo,hi}` and `extra: [checks]`. A check with limits is typed; without limits it is pass/fail |
+| `ps_nsr`, `ps_perf`, `ps_paced`, `ps_arr`, `ps_resp`, `ps_nibp`, `ps_temp`, `ps_ibp`, `ps_gauge` (sends nothing; shows the ProSim's `PRESSX` pressure live, as a reference gauge), `ps_stop`, `ps_custom` | ProSim settings, plus `monitor: {enabled,label,unit,lo,hi}` and `extra: [checks]`. A check with limits is typed; without limits it is pass/fail |
 
 **Run** (IndexedDB `runs`, and inside results files):
 

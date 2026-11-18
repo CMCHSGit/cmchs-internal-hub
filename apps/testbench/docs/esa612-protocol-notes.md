@@ -163,4 +163,6 @@ Replies come back in about 15 ms (REMOTE ~200 ms).
 
 **Typical settings the templates send:** `NSRA=060`, `ECGAMPL=1.00`, `ECGRUN=TRUE`, `RESPRATE=020`, `RESPRUN=TRUE`, `SPO2TYPE=MINDR`, `SAT=097`, `NIBPP=120,080`, `NIBPRUN=TRUE`, `TEMP=37.0`, `IBPS=1,+200`. Finishing a run sends `ECGRUN=FALSE`, `RESPRUN=FALSE`, `NIBPRUN=FALSE`.
 
+**Read-only, used by the Pressure gauge step (`ps_gauge`):** `PRESSX` (pressure, 0.1 mmHg, signed), polled about once a second while the step is on screen, kept out of the log. From the manual (legal in RMAIN); not yet tried on the real ProSim (18/11/2026).
+
 **Deliberately blocked:** `RESET`, `PAIR`/`UNPAIR`, pressure source (`PS`, `PST`), `NIBPLEAK`, `NIBPPOP`, `ZPRESS`, `CZPRESS`.
