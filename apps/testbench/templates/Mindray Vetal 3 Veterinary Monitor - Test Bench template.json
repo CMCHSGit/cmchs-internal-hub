@@ -4,12 +4,12 @@
  "template": {
   "id": "v9um6wixbawf",
   "name": "Mindray Vetal 3 Veterinary Monitor",
-  "desc": "Mindray Vetal 3 veterinary patient monitor (Class I; ECG, Resp, SpO2, NIBP, Temp, CO2 where fitted). From the CHS Ansur template “SN-Vetal 3 AS-NZS 3551 EST and PVT” (record AW2-58004046A, 17.12.2025); performance checks from the Vetal 3 service manual 5.4.1–5.4.6. Electrical safety to AS/NZS 3551:2012+A2. Where it differs from Ansur: protective earth 0.2 ohm added (Ansur had no PE test for this Class I monitor); enclosure 100/500/500 µA (Ansur had 500/100/500, swapped); earth leakage 5000/10000 µA (B11.6; Ansur 500/1000); applied parts type CF on RA as for the Mindray human monitors (Ansur measured patient leakage as type B and mains on applied parts with CF limits) — to confirm against the monitor’s label. ECG, respiration and temperature are ProSim 8 steps; SpO2, NIBP accuracy reads the ProSim as the reference gauge (it doesn’t pump); CO2 readings are typed.",
+  "desc": "Mindray Vetal 3 veterinary patient monitor (Class I; ECG, Resp, SpO2, NIBP, Temp, CO2 where fitted). From the CHS Ansur template “SN-Vetal 3 AS-NZS 3551 EST and PVT” (record AW2-58004046A, 17.12.2025); performance checks from the Vetal 3 service manual 5.4.1–5.4.6. Electrical safety to AS/NZS 3551:2012+A2. Where it differs from Ansur: protective earth 0.2 ohm added (Ansur had no PE test for this Class I monitor); enclosure 100/500/500 µA (Ansur had 500/100/500, swapped); earth leakage 5000/10000 µA (B11.6; Ansur 500/1000); applied parts type CF on RA as for the Mindray human monitors (Ansur measured patient leakage as type B and mains on applied parts with CF limits) — to confirm against the monitor’s label. ECG, respiration, temperature and SpO2 (97 %, Mindray type) are ProSim 8 steps; NIBP accuracy reads the ProSim as the reference gauge (it doesn’t pump); CO2 readings are typed.",
   "category": "Vet patient monitors",
   "highlight": true,
   "manufacturer": "Mindray",
   "color": "teal",
-  "updated": 1794974356916,
+  "updated": 1795033065689,
   "models": [],
   "showNA": false,
   "esaAuto": true,
@@ -284,6 +284,23 @@
     }
    },
    {
+    "id": "oq8lf756c9uh",
+    "type": "check",
+    "title": "NIBP Leakage and Over-pressure Test",
+    "instructions": "SpO2: measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.\n\nNIBP:\n1. Check leakage\n2. Check accuracy against the simulator, the leak test and the overpressure test (Adult/Peds and Neo).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "A Pleth wave and PR value are displayed.",
+      "NIBP: The accuracy difference between the monitor and the simulator is within ±3 mmHg.",
+      "NIBP: There is no leakage, or the manual leakage test result does not exceed 6 mmHg/min.",
+      "NIBP overpressure: test passes for Adult and Peds.",
+      "NIBP overpressure: test passes for Neo."
+     ]
+    }
+   },
+   {
     "id": "0plyt1mkbawf",
     "type": "ps_gauge",
     "title": "NIBP accuracy (5.4.4)",
@@ -301,60 +318,6 @@
      "extra": [
       {
        "label": "Monitor reading with the ProSim at 200 mmHg (197–203)",
-       "unit": "mmHg",
-       "lo": 197,
-       "hi": 203
-      }
-     ]
-    }
-   },
-   {
-    "id": "flriaufhavo1",
-    "type": "ps_nibp",
-    "title": "NIBP (dynamic)",
-    "instructions": "Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor. Check the NIBP pressure reading against the reference manometer at 50 and 200 mmHg (NIBP accuracy test in the maintenance menu). Enter what the monitor shows.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "sys": 50,
-     "dia": 0,
-     "monitor": {
-      "enabled": false,
-      "label": "Systolic on monitor",
-      "unit": "mmHg",
-      "lo": "",
-      "hi": ""
-     },
-     "extra": [
-      {
-       "label": "Reading at 50 mmHg (47–53)",
-       "unit": "mmHg",
-       "lo": 47,
-       "hi": 53
-      }
-     ]
-    }
-   },
-   {
-    "id": "zszf9duoceeh",
-    "type": "ps_nibp",
-    "title": "NIBP (dynamic)",
-    "instructions": "Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor. Check the NIBP pressure reading against the reference manometer at 50 and 200 mmHg (NIBP accuracy test in the maintenance menu). Enter what the monitor shows.",
-    "images": [],
-    "hold": 0,
-    "params": {
-     "sys": 200,
-     "dia": 0,
-     "monitor": {
-      "enabled": false,
-      "label": "Systolic on monitor",
-      "unit": "mmHg",
-      "lo": "",
-      "hi": ""
-     },
-     "extra": [
-      {
-       "label": "Reading at 200 mmHg (197–203)",
        "unit": "mmHg",
        "lo": 197,
        "hi": 203
