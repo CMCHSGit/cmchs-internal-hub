@@ -65,6 +65,8 @@ body { background: var(--chs-black-05); }
 .signin-copy { display: flex; flex-direction: column; gap: 6px; }
 .signin-copy h2 { letter-spacing: -.01em; }
 .signin-copy p { margin: 0; color: var(--text-body); text-wrap: pretty; }
+/* A failure the page has no words for shows its code under the message (signin-error.js). */
+.signin-code { display: block; margin-top: 4px; font: var(--type-caption); color: var(--text-muted); font-family: ui-monospace, Consolas, monospace; }
 .mini-stripes { display: flex; gap: 4px; }
 .mini-stripes span { width: 30px; height: 5px; }
 .mini-stripes span:nth-child(1), .stripe-rule span:nth-child(1) { background: var(--stripe-1); }
