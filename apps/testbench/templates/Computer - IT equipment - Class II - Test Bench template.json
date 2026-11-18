@@ -2,65 +2,16 @@
  "format": "chs-test-bench-template",
  "version": 1,
  "template": {
+  "id": "l3c3j2ptia2w",
   "name": "Computer / IT equipment – Class II",
-  "desc": "Class II (double insulated, no earth) computer, laptop power supply, monitor or other IT equipment. AS/NZS 3551:2012+A2 Appendix B: insulation over 1 Mohm at 500 V (B9.3). No earth continuity, mains-to-earth insulation or earth leakage test (no protective earth), and no touch current test: B10.1 considers touch current from Class I equipment only.",
+  "desc": "Two-bay charger for BeneHeart D30 / D60 batteries Class II",
   "category": "Computers",
-  "steps": [
-   {
-    "id": "visual",
-    "type": "check",
-    "title": "Visual inspection",
-    "instructions": "Unplug the equipment before inspecting. Do not open the case.",
-    "images": [],
-    "hold": false,
-    "params": {
-     "items": [
-      "Mains lead: plug, cable and connector undamaged; strain relief intact; two-core lead or no connection to the earth pin.",
-      "Case undamaged: no cracks, missing screws, heat marks or signs of liquid.",
-      "Ports, sockets and switches undamaged; no loose connectors.",
-      "Labels legible: model, ratings and the Class II (double square) marking."
-     ]
-    }
-   },
-   {
-    "id": "mains",
-    "type": "esa_mains",
-    "title": "Mains voltage",
-    "instructions": "Plug the ESA612 into the mains supply. Nothing needs to be connected to the equipment outlet for this step.",
-    "images": [],
-    "hold": false,
-    "params": {}
-   },
-   {
-    "id": "ins-mains-ne",
-    "type": "esa_ins",
-    "title": "Insulation: mains to accessible parts",
-    "instructions": "Mains pins (live and neutral linked by the ESA612) to the accessible parts, at 500 V. Clip the red test lead to a metal port shell or screw, or to foil wrapped around the case (link several parts together with a shorting clip). Switch the equipment on if it has a switch, and disconnect all peripherals and network cables.\nMust be over 1 Mohm. If it is under 10 Mohm, it must be at least 80% of the acceptance test value (B9.3). For a detachable power supply (plug pack), test from mains to its low-voltage output terminals.",
-    "images": [],
-    "hold": false,
-    "params": {
-     "target": "MAINS_NE",
-     "volts": "HIGH",
-     "lo": 1
-    }
-   },
-   {
-    "id": "functional",
-    "type": "check",
-    "title": "Power on and function",
-    "instructions": "Do this after the electrical safety tests.",
-    "images": [],
-    "hold": false,
-    "params": {
-     "items": [
-      "Powers on and reaches the operating system without error messages.",
-      "Fans run and vents are clear of dust and blockage.",
-      "Screen, keyboard and pointing device work; connected peripherals work.",
-      "Equipment clean and fit for the clinical area; test label applied."
-     ]
-    }
-   }
-  ],
+  "updated": 1793921476058,
+  "models": [],
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [],
   "dut": [
    "Serial number",
    "Manufacturer",
@@ -71,10 +22,64 @@
    "Customer asset #",
    "Testing engineer"
   ],
-  "appliedParts": [],
-  "models": [],
-  "showNA": false,
-  "esaAuto": true,
-  "esaHalt": true
+  "steps": [
+   {
+    "id": "nutrdrfiia2w",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Unplug the equipment before inspecting. Do not open the case.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Mains lead: plug, cable and connector undamaged; strain relief intact; two-core lead or no connection to the earth pin.",
+      "Case undamaged: no cracks, missing screws, heat marks or signs of liquid.",
+      "Ports, sockets and switches undamaged; no loose connectors.",
+      "Labels legible: model, ratings and the Class II (double square) marking."
+     ]
+    }
+   },
+   {
+    "id": "yx0v9p00ia2w",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply. Nothing needs to be connected to the equipment outlet for this step.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
+   },
+   {
+    "id": "bwhmiabuia2w",
+    "type": "esa_ins",
+    "title": "Insulation: mains to accessible parts",
+    "instructions": "Mains pins (live and neutral linked by the ESA612) to the accessible parts, at 500 V. Clip the red test lead to a metal port shell or screw, or to foil wrapped around the case (link several parts together with a shorting clip). Switch the equipment on if it has a switch, and disconnect all peripherals and network cables.\nMust be over 1 Mohm. If it is under 10 Mohm, it must be at least 80% of the acceptance test value (B9.3). For a detachable power supply (plug pack), test from mains to its low-voltage output terminals.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "2fm6exfxia2w",
+    "type": "check",
+    "title": "Power on and function",
+    "instructions": "Do this after the electrical safety tests.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Powers on and reaches the operating system without error messages.",
+      "Fans run and vents are clear of dust and blockage.",
+      "Screen, keyboard and pointing device work; connected peripherals work.",
+      "Equipment clean and fit for the clinical area; test label applied."
+     ]
+    }
+   }
+  ]
  }
 }

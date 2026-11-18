@@ -2,10 +2,26 @@
  "format": "chs-test-bench-template",
  "version": 1,
  "template": {
+  "id": "xkkpsrpfhjqn",
   "name": "Masimo Rad-97 Pulse CO-Oximeter",
   "desc": "Masimo Rad-97 (Class I, SpO2; NIBP where fitted). From the CHS Ansur template “Rad-97 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template listed both 500/1000 and 5000/10000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. Readings keep the Ansur limits.",
-  "category": "Promed",
-  "manufacturer": "Masimo",
+  "category": "Promed", "manufacturer": "Masimo",
+  "highlight": true,
+  "color": "red",
+  "updated": 1794262982276,
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "3tkluftou534",
+    "name": "SpO2",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
   "dut": [
    "Serial number",
    "Manufacturer",
@@ -17,21 +33,9 @@
    "Testing company",
    "Testing engineer"
   ],
-  "esaAuto": true,
-  "esaHalt": true,
-  "appliedParts": [
-   {
-    "id": "ap1",
-    "name": "SpO2",
-    "apclass": "BF",
-    "leads": [
-     "RA"
-    ]
-   }
-  ],
   "steps": [
    {
-    "id": "visual",
+    "id": "4ps384cku534",
     "type": "check",
     "title": "Visual inspection",
     "instructions": "Inspect the monitor, cables and accessories.",
@@ -48,16 +52,19 @@
     }
    },
    {
-    "id": "mains",
+    "id": "9y1x5bnku534",
     "type": "esa_mains",
     "title": "Mains voltage",
     "instructions": "Plug the ESA612 into the mains supply you are testing from.",
     "images": [],
     "hold": 0,
-    "params": {}
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
    },
    {
-    "id": "pe",
+    "id": "ftbezcz9u534",
     "type": "esa_pe",
     "title": "Protective earth resistance",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
@@ -68,7 +75,7 @@
     }
    },
    {
-    "id": "ins-mins",
+    "id": "aszywq4hu534",
     "type": "esa_ins",
     "title": "Insulation: mains to protective earth",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
@@ -81,7 +88,7 @@
     }
    },
    {
-    "id": "encl",
+    "id": "u6g0673ju534",
     "type": "esa_encl",
     "title": "Enclosure leakage",
     "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the monitor.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
@@ -105,7 +112,7 @@
     }
    },
    {
-    "id": "earthl",
+    "id": "3af15zmxu534",
     "type": "esa_earthl",
     "title": "Earth leakage",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
@@ -125,7 +132,7 @@
     }
    },
    {
-    "id": "pat",
+    "id": "zugnf1oku534",
     "type": "esa_pat",
     "title": "Patient leakage",
     "instructions": "Connect the SpO2 sensor (wrapped in foil, or its cable connector pins linked) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
@@ -147,7 +154,7 @@
     }
    },
    {
-    "id": "map",
+    "id": "9qog0q4uu534",
     "type": "esa_map",
     "title": "Mains on applied parts",
     "instructions": "Connect the SpO2 sensor (wrapped in foil, or its cable connector pins linked) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
@@ -161,7 +168,7 @@
     }
    },
    {
-    "id": "spo2",
+    "id": "7o8cc3rju534",
     "type": "check",
     "title": "SpO2",
     "instructions": "Measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.",
@@ -183,7 +190,7 @@
     }
    },
    {
-    "id": "touch",
+    "id": "cevro0ylu534",
     "type": "check",
     "title": "Touchscreen",
     "instructions": "Check each touch gesture on the display.",
@@ -201,7 +208,7 @@
     }
    },
    {
-    "id": "nibp",
+    "id": "txi2pvzau534",
     "type": "check",
     "title": "NIBP",
     "instructions": "Skip this step if the Rad-97 has no NIBP.\n1. Calibration check: compare the NIBP module pressure with the manometer. If it is outside ±3 mmHg, calibrate (zero point and span point) and check again; if it still fails the module is faulty.\n2. Air leak test: if the leak is over 6 mmHg, check the calibration equipment (tubing, 500 mL container, cuff) for leaks first; if it still fails, contact Masimo Technical Services.\n3. Overpressure test: watch the manometer as the valves open.",
@@ -228,7 +235,7 @@
     }
    },
    {
-    "id": "battery",
+    "id": "pwubn2y5u534",
     "type": "check",
     "title": "Battery",
     "instructions": "",

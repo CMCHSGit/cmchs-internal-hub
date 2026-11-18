@@ -17,7 +17,7 @@ test('there are templates for the monitors, modules, vital signs monitors and Be
 
 // Templates from the CHS Ansur library or made earlier (not by the generators here): checked for structure only. Their limits still
 // follow the old Ansur template (e.g. earth leakage 500/1000 µA, see change-log.md); the bench gives every step a fresh id on loading.
-const LEGACY = ['Medical power supply', 'A7 Anaesthetic', 'A9 Anaesthetic', 'D30-D60', 'Patient Monitor and OR Modules']
+const LEGACY = ['Medical power supply', 'A7 Anaesthetic', 'A9 Anaesthetic', 'D30-D60', 'Patient Monitor and OR Modules', 'Patient monitor.json']   // the last: an engineer's own template (earth leakage 500/1000 µA)
 for (const f of files) {
   const legacy = LEGACY.some((l) => f.includes(l))
   test(`template ${f} is ready for the bench${legacy ? ' (older template: structure only)' : ''}`, () => {
@@ -65,13 +65,26 @@ test('modules are in their own group, and the general patient monitors are highl
 test('the BatteryFeed 20 charger station template: Class I, no applied parts, earth and insulation then touch and earth leakage, then the charging checks', () => {
   const t = JSON.parse(readFileSync(new URL('Mindray BatteryFeed 20 Charger Station - Test Bench template.json', dir), 'utf8')).template
   assert.deepEqual(t.appliedParts, [])
-  const ids = t.steps.map((s) => s.id)
+  // By title: a template saved from the bench (a colour picked, say) gets fresh step ids.
+  const T = { visual: 'Visual inspection', mains: 'Mains voltage', 'lead-pe': 'AC power cord: earth continuity', 'bond-inlet': 'Earth bond: AC socket', 'ins-mains-pe': 'Insulation: mains to protective earth', 'ins-mains-ne': 'Insulation: mains to accessible non-earthed parts', touch: 'Touch current', 'earth-leak': 'Earth leakage', 'power-on': 'Power-on test and indicators', 'bay-1': 'Charging bay 1', 'bay-2': 'Charging bay 2', finish: 'Finish' }
+  const ids = t.steps.map((s) => Object.keys(T).find((k) => T[k] === s.title) || s.id)
   assert.deepEqual(ids.slice(0, 8), ['visual', 'mains', 'lead-pe', 'bond-inlet', 'ins-mains-pe', 'ins-mains-ne', 'touch', 'earth-leak'])
   assert.ok(!t.steps.some((s) => s.type === 'esa_pat' || s.type === 'esa_map'), 'nothing is applied to a patient')
-  const by = (id) => t.steps.find((s) => s.id === id)
+  const by = (id) => t.steps.find((s) => s.title === T[id])
   assert.equal(by('lead-pe').params.hi, 0.2); assert.equal(by('bond-inlet').params.hi, 0.1)
   assert.equal(by('ins-mains-pe').params.lo, 1); assert.equal(by('ins-mains-ne').params.lo, 1)
   assert.deepEqual(by('touch').params.conds.map((c) => c.hi), [100, 500, 500])
   assert.deepEqual(by('earth-leak').params.conds.map((c) => c.hi), [5000, 10000])
   assert.deepEqual(ids.slice(8), ['power-on', 'bay-1', 'bay-2', 'finish'], 'the checks come after the electrical tests')
+})
+
+test('IBP is zeroed from the bench (ProSim channels at 0 mmHg) right before the static-pressure step', () => {
+  for (const f of ['Patient Monitor and OR Modules', 'Mindray N1 with N1 TDS', 'Mindray D30-D60', 'Mindray IBP Module', 'Patient monitor.json']) {
+    const file = files.find((x) => x.includes(f)); assert.ok(file, f)
+    const steps = JSON.parse(readFileSync(new URL(file, dir), 'utf8')).template.steps
+    const z = steps.findIndex((s) => s.title === 'IBP: zero'); assert.ok(z >= 0, `${f} has the zero step`)
+    assert.equal(steps[z].type, 'ps_custom'); assert.equal(steps[z].params.text, 'IBPS=1,+000\nIBPS=2,+000')
+    assert.ok(/IBPS=1,\+200|IBP Performance Test/.test(JSON.stringify(steps[z + 1].params) + steps[z + 1].title), `${f}: the static pressure comes next`)
+    if (f === 'Mindray D30-D60') assert.deepEqual(steps[z].models, ['D60'], 'D60 only, like its IBP steps')
+  }
 })
