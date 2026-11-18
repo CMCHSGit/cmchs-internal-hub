@@ -360,6 +360,35 @@
     ]
    },
    {
+    "id": "ibp-zero",
+    "type": "ps_custom",
+    "title": "IBP: zero",
+    "instructions": "Connect the IBP cables to the ProSim 8. The simulator sets IBP channels 1 and 2 to 0 mmHg. Zero each IBP channel on the monitor now, then go on to the next step. Mark channel 2 N/A if the monitor has only one IBP channel.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPS=1,+000\nIBPS=2,+000",
+     "monitor": {
+      "enabled": true,
+      "label": "IBP channel 1 zeroed on the monitor",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "IBP channel 2 zeroed on the monitor",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    },
+    "models": [
+     "D60"
+    ]
+   },
+   {
     "id": "l9ykvmp87xe7",
     "type": "ps_custom",
     "title": "IBP: static pressure",

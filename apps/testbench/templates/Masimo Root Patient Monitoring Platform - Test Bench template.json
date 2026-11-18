@@ -2,10 +2,26 @@
  "format": "chs-test-bench-template",
  "version": 1,
  "template": {
+  "id": "m06tpwq4hjql",
   "name": "Masimo Root Patient Monitoring Platform",
   "desc": "Masimo Root with Radical-7 docked, and its SedLine / O3 modules where fitted (Class I). From the CHS Ansur template “Root + Rad 7 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE and mains–non-earthed parts over 1 Mohm, mains to applied parts over 1 Mohm (B9.3; no limit in Ansur), the other two recorded; enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template had 500/1000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. Readings keep the Ansur limits.",
-  "category": "Promed",
-  "manufacturer": "Masimo",
+  "category": "Promed", "manufacturer": "Masimo",
+  "highlight": true,
+  "color": "red",
+  "updated": 1794263008992,
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "rst4osvlu53e",
+    "name": "SpO2, SedLine, O3",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
   "dut": [
    "Serial number",
    "Manufacturer",
@@ -17,21 +33,9 @@
    "Testing company",
    "Testing engineer"
   ],
-  "esaAuto": true,
-  "esaHalt": true,
-  "appliedParts": [
-   {
-    "id": "ap1",
-    "name": "SpO2, SedLine, O3",
-    "apclass": "BF",
-    "leads": [
-     "RA"
-    ]
-   }
-  ],
   "steps": [
    {
-    "id": "visual",
+    "id": "zavwk8cju53e",
     "type": "check",
     "title": "Visual inspection",
     "instructions": "Inspect the monitor, cables and accessories.",
@@ -48,16 +52,19 @@
     }
    },
    {
-    "id": "mains",
+    "id": "adlk6zrvu53e",
     "type": "esa_mains",
     "title": "Mains voltage",
     "instructions": "Plug the ESA612 into the mains supply you are testing from.",
     "images": [],
     "hold": 0,
-    "params": {}
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
    },
    {
-    "id": "pe",
+    "id": "wy3y85r8u53e",
     "type": "esa_pe",
     "title": "Protective earth resistance",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
@@ -68,7 +75,7 @@
     }
    },
    {
-    "id": "ins-mins",
+    "id": "5n0m6xvlu53e",
     "type": "esa_ins",
     "title": "Insulation: mains to protective earth",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
@@ -81,7 +88,7 @@
     }
    },
    {
-    "id": "ins-apins",
+    "id": "59npgxj0u53e",
     "type": "esa_ins",
     "title": "Insulation: applied parts to protective earth",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
@@ -94,7 +101,7 @@
     }
    },
    {
-    "id": "ins-mains-ap",
+    "id": "sucriyp2u53e",
     "type": "esa_ins",
     "title": "Insulation: mains to applied parts",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3).",
@@ -107,7 +114,7 @@
     }
    },
    {
-    "id": "ins-mains-ne",
+    "id": "v3d9xvhqu53e",
     "type": "esa_ins",
     "title": "Insulation: mains to non-earth accessible conductive part",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
@@ -120,7 +127,7 @@
     }
    },
    {
-    "id": "ins-ap-ne",
+    "id": "cxdtlx2xu53e",
     "type": "esa_ins",
     "title": "Insulation: applied parts to non-earth accessible conductive part",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
@@ -133,7 +140,7 @@
     }
    },
    {
-    "id": "encl",
+    "id": "my65wf01u53e",
     "type": "esa_encl",
     "title": "Enclosure leakage",
     "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the monitor.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
@@ -157,7 +164,7 @@
     }
    },
    {
-    "id": "earthl",
+    "id": "t679we3zu53e",
     "type": "esa_earthl",
     "title": "Earth leakage",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
@@ -177,7 +184,7 @@
     }
    },
    {
-    "id": "pat",
+    "id": "zgryvan8u53e",
     "type": "esa_pat",
     "title": "Patient leakage",
     "instructions": "Connect the SedLine or SpO2 patient cable (connector pins linked) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
@@ -199,7 +206,7 @@
     }
    },
    {
-    "id": "map",
+    "id": "9aygvqo5u53e",
     "type": "esa_map",
     "title": "Mains on applied parts",
     "instructions": "Connect the SedLine or SpO2 patient cable (connector pins linked) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
@@ -213,7 +220,7 @@
     }
    },
    {
-    "id": "spo2",
+    "id": "xnnyskjzu53e",
     "type": "check",
     "title": "SpO2",
     "instructions": "Measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.",
@@ -235,7 +242,7 @@
     }
    },
    {
-    "id": "temp",
+    "id": "i0wrk8s4u53e",
     "type": "check",
     "title": "Temperature",
     "instructions": "Only if a temperature module is fitted; otherwise mark the item N/A.",
@@ -248,7 +255,7 @@
     }
    },
    {
-    "id": "nibp",
+    "id": "86yv2x4cu53e",
     "type": "check",
     "title": "NIBP",
     "instructions": "Only if NIBP is fitted; otherwise skip this step.\n1. Set 0, 50 and 200 mmHg and enter the largest difference from the reference.\n2. Run the leak test (or a manual leak test).\n3. Run the overpressure test and time how long the pressure takes to be released.",
@@ -279,7 +286,7 @@
     }
    },
    {
-    "id": "sedline-o3",
+    "id": "2p9vlzgfu53e",
     "type": "check",
     "title": "SedLine and O3",
     "instructions": "Connect the SedLine and O3 simulators. Mark N/A for a module that isn’t fitted.",
@@ -293,7 +300,7 @@
     }
    },
    {
-    "id": "battery",
+    "id": "1alg17a1u53e",
     "type": "check",
     "title": "Battery",
     "instructions": "Open the Battery Diagnostics screen.",

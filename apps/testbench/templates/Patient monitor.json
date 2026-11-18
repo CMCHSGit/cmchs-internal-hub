@@ -1,0 +1,497 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "id": "vtjl8fhhhzj7",
+  "name": "Patient monitor",
+  "highlight": true,
+  "desc": "Class I, CF applied parts. Limits from the CHS Ansur template.",
+  "updated": 1794967493771,
+  "appliedParts": [
+   {
+    "id": "fip2duaxhzj7",
+    "name": "ECG, SpO2, Temp",
+    "apclass": "CF",
+    "leads": [
+     "RA",
+     "LA",
+     "LL",
+     "RL",
+     "V1"
+    ]
+   }
+  ],
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "CHS asset #",
+   "Customer asset #"
+  ],
+  "steps": [
+   {
+    "id": "exs38rmrhzj7",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Inspect the device, cables and accessories.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, display screen, buttons, power cord, and accessories have no obvious signs of damage.",
+      "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+      "The external connectors are not loose and their pins are not bent.",
+      "The safety labels and data plate are clearly legible.",
+      "The power-on test is passed. The power indicator and alarm system work correctly and the monitor starts up properly."
+     ]
+    }
+   },
+   {
+    "id": "dg11sxk4hzj7",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
+   },
+   {
+    "id": "l1xvekrnhzj7",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "4uo9m87thzj7",
+    "type": "esa_ins",
+    "title": "Insulation resistance",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "tfgh79eus6yv",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "APINS",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "ar547shesebn",
+    "type": "esa_ins",
+    "title": "Insulation: mains to applied parts",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_AP",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "agqpp53yskzf",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "utwcj4mssnur",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to non-earth accessible conductive part",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "AP_NE",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "20b78k18hzj7",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 500
+      },
+      {
+       "c": "ON",
+       "hi": 1000
+      }
+     ]
+    }
+   },
+   {
+    "id": "dvz0kx8mhzj7",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "nb6scxv1hzj7",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "8nvkcyhghzj7",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Connect each applied part (patient cable, sensor) to its ESA612 posts. Connect the device’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "27eqwnjxhzj7",
+    "type": "ps_nsr",
+    "title": "ECG heart rate",
+    "instructions": "Connect the ECG leads to the ProSim 8.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "who": "A",
+     "rate": 60,
+     "ampl": "1.00",
+     "monitor": {
+      "enabled": true,
+      "label": "Heart rate on monitor",
+      "unit": "bpm",
+      "lo": 59,
+      "hi": 61
+     }
+    }
+   },
+   {
+    "id": "ytxhqaysawmz",
+    "type": "ps_perf",
+    "title": "ECG: calibration square wave",
+    "instructions": "The simulator outputs a square wave (performance). Set the ECG filter on the monitor to Diagnostic and verify the wave scale difference does not exceed 5%.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "wave": "SQUARE=2.0",
+     "monitor": {
+      "enabled": true,
+      "label": "The difference between the amplitude of the ECG calibration square wave and that of the wave scale is not greater than 5%.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "l7uehgvlbqsk",
+    "type": "ps_paced",
+    "title": "ECG: paced signals",
+    "instructions": "The simulator outputs a paced signal. Set Paced to Yes on the monitor and check the pace pulse marks on the screen.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "wave": "ATR",
+     "ampl": "",
+     "monitor": {
+      "enabled": true,
+      "label": "Paced signals are detected and pace pulse marks are displayed when [Paced] is set to [Yes].",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "jlityischzj7",
+    "type": "check",
+    "title": "ECG alarms",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "ECG Lead Off alarm behaves correctly.",
+      "Paced signals are detected and pace pulse marks are displayed when [Paced] is set to [Yes]."
+     ]
+    }
+   },
+   {
+    "id": "g6ns0f31hzj7",
+    "type": "ps_resp",
+    "title": "Respiration",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "rate": 20,
+     "monitor": {
+      "enabled": true,
+      "label": "Respiration rate on monitor",
+      "unit": "rpm",
+      "lo": 18,
+      "hi": 22
+     }
+    }
+   },
+   {
+    "id": "rpmaq8c3hzj7",
+    "type": "ps_spo2",
+    "title": "SpO2",
+    "instructions": "Connect the SpO2 sensor to the ProSim 8 finger.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "sat": 97,
+     "probe": "MINDR",
+     "monitor": {
+      "enabled": true,
+      "label": "SpO2 on monitor",
+      "unit": "%",
+      "lo": 95,
+      "hi": 100
+     },
+     "extra": []
+    }
+   },
+   {
+    "id": "r31eevmqau8b",
+    "type": "ps_nibp",
+    "title": "NIBP (dynamic)",
+    "instructions": "Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "sys": 120,
+     "dia": 80,
+     "monitor": {
+      "enabled": false,
+      "label": "Systolic on monitor",
+      "unit": "mmHg",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "4xkcx4jtgg83",
+    "type": "check",
+    "title": "NIBP Leakage and Over-pressure Test",
+    "instructions": "SpO2: measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.\n\nNIBP:\n1. Check leakage\n2. Check accuracy against the simulator, the leak test and the overpressure test (Adult/Peds and Neo).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "A Pleth wave and PR value are displayed.",
+      "NIBP: The accuracy difference between the monitor and the simulator is within ±3 mmHg.",
+      "NIBP: There is no leakage, or the manual leakage test result does not exceed 6 mmHg/min.",
+      "NIBP overpressure: test passes for Adult and Peds.",
+      "NIBP overpressure: test passes for Neo."
+     ]
+    }
+   },
+   {
+    "id": "1vr7fydvhzj7",
+    "type": "ps_temp",
+    "title": "Temperature",
+    "instructions": "Check both T1 and T2",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "t": "37.0",
+     "monitor": {
+      "enabled": true,
+      "label": "Temperature on monitor",
+      "unit": "°C",
+      "lo": 36.9,
+      "hi": 37.1
+     }
+    }
+   },
+   {
+    "id": "ibp-zero",
+    "type": "ps_custom",
+    "title": "IBP: zero",
+    "instructions": "Connect the IBP cables to the ProSim 8. The simulator sets IBP channels 1 and 2 to 0 mmHg. Zero each IBP channel on the monitor now, then go on to the next step. Mark channel 2 N/A if the monitor has only one IBP channel.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPS=1,+000\nIBPS=2,+000",
+     "monitor": {
+      "enabled": true,
+      "label": "IBP channel 1 zeroed on the monitor",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "IBP channel 2 zeroed on the monitor",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "62kff3pmoah0",
+    "type": "ps_custom",
+    "title": "IBP: static pressure, both channels",
+    "instructions": "Zero the IBP on the monitor first. The simulator sets channels 1 and 2 to 200 mmHg. Enter what the monitor shows (196–204 mmHg). Mark channel 2 N/A if the monitor has only one IBP channel.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPS=1,+200\nIBPS=2,+200",
+     "monitor": {
+      "enabled": true,
+      "label": "IBP channel 1 on monitor",
+      "unit": "mmHg",
+      "lo": 196,
+      "hi": 204
+     },
+     "extra": [
+      {
+       "label": "IBP channel 2 on monitor",
+       "unit": "mmHg",
+       "lo": 196,
+       "hi": 204
+      }
+     ]
+    }
+   },
+   {
+    "id": "lohvonqpod3n",
+    "type": "ps_custom",
+    "title": "IBP: ART and LV waveforms",
+    "instructions": "The simulator outputs ART on channel 1 and LV on channel 2. Swap the channels with a second run if needed, so each channel is checked with both waves.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPW=1,ART\nIBPW=2,LV",
+     "monitor": {
+      "enabled": true,
+      "label": "The ART and LV waves for each IBP channel are displayed correctly.",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     }
+    }
+   },
+   {
+    "id": "sqb9uf8qhzj7",
+    "type": "check",
+    "title": "Sidstream CO2 Test and Calibration",
+    "instructions": "Install water trap only if sidestream CO2 is fitted; otherwise skip this step.\n1. Block the gas inlet of the module or watertrap and check for the CO2 Filterline Err alarm.\n2. Apply the calibration gas and enter the displayed CO2.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Leak test: with the gas inlet blocked, the sidestream CO2 flowrate is slower than 10 ml/min and a CO2 Filterline Err alarm is given (no leakage)."
+     ],
+     "readings": [
+      {
+       "label": "CO2 Accuracy Test: The displayed CO2 value is within 6.0±0.3%.",
+       "unit": "%",
+       "lo": 5.7,
+       "hi": 6.3
+      }
+     ]
+    }
+   },
+   {
+    "id": "5n8gfcnthzj7",
+    "type": "ps_stop",
+    "title": "Stop simulator",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "5vf7bz80hzj7",
+    "type": "check",
+    "title": "Network and battery",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The monitor connects to the CMS.",
+      "The operating time of the battery meets the product specification."
+     ]
+    }
+   }
+  ]
+ }
+}

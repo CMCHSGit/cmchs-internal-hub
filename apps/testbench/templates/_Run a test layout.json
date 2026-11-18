@@ -2,10 +2,45 @@
  "format": "chs-test-bench-layout",
  "version": 1,
  "layout": {
-  "groups": [],
-  "order": [],
-  "scale": 0,
-  "saved": 1,
+  "groups": [
+   "Anaesthesia",
+   "Monitoring",
+   "Modules",
+   "Defibrillation",
+   "Power supplies",
+   "Computers"
+  ],
+  "order": [
+   "mindray a7 anaesthetic machine - test bench template.json",
+   "mindray a9 anaesthetic machine - test bench template.json",
+   "name:patient monitor – as/nzs 3551 est and pvt",
+   "mindray r700 - r12 patient monitor - test bench template.json",
+   "mindray vs8 - vs9 vital signs monitor - test bench template.json",
+   "mindray benevision tm80 telemetry monitor - test bench template.json",
+   "name:ecg modes – nsr, performance, paced",
+   "exergen thermometer - test bench template.json",
+   "mindray benevision pm-60 patient monitor - test bench template.json",
+   "name:mindray tm80 – as/nzs 3551 pvt",
+   "mindray vs-600 - vs-900 vital signs monitor - test bench template.json",
+   "patient monitor and or modules - test bench template.json",
+   "mindray ag + o2 gas module - test bench template.json",
+   "mindray sidestream co2 module - test bench template.json",
+   "mindray c.o. module - test bench template.json",
+   "mindray cco-svo2 module - test bench template.json",
+   "mindray co2 + o2 module - test bench template.json",
+   "mindray eeg module - test bench template.json",
+   "mindray ibp module - test bench template.json",
+   "mindray nmt, bis and benelink modules - test bench template.json",
+   "mindray nmt+ module - test bench template.json",
+   "mindray picco module - test bench template.json",
+   "mindray rso2 module - test bench template.json",
+   "mindray beneheart c-s series aed - test bench template.json",
+   "mindray d30-d60 defibrillator - test bench template.json",
+   "mindray beneheart d1 defibrillator - test bench template.json",
+   "medical power supply (isolated output) - class i - test bench template.json",
+   "computer - it equipment - class i - test bench template.json",
+   "computer - it equipment - class ii - test bench template.json"
+  ],
   "items": {
    "patient monitor and or modules - test bench template.json": {
     "covers": [
@@ -17,7 +52,8 @@
      "V500",
      "V700",
      "VMAX"
-    ]
+    ],
+    "color": "green"
    },
    "name:patient monitor": {
     "covers": [
@@ -31,6 +67,87 @@
      "VMAX"
     ]
    },
+   "mindray a7 anaesthetic machine - test bench template.json": {
+    "color": "purple"
+   },
+   "mindray a9 anaesthetic machine - test bench template.json": {
+    "color": "purple"
+   },
+   "name:ecg modes – nsr, performance, paced": {
+    "color": "green"
+   },
+   "exergen thermometer - test bench template.json": {
+    "color": "green"
+   },
+   "mindray benevision pm-60 patient monitor - test bench template.json": {
+    "color": "green"
+   },
+   "mindray r700 - r12 patient monitor - test bench template.json": {
+    "color": "green",
+    "group": "Monitoring"
+   },
+   "mindray benevision tm80 telemetry monitor - test bench template.json": {
+    "color": "green",
+    "group": "Monitoring"
+   },
+   "name:mindray tm80 – as/nzs 3551 pvt": {
+    "color": "green"
+   },
+   "mindray vs-600 - vs-900 vital signs monitor - test bench template.json": {
+    "color": "green"
+   },
+   "mindray vs8 - vs9 vital signs monitor - test bench template.json": {
+    "color": "green",
+    "group": "Monitoring"
+   },
+   "name:patient monitor – as/nzs 3551 est and pvt": {
+    "color": "green",
+    "group": "Monitoring"
+   },
+   "mindray ag + o2 gas module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray c.o. module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray cco-svo2 module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray co2 + o2 module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray eeg module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray ibp module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray nmt, bis and benelink modules - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray nmt+ module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray picco module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray rso2 module - test bench template.json": {
+    "color": "orange"
+   },
+   "mindray sidestream co2 module - test bench template.json": {
+    "color": "orange",
+    "group": "Modules"
+   },
+   "mindray beneheart c-s series aed - test bench template.json": {
+    "color": "blue"
+   },
+   "mindray beneheart d1 defibrillator - test bench template.json": {
+    "color": "blue"
+   },
+   "mindray d30-d60 defibrillator - test bench template.json": {
+    "color": "blue",
+    "group": "Defibrillation"
+   },
    "mindray batteryfeed 20 charger station - test bench template.json": {
     "covers": [
      "BatteryFeed 20",
@@ -40,6 +157,8 @@
      "D60 battery"
     ]
    }
-  }
+  },
+  "scale": 0.9,
+  "saved": 1793825203504
  }
 }

@@ -366,3 +366,12 @@ qualifies (`clearableIds`, each tried once per page load), so the button only sh
   step at that position was moved instead. Now the drag carries the step itself, its template and its window: dropped in the same template it
   moves; dropped in another template (another window's canvas, or on a template's name in the Templates list) a copy is added (new id, photos
   and settings kept, the source's applied-part groups if the template has none, model limits dropped if the template lacks those models).
+
+## IBP zero step (18/11/2026)
+- New "IBP: zero" step (ProSim custom commands `IBPS=1,+000`, `IBPS=2,+000`, then "channel 1 / 2 zeroed on the monitor", channel 2 N/A on a
+  one-channel monitor) right before the IBP static-pressure step, so IBP is zeroed without leaving remote mode (the ProSim has no IBP zero
+  command; its own Zero is a 0 mmHg static). Added in SharePoint to Patient monitor, Patient Monitor and OR Modules, the N1 set, D30-D60 (D60
+  only) and the IBP Module (whose static-pressure check is still typed by hand). Only lines were added to those files.
+- The four Masimo templates had lost `manufacturer: Masimo` (saved from a bench tab opened before 10 Nov, which didn't know the field): put back.
+- Synced every template from SharePoint. The BatteryFeed template was saved from the bench (blue highlight), which gives steps fresh ids, so its
+  test now matches steps by title. "Patient monitor.json" (an engineer's own template, earth leakage 500/1000 µA) is checked for structure only.

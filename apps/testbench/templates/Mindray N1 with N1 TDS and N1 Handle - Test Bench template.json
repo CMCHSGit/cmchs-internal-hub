@@ -2,10 +2,25 @@
  "format": "chs-test-bench-template",
  "version": 1,
  "template": {
+  "id": "lzr26klohjqx",
   "name": "Mindray N1 with N1 TDS and N1 Handle",
   "desc": "Mindray BeneVision N1 transport monitor tested as one set with its N1 TDS (transport docking station, which takes the mains lead) and N1 Handle: one test and one report for all three serial numbers (add the TDS and Handle under “Other devices in this test”). Class I, applied parts type CF (SpO2, ECG, Temp) on RA. From the CHS Ansur template “Patient Monitor AS-NZS 3551 EST and PVT” as used for the N1 set on 09.10.2026. Electrical limits from AS/NZS 3551:2012+A2 (earth leakage 5000/10000 µA, B11.6). ECG, respiration, temperature and IBP are ProSim 8 steps, as in the Patient Monitor template. The TDS and Handle checks are new: the Ansur template had none.",
   "category": "Monitoring",
   "highlight": true,
+  "updated": 1794966991520,
+  "showNA": false,
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "janxef4ehjqx",
+    "name": "SpO2, ECG, Temp",
+    "apclass": "CF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
   "dut": [
    "Serial number",
    "Manufacturer",
@@ -17,21 +32,9 @@
    "Testing company",
    "Testing engineer"
   ],
-  "esaAuto": true,
-  "esaHalt": true,
-  "appliedParts": [
-   {
-    "id": "ap1",
-    "name": "SpO2, ECG, Temp",
-    "apclass": "CF",
-    "leads": [
-     "RA"
-    ]
-   }
-  ],
   "steps": [
    {
-    "id": "visual",
+    "id": "k5jcy5ffhjqx",
     "type": "check",
     "title": "Visual inspection",
     "instructions": "Inspect the N1, the N1 TDS, the N1 Handle, cables and accessories.",
@@ -48,16 +51,19 @@
     }
    },
    {
-    "id": "mains",
+    "id": "y4f1t497hjqx",
     "type": "esa_mains",
     "title": "Mains voltage",
     "instructions": "Set up for the electrical safety tests:\n1. Plug the ESA612 into the mains supply.\n2. Dock the N1 in the N1 TDS and plug the TDS’s mains lead into the ESA612 equipment outlet.\n3. Fit the N1 Handle as it is used.",
     "images": [],
     "hold": 0,
-    "params": {}
+    "params": {
+     "lo": "",
+     "hi": ""
+    }
    },
    {
-    "id": "pe",
+    "id": "fo9tgawxhjqx",
     "type": "esa_pe",
     "title": "Protective earth resistance",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part of the N1 TDS.",
@@ -68,7 +74,7 @@
     }
    },
    {
-    "id": "ins-mins",
+    "id": "dwb9i1s2hjqx",
     "type": "esa_ins",
     "title": "Insulation: mains to protective earth",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
@@ -81,7 +87,7 @@
     }
    },
    {
-    "id": "ins-apins",
+    "id": "97u00ut2hjqx",
     "type": "esa_ins",
     "title": "Insulation: applied parts to protective earth",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
@@ -94,7 +100,7 @@
     }
    },
    {
-    "id": "ins-mains-ap",
+    "id": "0n6vobuvhjqx",
     "type": "esa_ins",
     "title": "Insulation: mains to applied parts",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Must be over 1 Mohm (AS/NZS 3551 B9.3).",
@@ -107,7 +113,7 @@
     }
    },
    {
-    "id": "ins-mains-ne",
+    "id": "xco7ou49hjqx",
     "type": "esa_ins",
     "title": "Insulation: mains to non-earth accessible conductive part",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
@@ -120,7 +126,7 @@
     }
    },
    {
-    "id": "ins-ap-ne",
+    "id": "0wzxj3f5hjqx",
     "type": "esa_ins",
     "title": "Insulation: applied parts to non-earth accessible conductive part",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test. Recorded only.",
@@ -133,7 +139,7 @@
     }
    },
    {
-    "id": "encl",
+    "id": "9hv0el4ahjqx",
     "type": "esa_encl",
     "title": "Enclosure leakage",
     "instructions": "Connect the red test lead to a conductive non-earthed exposed part of the N1, the TDS or the Handle.\nNote: only a representative sample of conductive non-earthed exposed parts needs to be tested.",
@@ -157,7 +163,7 @@
     }
    },
    {
-    "id": "earthl",
+    "id": "pzu3gak9hjqx",
     "type": "esa_earthl",
     "title": "Earth leakage",
     "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions. Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
@@ -177,7 +183,7 @@
     }
    },
    {
-    "id": "pat",
+    "id": "wsah0wdkhjqx",
     "type": "esa_pat",
     "title": "Patient leakage",
     "instructions": "Connect the N1’s ECG leads, SpO2 sensor and temperature probe (all on the RA post) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
@@ -199,7 +205,7 @@
     }
    },
    {
-    "id": "map",
+    "id": "r9mawxskhjqx",
     "type": "esa_map",
     "title": "Mains on applied parts",
     "instructions": "Connect the N1’s ECG leads, SpO2 sensor and temperature probe (all on the RA post) to the ESA612 RA post. Connect the device’s mains lead to the ESA612 equipment outlet.",
@@ -213,7 +219,7 @@
     }
    },
    {
-    "id": "ecg",
+    "id": "1o1qlktmhjqx",
     "type": "ps_nsr",
     "title": "ECG: heart rate, waveform and lead off",
     "instructions": "Connect the ECG leads to the ProSim 8. The simulator is set to ECG sinus rhythm, 60 bpm, 1 mV.\n1. Enter the HR shown on the monitor (60±1 bpm).\n2. Check the ECG waves are displayed correctly without noise.\n3. Disconnect each lead in turn and check the matching lead off message appears. Reconnect all leads.",
@@ -247,7 +253,7 @@
     }
    },
    {
-    "id": "ecg-cal",
+    "id": "xaqvsd3hhjqx",
     "type": "ps_perf",
     "title": "ECG: calibration square wave",
     "instructions": "The simulator outputs a square wave (performance). Set the ECG filter on the monitor to Diagnostic and verify the wave scale difference does not exceed 5%.",
@@ -265,7 +271,7 @@
     }
    },
    {
-    "id": "ecg-paced",
+    "id": "05a3ug2ihjqx",
     "type": "ps_paced",
     "title": "ECG: paced signals",
     "instructions": "The simulator outputs a paced signal. Set Paced to Yes on the monitor and check the pace pulse marks on the screen.",
@@ -284,7 +290,7 @@
     }
    },
    {
-    "id": "resp",
+    "id": "k83xj4eghjqx",
     "type": "ps_resp",
     "title": "Respiration",
     "instructions": "The simulator outputs respiration at 20 rpm. Verify the Resp wave is not distorted and enter the Resp rate shown on the monitor (20±2).",
@@ -310,7 +316,7 @@
     }
    },
    {
-    "id": "temp",
+    "id": "wrgw99kihjqx",
     "type": "ps_temp",
     "title": "Temperature",
     "instructions": "The simulator outputs 37.0 °C. Check every temperature channel on the monitor.",
@@ -328,7 +334,33 @@
     }
    },
    {
-    "id": "ibp-static",
+    "id": "ibp-zero",
+    "type": "ps_custom",
+    "title": "IBP: zero",
+    "instructions": "Connect the IBP cables to the ProSim 8. The simulator sets IBP channels 1 and 2 to 0 mmHg. Zero each IBP channel on the monitor now, then go on to the next step. Mark channel 2 N/A if the monitor has only one IBP channel.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "text": "IBPS=1,+000\nIBPS=2,+000",
+     "monitor": {
+      "enabled": true,
+      "label": "IBP channel 1 zeroed on the monitor",
+      "unit": "",
+      "lo": "",
+      "hi": ""
+     },
+     "extra": [
+      {
+       "label": "IBP channel 2 zeroed on the monitor",
+       "unit": "",
+       "lo": "",
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "m0kru2kphjqx",
     "type": "ps_custom",
     "title": "IBP: static pressure, both channels",
     "instructions": "Zero the IBP on the monitor first. The simulator sets channels 1 and 2 to 200 mmHg. Enter what the monitor shows (196–204 mmHg). Mark channel 2 N/A if the monitor has only one IBP channel.",
@@ -354,7 +386,7 @@
     }
    },
    {
-    "id": "ibp-waves",
+    "id": "qeqsp9tahjqx",
     "type": "ps_custom",
     "title": "IBP: ART and LV waveforms",
     "instructions": "The simulator outputs ART on channel 1 and LV on channel 2. Swap the channels with a second run if needed, so each channel is checked with both waves.",
@@ -372,7 +404,7 @@
     }
    },
    {
-    "id": "spo2-nibp",
+    "id": "knx6lp06hjqx",
     "type": "check",
     "title": "SpO2 and NIBP",
     "instructions": "SpO2: measure SpO2 on a healthy person’s finger. Check a Pleth wave and PR value are displayed, then enter the displayed SpO2.\nNIBP: check accuracy against the simulator, the leak test and the overpressure test (Adult/Peds and Neo).",
@@ -397,15 +429,15 @@
     }
    },
    {
-    "id": "co2",
+    "id": "p6a4a5f7hjqx",
     "type": "check",
-    "title": "Sidestream CO2",
-    "instructions": "Only if sidestream CO2 is fitted; otherwise skip this step.\n1. Block the gas inlet of the module or watertrap and check for the CO2 Filterline Err alarm.\n2. Apply the calibration gas and enter the displayed CO2.",
+    "title": "Microstream CO2 Test and Calibration",
+    "instructions": "1. Bend the sampling line and block the gas outlet of the module or watertrap and check for the CO2 Filterline Err alarm.\n2. Apply the calibration gas and enter the displayed CO2.",
     "images": [],
     "hold": 0,
     "params": {
      "items": [
-      "Leak test: with the gas inlet blocked, the sidestream CO2 flowrate is slower than 10 ml/min and a CO2 Filterline Err alarm is given (no leakage)."
+      "Leak test: with the sampling bend and the gas outlet blocked, the sidestream CO2 flowrate is slower than 10 ml/min and a CO2 Filterline Err alarm is given (no leakage)."
      ],
      "readings": [
       {
@@ -418,7 +450,7 @@
     }
    },
    {
-    "id": "tds-handle",
+    "id": "2rejww5ahjqx",
     "type": "check",
     "title": "N1 TDS and N1 Handle",
     "instructions": "Undock and redock the N1 with mains connected to the TDS.",
@@ -432,7 +464,7 @@
     }
    },
    {
-    "id": "network-battery",
+    "id": "lcfd4lahhjqx",
     "type": "check",
     "title": "Network, battery and production test",
     "instructions": "Run the production test under factory maintenance.",
