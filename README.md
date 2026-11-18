@@ -97,6 +97,13 @@ Still to do (cmchs-staff-schedule `TODO.md` #36–#40): watch two Thursdays from
 ## Sign-in
 Microsoft sign-in through Firebase Auth, using **the staff schedule's Firebase project** (locked to the Cass Medical tenant). Every app on this domain shares that one session, so people sign in once at the hub and never again, including after closing the browser, until they sign out. The code is in `shared/session.js`.
 
+**When sign-in stops working for everyone at once, check the client secret first.** Firebase signs people in using a client secret from the Entra app registration **CMCHS Staff Schedule**, and that secret expires on a fixed date. When it does, everyone gets "Sign-in didn't work" while the site, the deploys and Firebase's own settings all look fine (this happened on 19 Nov 2026). The sign-in page shows an error code under that message for failures it has no words for (`apps/hub/src/signin-error.js`).
+
+- **The current secret expires on 18 Nov 2028** (a Saturday). Renew it the week before. Outlook reminders are set for 16 Oct and 6 Nov 2028.
+- **To renew:** Azure portal → Entra ID → App registrations → CMCHS Staff Schedule → Certificates & secrets → New client secret, and copy its **Value** (shown only once). Then Firebase console → project `cmchsstaffschedule` → Authentication → Sign-in method → Microsoft → Client secret: paste it and save. Sign-in works again straight away; nobody needs to sign out.
+- Never put the value in this repo, a commit message or a chat. If anything else uses that app registration's secret (`AZURE_CLIENT_SECRET`), give it the new one too.
+- Afterwards, change the date above and move the reminders.
+
 Plain HTML pages join in with two lines at the top of `<head>` (the retired Service Order Parser was the last page to use them; it's in git history before it became `/service-orders/`):
 
 ```html
