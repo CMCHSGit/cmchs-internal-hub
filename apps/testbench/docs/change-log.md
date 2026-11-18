@@ -360,3 +360,9 @@ qualifies (`clearableIds`, each tried once per page load), so the button only sh
 - **Test this device** from this tab hands the device to the bench and switches to the Test Bench tab in the same page (`open-device.js`), so a test in
   progress and the USB link are not lost (the old page reloaded `/testbench/`).
 - The bench's "Not found → Add to the asset list…" now points at the Customers tab. No data, rules or storage changed.
+
+## Dragging a step to another template (18/11/2026)
+- A dragged step used to carry only its position ("step 14"). Dropped into another template (another bench window), that template's own
+  step at that position was moved instead. Now the drag carries the step itself, its template and its window: dropped in the same template it
+  moves; dropped in another template (another window's canvas, or on a template's name in the Templates list) a copy is added (new id, photos
+  and settings kept, the source's applied-part groups if the template has none, model limits dropped if the template lacks those models).

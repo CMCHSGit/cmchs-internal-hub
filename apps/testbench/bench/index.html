@@ -128,6 +128,7 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .tpl-list li button{width:100%;text-align:left;border:0;background:transparent;padding:9px 10px;border-radius:var(--radius-md);cursor:pointer;display:flex;flex-direction:column;gap:1px}
 .tpl-list li button:hover{background:var(--chs-black-05)}
 .tpl-list li button[aria-current="true"]{background:var(--chs-purple-20)}
+.tpl-list li button.drop-to{outline:2px dashed var(--chs-purple, #5b2c86);outline-offset:-2px;background:var(--chs-purple-20)}
 .tpl-list .t-name{font-weight:600;color:var(--text-strong);font-size:14px;line-height:1.3}
 .tpl-list .t-meta{font-size:12.5px;color:var(--text-muted)}
 .palette-group{margin-bottom:14px}
@@ -1984,6 +1985,18 @@ const Builder = {
     $('#tplList').innerHTML = groupTemplates(Store.templates).map(([cat, list]) => { const gc = Layout.groupColor(cat), shut = folded.has(cat) && !(cur && list.includes(cur)); return `<li class="tpl-group-li${gc ? ' hl c-' + gc : ''}" role="presentation"><button type="button" class="g-toggle" data-gtoggle="${esc(cat)}" aria-expanded="${!shut}" title="${shut ? 'Show' : 'Hide'} this group"><span class="chev">${shut ? '▸' : '▾'}</span><span>${esc(cat)}</span><span class="g-count">${list.length}</span></button></li>` + (shut ? '' : list.map(t => `<li><button type="button" data-id="${t.id}" class="${Layout.color(t) ? 'hl c-' + Layout.color(t) : ''}" aria-current="${t.id === this.tpl?.id}">
       <span class="t-name">${esc(t.name || 'Untitled template')}</span><span class="t-meta">${t.steps.length} step${t.steps.length === 1 ? '' : 's'}${t.shared ? ` · <span class="shared-tag${t.sharedDirty ? ' dirty' : ''}">${t.sharedDirty ? 'Shared, changed here' : 'Shared'}</span>` : ''}</span></button></li>`).join('')); }).join('');
     $$('#tplList button[data-id]').forEach(b => b.addEventListener('click', () => { this.tplId = b.dataset.id; this.selId = null; this.renderAll(); }));
+    // A step dragged onto another template's name is copied to the end of that template (its own name: nothing happens).
+    $$('#tplList button[data-id]').forEach(b => {
+      const ok = (e) => e.dataTransfer.types.includes(STEP_DRAG) && b.dataset.id !== this.tpl?.id;
+      b.addEventListener('dragover', (e) => { if (!ok(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; b.classList.add('drop-to'); });
+      b.addEventListener('dragleave', () => b.classList.remove('drop-to'));
+      b.addEventListener('drop', (e) => {
+        b.classList.remove('drop-to'); if (!ok(e)) return; e.preventDefault();
+        const d = readStepDrag(e.dataTransfer), t = Store.get(b.dataset.id); if (!d || !t) return;
+        const c = addStepCopy(t, d); Store.save(t); this.renderTplList();
+        toast(`Copied “${c.title}” to the end of ${t.name}`);
+      });
+    });
     $$('#tplList [data-gtoggle]').forEach(b => b.addEventListener('click', () => { Collapsed.toggle('tpl', b.dataset.gtoggle); this.renderTplList(); }));
   },
   renderHeader() {
@@ -2039,12 +2052,12 @@ const Builder = {
       if (e.target.closest('.icon-btn')) return;
       this.select(card.dataset.id);
     });
-    el.addEventListener('dragstart', (e) => { const card = e.target.closest('.stepcard'); if (!card) return; dragIdx = +card.dataset.i; card.classList.add('dragging'); e.dataTransfer.setData('application/x-bench-step', card.dataset.i); e.dataTransfer.effectAllowed = 'move'; });
+    el.addEventListener('dragstart', (e) => { const card = e.target.closest('.stepcard'); if (!card) return; dragIdx = +card.dataset.i; card.classList.add('dragging'); const step = this.tpl.steps[dragIdx]; e.dataTransfer.setData(STEP_DRAG, JSON.stringify({ win: WINDOW_ID, tpl: this.tpl.id, from: this.tpl.name, id: step.id, step, appliedParts: this.tpl.appliedParts })); e.dataTransfer.effectAllowed = 'copyMove'; });
     el.addEventListener('dragend', () => { dragIdx = null; $$('.stepcard.dragging', el).forEach(c => c.classList.remove('dragging')); clearLine(); });
     el.addEventListener('dragover', (e) => {
       const types = e.dataTransfer.types;
-      if (!types.includes('application/x-bench-type') && !types.includes('application/x-bench-step')) return;
-      e.preventDefault(); e.dataTransfer.dropEffect = types.includes('application/x-bench-step') ? 'move' : 'copy';
+      if (!types.includes('application/x-bench-type') && !types.includes(STEP_DRAG)) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = types.includes(STEP_DRAG) && dragIdx != null ? 'move' : 'copy';   // dragIdx is set only by a drag that started in this canvas
       const cards = $$('.stepcard', el); const idx = indexAt(e.clientY);
       if (!cards.length) { el.classList.add('drag-over'); return; }
       if (!line) { line = document.createElement('div'); line.className = 'drop-line'; }
@@ -2055,8 +2068,11 @@ const Builder = {
       e.preventDefault(); const idx = indexAt(e.clientY); clearLine();
       const type = e.dataTransfer.getData('application/x-bench-type');
       if (type && TYPES[type]) { this.insertStep(type, idx); return; }
-      const from = e.dataTransfer.getData('application/x-bench-step');
-      if (from !== '') { const st = this.tpl.steps; const f = +from; const [m] = st.splice(f, 1); st.splice(idx > f ? idx - 1 : idx, 0, m); this.changed(true); }
+      const d = readStepDrag(e.dataTransfer); if (!d || !this.tpl) return;
+      const st = this.tpl.steps, f = st.findIndex(x => x.id === d.id);
+      if (d.win === WINDOW_ID && d.tpl === this.tpl.id && f >= 0) { const [m] = st.splice(f, 1); st.splice(idx > f ? idx - 1 : idx, 0, m); this.changed(true); return; }   // within this template: moved
+      const c = addStepCopy(this.tpl, d, idx); this.selId = c.id; this.changed(true); this.renderInspector();   // from another template or window: copied
+      toast(`Copied “${c.title}” from ${d.from || 'another template'}`);
     });
   },
   insertStep(type, at) {
@@ -4085,6 +4101,20 @@ function ansurToRun(xmlText, fileName) {
 }
 
 /* ======================= copy steps between templates ======================= */
+/** A step copied into another template: a new id, its photos and settings kept. */
+const copyOfStep = (s) => newStep(s.type, { title: s.title, instructions: s.instructions || '', hold: s.hold || 0, images: clone(s.images || []), params: clone(s.params || {}), models: Array.isArray(s.models) ? [...s.models] : undefined });
+/** This window, so a step dragged into another window of the bench is copied there, never taken as a position in its template. */
+const WINDOW_ID = uid();
+/** What a dragged step carries: the step itself, its template and window (a position alone picks a different step in another template). */
+const STEP_DRAG = 'application/x-bench-step';
+function readStepDrag(dt) { try { const d = JSON.parse(dt.getData(STEP_DRAG) || 'null'); return d && d.step && TYPES[d.step.type] ? d : null; } catch { return null; } }
+/** Adds a copy of a dragged step to a template; steps that use applied parts bring the source's groups if the template has none. */
+function addStepCopy(t, d, at) {
+  const c = copyOfStep(d.step); t.steps.splice(at == null ? t.steps.length : at, 0, c);
+  if (['esa_pat', 'esa_map'].includes(c.type) && !Array.isArray(t.appliedParts) && d.appliedParts) t.appliedParts = clone(d.appliedParts);
+  if (c.models && !(tplModels(t).length > 1 && c.models.every(m => tplModels(t).includes(m)))) delete c.models;   // models the template doesn't have: applies to all
+  return c;
+}
 async function copyStepsDialog() {
   const t = Builder.tpl; if (!t) return;
   let source = Store.templates.find(x => x.id !== t.id) || null, fileSteps = null, picked = new Set();
@@ -4108,7 +4138,7 @@ async function copyStepsDialog() {
     } });
   if (!res || !picked.size) return;
   const src = fileSteps || source?.steps || [];
-  const copies = [...picked].sort((a, b) => a - b).map(i => { const s = src[i]; return newStep(s.type, { title: s.title, instructions: s.instructions || '', hold: s.hold || 0, images: clone(s.images || []), params: clone(s.params || {}), models: Array.isArray(s.models) ? [...s.models] : undefined }); });
+  const copies = [...picked].sort((a, b) => a - b).map(i => copyOfStep(src[i]));
   const si = t.steps.findIndex(x => x.id === Builder.selId); const at = si >= 0 ? si + 1 : t.steps.length;
   t.steps.splice(at, 0, ...copies);
   // Steps that use applied parts need the template to have groups; take them from the source if this template has none.
