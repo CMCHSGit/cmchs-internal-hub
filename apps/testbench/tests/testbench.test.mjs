@@ -431,3 +431,30 @@ test('a step already answered (a Pass clicked by mistake) can be skipped: asked 
   assert.ok(html.includes(`id="stSkip" \${r.status === 'skipped' ? 'hidden' : ''}`) && html.includes(`sk.hidden = st === 'skipped'`), 'Skip is offered on every step that is not already skipped, and follows the step as it changes')
   assert.ok(html.includes('Skip this step?') && html.includes(`r.rows = []; log('in', 'RUN', 'A recorded step was skipped`), 'it asks, then clears what was recorded')
 })
+
+test('Saved reports sits beside the bench (not a tab); Previous tests rows download the PDF and the Ansur record; the bench says when a test is running', async () => {
+  const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
+  const css = readFileSync(new URL('../src/testbench.css', import.meta.url), 'utf8')
+  // the hub: no Saved reports tab, a pane beside the bench that gives way while a test runs, a button to show or hide it
+  assert.ok(!section.includes("aria-selected={tab === 'reports'}") && !section.includes("setTab('reports')") && !section.includes("tab === 'reports'"), 'no Saved reports tab')
+  assert.ok(section.includes('className="tb-side"') && section.includes('className={`tb-split') && section.includes('tb-side-toggle') && section.includes("m?.type === 'chs-bench:state'"), 'the pane, the toggle and the bench\'s state message')
+  assert.ok(section.includes('benchState.testing') && section.includes('hidden={!showSide}'), 'it is hidden, not unmounted, while a test runs')
+  assert.ok(css.includes('.tb-split.has-side { grid-template-columns: minmax(0, 1fr) minmax(440px, 44%)') && css.includes('@media (max-width: 1100px)'), 'side by side when wide, stacked when narrow')
+  // the bench: says which page is open and whether a test is running; a PDF and .mtr download on each finished row
+  assert.ok(bench.includes("type: 'chs-bench:state', view, testing") && bench.includes('watchState()'), 'the state message')
+  assert.ok(bench.includes('data-dl="pdf"') && bench.includes('data-dl="mtr"') && bench.includes("${r.imported ? '' : `<button type=\"button\" class=\"btn ghost sm\" data-dl=\"mtr\""), 'PDF on every finished test, .mtr not on one imported from an Ansur record')
+  assert.ok(bench.includes("${r.inProgress ? '' : `<button type=\"button\" class=\"btn ghost sm\" data-dl=\"pdf\""), 'nothing to download for a test still in progress')
+  assert.ok(bench.includes("download(outName(run, 'pdf', when), new Blob([await ReportPdf.build(run)]") && bench.includes("download(outName(run, 'mtr', when), new Blob([buildMtr(run)]"), 'a plain download, no folder to choose')
+  // outName: the file is named for the day the test was run when asked (a download from Previous tests), today otherwise
+  const fn = bench.match(/function outName\(run, ext, when\) \{[\s\S]*?\n\}/)[0]
+  const outName = new Function('otherDevices', 'safeName', `${fn}; return outName`)(() => [], (s) => String(s))
+  const ran = new Date(2026, 10, 2, 12).toISOString(), today = new Date()
+  assert.equal(outName({ dut: { 'Serial number': 'AB1', Model: 'A9' } }, 'pdf', ran), 'AB1 - A9 02.11.2026.pdf')
+  assert.equal(outName({ dut: { 'Serial number': 'AB1', Model: 'A9' }, attempt: 2 }, 'mtr', ran), 'AB1 - A9 02.11.2026 (rerun 2).mtr')
+  assert.equal(outName({ dut: { 'Serial number': 'AB1' } }, 'pdf'), `AB1 ${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}.pdf`)
+  // the New equipment link is out of the tools list; the old address still goes to the Customers tab
+  const tools = JSON.parse(readFileSync(new URL('../../../tools.json', import.meta.url), 'utf8'))
+  assert.ok(!tools.some((t) => t.id === 'new-equipment'), 'no New equipment entry')
+  assert.ok(readFileSync(new URL('../../hub/src/router.js', import.meta.url), 'utf8').includes("'/new-equipment/'"), '/new-equipment/ is still routed')
+})
