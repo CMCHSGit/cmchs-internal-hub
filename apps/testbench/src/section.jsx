@@ -456,7 +456,7 @@ function TestBench() {
   // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
   const modelKey = useMemo(() => [...new Set(tests.map(modelOf))].sort().join('\n'), [tests])
   askColours.current = () => { if (modelKey) toBench({ type: 'chs-bench:model-colours', id: String(Date.now()), models: modelKey.split('\n') }) }
-  // The bar under the bench shows except while a test is running or Templates / Devices / Log is open (the bench gets the whole height then).
+  // The bar at the right of the bench shows except while a test is running or Templates / Devices / Log is open (the bench gets the whole height then).
   const showBar = tab === 'bench' && !benchState.testing && benchState.view === 'run'
   useEffect(() => { if (showBar) { askColours.current(); const t = setTimeout(() => askColours.current(), 2500); return () => clearTimeout(t) } return undefined }, [showBar, modelKey])   // again a moment later, in case the bench was still loading
   // What the bench's table shows beside each test (sent to which job, downloaded) comes from the bar's own list of tests.
@@ -486,7 +486,7 @@ function TestBench() {
       </div>
 
       {/* The bench stays loaded (hidden) while another tab is open: a test in progress and the USB connection stay as they are. */}
-      <div className="tb-split" hidden={tab !== 'bench'}>
+      <div className={`tb-split${showBar ? ' has-bar' : ''}`} hidden={tab !== 'bench'}>
         <div className="tb-main">
           <iframe ref={frame} className="tb-frame" src={BENCH_URL} title="CHS Test Bench" allow="serial; clipboard-write; fullscreen" />
           {tab === 'bench' && justSaved.length > 0 && (
@@ -495,11 +495,12 @@ function TestBench() {
               <Button variant="ghost" size="sm" onClick={() => setJustSaved([])}>Dismiss</Button>
             </div>
           )}
-          {/* Under the bench's Previous tests table: downloads, prints or attaches the tests ticked there. Kept mounted while hidden (a test is running). */}
-          {tab === 'bench' && (
-            <div className="tb-bottom" hidden={!showBar}>
-              <Reports
-                barOnly ticked={ticked} onStatuses={sendStatuses} onClearTicks={clearTicks}
+        </div>
+        {/* At the right of the bench: downloads, prints or attaches the tests ticked in its Previous tests table. Kept mounted while hidden (a test is running). */}
+        {tab === 'bench' && (
+          <div className="tb-bar" hidden={!showBar}>
+            <Reports
+              barOnly ticked={ticked} onStatuses={sendStatuses} onClearTicks={clearTicks}
               reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
               onJob={onJob} onJobFiles={noteJobFiles}
               orders={orders} status={status} onClearShared={clearShared} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
@@ -509,10 +510,9 @@ function TestBench() {
               onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
               onSendWaiting={() => sendWaiting()}
               onRetryFailed={async () => { await retryFailed(outboxStore); await refreshOutbox(); sendWaiting() }}
-              />
-            </div>
-          )}
-        </div>
+            />
+          </div>
+        )}
       </div>
       {tab === 'orders' && (
         <Orders
