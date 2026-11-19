@@ -1,5 +1,5 @@
-// The weekly team update email, brought in from Gmail by
-// backend/apps-script/news-inbox: `newsInbox/{id}` = { subject, html, text,
+// The weekly team update email, saved to a Google Drive folder by a Power
+// Automate flow and brought in by backend/apps-script/news-inbox: `newsInbox/{id}` = { subject, html, text,
 // receivedAtMs, status: 'new' | 'used' | 'dismissed', doneAtMs }.
 // Manage → News offers each new one; "Make drafts" opens it in Paste an email
 // already split, and posting marks it used. Rules: anyone who may post news
@@ -10,7 +10,7 @@ import { log } from './log.js'
 const devMode = import.meta.env?.DEV && !import.meta.env?.VITE_FIREBASE_API_KEY
 const local = new Map()
 if (devMode) {
-  local.set('gmail-dev', {
+  local.set('drive-dev', {
     subject: 'Next few weeks of places to be', receivedAtMs: Date.now() - 3600e3, status: 'new', text: '',
     html: '<p>Hi All,</p><p><b>The week that’s been</b></p><ul><li>Jack installed the new monitors at Waikato Hospital</li><li>Theresa ran training at Middlemore</li></ul><p><b>Next week</b></p><ul><li>Pat is in Christchurch for the Burwood demo</li></ul><p>Thanks,</p>',
   })
