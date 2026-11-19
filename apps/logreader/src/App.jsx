@@ -4,9 +4,10 @@
    (or "Close logs") forgets them. Which device it is decides the extras (the
    defibrillator gets a shock table); other devices just get the viewer. */
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
-import { FileText, FolderOpen, Lock, X } from 'lucide-react'
+import { FileArchive, FileText, FolderOpen, Folders, Lock, X } from 'lucide-react'
 import { Alert, Button, Spinner } from '../../../shared/ui/index.jsx'
 import { openFiles, loadFamily } from './load.js'
+import { findExports, itemsFromDrop, itemsFromInput } from './folder.js'
 import { fmtTime, mergeLines } from './lines.js'
 import { profileFor } from './profiles.js'
 import { LogView } from './LogView.jsx'
@@ -19,6 +20,7 @@ const day = (t) => fmtTime(t).slice(0, 10)
 
 export default function App() {
   const [session, setSession] = useState(null)
+  const [found, setFound] = useState(null) // the exports found in a chosen folder or files: { list, label, skipped, more }
   const [on, setOn] = useState([]) // ticked log names, in the order they were ticked
   const [tab, setTab] = useState('logs')
   const [jump, setJump] = useState(null)
@@ -27,15 +29,17 @@ export default function App() {
   const [drag, setDrag] = useState(false)
   const [, bump] = useReducer(x => x + 1, 0)
   const fileRef = useRef(null)
+  const dirRef = useRef(null)
 
   const names = useMemo(() => session ? session.families.map(f => f.name) : [], [session])
   const byName = useMemo(() => new Map((session?.families || []).map(f => [f.name, f])), [session])
   const profile = useMemo(() => profileFor(names), [names])
 
-  const open = useCallback(async (files) => {
+  // Opens one export (a log.tar, a zip, or a set of loose logs) and reads the logs the device type needs first.
+  const openExport = useCallback(async (exp) => {
     setError(''); setBusy('Opening…')
     try {
-      const s = await openFiles(files, setBusy)
+      const s = await openFiles(exp.files, setBusy, exp.name)
       const all = s.families.map(f => f.name)
       const p = profileFor(all)
       const first = p ? p.firstFamilies.filter(n => all.includes(n)) : []
@@ -45,6 +49,17 @@ export default function App() {
       setError(e.message || 'That file could not be read.')
     } finally { setBusy('') }
   }, [])
+
+  // What a person chose or dropped: sort it into exports; open it straight away if there is only one, else let them pick.
+  const ingest = useCallback(async (items, label) => {
+    setError('')
+    if (!items.length) { setError('Nothing was chosen.'); return }
+    const f = findExports(items)
+    if (!f.exports.length) { setError(`No logs were found in that (${items.length.toLocaleString('en-NZ')} files looked at). The Log Reader opens log.tar, .zip and .tar.gz exports and .log, .txt and .lzo files.`); return }
+    setFound({ ...f, list: f.exports, label })
+    if (f.exports.length === 1) await openExport(f.exports[0])
+    else { setSession(null); setOn([]); setJump(null) }
+  }, [openExport])
 
   const toggle = async (name) => {
     if (on.includes(name)) { setOn(on.filter(n => n !== name)); return }
@@ -56,7 +71,7 @@ export default function App() {
   }
 
   const lines = useMemo(() => mergeLines(on.map(n => byName.get(n).lines)), [on, byName])
-  const close = () => { setSession(null); setOn([]); setJump(null); setError('') }
+  const close = () => { setSession(null); setFound(null); setOn([]); setJump(null); setError('') }
 
   const fam = profile?.families
   const backend = fam && byName.get(fam.backend)?.lines
@@ -80,35 +95,69 @@ export default function App() {
     setTab('logs'); setJump({ t: line.t, line })
   }
 
-  const pickFiles = (files) => { if (files && files.length) open(files) }
-  const dropFiles = (e) => { e.preventDefault(); setDrag(false); pickFiles(e.dataTransfer.files) }
+  const pickFiles = (files, label) => { if (files && files.length) ingest(itemsFromInput(files), label) }
+  const dropFiles = (e) => {
+    e.preventDefault(); setDrag(false)
+    setBusy('Looking through what you dropped…')
+    // itemsFromDrop has to start inside this event, before anything is awaited
+    itemsFromDrop(e.dataTransfer).then(items => ingest(items, 'what you dropped')).catch(err => setError(err.message || 'That could not be read.')).finally(() => setBusy(''))
+  }
   const over = (e) => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); setDrag(true) } }
 
   const input = <input ref={fileRef} type="file" multiple hidden accept=".tar,.zip,.gz,.tgz,.log,.txt,.lzo,.0,.1,.2,.3,.4,.5" onChange={e => { const f = [...e.target.files]; e.target.value = ''; pickFiles(f) }} />
+  const dirInput = <input ref={dirRef} type="file" hidden webkitdirectory="" directory="" onChange={e => { const f = [...e.target.files]; e.target.value = ''; pickFiles(f, f[0]?.webkitRelativePath?.split('/')[0]) }} />
 
   // data-working: opened logs exist only in this tab, so the app must not reload onto a new version under them (shared/updateGuard.js).
   return (
-    <div className="lr" onDragOver={over} onDragLeave={() => setDrag(false)} onDrop={dropFiles} data-drag={drag ? '' : undefined} data-working={session ? '' : undefined}>
-      {input}
+    <div className="lr" onDragOver={over} onDragLeave={() => setDrag(false)} onDrop={dropFiles} data-drag={drag ? '' : undefined} data-working={session || found ? '' : undefined}>
+      {input}{dirInput}
       <div className="lr-top">
         <h1 className="lr-title"><FileText size={20} aria-hidden /> Log Reader</h1>
         {session && <span className="lr-source" title={session.source}>{session.source}</span>}
         <span className="lr-privacy"><Lock size={14} aria-hidden /> Read on this device only. Nothing is uploaded or saved.</span>
         <span className="lr-spacer" />
-        <Button variant="secondary" size="sm" iconLeft={<FolderOpen size={16} />} onClick={() => fileRef.current.click()} disabled={!!busy}>{session ? 'Open another' : 'Open logs'}</Button>
-        {session && <Button variant="ghost" size="sm" iconLeft={<X size={16} />} onClick={close}>Close logs</Button>}
+        {session && found?.list.length > 1 && <Button variant="secondary" size="sm" iconLeft={<Folders size={16} />} onClick={() => { setSession(null); setOn([]); setJump(null) }}>All {found.list.length} exports</Button>}
+        <Button variant="secondary" size="sm" iconLeft={<FolderOpen size={16} />} onClick={() => dirRef.current.click()} disabled={!!busy}>Open folder</Button>
+        <Button variant="secondary" size="sm" onClick={() => fileRef.current.click()} disabled={!!busy}>Open files</Button>
+        {(session || found) && <Button variant="ghost" size="sm" iconLeft={<X size={16} />} onClick={close}>Close logs</Button>}
       </div>
 
       {error && <Alert tone="critical" title="Couldn’t open that" className="lr-alert" action={<Button variant="ghost" size="sm" onClick={() => setError('')}>Dismiss</Button>}>{error}</Alert>}
       {busy && <div className="lr-busy" role="status"><Spinner size={18} /> {busy}</div>}
 
-      {!session ? (
+      {!session && found && found.list.length > 1 ? (
+        <div className="lr-start">
+          <div className="lr-picker">
+            <h2>{found.list.length}{found.more ? '+' : ''} exports in {found.label || 'that folder'}</h2>
+            <p className="lr-fine">Each log.tar, zip or set of loose log files is one device’s export. Pick one to read. Nothing is read until you do.</p>
+            <ul>
+              {found.list.map(e => (
+                <li key={e.id}>
+                  <button type="button" className="lr-exp" onClick={() => openExport(e)} disabled={!!busy}>
+                    {e.kind === 'archive' ? <FileArchive size={20} aria-hidden /> : <FileText size={20} aria-hidden />}
+                    <span className="lr-exp-t">
+                      <span className="lr-exp-n">{e.name}</span>
+                      <span className="lr-exp-s">{[e.detail, e.where && e.where !== e.name ? e.where : '', mb(e.size)].filter(Boolean).join(' · ')}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {found.more > 0 && <p className="lr-fine">{found.more} more were found; choose a smaller folder to see them.</p>}
+            {found.skipped > 0 && <p className="lr-fine">{found.skipped.toLocaleString('en-NZ')} other files in the folder aren’t logs and were left alone (pictures, documents, databases, crash dumps).</p>}
+          </div>
+        </div>
+      ) : !session ? (
         <div className="lr-start">
           <div className="lr-drop">
             <FileText size={40} aria-hidden />
             <h2>Open a device’s logs</h2>
-            <p>Drop a device’s <b>log.tar</b> or service <b>.zip</b> here (a defibrillator’s Orbit export, an A5 service export, a monitor’s log tar), or loose <b>.log</b>, <b>.txt</b> and <b>.lzo</b> files.</p>
-            <Button iconLeft={<FolderOpen size={16} />} onClick={() => fileRef.current.click()} disabled={!!busy}>Choose a file</Button>
+            <p>Drop a <b>folder</b> here and the Log Reader finds every export in it, or drop a device’s <b>log.tar</b> or service <b>.zip</b> (a defibrillator’s Orbit export, an A5 service export, a monitor’s log tar), or loose <b>.log</b>, <b>.txt</b> and <b>.lzo</b> files.</p>
+            <div className="lr-drop-btns">
+              <Button iconLeft={<FolderOpen size={16} />} onClick={() => dirRef.current.click()} disabled={!!busy}>Open a folder</Button>
+              <Button variant="secondary" onClick={() => fileRef.current.click()} disabled={!!busy}>Choose files</Button>
+            </div>
+            <p className="lr-fine">Choosing a folder may make your browser say it will “upload” the files. That is just its wording: they stay on this device.</p>
             <p className="lr-fine">The logs are read in this browser tab and forgotten when you close it. They are not sent anywhere, saved in the hub or kept for next time.</p>
             <p className="lr-fine">Defibrillators get a shock-to-print table. Other Mindray devices open in the same viewer, and get their own extras as they are added.</p>
           </div>

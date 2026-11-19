@@ -11,6 +11,7 @@ serial number (tests use made-up lines).
 |---|---|
 | `src/tar.js` | Reads a `log.tar` held in memory (ustar, GNU long names, pax). |
 | `src/lzo.js` | `.lzo` (lzop) → bytes. Port of a small LZO1X decompressor, checked against a real export; corrupt data throws. |
+| `src/folder.js` | Opening a folder (a dropped folder, or the "Open folder" button): `findExports` sorts files into exports (each archive is one; loose logs in a folder are one more), nothing is read until one is picked. |
 | `src/zip.js` | Reads a `.zip` and gunzips `.gz` with the browser's own DecompressionStream (stored/deflate, no zip64, no passwords). |
 | `src/alarms.js`, `AlarmsTab.jsx` | The Alarms tab: begin/end alarm records in `BackendLog` (priority High/Medium/Low/Prompt/Exclusive, type Technical/Physiological) paired into events, with filters. Shown as the device logs them. |
 | `src/lines.js` | Parses `MM/DD/YY HH:MM:SS [thread] LEVEL- message [Src.cpp:12]` (thread optional, may be in brackets) and syslog (`Oct 14 21:32:54 HOST user.debug ...`, year taken from the file's date), merges files, time helpers, CSV cell. Times are "as the device wrote them" (UTC-ms only to avoid DST shifts). 01/01/70 lines are `early` and borrow a neighbour's time. |
