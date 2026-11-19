@@ -69,7 +69,7 @@ test('the draft key is the one Simpro Jobs reads; the bar offers the link and th
   const review = readFileSync(new URL('../../simprojobs/src/Review.jsx', import.meta.url), 'utf8')
   const bar = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(app.includes(`const DRAFT_KEY = '${DRAFT_KEY}'`), 'the same sessionStorage key as Simpro Jobs')
-  assert.ok(bar.includes('startJobFor(visible.filter((g) => chosen.has(g.base)))') && bar.includes('href="/simprojobs/"') && bar.includes('Nothing is created before that.') && bar.includes('canSimpro && picked > 0 && !job'), 'the link is only offered with Simpro access, ticked tests and no job chosen')
+  assert.ok(bar.includes('startJobFor(visible.filter((g) => chosen.has(g.base)))') && bar.includes('href="/simprojobs/"') && bar.includes('nothing is created before that.') && bar.includes('canSimpro && picked > 0 && !job'), 'the link is only offered with Simpro access, ticked tests and no job chosen')
   assert.ok(review.includes('readReturn()') && review.includes('returnHref(back, run.jobId)') && review.includes("outcome?.state === 'done'"), 'the way back appears only once the job is made')
   assert.ok(!bar.includes('createJob') && !/POST/.test(readFileSync(new URL('../src/jobDraft.js', import.meta.url), 'utf8')), 'nothing here creates a job: it only fills in a form')
 })

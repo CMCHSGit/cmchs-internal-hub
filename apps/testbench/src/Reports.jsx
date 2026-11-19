@@ -466,13 +466,11 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
             <div className="tb-actionbar-row tb-attach">
               <span>Attach the PDFs to Simpro job:</span>
               <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} job={job} onJob={setJob} disabled={!!sim.access} />
+              {canSimpro && picked > 0 && !job && (
+                <a className="btn btn-secondary tb-nojob" href="/simprojobs/" onClick={() => startJobFor(visible.filter((g) => chosen.has(g.base)))} title="Opens the new-job form in Simpro Jobs with the title and description filled in. You pick the customer and site, review it and press Create: nothing is created before that.">No job yet? Create one…</a>
+              )}
               <Button disabled={busy || !job || !(attachCount || hasUpdate)} onClick={attach} title="Only the PDF reports go to the job; the notes, stage and status below are added to it as well">{attachCount ? `${canSimpro ? 'Attach' : 'Queue'} ${attachCount} PDF${attachCount === 1 ? '' : 's'} ${canSimpro ? 'to' : 'for'} ${job ? job.label.split(' ')[0] : 'job'}${hasUpdate ? ' and update it' : ''}` : hasUpdate ? `Update ${job ? job.label.split(' ')[0] : 'job'}` : `${canSimpro ? 'Attach PDFs to' : 'Queue PDFs for'} ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
             </div>
-            {canSimpro && picked > 0 && !job && (
-              <p className="tb-muted tb-nojob">No job for {picked === 1 ? 'this test' : 'these tests'} yet?{' '}
-                <a href="/simprojobs/" onClick={() => startJobFor(visible.filter((g) => chosen.has(g.base)))}>Create one in Simpro Jobs</a>.
-                {' '}It opens the new-job form with the title and description filled in; you pick the customer and site, review it and press Create. Nothing is created before that.</p>
-            )}
             {job && (
               <details className="tb-jobupd" open={hasUpdate || undefined}>
                 <summary>Update the job: notes, stage and status <span className="tb-muted">(optional){jobInfo ? ' · now ' + [jobInfo.Stage, jobInfo.Status?.Name].filter(Boolean).join(' · ') : ''}</span></summary>
