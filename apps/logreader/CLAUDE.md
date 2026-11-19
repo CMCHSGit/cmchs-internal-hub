@@ -1,5 +1,7 @@
 # Log Reader (`/logreader/`)
 
+**No menu shortcut yet, on purpose:** reach it at `/logreader/`. When it is ready for everyone, add a `logreader` card to `tools.json` (category Service) and the id to `SERVICE_TOOL_IDS` in `apps/hub/src/tools.js`.
+
 Opens a Mindray device's log export in the browser and lets you search it. **The logs
 never leave the tab:** no upload, no Firestore, no localStorage / IndexedDB / cache. They are
 customer logs (restricted); keep it that way, and never commit a real log or a
