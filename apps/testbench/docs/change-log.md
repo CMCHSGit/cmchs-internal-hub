@@ -420,3 +420,13 @@ When protective earth resistance fails in the auto sequence and the lead wasn't 
 
 ## Rad-97: NomoLine capnography step (19/11/2026)
 The Masimo Rad-97 template has a **Capnography (NomoLine)** check after SpO2, from the CHS Ansur template "Rad-97 Nomoline AS-NZS 3551 EST and PVT" (record 1.10.2021): the LEGI connector shows steady green; breathing into the sampling line gives a valid CO2 waveform and values; blocking the line gives an occlusion alarm with the LEGI connector flashing red. Skipped on a Rad-97 without CO2. The plain Rad-97 Ansur template (used for the 2025 records) has no CO2 test.
+
+## Ansur import sets templates up the CHS way (20/11/2026)
+Templates → Import of an Ansur .mtt / .mtr now opens a review before saving (`ansurReview`, with the pure functions `ansurCleanName`, `ansurLimitIssues`, `ansurProsimSuggestions`, `ansurDuplicates`, `ansurApplyReview` next to `ansurToTemplate`):
+- name without the serial, standard and date, prefixed with the make from a record (`info.manufacturer` / `info.model`; never serial, customer or engineer); group; manufacturer; the CHS device details;
+- applied part types (B / BF / CF);
+- electrical safety limits against AS/NZS 3551 as the templates use it (PE 0.2 Ω; insulation mains–PE and mains–non-earthed 1 MΩ, the others recorded; enclosure 100/500/500 µA; earth leakage 5000/10000 µA, B11.6) and a protective earth test added for a Class I device that has none. Each is **AS/NZS 3551** or **Keep Ansur**; both lists go in the description ("Changed from Ansur", "Kept as in Ansur … for Jonathan to confirm");
+- typed checks to ProSim steps by title or by Ansur section ("5.4.1 ECG Test and Calibration: HR Value"): ECG → normal sinus at the middle of the HR limits, respiration, SpO2 (97 %, probe from the make; unticked when measured on a finger), NIBP → pressure gauge, IBP static, temperature (unticked for IR / ear). The first reading becomes the monitor check, the rest and the items stay as extra checks; sections left typed are gathered in their original order;
+- a container repeated in the file (Vetal 3 has "Performance Testing" twice, the second with Temperature Channel 2) is left out, the fuller copy kept;
+- optional save to the shared templates folder (`Shared.save`). **Import as it is** keeps the old straight conversion.
+Checked in the preview with the Vetal 3 (17.12.2025) and Rad-97 (11.07.2025) records: the Vetal 3 result matches the hand-made template's structure (PE added, limits corrected, ECG/resp/NIBP gauge/temp as ProSim steps, SpO2 typed, CO2 typed). Saving to the shared folder goes through the existing Save to shared folder code, not tried from the review here.

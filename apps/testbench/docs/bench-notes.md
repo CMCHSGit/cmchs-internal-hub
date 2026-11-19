@@ -37,7 +37,7 @@ Line numbers are approximate. Everything is global objects in one `<script>`.
 | ~2960 | `Records` | Previous tests list, open results files and Ansur `.mtr` records (`ansurToRun`) |
 | ~3099 | `copyStepsDialog` | copy steps between templates |
 | ~3131 | Ansur export | `toCp1252`, `crc32`, `buildMtr(run)`, `exportMtr` |
-| ~3284 | Ansur import | `ansurToTemplate(xml)` (.mtt/.mtr to template) |
+| ~3284 | Ansur import | `ansurToTemplate(xml)` (.mtt/.mtr to template), then the review `ansurReview` (CHS name, limits vs AS/NZS 3551, ProSim steps, repeats; pure helpers `ansur*` beside it) |
 | ~3418 | `ReportPdf` | PDF via pdf-lib (Helvetica/WinAnsi) |
 | ~3556 | `Results` | saving to the Results folder (falls back to download); `outName(run, ext)` |
 | ~3617 | `App` | init (DB, Store, Shared.init, event binding, `Runner.offerRestore()`), view switching |

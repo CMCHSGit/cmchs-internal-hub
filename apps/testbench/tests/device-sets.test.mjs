@@ -141,3 +141,79 @@ test('a protective earth failure measured without zeroing offers to zero the lea
   assert.match(html, /choice === 'retest' \|\| choice === 'zero'\) \{[^\n]*this\.runEsa\(this\.steps\[i\], \{ auto: true, zero: choice === 'zero' \}\)/)
   assert.match(html, /await this\.esaSend\(link, 'IDLE'\); await this\.esaSend\(link, 'ERES'\); await this\.esaSend\(link, 'ZERO'\);/)
 })
+
+test('an Ansur import is reviewed: clean name, CHS details, AS/NZS 3551 limits chosen (never silently), ProSim steps offered', () => {
+  const a = html.indexOf('/* ======================= Ansur import review'), b = html.indexOf('async function ansurReview(')
+  let n = 0
+  const same = (x, y, m) => assert.deepEqual(JSON.parse(JSON.stringify(x)), y, m)
+  const types = { check: {}, esa_pe: { label: 'Protective earth resistance' },
+    ps_spo2: { label: 'SpO2', instructions: 'Connect the SpO2 sensor to the ProSim 8 finger.', summary: (s) => `${s.params.sat}%` },
+    ps_nsr: { label: 'ECG normal sinus', instructions: 'Connect the ECG leads to the ProSim 8.', summary: (s) => `${s.params.rate} bpm` },
+    ps_gauge: { label: 'Pressure gauge (ProSim)', instructions: 'Gauge.', summary: () => 'PRESSX' },
+    ps_resp: { label: 'Respiration', instructions: '', summary: (s) => `${s.params.rate} brpm` },
+    ps_temp: { label: 'Temperature', instructions: '', summary: (s) => s.params.t } }
+  const ctx = { TYPES: types, clone: (x) => JSON.parse(JSON.stringify(x)), monitorCheck: (label, unit, lo, hi) => ({ enabled: true, label, unit, lo, hi }),
+    TEMPS: Array.from({ length: 25 }, (_, i) => (30 + i * 0.5).toFixed(1)),
+    uid: () => `u${++n}`,
+    newStep: (type, over) => ({ id: `new${++n}`, type, images: [], hold: 0, instructions: '', ...over }) }
+  const L = vm.runInNewContext(html.slice(a, b) + '; ({ ansurCleanName, ansurLimitIssues, ansurProsimSuggestions, ansurApplyReview, ansurDuplicates, CHS_DUT })', ctx)
+  assert.equal(L.ansurCleanName('Rad-97 ASNZ 3551, EST + PVT 11.07.2025', 'Masimo'), 'Masimo Rad-97')
+  assert.equal(L.ansurCleanName('0000-Rad-97 Nomoline AS-NZS 3551 EST and PVT Master', ''), 'Rad-97 Nomoline')
+  assert.equal(L.ansurCleanName('SN-Vetal 3 AS-NZS 3551 EST and PVT', 'Mindray'), 'Mindray Vetal 3')
+  const conv = { steps: [
+    { type: 'check', title: 'Visual Inspection', params: { items: ['Case OK'] } },
+    { type: 'esa_mains', title: 'Mains voltage', params: {} },
+    { type: 'esa_ins', title: 'Insulation: mains to protective earth', params: { target: 'MINS', lo: 2 } },
+    { type: 'esa_encl', title: 'Enclosure leakage', params: { conds: [{ c: 'NC', hi: 500 }, { c: 'ON', hi: 100 }, { c: 'OE', hi: 500 }] } },
+    { type: 'esa_earthl', title: 'Earth leakage', params: { conds: [{ c: 'NC', hi: 500 }, { c: 'ON', hi: 1000 }] } },
+    { type: 'check', title: 'SpO2 Accuracy Test', instructions: 'Measure SpO2 on a healthy person’s finger.', params: { items: ['Pleth wave shown'], readings: [{ label: 'SpO2', unit: '%', lo: 95, hi: 100 }] } },
+    { type: 'check', title: 'ECG Heart Rate', params: { items: [], readings: [{ label: 'HR at 80 bpm', unit: 'bpm', lo: 79, hi: 81 }] } },
+    { type: 'check', title: 'NIBP accuracy', params: { items: ['Overpressure releases'], readings: [{ label: 'At 50 mmHg', unit: 'mmHg', lo: 47, hi: 53 }, { label: 'At 200 mmHg', unit: 'mmHg', lo: 197, hi: 203 }] } },
+    { type: 'check', title: 'SpO2 and NIBP', params: { items: ['x'] } },
+    { type: 'check', title: 'IR Temperature (ear)', params: { items: [], readings: [{ label: 'Temp', unit: '°C', lo: 36.8, hi: 37.2 }] } }],
+    appliedParts: [{ name: 'Probe', apclass: 'B', leads: ['RA'] }], dut: ['Serial Number', 'Configuration'] }
+  const issues = L.ansurLimitIssues(conv)
+  same(issues.map((x) => x.kind), ['ins', 'encl', 'earthl', 'addpe'], 'insulation 2 MΩ, swapped enclosure, earth 500/1000, no PE on a Class I device')
+  assert.match(issues[1].std, /NC 100, ON 500, OE 500/)
+  const sugg = L.ansurProsimSuggestions(conv, 'Mindray')
+  same(sugg.map((x) => [x.type, x.on]), [['ps_spo2', false], ['ps_nsr', true], ['ps_gauge', true], ['ps_temp', false]], 'a person’s finger and an ear thermometer are offered unticked; a mixed step is left alone')
+  assert.equal(sugg[1].step.params.rate, 80, 'the rate is the middle of the Ansur limits')
+  same(sugg[2].step.params.extra.map((x) => x.label), ['At 200 mmHg', 'Overpressure releases'], 'the other readings and items stay')
+  assert.equal(sugg[0].step.params.probe, 'MINDR')
+  const out = L.ansurApplyReview(conv, { name: 'Mindray Vetal 3', category: 'Vet patient monitors', manufacturer: 'Mindray', chsDut: true, apClasses: { 0: 'CF' },
+    limits: { [issues[0].id]: 'ansur' }, prosim: {} }, issues, sugg, 'Vetal 3.mtr')
+  same(out.steps.map((s) => s.type), ['check', 'esa_mains', 'esa_pe', 'esa_ins', 'esa_encl', 'esa_earthl', 'check', 'ps_nsr', 'ps_gauge', 'check', 'check'])
+  assert.equal(out.steps[2].params.hi, 0.2, 'PE added after mains')
+  assert.equal(out.steps[3].params.lo, 2, 'kept as in Ansur when chosen')
+  same(out.steps[4].params.conds.map((c) => c.hi), [100, 500, 500])
+  same(out.steps[5].params.conds.map((c) => c.hi), [5000, 10000])
+  assert.equal(out.appliedParts[0].apclass, 'CF')
+  same(out.dut, [...L.CHS_DUT])
+  assert.equal(out.category, 'Vet patient monitors')
+  assert.ok(out.desc.includes('Changed from Ansur: enclosure leakage NC 100, ON 500, OE 500 µA (Ansur: NC 500, ON 100, OE 500 µA); earth leakage NC 5000, ON 10000 µA (B11.6) (Ansur: NC 500, ON 1000 µA); protective earth resistance ≤ 0.2 Ω added (Ansur had none); applied part “Probe” type CF (Ansur: B).'), out.desc)
+  assert.match(out.desc, /Kept as in Ansur, differs from AS\/NZS 3551 \(for Jonathan to confirm\): insulation: mains to protective earth ≥ 2 MΩ/)
+  assert.match(out.desc, /ProSim 8 steps: ECG normal sinus, Pressure gauge\./)
+  assert.equal(conv.steps.length, 10, 'the converted template itself is not changed')
+  // Ansur's one "Performance Testing" container (Vetal 3), held twice in the file: split by section, the repeat left out.
+  const perf = { type: 'check', title: 'Performance Testing', instructions: '5.4.1 ECG Test and Calibration:\nSet 80 bpm.\n\n5.4.6 CO2 Test and Calibration:\nApply the gas.', params: {
+    items: ['Startup Selftest: The unit powers on normally'],
+    readings: [{ label: '5.4.1 ECG Test and Calibration: HR Value', unit: '', lo: 79, hi: 81 }, { label: '5.4.1 ECG Test and Calibration: Square Wave %', unit: '', lo: 95, hi: 105 },
+      { label: '5.4.2 Resp Performance Test: Resp Rate', unit: '', lo: 38, hi: 42 }, { label: '5.4.4 NIPB Test: Reading at 50mmHg', unit: '', lo: 47, hi: 53 },
+      { label: '5.4.6 CO2 Test and Calibration: CO2 Accuracy Test', unit: '', lo: 5.7, hi: 6.3 }] } }
+  const vet = { steps: [{ type: 'esa_mains', title: 'Mains voltage', params: {} }, perf, JSON.parse(JSON.stringify(perf))] }
+  same(L.ansurDuplicates(vet), [2])
+  const fuller = JSON.parse(JSON.stringify(perf)); fuller.params.readings.push({ label: '5.4.5 Temp Test: Temperature Channel 2', unit: '', lo: 36.9, hi: 37.1 })
+  same(L.ansurDuplicates({ steps: [perf, fuller] }), [0], 'the copy with a check more is kept, wherever it is')
+  const vs = L.ansurProsimSuggestions(vet, 'Mindray')
+  same(vs.map((x) => [x.type, x.section]), [['ps_nsr', '5.4.1 ECG Test and Calibration'], ['ps_resp', '5.4.2 Resp Performance Test'], ['ps_gauge', '5.4.4 NIPB Test']], 'sections, not the repeat; "NIPB" (Ansur’s spelling) is NIBP')
+  assert.equal(vs[0].step.instructions.split('\n\n')[0], 'Set 80 bpm.', 'the section’s own instructions go with it')
+  const vo = L.ansurApplyReview(vet, { prosim: { [vs[1].id]: false } }, [], vs, 'v.mtr')
+  same(vo.steps.map((s) => [s.type, s.title]), [['esa_mains', 'Mains voltage'], ['check', 'Startup Selftest'], ['ps_nsr', '5.4.1 ECG Test and Calibration'],
+    ['check', '5.4.2 Resp Performance Test'], ['ps_gauge', '5.4.4 NIPB Test'], ['check', '5.4.6 CO2 Test and Calibration']], 'the original order; an unticked section stays typed')
+  same(vo.steps[5].params.readings.map((r) => r.label), ['CO2 Accuracy Test'])
+  assert.equal(vo.steps[5].instructions, 'Apply the gas.')
+  assert.match(vo.desc, /1 repeated step left out \(“Performance Testing” twice in the Ansur file; the fuller copy kept\)/)
+  assert.equal(L.ansurApplyReview(vet, { dropDupes: false, prosim: { [vs[0].id]: false, [vs[1].id]: false, [vs[2].id]: false } }, [], vs, 'v.mtr').steps.length, 3, 'nothing chosen: as converted')
+  assert.match(html, /reviewed = await ansurReview\(conv, f\.name\); if \(!reviewed\) return;/)
+  assert.match(html, /if \(reviewed && reviewed\.save\) await Shared\.save\(t\);/)
+})
