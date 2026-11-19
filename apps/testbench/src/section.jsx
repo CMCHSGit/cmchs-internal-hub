@@ -86,6 +86,7 @@ function TestBench() {
   const [tab, setTab] = useState(new URLSearchParams(location.search).get('tab') === 'customers' ? 'customers' : 'bench') // 'bench' | 'orders' | 'customers'
   const [side, setSide] = useState(() => (link.open ? 'open' : readSide())) // Saved reports beside the bench: 'open' | 'closed' (remembered on this PC)
   const [benchState, setBenchState] = useState({ testing: false, view: 'run' }) // from the bench: a test is being run, or Templates / Devices / Log is open: it gets the whole width then
+  const [localRuns, setLocalRuns] = useState([]) // the bench's own tests (chs-bench:runs): Previous tests lists the ones only on this laptop
   const [pinned, setPinned] = useState(link.open) // opened on purpose (a link, an order's review): shown even while a test is running, until the next test starts
   const [orders, setOrders] = useState([])
   const [ordersError, setOrdersError] = useState('')
@@ -183,6 +184,15 @@ function TestBench() {
         if (m.testing === true || (typeof m.view === 'string' && m.view !== 'run')) setPinned(false)   // a pane opened on purpose stays until the next test starts or the bench moves to Templates / Devices / Log
         return
       }
+      if (m?.type === 'chs-bench:runs' && Array.isArray(m.runs)) {   // the tests on this laptop, so Previous tests can list the ones that are only here
+        setLocalRuns(m.runs.filter((r) => r && typeof r.id === 'string').slice(0, 500))
+        return
+      }
+      if (m?.type === 'chs-bench:made') {   // the bench's answer to "make this test's PDF / Ansur record"
+        const p = asks.current.get(m.reqId); asks.current.delete(m.reqId)
+        if (p) m.error || !(m.buffer instanceof ArrayBuffer) ? p.reject(new Error(m.error || 'The bench sent nothing back.')) : p.resolve({ name: String(m.name || 'test'), buffer: m.buffer, mime: m.mime })
+        return
+      }
       if (m?.type === 'chs-bench:model-colours-reply' && m.map && m.hex) { setColours({ map: m.map, hex: m.hex }); return }
       if (m?.type === 'chs-bench:run' && typeof m.json === 'string') {   // a test finished or changed on this laptop: share it
         if (!user || (m.sharedBy && m.sharedBy !== who.current.email)) return
@@ -262,6 +272,16 @@ function TestBench() {
     asks.current.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v) }, reject: (e) => { clearTimeout(timer); reject(e) } })
     win.postMessage({ type, id, name, buffer: buffer.slice(0) }, location.origin)
   }), [])
+  /** Previous tests: the bench opens a test, makes its PDF or Ansur record (named for the day it was run), or takes a test off this laptop. */
+  const openRun = useCallback((id) => toBench({ type: 'chs-bench:open-run', id }), [toBench])
+  const removeRun = useCallback((id) => toBench({ type: 'chs-bench:remove-run', id }), [toBench])
+  const makeFileFromBench = useCallback((id, kind) => new Promise((resolve, reject) => {
+    if (!frame.current?.contentWindow) { reject(new Error('The Test Bench isn’t loaded yet.')); return }
+    const reqId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const timer = setTimeout(() => { asks.current.delete(reqId); reject(new Error('The Test Bench didn’t answer. Reload the page and try again.')) }, 30000)
+    asks.current.set(reqId, { resolve: (v) => { clearTimeout(timer); resolve(v) }, reject: (e) => { clearTimeout(timer); reject(e) } })
+    toBench({ type: 'chs-bench:make-file', id, kind, reqId })
+  }), [toBench])
   const toMtr = useCallback((buffer) => askBench('chs-bench:build-mtr', buffer), [askBench])
   const toPdf = useCallback((buffer, name) => askBench('chs-bench:build-pdf', buffer, name), [askBench])
 
@@ -472,9 +492,9 @@ function TestBench() {
           {orders.some((o) => o.status !== 'closed') && <Badge tone="purple">{orders.filter((o) => o.status !== 'closed').length} open</Badge>}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'customers'} className={tab === 'customers' ? 'is-on' : ''} onClick={() => setTab('customers')}>Customers</button>
-        {/* Saved reports sits beside the bench (it was a tab): this shows or hides it, and carries what needs attention. */}
+        {/* Previous tests (the old Saved reports) sits beside the bench: this shows or hides it, and carries what needs attention. */}
         <button type="button" className={`tb-side-toggle${showSide ? ' is-on' : ''}`} aria-pressed={showSide} onClick={toggleReports}>
-          Saved reports
+          Previous tests
           {tests.length > 0 && <Badge tone="purple">{unsent ? `${unsent} not sent` : `${tests.length}`}</Badge>}
           {waiting > 0 && <Badge tone="orange">{waiting} waiting</Badge>}
           {failed > 0 && <Badge tone="red">{failed} failed</Badge>}
@@ -488,21 +508,21 @@ function TestBench() {
           <iframe ref={frame} className="tb-frame" src={BENCH_URL} title="CHS Test Bench" allow="serial; clipboard-write; fullscreen" />
           {tab === 'bench' && justSaved.length > 0 && (
             <div className="tb-saved" role="status">
-              <span>Saved to Saved reports: <strong>{justSaved[justSaved.length - 1]}</strong>{justSaved.length > 1 ? ` and ${justSaved.length - 1} more` : ''}.</span>
-              {!showSide && <Button variant="secondary" size="sm" onClick={openReports}>Open Saved reports</Button>}
+              <span>Saved to Previous tests: <strong>{justSaved[justSaved.length - 1]}</strong>{justSaved.length > 1 ? ` and ${justSaved.length - 1} more` : ''}.</span>
+              {!showSide && <Button variant="secondary" size="sm" onClick={openReports}>Open Previous tests</Button>}
               <Button variant="ghost" size="sm" onClick={() => setJustSaved([])}>Dismiss</Button>
             </div>
           )}
         </div>
         {/* Kept mounted while hidden (a test is running), so its search, ticks and Simpro job are still there afterwards. */}
         {tab === 'bench' && side === 'open' && (
-          <aside className="tb-side" aria-label="Saved reports" hidden={!showSide}>
+          <aside className="tb-side" aria-label="Previous tests" hidden={!showSide}>
             <Reports
               reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
               onJob={onJob} onJobFiles={noteJobFiles}
               orders={orders} status={status} onClearShared={clearShared} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
               onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
-              sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
+              sharedTests={testsList} onFetchShared={fetchShared} localRuns={localRuns} onOpen={openRun} onMakeFile={makeFileFromBench} onRemoveLocal={removeRun} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
               onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
               onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
               onSendWaiting={() => sendWaiting()}
