@@ -92,7 +92,7 @@ The page is "Simpro Jobs" with two tabs: **New job** (above) and **Find a job** 
 
 ## From the Test Bench: a job for tested equipment that has none
 
-The Test Bench's bar (ticked tests) says "No job for these tests yet? **Create one in Simpro Jobs**" when there is Simpro access, tests are ticked and no job is chosen. It only **fills in this form**
+The Test Bench's bar (ticked tests) has a **No job yet? Create one…** button beside the job picker when there is Simpro access, tests are ticked and no job is chosen. It only **fills in this form**
 (`apps/testbench/src/jobDraft.js`): in the session's draft (`simprojobs.draft`) it puts a **title** ("Testing of new equipment", with the customer when all the tests share one) and a
 **description** (the devices, serial and model, up to 40 lines) wherever the form has none yet; the customer, site and the rest are still chosen here, and the job is made only by the
 Review screen's **Create job in Simpro**, exactly as above. It also leaves a note of which tests were ticked (`simprojobs.return`, kept six hours); once the job exists the done screen has

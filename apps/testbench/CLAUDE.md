@@ -43,7 +43,7 @@ until it does everything, those keep working as they are. Its own map and rules:
   those files must then be copied into SharePoint to be used.
 - **Simpro:** only through the Apps Script proxy (`shared/proxy.js`); the key never reaches the page.
 
-**No job to attach to?** The bar offers **Create one in Simpro Jobs** (`src/jobDraft.js`): it only pre-fills that tool's new-job form and leaves a way back; nothing is created from the Test Bench (see `apps/simprojobs/README.md`).
+**No job to attach to?** The bar has a **No job yet? Create one…** button beside the job picker (`src/jobDraft.js`): it only pre-fills that tool's new-job form and leaves a way back; nothing is created from the Test Bench (see `apps/simprojobs/README.md`).
 
 ## Rules for changes
 
