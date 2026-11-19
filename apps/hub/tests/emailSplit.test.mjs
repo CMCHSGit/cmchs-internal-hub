@@ -143,3 +143,13 @@ test('a list under some other heading is kept, as plain announcements', () => {
     ['Timesheets due Friday', 'Announcements', ''], ['Parking is closed Monday', 'Announcements', ''],
   ])
 })
+
+test('a forwarded email: the forwarder’s note, signature and the forward header are skipped', () => {
+  const fwd = `FYI for the hub\n\nPeter Lin\nCass Medical\nMob: 021 123 4567\n\n________________________________\nFrom: Pat Poster <pat@cass.co.nz>\nSent: Friday, 20 November 2026 3:12 pm\nTo: All Staff <all@cass.co.nz>\nSubject: Next few weeks of places to be\n\n${EMAIL}`
+  const f = splitEmail({ text: fwd }, { people: PEOPLE })
+  assert.deepEqual(f.map(d => [d.title, d.section]), drafts.map(d => [d.title, d.section]))
+  // Gmail's layout too, and an email that wasn't forwarded is left alone
+  const gmail = `---------- Forwarded message ---------\nFrom: Pat <pat@cass.co.nz>\nDate: Fri, 20 Nov 2026\nSubject: Next few weeks\nTo: <all@cass.co.nz>\n\n${EMAIL}`
+  assert.equal(splitEmail({ text: gmail }, { people: PEOPLE }).length, drafts.length)
+  assert.equal(splitEmail({ text: 'Hi All,\n\nNext week\n- From: the office, Kai heads to Napier' }).length, 1)
+})
