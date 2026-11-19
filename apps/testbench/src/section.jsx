@@ -50,9 +50,6 @@ const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) ||
 const PENDING_FOR_FILE = 'testbench.pendingCustomer' // { asset list file name: New equipment customer id }, this laptop only
 const rememberedCustomers = () => { try { return JSON.parse(localStorage.getItem(PENDING_FOR_FILE) || '{}') || {} } catch { return {} } }
 const rememberCustomer = (file, id) => { try { localStorage.setItem(PENDING_FOR_FILE, JSON.stringify({ ...rememberedCustomers(), [file]: id })) } catch { /* asked again next time */ } }
-const SIDE_KEY = 'testbench.side'
-const readSide = () => { try { return localStorage.getItem(SIDE_KEY) === 'closed' ? 'closed' : 'open' } catch { return 'open' } }
-const writeSide = (v) => { try { localStorage.setItem(SIDE_KEY, v) } catch { /* not remembered */ } }
 const safe = (fn) => { try { return fn() } catch { return null } }
 const useOnline = () => {
   const [on, setOn] = useState(() => navigator.onLine !== false)
@@ -82,12 +79,14 @@ function TestBench() {
   // Opened from Simpro Asset Sync's "Reports to add" (reports.js, reportsLink): straight onto Saved reports, showing that asset list's devices.
   const link = useMemo(() => reportsFromSearch(location.search), [])
   // 'customers' is also where the old /new-equipment/ page sends people (newequip/section.jsx).
-  // Saved reports is no longer a tab: it sits beside the bench (Previous tests is at the bottom of the bench's home page), so an old ?tab=reports link or "Open Saved reports" opens it there.
+  // Saved reports is not a tab or a pane any more: the bench's Previous tests table (with the customer and a tick on each test) is the list, and a bar under the
+  // bench (this file's Reports in its barOnly form) downloads, prints or attaches the ticked tests. An old ?tab=reports link, Asset Sync's Reports to add and an
+  // order's review open that table limited to their devices, all ticked.
   const [tab, setTab] = useState(new URLSearchParams(location.search).get('tab') === 'customers' ? 'customers' : 'bench') // 'bench' | 'orders' | 'customers'
-  const [side, setSide] = useState(() => (link.open ? 'open' : readSide())) // Saved reports beside the bench: 'open' | 'closed' (remembered on this PC)
-  const [benchState, setBenchState] = useState({ testing: false, view: 'run' }) // from the bench: a test is being run, or Templates / Devices / Log is open: it gets the whole width then
-  const [localRuns, setLocalRuns] = useState([]) // the bench's own tests (chs-bench:runs): Previous tests lists the ones only on this laptop
-  const [pinned, setPinned] = useState(link.open) // opened on purpose (a link, an order's review): shown even while a test is running, until the next test starts
+  const [benchState, setBenchState] = useState({ testing: false, view: 'run' }) // from the bench: a test is being run, or Templates / Devices / Log is open: the bar gives way then
+  const [ticked, setTicked] = useState(() => new Set()) // the tests ticked in the bench's table, by start time
+  const [benchReady, setBenchReady] = useState(false)
+  const statusRef = useRef({}) // what the bench's table shows beside each test: sent to which job, downloaded
   const [orders, setOrders] = useState([])
   const [ordersError, setOrdersError] = useState('')
   const [status, setStatus] = useState({}) // { testId: { sentJobs, downloadedAt } } (bench-status.js)
@@ -178,21 +177,13 @@ function TestBench() {
     const onMessage = async (e) => {
       if (e.origin !== location.origin || e.source !== frame.current?.contentWindow) return
       const m = e.data
-      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); sendOrders(); askColours.current(); return }
+      if (m?.type === 'chs-bench:hello') { sendShared(); sendDevice(); sendOrders(); askColours.current(); setBenchReady(true); toBench({ type: 'chs-bench:status', map: statusRef.current }); return }
       if (m?.type === 'chs-bench:state') {   // which page the bench has open, and whether a test is being run
         setBenchState({ testing: m.testing === true, view: typeof m.view === 'string' ? m.view : 'run' })
-        if (m.testing === true || (typeof m.view === 'string' && m.view !== 'run')) setPinned(false)   // a pane opened on purpose stays until the next test starts or the bench moves to Templates / Devices / Log
         return
       }
-      if (m?.type === 'chs-bench:runs' && Array.isArray(m.runs)) {   // the tests on this laptop, so Previous tests can list the ones that are only here
-        setLocalRuns(m.runs.filter((r) => r && typeof r.id === 'string').slice(0, 500))
-        return
-      }
-      if (m?.type === 'chs-bench:made') {   // the bench's answer to "make this test's PDF / Ansur record"
-        const p = asks.current.get(m.reqId); asks.current.delete(m.reqId)
-        if (p) m.error || !(m.buffer instanceof ArrayBuffer) ? p.reject(new Error(m.error || 'The bench sent nothing back.')) : p.resolve({ name: String(m.name || 'test'), buffer: m.buffer, mime: m.mime })
-        return
-      }
+      if (m?.type === 'chs-bench:ticked' && Array.isArray(m.keys)) { setTicked(new Set(m.keys.filter((k) => typeof k === 'string'))); return }   // the tests ticked in the bench's table
+      if (m?.type === 'chs-bench:filter-cleared') { setOnlySerials([]); setStartJob(null); return }   // "Show all tests" in the bench's table
       if (m?.type === 'chs-bench:model-colours-reply' && m.map && m.hex) { setColours({ map: m.map, hex: m.hex }); return }
       if (m?.type === 'chs-bench:run' && typeof m.json === 'string') {   // a test finished or changed on this laptop: share it
         if (!user || (m.sharedBy && m.sharedBy !== who.current.email)) return
@@ -272,16 +263,6 @@ function TestBench() {
     asks.current.set(id, { resolve: (v) => { clearTimeout(timer); resolve(v) }, reject: (e) => { clearTimeout(timer); reject(e) } })
     win.postMessage({ type, id, name, buffer: buffer.slice(0) }, location.origin)
   }), [])
-  /** Previous tests: the bench opens a test, makes its PDF or Ansur record (named for the day it was run), or takes a test off this laptop. */
-  const openRun = useCallback((id) => toBench({ type: 'chs-bench:open-run', id }), [toBench])
-  const removeRun = useCallback((id) => toBench({ type: 'chs-bench:remove-run', id }), [toBench])
-  const makeFileFromBench = useCallback((id, kind) => new Promise((resolve, reject) => {
-    if (!frame.current?.contentWindow) { reject(new Error('The Test Bench isn’t loaded yet.')); return }
-    const reqId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const timer = setTimeout(() => { asks.current.delete(reqId); reject(new Error('The Test Bench didn’t answer. Reload the page and try again.')) }, 30000)
-    asks.current.set(reqId, { resolve: (v) => { clearTimeout(timer); resolve(v) }, reject: (e) => { clearTimeout(timer); reject(e) } })
-    toBench({ type: 'chs-bench:make-file', id, kind, reqId })
-  }), [toBench])
   const toMtr = useCallback((buffer) => askBench('chs-bench:build-mtr', buffer), [askBench])
   const toPdf = useCallback((buffer, name) => askBench('chs-bench:build-pdf', buffer, name), [askBench])
 
@@ -475,11 +456,14 @@ function TestBench() {
   // The bench (loaded behind this tab) knows each template's colour: ask it for the models in the list when Saved reports opens or the models change.
   const modelKey = useMemo(() => [...new Set(tests.map(modelOf))].sort().join('\n'), [tests])
   askColours.current = () => { if (modelKey) toBench({ type: 'chs-bench:model-colours', id: String(Date.now()), models: modelKey.split('\n') }) }
-  // Saved reports beside the bench, but not while a test is running or Templates / Devices / Log is open (the bench gets the whole width then).
-  const showSide = tab === 'bench' && side === 'open' && ((!benchState.testing && benchState.view === 'run') || pinned)
-  const openReports = () => { setTab('bench'); setSide('open'); writeSide('open'); setPinned(true); setJustSaved([]); refreshReports(); refreshOutbox() }
-  const toggleReports = () => { if (showSide) { setSide('closed'); writeSide('closed'); setPinned(false) } else openReports() }
-  useEffect(() => { if (showSide) { askColours.current(); const t = setTimeout(() => askColours.current(), 2500); return () => clearTimeout(t) } return undefined }, [showSide, modelKey])   // again a moment later, in case the bench was still loading
+  // The bar under the bench shows except while a test is running or Templates / Devices / Log is open (the bench gets the whole height then).
+  const showBar = tab === 'bench' && !benchState.testing && benchState.view === 'run'
+  useEffect(() => { if (showBar) { askColours.current(); const t = setTimeout(() => askColours.current(), 2500); return () => clearTimeout(t) } return undefined }, [showBar, modelKey])   // again a moment later, in case the bench was still loading
+  // What the bench's table shows beside each test (sent to which job, downloaded) comes from the bar's own list of tests.
+  const sendStatuses = useCallback((map) => { statusRef.current = map; toBench({ type: 'chs-bench:status', map }) }, [toBench])
+  // Asset Sync's Reports to add, an order's review and the Customers tab's attach link limit the bench's table to their devices, all ticked.
+  useEffect(() => { if (benchReady) toBench({ type: 'chs-bench:filter', serials: onlySerials, tickAll: onlySerials.length > 0 }) }, [benchReady, onlySerials, toBench])
+  const clearTicks = useCallback(() => toBench({ type: 'chs-bench:clear-ticks' }), [toBench])
   const waiting = outbox.filter((x) => x.status === 'waiting').length
   const failed = outbox.filter((x) => x.status === 'failed').length
 
@@ -492,49 +476,48 @@ function TestBench() {
           {orders.some((o) => o.status !== 'closed') && <Badge tone="purple">{orders.filter((o) => o.status !== 'closed').length} open</Badge>}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'customers'} className={tab === 'customers' ? 'is-on' : ''} onClick={() => setTab('customers')}>Customers</button>
-        {/* Previous tests (the old Saved reports) sits beside the bench: this shows or hides it, and carries what needs attention. */}
-        <button type="button" className={`tb-side-toggle${showSide ? ' is-on' : ''}`} aria-pressed={showSide} onClick={toggleReports}>
-          Previous tests
-          {tests.length > 0 && <Badge tone="purple">{unsent ? `${unsent} not sent` : `${tests.length}`}</Badge>}
+        {/* What needs attention for the tests under the bench (it was on the Saved reports tab). */}
+        <span className="tb-tabstat">
+          {unsent > 0 && <Badge tone="purple">{unsent} not sent</Badge>}
           {waiting > 0 && <Badge tone="orange">{waiting} waiting</Badge>}
           {failed > 0 && <Badge tone="red">{failed} failed</Badge>}
           {!online && <Badge tone="grey">Offline</Badge>}
-        </button>
+        </span>
       </div>
 
-      {/* The bench stays loaded (hidden) while another tab is open: a test in progress and the USB connection stay as they are. Saved reports is beside it. */}
-      <div className={`tb-split${showSide ? ' has-side' : ''}`} hidden={tab !== 'bench'}>
+      {/* The bench stays loaded (hidden) while another tab is open: a test in progress and the USB connection stay as they are. */}
+      <div className="tb-split" hidden={tab !== 'bench'}>
         <div className="tb-main">
           <iframe ref={frame} className="tb-frame" src={BENCH_URL} title="CHS Test Bench" allow="serial; clipboard-write; fullscreen" />
           {tab === 'bench' && justSaved.length > 0 && (
             <div className="tb-saved" role="status">
-              <span>Saved to Previous tests: <strong>{justSaved[justSaved.length - 1]}</strong>{justSaved.length > 1 ? ` and ${justSaved.length - 1} more` : ''}.</span>
-              {!showSide && <Button variant="secondary" size="sm" onClick={openReports}>Open Previous tests</Button>}
+              <span>Saved: <strong>{justSaved[justSaved.length - 1]}</strong>{justSaved.length > 1 ? ` and ${justSaved.length - 1} more` : ''}. It is in Previous tests: tick it to download or attach it.</span>
               <Button variant="ghost" size="sm" onClick={() => setJustSaved([])}>Dismiss</Button>
             </div>
           )}
-        </div>
-        {/* Kept mounted while hidden (a test is running), so its search, ticks and Simpro job are still there afterwards. */}
-        {tab === 'bench' && side === 'open' && (
-          <aside className="tb-side" aria-label="Previous tests" hidden={!showSide}>
-            <Reports
+          {/* Under the bench's Previous tests table: downloads, prints or attaches the tests ticked there. Kept mounted while hidden (a test is running). */}
+          {tab === 'bench' && (
+            <div className="tb-bottom" hidden={!showBar}>
+              <Reports
+                barOnly ticked={ticked} onStatuses={sendStatuses} onClearTicks={clearTicks}
               reports={reports} fresh={fresh} sim={sim} outbox={outbox} online={online} user={user}
               onJob={onJob} onJobFiles={noteJobFiles}
               orders={orders} status={status} onClearShared={clearShared} onJobUpdated={(jobId) => closeDoneOrders(orders.filter((o) => jobNumber(o.number) === String(jobId)), true)}
               onlySerials={onlySerials} onShowAll={() => { setOnlySerials([]); setStartJob(null) }} startUnsent={link.unsent} startJob={startJob}
-              sharedTests={testsList} onFetchShared={fetchShared} localRuns={localRuns} onOpen={openRun} onMakeFile={makeFileFromBench} onRemoveLocal={removeRun} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
+              sharedTests={testsList} onFetchShared={fetchShared} sheet={sheet} onSyncSheet={syncSheet} onAttach={attach} onAddFiles={addFiles} onMarkDownloaded={downloaded} modelColours={colours} makeMtr={makeMtr} makePdf={makePdf}
               onDelete={async (ids) => { for (const id of ids) await reportStore.remove(id); await refreshReports() }}
               onRemoveOutbox={async (id) => { await outboxStore.remove(id); refreshOutbox() }}
               onSendWaiting={() => sendWaiting()}
               onRetryFailed={async () => { await retryFailed(outboxStore); await refreshOutbox(); sendWaiting() }}
-            />
-          </aside>
-        )}
+              />
+            </div>
+          )}
+        </div>
       </div>
       {tab === 'orders' && (
         <Orders
           orders={orders} ordersError={ordersError} tests={testsList} who={who.current} user={user} online={online} sim={sim}
-          onReview={(order, p) => { setOnlySerials(p.devices.flatMap((d) => splitSerials(d.serial))); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); openReports() }}
+          onReview={(order, p) => { setOnlySerials(p.devices.flatMap((d) => splitSerials(d.serial))); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); setTab('bench'); toBench({ type: 'chs-bench:home' }) }}
         />
       )}
       {tab === 'customers' && (

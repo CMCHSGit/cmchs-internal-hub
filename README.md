@@ -170,7 +170,7 @@ logActivity(null, 'Added a PM for Hutt (First PM)') // ...then say what happened
 The electrical-safety and performance test app (AS/NZS 3551, ESA612 and ProSim over USB), moved in 2 Nov 2026 from the
 SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Serial and the folder picker need it).
 
-**Tabs:** Test Bench (with **Previous tests** beside it, the one list of tests: a pane at the right on a wide screen, below on a narrow one; it gives way to the bench while a test is running or Templates / Devices / Log is open, and a button in the tab bar shows or hides it), Orders and **Customers** (11 Nov 2026: the old New equipment page, `/new-equipment/`, which now forwards to
+**Tabs:** Test Bench (its Previous tests table has the customer, a tick on each test and what was sent; a bar under the bench downloads, prints or attaches the ticked tests, and gives way while a test is running or Templates / Devices / Log is open), Orders and **Customers** (11 Nov 2026: the old New equipment page, `/new-equipment/`, which now forwards to
 `/testbench/?tab=customers`): pick a customer, set its asset list and reports folder links (Edit links), record assets that are not in the asset
 list yet, and see which units have been tested.
 
@@ -180,7 +180,7 @@ list yet, and see which units have been tested.
   (chosen once per laptop and address), results can still go to the SharePoint Results folder. Nothing is shared between laptops
   while testing, so any number can be used at once.
 - **Offline:** open it once online; the page and its fonts (kept beside it) are then cached by the service worker.
-- **Previous tests** (the old Saved reports, beside the bench, not a tab; an old `?tab=reports` link opens it there; it lists every test with its customer and result, including the ones only on this laptop, and each has Open, PDF and .mtr; the bench's own list is hidden inside the hub, leaving only "Open a saved test file"). Every file the bench saves (PDF, results file, Ansur record) is handed up to the hub and
+- **Previous tests and Saved reports** (the bench's Previous tests table with a bar under the bench; not a tab; an old `?tab=reports` link, Asset Sync's Reports to add and an order's review limit the table to their devices, all ticked): every file the bench saves (PDF, results file, Ansur record) is handed up to the hub and
   kept on that laptop (IndexedDB `chs-bench-reports`, `reports.js`) with the test's customer, serial, model and time, until someone
   removes it. The tab sorts them by customer or by day, filters by customer, when, search and "not yet sent", and lets you tick tests
   (or a whole customer or day) and then **download them as one zip** or **attach them to one Simpro job**. Each file remembers which
