@@ -100,9 +100,8 @@ function fillTimes(lines) {
 
 /** Merge several already-parsed files into one list in time order (files keep their own order at equal times). */
 export function mergeLines(lists) {
-  const all = lists.flat()
-  const idx = new Map(all.map((l, i) => [l, i]))
-  return all.sort((a, b) => (a.t - b.t) || (a.file - b.file) || (idx.get(a) - idx.get(b)))
+  // Array.prototype.sort is stable, so lines with the same time and file keep the order they were read in.
+  return lists.flat().sort((a, b) => (a.t - b.t) || (a.file - b.file))
 }
 
 const pad = (n, w = 2) => String(n).padStart(w, '0')

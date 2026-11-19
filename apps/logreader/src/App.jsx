@@ -5,7 +5,7 @@
    defibrillator gets a shock table); other devices just get the viewer. */
 import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { FileArchive, FileText, FolderOpen, Folders, Lock, X } from 'lucide-react'
-import { Alert, Button, Spinner } from '../../../shared/ui/index.jsx'
+import { Alert, Button, Spinner, useConfirm } from '../../../shared/ui/index.jsx'
 import { openFiles, loadFamily } from './load.js'
 import { findExports, itemsFromDrop, itemsFromInput } from './folder.js'
 import { fmtTime, mergeLines } from './lines.js'
@@ -29,6 +29,7 @@ export default function App() {
   const [drag, setDrag] = useState(false)
   const [, bump] = useReducer(x => x + 1, 0)
   const fileRef = useRef(null)
+  const [confirmDialog, confirm] = useConfirm()
   const dirRef = useRef(null)
 
   const names = useMemo(() => session ? session.families.map(f => f.name) : [], [session])
@@ -70,6 +71,28 @@ export default function App() {
     } catch (e) { setError(e.message) } finally { setBusy('') }
   }
 
+  // Tick every log: read the ones not read yet (one after another, saying how far it has got), then show them all together.
+  const tickAll = async () => {
+    const todo = session.families.filter(f => !f.lines)
+    const bytes = todo.reduce((n, f) => n + f.files.reduce((m, x) => m + x.size, 0), 0)
+    if (bytes > 100 * 1048576 && !(await confirm({
+      title: 'Read all the logs?',
+      message: `That is about ${mb(bytes)} still to read, and every line goes into this tab's memory. It can take a minute and slow the page down. You can untick logs afterwards.`,
+      confirmLabel: 'Read them all',
+    }))) return
+    setError('')
+    const failed = []
+    try {
+      for (const [i, f] of todo.entries()) {
+        setBusy(`Reading ${i + 1} of ${todo.length}: ${f.name}…`)
+        try { await loadFamily(f) } catch (e) { failed.push(f.name) }
+      }
+    } finally { setBusy('') }
+    setOn(session.families.filter(f => f.lines).map(f => f.name)); bump()
+    if (failed.length) setError(`${failed.length} log${failed.length === 1 ? '' : 's'} could not be read and ${failed.length === 1 ? 'was' : 'were'} left out: ${failed.slice(0, 5).join(', ')}${failed.length > 5 ? '…' : ''}`)
+  }
+  const untickAll = () => setOn([])
+
   const lines = useMemo(() => mergeLines(on.map(n => byName.get(n).lines)), [on, byName])
   const close = () => { setSession(null); setFound(null); setOn([]); setJump(null); setError('') }
 
@@ -110,7 +133,7 @@ export default function App() {
   // data-working: opened logs exist only in this tab, so the app must not reload onto a new version under them (shared/updateGuard.js).
   return (
     <div className="lr" onDragOver={over} onDragLeave={() => setDrag(false)} onDrop={dropFiles} data-drag={drag ? '' : undefined} data-working={session || found ? '' : undefined}>
-      {input}{dirInput}
+      {input}{dirInput}{confirmDialog}
       <div className="lr-top">
         <h1 className="lr-title"><FileText size={20} aria-hidden /> Log Reader</h1>
         {session && <span className="lr-source" title={session.source}>{session.source}</span>}
@@ -166,6 +189,10 @@ export default function App() {
         <div className="lr-main">
           <aside className="lr-side" aria-label="Logs in this export">
             <div className="lr-side-h">{profile ? profile.name + ' export' : 'Logs'} · {session.families.length} logs</div>
+            <div className="lr-side-btns">
+              <Button variant="secondary" size="sm" onClick={tickAll} disabled={!!busy || on.length === session.families.length}>Tick all</Button>
+              <Button variant="ghost" size="sm" onClick={untickAll} disabled={!!busy || !on.length}>Untick all</Button>
+            </div>
             <ul>
               {session.families.map(f => {
                 const i = on.indexOf(f.name)
