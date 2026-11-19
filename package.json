@@ -13,7 +13,8 @@
     "apps/projects",
     "apps/asks",
     "apps/equipment",
-    "apps/pdf-editor"
+    "apps/pdf-editor",
+    "apps/logreader"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/hub",

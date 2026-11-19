@@ -27,6 +27,7 @@ export const SECTIONS = [
   { id: 'testbench', prefix: '/testbench/' },
   { id: 'new-equipment', prefix: '/new-equipment/' },
   { id: 'pdf-editor', prefix: '/pdf-editor/' },
+  { id: 'logreader', prefix: '/logreader/' },
   // The rebuilt demo tracker while it's built (INTEGRATION-PLAN.md step 4).
   { id: 'equipment', prefix: '/equipment/' },
   // These two route on real paths inside (/schedule/my, /settings/people),
