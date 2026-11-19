@@ -232,6 +232,16 @@ export function sharedGroups(reports, shared) {
   })
 }
 
+/** A test's start time: the key the bench's own copy, the shared test and the files saved from it all have, so the bench's ticks and the hub's bar speak of the same test. */
+export const startedOf = (g) => g.started || (g.files || []).map((f) => f.meta && f.meta.testedAt).find(Boolean) || ''
+
+/** What the bench's list says about each test under the hub's bar: { start time: { sent: [jobs], downloaded } }. */
+export function statusByStart(groups) {
+  const out = {}
+  for (const g of groups) { const k = startedOf(g); if (k) out[k] = { sent: g.sentTo || [], downloaded: !!g.downloadedAt } }
+  return out
+}
+
 export const PERIODS = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['30', 'Last 30 days']]
 /** Whether a New Zealand day ("2026-11-02") falls in the period, as of `now`. */
 export function inPeriod(day, period, now = Date.now()) {

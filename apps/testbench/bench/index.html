@@ -3997,6 +3997,9 @@ const Power = {
 
 /* ======================= opening saved and imported tests ======================= */
 const Records = {
+  ticked: new Set(), status: {}, only: null, tickAll: false,   // inside the hub: the tests ticked (by start time), what the hub says was sent, and the asset list's devices the list is limited to
+  /** Tells the hub which tests are ticked, so its bar under the bench (download, print, attach to a Simpro job) works on them. */
+  postTicks() { if (window.parent !== window) window.parent.postMessage({ type: 'chs-bench:ticked', keys: [...this.ticked] }, location.origin); },
   async list() { try { return ((await DB.all('runs')) || []).sort((a, b) => String(b.finished || b.saved || b.started).localeCompare(String(a.finished || a.saved || a.started))); } catch { return []; } },
   async renderList() {
     const box = $('#prevList'); if (!box) return;
@@ -4006,18 +4009,34 @@ const Records = {
     // Other engineers' tests stay out of the list until searched for (this engineer's own, from another laptop, are listed).
     // A test whose record was cleared (size 0, once its files were sent and downloaded) is not listed: drag its file in to open it.
     const mine = (s) => !s.by || !SharedTests.me || s.by === SharedTests.me, listed = SharedTests.list.filter(s => s.size !== 0);
-    const othersHidden = q ? 0 : listed.filter(s => !have.has(s.id) && !mine(s)).length;
-    const sharedOnly = listed.filter(s => !have.has(s.id) && (q || mine(s))).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
+    const othersHidden = q || this.only ? 0 : listed.filter(s => !have.has(s.id) && !mine(s)).length;
+    const sharedOnly = listed.filter(s => !have.has(s.id) && (q || this.only || mine(s))).map(s => ({ id: s.id, shared: s, template: { name: s.template }, dut: { 'Serial number': s.serial, Model: s.model, Customer: s.customer }, finished: s.finished, started: s.started }));
     const when = (r) => String(r.finished || r.saved || r.started);
+    // A test is told apart by its start time: the same in this laptop's copy, the shared one and the files saved from it, so it is what the hub ticks and marks sent by.
+    const keyOf = (r) => String(r.started || '');
+    const custOf = (r) => { const d = r.dut || {}; const k = Object.keys(d).find(k => /^(customer|client|hospital|site|owner)\b/i.test(k.trim()) && !/^customer asset/i.test(k.trim())); return k ? String(d[k] || '').trim() : ''; };
+    const serialsOf = (r) => String(r.shared ? ((r.dut || {})['Serial number'] || '') : allSerials(r)).split(/\s*(?:\+|,)\s*/).map(s => s.trim().toUpperCase()).filter(Boolean);
     const runs = [...local, ...sharedOnly].sort((a, b) => when(b).localeCompare(when(a)))
-      .filter(r => !q || [r.template?.name, ...Object.values(r.dut || {}), r.shared ? r.shared.byName : ''].join(' ').toLowerCase().includes(q));
+      .filter(r => !q || [r.template?.name, ...Object.values(r.dut || {}), r.shared ? r.shared.byName : ''].join(' ').toLowerCase().includes(q))
+      .filter(r => !this.only || serialsOf(r).some(s => this.only.has(s)));
+    const cap = this.only ? 500 : 30, shown = runs.slice(0, cap);
+    if (this.tickAll) { this.tickAll = false; shown.forEach(r => { if (!r.inProgress && keyOf(r)) this.ticked.add(keyOf(r)); }); }
+    this.ticked = new Set([...this.ticked].filter(k => shown.some(r => keyOf(r) === k)));   // a test that is not on screen is not ticked
+    const statusOf = (r) => { const s = this.status[keyOf(r)]; return s && s.sent && s.sent.length ? `<span class="badge pass">Sent to ${esc(s.sent.join(', '))}</span>` : s && s.downloaded ? '<span class="badge info">Downloaded</span>' : '<span class="muted">Not sent</span>'; };
     const canRemoveShared = (id) => { const s = SharedTests.list.find(x => x.id === id); return !!s && (s.by === SharedTests.me || SharedTests.admin); };
     const badge = (o, r) => r && r.inProgress ? '<span class="badge warn">In progress</span>' : `<span class="badge ${o === 'pass' ? 'pass' : o === 'fail' ? 'fail' : 'warn'}">${o === 'pass' ? 'Pass' : o === 'fail' ? 'Fail' : 'Incomplete'}</span>`;
-    box.innerHTML = runs.length ? `<table class="meas-table prev-table"><thead><tr><th>Date</th><th>Device</th><th>Template</th><th>Result</th><th></th></tr></thead><tbody>${runs.slice(0, 30).map(r => {
+    box.innerHTML = (this.only ? `<p class="hint" id="prevOnly" style="margin:0 0 8px">Showing the tests for the ${this.only.size} device${this.only.size === 1 ? '' : 's'} from the asset list, all ticked. <button type="button" class="btn ghost sm" id="prevOnlyClear">Show all tests</button></p>` : '') + (runs.length ? `<table class="meas-table prev-table"><thead><tr><th><input type="checkbox" id="prevTickAll" aria-label="Tick every test shown"></th><th>Date</th><th>Device</th><th>Customer</th><th>Template</th><th>Result</th><th>Sent</th><th></th></tr></thead><tbody>${shown.map(r => {
       const d = new Date(r.finished || r.started); const dev = r.dut ? (r.dut['Serial number'] || r.dut['Serial Number'] || Object.values(r.dut)[0] || '') : '';
-      return `<tr><td>${esc(isNaN(d) ? '—' : d.toLocaleDateString('en-NZ'))}</td><td>${esc(dev)}${r.dut?.Model ? ` <span class="muted">${esc(r.dut.Model)}</span>` : ''}${r.shared ? `<br><span class="muted" style="font-size:12.5px">Shared by ${esc(r.shared.byName || r.shared.by)}</span>` : ''}</td><td>${esc(r.template?.name || '')}${r.imported ? ` <span class="badge info">${esc(r.imported.source)}</span>` : ''}</td><td>${badge(r.shared ? r.shared.overall : overallOf(r), r)}</td>
-        <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button>${r.inProgress ? '' : `<button type="button" class="btn ghost sm" data-dl="pdf" data-id="${esc(r.id)}" title="Download the PDF report">${icon('download')}PDF</button>${r.imported ? '' : `<button type="button" class="btn ghost sm" data-dl="mtr" data-id="${esc(r.id)}" title="Download the Ansur record (.mtr)">${icon('download')}.mtr</button>`}`}${!r.shared || canRemoveShared(r.id) ? `<button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>${runs.length > 30 ? `<p class="hint">Showing the 30 most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
-      : `<div class="empty">${q ? 'No tests match.' : 'Finished tests appear here. You can also open a results file or an Ansur record.'}</div>`;
+      return `<tr><td>${r.inProgress ? '' : `<input type="checkbox" data-tick="${esc(keyOf(r))}" ${this.ticked.has(keyOf(r)) ? 'checked' : ''} aria-label="Tick this test">`}</td><td>${esc(isNaN(d) ? '—' : d.toLocaleDateString('en-NZ'))}</td><td>${esc(dev)}${r.dut?.Model ? ` <span class="muted">${esc(r.dut.Model)}</span>` : ''}${r.shared ? `<br><span class="muted" style="font-size:12.5px">Shared by ${esc(r.shared.byName || r.shared.by)}</span>` : ''}</td><td>${esc(custOf(r))}</td><td>${esc(r.template?.name || '')}${r.imported ? ` <span class="badge info">${esc(r.imported.source)}</span>` : ''}</td><td>${badge(r.shared ? r.shared.overall : overallOf(r), r)}</td><td>${r.inProgress ? '' : statusOf(r)}</td>
+        <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button>${r.inProgress ? '' : `<button type="button" class="btn ghost sm" data-dl="pdf" data-id="${esc(r.id)}" title="Download the PDF report">${icon('download')}PDF</button>${r.imported ? '' : `<button type="button" class="btn ghost sm" data-dl="mtr" data-id="${esc(r.id)}" title="Download the Ansur record (.mtr)">${icon('download')}.mtr</button>`}`}${!r.shared || canRemoveShared(r.id) ? `<button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>${runs.length > cap ? `<p class="hint">Showing the ${cap} most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
+      : `<div class="empty">${q || this.only ? 'No tests match.' : 'Finished tests appear here. You can also open a results file or an Ansur record.'}</div>`);
+    // Ticks (what the hub's bar below downloads, prints or attaches) and the asset list filter.
+    $$('[data-tick]', box).forEach(c => c.addEventListener('change', () => { if (c.checked) this.ticked.add(c.dataset.tick); else this.ticked.delete(c.dataset.tick); this.postTicks(); }));
+    const tickAll = $('#prevTickAll', box);
+    if (tickAll) tickAll.addEventListener('change', () => { $$('[data-tick]', box).forEach(c => { c.checked = tickAll.checked; if (tickAll.checked) this.ticked.add(c.dataset.tick); else this.ticked.delete(c.dataset.tick); }); this.postTicks(); });
+    const clearOnly = $('#prevOnlyClear', box);
+    if (clearOnly) clearOnly.addEventListener('click', () => { this.only = null; this.renderList(); if (window.parent !== window) window.parent.postMessage({ type: 'chs-bench:filter-cleared' }, location.origin); });
+    this.postTicks();
     if (othersHidden) box.insertAdjacentHTML('beforeend', `<p class="hint">${othersHidden} test${othersHidden === 1 ? '' : 's'} by other engineers ${othersHidden === 1 ? 'is' : 'are'} hidden. Search by serial, model, customer or engineer to find ${othersHidden === 1 ? 'it' : 'one'}.</p>`);
     $$('[data-open]', box).forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.open, r = (await this.list()).find(x => x.id === id);
@@ -4993,6 +5012,18 @@ window.addEventListener('message', async (e) => {
     const bytes = await ReportPdf.build(run);
     reply({ mime: 'application/pdf', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
   } catch (err) { log('er', 'RUN', 'PDF for Saved reports failed: ' + err.message); reply({ error: err.message }); }
+});
+/** Inside the hub, the bar under the bench tells the list which tests were sent or downloaded (status), which devices to limit it to (filter, from Asset Sync's Reports to add, an order's review or the Customers tab) and when to clear the ticks. */
+window.addEventListener('message', (e) => {
+  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
+  const m = e.data; if (!m || typeof m.type !== 'string') return;
+  if (m.type === 'chs-bench:status' && m.map && typeof m.map === 'object') { Records.status = m.map; Records.renderList(); }
+  else if (m.type === 'chs-bench:filter' && Array.isArray(m.serials)) {
+    const list = m.serials.map(s => String(s).trim().toUpperCase()).filter(Boolean);
+    Records.only = list.length ? new Set(list) : null; Records.tickAll = !!(Records.only && m.tickAll);
+    Records.renderList();
+  }
+  else if (m.type === 'chs-bench:clear-ticks') { Records.ticked = new Set(); Records.renderList(); }
 });
 /** Inside the hub: the colour each device model has on the Run a test page (its template's highlight colour, as this engineer set it), so
     Saved reports can show a model in the same colour. Asked with { models: [...] }; replies { map: { model: { color, template } }, hex }. */

@@ -7,7 +7,7 @@ import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
 import { clearableIds, storageSummary, withStatus } from './bench-status.js'
-import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, startedOf, statusByStart, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
 import { bookletPdf, mergePdfs, printPdf } from './print.js'
 
@@ -64,7 +64,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ orders = [], status = {}, onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ orders = [], status = {}, onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null, barOnly = false, ticked = null, onStatuses, onClearTicks }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -119,7 +119,11 @@ export default function Reports({ orders = [], status = {}, onClearShared, repor
     const n = jobNumber(job.id), t = { order: g.order, customer: g.rawCustomer, finished: g.finished }
     return (!!g.order && jobNumber(g.order) === n) || orders.some((o) => jobNumber(o.number) === n && belongs(o, t))
   }
-  const groups = useMemo(() => allGroups.filter((g) => !isOthers(g) || lookingFor || forJob(g)), [allGroups, lookingFor, job?.id, orders, me]) // eslint-disable-line react-hooks/exhaustive-deps
+  // barOnly (the bar under the bench): no list of its own, it works on the tests ticked in the bench's Previous tests table, whoever ran them.
+  const groups = useMemo(() => allGroups.filter((g) => barOnly || !isOthers(g) || lookingFor || forJob(g)), [allGroups, lookingFor, job?.id, orders, me, barOnly]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ticked) setChosen(new Set(allGroups.filter((g) => ticked.has(startedOf(g))).map((g) => g.base))) }, [ticked, allGroups]) // eslint-disable-line react-hooks/exhaustive-deps
+  // What the bench's table shows beside each test: sent to which job, or downloaded.
+  useEffect(() => { if (onStatuses) onStatuses(statusByStart(allGroups)) }, [allGroups]) // eslint-disable-line react-hooks/exhaustive-deps
   const othersHidden = allGroups.length - groups.length
   // This engineer's own shared tests whose files are all here, downloaded and sent to Simpro: their stored record can be cleared (they can be dragged back in).
   const clearable = useMemo(() => clearableIds(sharedTests, status, me, withOnJob(groupReports(reports), onJob)), [reports, sharedTests, onJob, me, status])
@@ -131,7 +135,7 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
     try { const n = await onClearShared(clearable); setNote({ text: `Cleared the stored details of ${n} test${n === 1 ? '' : 's'}.`, tone: 'success' }) } catch (e) { setNote({ text: e?.code === 'permission-denied' ? 'Only the engineer who ran a test (or an admin) can clear it.' : (e?.message || 'Couldn’t clear them.'), tone: 'error' }) }
   }
   const customers = useMemo(() => customersIn(groups), [groups])
-  const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials])
+  const visible = useMemo(() => filterGroups(groups, { text, unsentOnly, notDownloaded, customer, period, serials: barOnly ? null : onlySerials }), [groups, text, unsentOnly, notDownloaded, customer, period, onlySerials, barOnly])
   const sections = useMemo(() => categorise(visible, by), [visible, by])
   const totals = useMemo(() => modelTotals(visible), [visible])
   // The colour a model has on the Run a test page (its template's highlight colour, from the bench), or null.
@@ -324,7 +328,8 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
 
   const online_ok = online && user
   return (
-    <div className="tb-reports">
+    <div className={`tb-reports${barOnly ? ' tb-barOnly' : ''}`}>
+      {!barOnly && <>
       <div className="tb-rhead">
         <div>
           <h2>Saved reports</h2>
@@ -373,11 +378,12 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
       </div>
 
       {othersHidden > 0 && <p className="tb-muted">{othersHidden} test{othersHidden === 1 ? '' : 's'} by other engineers {othersHidden === 1 ? 'is' : 'are'} hidden. Search for one, choose its job, or tick “Include other engineers’ tests” to see {othersHidden === 1 ? 'it' : 'them'}.</p>}
-      {groups.length === 0 ? (
+      </>}
+      {groups.length === 0 && !barOnly ? (
         <p className="tb-empty">Nothing saved yet. Save a report in the Test Bench, or add your own files above, and it appears here.</p>
       ) : (
         <>
-          {totals.length > 0 && (
+          {!barOnly && totals.length > 0 && (
             <details className="tb-totals" open>
               <summary><strong>Tested totals per customer and model</strong> <span className="tb-muted">{visible.length} test{visible.length === 1 ? '' : 's'} shown</span></summary>
               <table>
@@ -400,8 +406,9 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
           )}
 
           <div className="tb-selbar">
-            <label className="tb-check"><input type="checkbox" checked={allOf(visible)} onChange={(e) => toggle(visible.map((g) => g.base), e.target.checked)} /> Tick all shown ({visible.length})</label>
+            {!barOnly && <label className="tb-check"><input type="checkbox" checked={allOf(visible)} onChange={(e) => toggle(visible.map((g) => g.base), e.target.checked)} /> Tick all shown ({visible.length})</label>}
             <span className="tb-muted">{picked} ticked · {count} file{count === 1 ? '' : 's'}</span>
+            {barOnly && picked > 0 && onClearTicks && <button type="button" className="tb-link" onClick={onClearTicks}>Clear the ticks</button>}
             <span className="tb-kinds">Include:
               {KINDS.map(([k, n]) => (
                 <label key={k} className="tb-check"><input type="checkbox" checked={exts.includes(k)} onChange={(e) => setExts((l) => (e.target.checked ? [...l, k] : l.filter((x) => x !== k)))} /> {n}</label>
@@ -409,8 +416,8 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
             </span>
           </div>
 
-          {visible.length === 0 && <p className="tb-empty">Nothing matches those filters.</p>}
-          {sections.map((sec) => (
+          {!barOnly && visible.length === 0 && <p className="tb-empty">Nothing matches those filters.</p>}
+          {!barOnly && sections.map((sec) => (
             <section key={sec.key} className="tb-sec">
               {sec.title && (
                 <h3 className="tb-sec-title">
