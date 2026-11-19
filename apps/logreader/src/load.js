@@ -90,7 +90,16 @@ export async function openFiles(fileList, onStatus = () => {}, source) {
   return { source, families, skipped }
 }
 
-const dec = new TextDecoder('utf-8') // bad bytes become U+FFFD, never an error
+/* Some Mindray firmware writes Chinese text (a full-width comma, for instance) in GBK, not UTF-8. Read a file as UTF-8,
+   and if it isn't valid UTF-8 read it as GB18030 (which includes GBK), so those characters show instead of "��". */
+const utf8Strict = new TextDecoder('utf-8', { fatal: true })
+const utf8Lossy = new TextDecoder('utf-8') // bad bytes become U+FFFD, never an error
+let gb = null
+try { gb = new TextDecoder('gb18030') } catch { /* an old browser: fall back to the lossy read */ }
+export function decodeText(bytes) {
+  try { return utf8Strict.decode(bytes) } catch { /* not UTF-8 */ }
+  return (gb || utf8Lossy).decode(bytes)
+}
 
 /** Decompresses and parses every file of a family, once; the result is kept on the family object (in memory only). */
 export async function loadFamily(fam, onStatus = () => {}) {
@@ -104,7 +113,7 @@ export async function loadFamily(fam, onStatus = () => {}) {
       try { bytes = unlzop(bytes) } catch (e) { throw new Error(`${f.name}: ${e.message}`) }
     }
     f.text = bytes.length
-    const parsed = parseLog(dec.decode(bytes), i, { ref: f.ref })
+    const parsed = parseLog(decodeText(bytes), i, { ref: f.ref })
     for (const l of parsed) { l.fam = fam.name; l.fileName = f.name }
     lists.push(parsed)
   }

@@ -95,3 +95,11 @@ test('lines: bracketed thread numbers and syslog lines with no year', () => {
   assert.deepEqual(sys.map(x => x.lvl), ['DEBUG', 'WARN', 'ERROR'])
   assert.match(sys[0].msg, /^Dubhe_Backend:/)
 })
+
+import { decodeText } from '../src/load.js'
+test('text: GBK bytes (a full-width comma) are read, not shown as replacement characters', () => {
+  const gbk = Uint8Array.from([0x56, 0x61, 0x6c, 0xa3, 0xac, 0x6e, 0x46, 0x69]) // "Val", full-width comma in GBK, "nFi"
+  assert.equal(decodeText(gbk), 'Val\uff0cnFi')
+  assert.equal(decodeText(new TextEncoder().encode('caf\u00e9 \u00b0C')), 'caf\u00e9 \u00b0C') // real UTF-8 is left alone
+  assert.ok(!decodeText(gbk).includes('\ufffd'))
+})
