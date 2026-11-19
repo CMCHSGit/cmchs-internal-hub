@@ -62,18 +62,19 @@ async function expand(name, bytes, ref, out, skipped, depth = 0) {
 
 /**
  * `{ source, families: [{ name, files }], skipped }`. `onStatus(text)` is told what is happening.
+ * `fileList` holds Files, or `{ file, path }` (a file and where it was in a chosen folder, which can carry the export's date).
  * Throws an Error with a plain message.
  */
-export async function openFiles(fileList, onStatus = () => {}) {
-  const files = [...fileList]
+export async function openFiles(fileList, onStatus = () => {}, source) {
+  const files = [...fileList].map(f => f.file ? f : { file: f, path: f.name })
   if (!files.length) throw new Error('No file was chosen.')
   const entries = [], skipped = []
-  const source = files.length === 1 ? files[0].name : `${files.length} files`
-  for (const f of files) {
+  source ||= files.length === 1 ? files[0].file.name : `${files.length} files`
+  for (const { file: f, path } of files) {
     onStatus(`Reading ${f.name}…`)
     await tick()
     const buf = new Uint8Array(await f.arrayBuffer())
-    const named = dateInName(f.name)
+    const named = dateInName(path)
     const ref = Number.isFinite(named) ? named : (f.lastModified || Date.now())
     await expand(f.name, buf, ref, entries, skipped)
   }
