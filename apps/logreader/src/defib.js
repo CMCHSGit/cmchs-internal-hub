@@ -8,6 +8,7 @@
    number means is not known, so it is shown as written. */
 
 import { fmtTime } from './lines.js'
+import { alarmMarker } from './alarms.js'
 
 const FAMILIES = { backend: 'DefibBackendLog', print: 'PrintServerLog' }
 
@@ -38,7 +39,7 @@ export function marker(l) {
   if (/^Recorder_Open/.test(m)) return { kind: 'recorder', label: 'Recorder opened' }
   const r = RE_REPORT.exec(m)
   if (r) return { kind: 'report', label: r[1] }
-  return null
+  return alarmMarker(l)
 }
 
 /**
@@ -133,6 +134,6 @@ export const defib = {
   families: FAMILIES,
   marker,
   markerKinds: {
-    shock: 'Shock', boot: 'Start-up', recorder: 'Recorder', report: 'Report',
+    shock: 'Shock', boot: 'Start-up', recorder: 'Recorder', report: 'Report', alarm: 'Alarm',
   },
 }

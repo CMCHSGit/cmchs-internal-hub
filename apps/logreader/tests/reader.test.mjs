@@ -192,3 +192,46 @@ test('markers: the lines worth marking on the timeline', () => {
   assert.equal(marker(print[1]).label, 'Shock Report (Manual Defib)')
   assert.equal(marker(sample[0]), null)
 })
+
+// Alarm records, shaped like the device's BackendLog (tab-separated)
+import { parseAlarm, alarmEvents, alarmSummary, filterEvents, alarmMarker } from '../src/alarms.js'
+const al = (t, name, start, pri, type, edge) => `11/13/26 ${t} INFO - \t\t${name}\t${start}\tAlarmPriority_${pri}\t${type}\t/\tAlarm ${edge}\t [AlarmInfoLogManager.cpp:1332]`
+const alarmLines = L([
+  al('08:49:14', 'Recorder Initializing', '2026-11-13 8:49:13', 'Prompt', 'Technical', 'Begin'),
+  al('08:49:21', 'Recorder Initializing', '2026-11-13 8:49:13', 'Prompt', 'Technical', 'End'),
+  al('09:00:00', 'HR High', '2026-11-13 9:00:00', 'High', 'Physiological', 'Begin'),
+  al('09:00:00', 'HR High', '2026-11-13 9:00:00', 'High', 'Physiological', 'Begin'), // logged twice
+  al('09:05:30', 'HR High', '2026-11-13 9:00:00', 'High', 'Physiological', 'End'),
+  al('09:10:00', 'Low Battery', '2026-11-13 9:10:00', 'Medium', 'Technical', 'Begin'),
+  al('09:20:00', 'Old One', '2026-11-12 23:00:00', 'Low', 'Technical', 'End'),
+  '11/13/26 09:30:00 INFO - some other line',
+].join('\n'))
+
+test('alarms: a record line is read; other lines are not', () => {
+  const a = parseAlarm(alarmLines[0])
+  assert.deepEqual([a.name, a.priority, a.type, a.edge, fmtTime(a.start)], ['Recorder Initializing', 'Prompt', 'Technical', 'Begin', '2026-11-13 08:49:13'])
+  assert.equal(parseAlarm(alarmLines[alarmLines.length - 1]), null)
+  assert.equal(alarmMarker(alarmLines[2]).label, 'High physiological alarm begin')
+})
+
+test('alarms: begin and end are paired, a repeated begin counted once', () => {
+  const ev = alarmEvents(alarmLines)
+  assert.equal(ev.length, 4)
+  const byName = Object.fromEntries(ev.map(e => [e.name, e]))
+  assert.deepEqual([byName['Recorder Initializing'].status, byName['Recorder Initializing'].secs], ['cleared', 8])
+  assert.deepEqual([byName['HR High'].status, byName['HR High'].secs], ['cleared', 330])
+  assert.equal(byName['Low Battery'].status, 'open')
+  assert.equal(byName['Old One'].status, 'noBegin')
+  assert.deepEqual(ev.map(e => e.name), ['Old One', 'Recorder Initializing', 'HR High', 'Low Battery']) // by start time
+})
+
+test('alarms: filters by priority, type, name and time; summary counts', () => {
+  const ev = alarmEvents(alarmLines)
+  assert.deepEqual(filterEvents(ev, { priorities: new Set(['High']) }).map(e => e.name), ['HR High'])
+  assert.deepEqual(filterEvents(ev, { types: new Set(['Technical']) }).length, 3)
+  assert.deepEqual(filterEvents(ev, { priorities: new Set(['High', 'Medium']), types: new Set(['Technical']) }).map(e => e.name), ['Low Battery'])
+  assert.deepEqual(filterEvents(ev, { text: 'RECORDER' }).length, 1)
+  assert.deepEqual(filterEvents(ev, { from: Date.UTC(2026, 10, 13, 9, 0, 0) }).map(e => e.name), ['HR High', 'Low Battery'])
+  const sum = alarmSummary([...ev, ...alarmEvents(alarmLines)])
+  assert.equal(sum.find(s => s.name === 'HR High').count, 2)
+})
