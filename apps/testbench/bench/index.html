@@ -3193,7 +3193,7 @@ const Runner = {
     if (!opts.auto && this.step === s) { this.renderStage(); this.renderList(); }  // the connection banner goes
     if (Power.on) await Power.off(true);
     const T = TYPES[s.type], r = this.res(s), rows = buildEsaRows(s, this.run.template);
-    const zero = s.type === 'esa_pe' && Prefs.get('zeroLead');
+    const zero = s.type === 'esa_pe' && (opts.zero || Prefs.get('zeroLead'));
     // In a sequence, pause only when the red test lead has to move (earthed metal ↔ non-earthed part).
     const lead = leadFor(s);
     if (opts.auto && lead && lead !== this.autoLead && !zero) {
@@ -3289,7 +3289,7 @@ const Runner = {
         while (out === 'fail' && halt && !this.autoStop && Devices.esa) {
           await this.safeOff(Devices.esa);
           const choice = await this.failPrompt(this.steps[i], i === blk[1]);
-          if (choice === 'retest') { log('in', 'RUN', `Re-testing “${this.steps[i].title}”`); out = await this.runEsa(this.steps[i], { auto: true }); this.renderList(); continue; }
+          if (choice === 'retest' || choice === 'zero') { log('in', 'RUN', `Re-testing “${this.steps[i].title}”${choice === 'zero' ? ', zeroing the lead first' : ''}`); out = await this.runEsa(this.steps[i], { auto: true, zero: choice === 'zero' }); this.renderList(); continue; }
           if (choice !== 'next') { stoppedAt = i; why = 'declined'; }
           break;
         }
@@ -3330,13 +3330,14 @@ const Runner = {
     else toast(a != null ? `Device powered from the outlet to charge: drawing ${fmtNum(a)} A. Switch it off before unplugging.` : 'Device powered from the outlet to charge. Switch it off before unplugging.', 5000);
     return true;
   },
-  /** After a failed test in the auto sequence: what failed, and 'retest', 'next' (carry on) or 'stop'. */
+  /** After a failed test in the auto sequence: what failed, and 'retest', 'zero' (zero the PE lead, then re-test), 'next' (carry on) or 'stop'. */
   failPrompt(s, last) {
     const bad = (this.res(s).rows || []).filter(x => x && x.result === 'fail');
+    const unzeroed = s.type === 'esa_pe' && bad.some(x => /lead not zeroed/i.test(x.label));
     const what = bad.map(x => `<li><b>${esc(x.label)}</b>: ${esc(x.display)}${x.limit ? ` <span class="muted">(limit ${esc(x.limit)})</span>` : ''}</li>`).join('');
     return dialog({ title: `${s.title} failed`, tone: 'var(--critical)',
-      body: `${what ? `<ul style="padding-left:20px;margin:0 0 10px">${what}</ul>` : ''}<p>The equipment outlet is off. Check the connection (lead clip, plug, the part being touched), then re-test. The earlier result is replaced when the re-test finishes.</p>`,
-      buttons: [{ label: 'Stop sequence', value: 'stop', cls: 'quiet', cancel: true }, { label: last ? 'Carry on' : 'Continue to next test', value: 'next', cls: 'secondary' }, { label: 'Re-test', value: 'retest' }] });
+      body: `${what ? `<ul style="padding-left:20px;margin:0 0 10px">${what}</ul>` : ''}<p>The equipment outlet is off. Check the connection (lead clip, plug, the part being touched), then re-test. The earlier result is replaced when the re-test finishes.</p>${unzeroed ? '<p class="muted">The lead wasn’t zeroed: <b>Zero lead and re-test</b> zeroes it on the ESA612 null post first (the ESA612 stays in remote mode).</p>' : ''}`,
+      buttons: [{ label: 'Stop sequence', value: 'stop', cls: 'quiet', cancel: true }, { label: last ? 'Carry on' : 'Continue to next test', value: 'next', cls: 'secondary' }, ...(unzeroed ? [{ label: 'Zero lead and re-test', value: 'zero', cls: 'secondary' }] : []), { label: 'Re-test', value: 'retest' }] });
   },
   /** Send a row's setup. If the analyser refuses a command (!02) and the row has another known order, try that. */
   /** Find which of INSB / INSD / INSE runs an insulation test, by asking the analyser for its function number (FN).

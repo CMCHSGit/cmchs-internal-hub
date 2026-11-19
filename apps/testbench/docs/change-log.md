@@ -414,3 +414,6 @@ fitted); network, battery and production test. `IBPP` (dynamic pressure) is from
   running: they say to wait and write a line in the Log ("… waited: …"), so a stuck state shows up in a copied log.
 - Stop test says "Stopping the measurement…" if the ESA612 takes more than a few seconds to finish, instead of looking dead.
 - After marking a reading N/A the cursor no longer goes back into that empty box.
+
+## Zero the earth lead from a failed result (19/11/2026)
+When protective earth resistance fails in the auto sequence and the lead wasn't zeroed (the default), the failure box has a **Zero lead and re-test** button: it asks for the red lead on the ESA612 null post, zeroes it (`IDLE`, `ERES`, `ZERO`, as the "Zero the test lead" setting does) and measures again. The ESA612 stays in remote mode. The setting itself is unchanged (off by default).

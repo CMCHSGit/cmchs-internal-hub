@@ -213,7 +213,9 @@ list yet, and see which units have been tested.
   each one says whether it is an ESA612 or a ProSim, so no port is picked by hand. The first time on a laptop the browser asks once
   (it lists only the USB serial devices) and then remembers. A test with ESA612 steps also reconnects known devices when it begins.
 - **A failed test in the auto sequence** (stop-on-fail is on by default) asks what to do: **Re-test** that step at once, **Continue to next
-  test**, or **Stop sequence**. The failing readings are shown in the prompt.
+  test**, or **Stop sequence**. The failing readings are shown in the prompt. A protective earth result measured without zeroing the lead
+  also offers **Zero lead and re-test**: the bench asks for the lead on the null post, zeroes it (`ERES`, `ZERO`) and measures again,
+  all in remote mode.
 - **Readings finish early.** Each ESA612 measurement waits up to its settle time (2 s mains, 3 s earth resistance, 4 s leakage, 5 s
   insulation) but records as soon as the reading has stopped moving: 3 or more readings over 1 s (1.5 s for insulation) within 2 %
   of each other, or a small fixed step near zero. The standard sets no minimum time; the settle time is the longest it waits.
