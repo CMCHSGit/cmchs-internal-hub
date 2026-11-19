@@ -4,7 +4,9 @@ internal.chsnz.co.nz: the hub home page (`apps/hub`, which also holds the shell
 every section runs in; it has its own `CLAUDE.md`) and the tools under it (schedule,
 maintenance, service orders, SimproSync, Ansur, admin settings, and the demo
 tracker at /equipment/, `apps/equipment`, which has its own `CLAUDE.md`; so do Asks,
-the Test Bench and Simpro Asset Sync, `apps/simprosync`). How it is put
+the Test Bench and Simpro Asset Sync, `apps/simprosync`). **Settings and
+notifications** (every setting's store, every push and email, their switches) are
+mapped in `apps/settings/CLAUDE.md`: read it before adding either. How it is put
 together, run locally and deployed is in `README.md`; the wider history and
 traps are in `chs-equipment/PROJECT-CONTEXT.md`.
 
