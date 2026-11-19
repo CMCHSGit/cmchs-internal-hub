@@ -98,6 +98,18 @@ export function LogView({ lines, famNames, profile, jump }) {
     download('log-export.csv', out.join('\r\n') + '\r\n', 'text/csv')
   }
 
+  // The span the ticked logs cover (real dates only), so a time filter outside it can be explained.
+  const span = useMemo(() => {
+    let a = Infinity, b = -Infinity
+    for (const l of lines) if (!l.early && Number.isFinite(l.t)) { if (l.t < a) a = l.t; if (l.t > b) b = l.t }
+    return a <= b ? { from: a, to: b } : null
+  }, [lines])
+  // Is the time range the reason nothing shows? (no line at all falls inside it; lines are in time order)
+  const outside = !!span && !rows.length && (Number.isFinite(fromT) || Number.isFinite(toT)) && (() => {
+    const i = lowerBound(lines, Number.isFinite(fromT) ? fromT : -Infinity)
+    return !(i < lines.length && lines[i].t <= (Number.isFinite(toT) ? toT : Infinity))
+  })()
+
   const famIdx = useMemo(() => new Map(famNames.map((n, i) => [n, i])), [famNames])
 
   return (
@@ -122,15 +134,16 @@ export function LogView({ lines, famNames, profile, jump }) {
       </div>
       <div className="lr-bar">
         <label className="lr-field">From
-          <input className="input" type="datetime-local" step="1" value={from} onChange={e => setFrom(e.target.value)} />
+          <input className="input" type="datetime-local" step="1" value={from} min={span ? toLocalInput(span.from) : undefined} max={span ? toLocalInput(span.to) : undefined} onChange={e => setFrom(e.target.value)} />
         </label>
         <label className="lr-field">To
-          <input className="input" type="datetime-local" step="1" value={to} onChange={e => setTo(e.target.value)} />
+          <input className="input" type="datetime-local" step="1" value={to} min={span ? toLocalInput(span.from) : undefined} max={span ? toLocalInput(span.to) : undefined} onChange={e => setTo(e.target.value)} />
         </label>
         <Button variant="secondary" size="sm" onClick={jumpTo} disabled={!Number.isFinite(fromT)}>Jump to “From”</Button>
         {(q || levels.size || from || to || markedOnly) && (
           <Button variant="ghost" size="sm" iconLeft={<X size={14} />} onClick={() => { setQ(''); setLevels(new Set()); setFrom(''); setTo(''); setMarkedOnly(false) }}>Clear filters</Button>
         )}
+        {span && <span className="lr-muted lr-spanhint" title="The dates in the logs you have ticked">Logs cover {fmtTime(span.from)} → {fmtTime(span.to)}</span>}
         <span className="lr-count" aria-live="polite">
           {matcher.error ? <b className="lr-bad">{matcher.error}</b> : <>{rows.length.toLocaleString('en-NZ')} of {lines.length.toLocaleString('en-NZ')} lines</>}
         </span>
@@ -139,7 +152,13 @@ export function LogView({ lines, famNames, profile, jump }) {
 
       <div className="lr-list" ref={box} onScroll={e => setScrollTop(e.currentTarget.scrollTop)} role="listbox" aria-label="Log lines" tabIndex={0}>
         {!lines.length && <p className="lr-empty">Tick a log on the left to read it.</p>}
-        {lines.length > 0 && !rows.length && <p className="lr-empty">No lines match.</p>}
+        {lines.length > 0 && !rows.length && outside && (
+          <p className="lr-empty">
+            There are no lines in that time range. The logs ticked cover <b>{fmtTime(span.from)}</b> to <b>{fmtTime(span.to)}</b>.{' '}
+            <Button variant="secondary" size="sm" onClick={() => { setFrom(''); setTo('') }}>Show the whole range</Button>
+          </p>
+        )}
+        {lines.length > 0 && !rows.length && !outside && <p className="lr-empty">No lines match.</p>}
         <div style={{ height: rows.length * ROW, position: 'relative' }}>
           {rows.slice(start, end).map((li, k) => {
             const l = lines[li]

@@ -134,3 +134,6 @@
 
 /* Tick all / Untick all */
 .lr-side-btns { display: flex; gap: 6px; margin: 0 0 8px; }
+
+.lr-spanhint { font-size: 12px; }
+.lr-clockwarn { font-style: normal; color: var(--status-attention); }

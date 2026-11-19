@@ -43,7 +43,9 @@ export default function App() {
       const s = await openFiles(exp.files, setBusy, exp.name)
       const all = s.families.map(f => f.name)
       const p = profileFor(all)
-      const first = p ? p.firstFamilies.filter(n => all.includes(n)) : []
+      // A known device opens the logs it needs; a small export of any other kind (a couple of logs) opens whole; a big one waits for a tick.
+      const small = s.families.length <= 4 && s.families.reduce((n, f) => n + f.files.reduce((m, x) => m + x.size, 0), 0) <= 50 * 1048576
+      const first = p ? p.firstFamilies.filter(n => all.includes(n)) : small ? all : []
       for (const n of first) await loadFamily(s.families.find(f => f.name === n), setBusy)
       setSession(s); setOn(first); setTab('logs'); setJump(null)
     } catch (e) {
@@ -195,6 +197,9 @@ export default function App() {
             </div>
             <ul>
               {session.families.map(f => {
+                // a log whose dates are over a year before the newest log's: the device's clock was probably not set when it wrote it
+                const newest = Math.max(...session.families.map(x => x.range?.to ?? -Infinity))
+                const oldClock = !!f.range && newest - f.range.to > 365 * 864e5
                 const i = on.indexOf(f.name)
                 const total = f.files.reduce((n, x) => n + x.size, 0)
                 const first = profile?.firstFamilies.includes(f.name)
@@ -208,6 +213,7 @@ export default function App() {
                         <span className="lr-fl-s">
                           {f.files.length > 1 ? `${f.files.length} files · ` : ''}{mb(total)}
                           {f.range ? ` · ${day(f.range.from)} → ${day(f.range.to)}` : ''}
+                          {oldClock && <i className="lr-clockwarn" title="The device's clock was probably not set when it wrote this log. Its times are shown as written, so a time filter for the real date will not find them."> · clock looks wrong</i>}
                         </span>
                       </span>
                     </label>
