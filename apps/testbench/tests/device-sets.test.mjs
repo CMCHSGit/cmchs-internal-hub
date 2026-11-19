@@ -133,3 +133,11 @@ test('the pressure gauge step: the ProSim measures, the bench only reads it (PRE
   assert.ok(!/'PRESSX'|'PRESS'/.test(html.slice(html.indexOf('const PS_BLOCK'), html.indexOf('\n', html.indexOf('const PS_BLOCK')))), 'reading is not blocked')
   assert.match(html, /PS_BLOCK = \['RESET', 'PAIR', 'UNPAIR', 'PS=', 'PST=', 'NIBPLEAK', 'NIBPPOP', 'ZPRESS', 'CZPRESS'\]/, 'the pump stays blocked')
 })
+
+test('a protective earth failure measured without zeroing offers to zero the lead and re-test, in remote mode', () => {
+  assert.match(html, /const zero = s\.type === 'esa_pe' && \(opts\.zero \|\| Prefs\.get\('zeroLead'\)\);/)
+  assert.match(html, /const unzeroed = s\.type === 'esa_pe' && bad\.some\(x => \/lead not zeroed\/i\.test\(x\.label\)\);/)
+  assert.match(html, /\.\.\.\(unzeroed \? \[\{ label: 'Zero lead and re-test', value: 'zero'/)
+  assert.match(html, /choice === 'retest' \|\| choice === 'zero'\) \{[^\n]*this\.runEsa\(this\.steps\[i\], \{ auto: true, zero: choice === 'zero' \}\)/)
+  assert.match(html, /await this\.esaSend\(link, 'IDLE'\); await this\.esaSend\(link, 'ERES'\); await this\.esaSend\(link, 'ZERO'\);/)
+})
