@@ -142,7 +142,7 @@ function Schedule() {
     <div className="mt-page">
       <div className="mt-head">
         <div>
-          <h1 className="mt-title">Maintenance schedule</h1>
+          <h1 className="mt-title">PM schedule</h1>
           <p className="mt-sub">Planned maintenance by site: what’s due, what’s done.</p>
         </div>
         {canEdit && (

@@ -111,8 +111,8 @@
   },
   {
     "id": "maintenance",
-    "name": "Maintenance Schedule",
-    "short": "Maintenance Schedule",
+    "name": "PM Schedule",
+    "short": "PM Schedule",
     "description": "Planned maintenance by site — what is due, and what is done",
     "link": "/maintenance/",
     "category": "Service",
