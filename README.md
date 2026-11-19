@@ -256,6 +256,14 @@ list yet, and see which units have been tested.
 - **Templates for the Masimo monitors and the N1 set** (10 Nov 2026, made by `apps/testbench/tools/make-masimo-n1-templates.mjs` from the CHS
   Ansur records): Masimo Rad-97, Radical-7, Root and Rad-G (Promed), and the Mindray N1 with its N1 TDS and N1 Handle as one set. A template can
   name its **manufacturer** (Templates page, next to the models; the Masimo ones say Masimo), which fills an empty Manufacturer box instead of Mindray.
+- **Importing an Ansur template or record sets it up the CHS way** (Templates → **Import**, a .mtt or .mtr; 20 Nov 2026). A review screen
+  before anything is saved: a clean name ("Masimo Rad-97", from the file name and the make in a record), group and manufacturer; the CHS device
+  details; each applied part's type; **every electrical safety limit that differs from AS/NZS 3551** (and a missing protective earth test on a
+  Class I device), each with **AS/NZS 3551** or **Keep Ansur** — the choice is written in the description, never made silently; the typed
+  performance checks the ProSim 8 can run (ECG, respiration, SpO2, NIBP as the pressure gauge, IBP, temperature), ticked to become ProSim steps,
+  a mixed Ansur container ("Performance Testing") offered section by section in its order; a container the file holds twice left out (the fuller
+  copy kept); and **Save to the shared templates folder**. **Import as it is** skips all of it. Still for a person: the service manual,
+  deciding whether an odd Ansur limit is deliberate, and tests that are only in another record.
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
   `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under
   Previous tests ("Shared by …"); opening one fetches it onto that PC. The PDF and the Ansur record (.mtr) aren't stored: the bench

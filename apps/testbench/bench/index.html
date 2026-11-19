@@ -2295,8 +2295,12 @@ const Builder = {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
       const text = await readText(f); let notes = [];
-      let d;
-      if (/^\s*</.test(text)) { const conv = ansurToTemplate(text, f.name); d = conv.template; notes = conv.notes; log('in', 'APP', `Converted Ansur file ${f.name}: ${d.steps.length} steps`); }
+      let d, reviewed = null;
+      if (/^\s*</.test(text)) {
+        const conv = ansurToTemplate(text, f.name); d = conv.template; notes = conv.notes; log('in', 'APP', `Converted Ansur file ${f.name}: ${d.steps.length} steps`);
+        reviewed = await ansurReview(conv, f.name); if (!reviewed) return;   // the CHS conventions: name, group, limits, ProSim steps
+        if (reviewed !== 'raw') d = reviewed.template;
+      }
       else d = JSON.parse(text);
       const list = Array.isArray(d) ? d : d.template ? [d.template] : d.templates || [d];
       let n = 0;
@@ -2311,10 +2315,12 @@ const Builder = {
           if (how === 'replace') await Store.remove(same.id); else t.name += ' (imported)';
         }
         await Store.add(t); this.tplId = t.id; n++;
+        if (reviewed && reviewed.save) await Shared.save(t);
       }
       if (!n) { if (list.some(r => r && Array.isArray(r.steps))) return; throw new Error('no template found in the file'); }
       this.selId = null; this.renderAll(); App.refreshRunPicker(); toast(`Imported ${n} template${n === 1 ? '' : 's'}`);
-      if (notes.length || /^\s*</.test(text)) dialog({ title: 'Ansur template imported', body: `<p>“${esc(this.tpl?.name || '')}” has ${this.tpl?.steps.length || 0} steps. Each Ansur test container became one step, so related checks are on one screen. Check the limits and instructions before using it.</p>${notes.length ? `<p><b>Not imported:</b></p><ul style="margin:0;padding-left:20px">${[...new Set(notes)].map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}` });
+      if (reviewed && reviewed !== 'raw') toast(`“${this.tpl?.name || ''}” is ready: ${this.tpl?.steps.length || 0} steps. Check the instructions before using it.`, 6000);
+      else if (notes.length || /^\s*</.test(text)) dialog({ title: 'Ansur template imported', body: `<p>“${esc(this.tpl?.name || '')}” has ${this.tpl?.steps.length || 0} steps. Each Ansur test container became one step, so related checks are on one screen. Check the limits and instructions before using it.</p>${notes.length ? `<p><b>Not imported:</b></p><ul style="margin:0;padding-left:20px">${[...new Set(notes)].map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}` });
     } catch (err) { dialog({ title: 'Couldn’t import that file', body: `<p>${esc(err.message)}</p>` }); }
   },
 };
@@ -4547,10 +4553,253 @@ function ansurToTemplate(xmlText, fileName) {
   const setupDut = kids(at(root, 'Setup/DUT'), 'Item').map(i => i.getAttribute('Caption') || i.getAttribute('Name')).filter(Boolean);
   const rawName = tmpl.getAttribute('Name') || ''; // old Ansur files can hold an 8.3 short name such as P~1.MTT
   const name = (/~\d/.test(rawName) || !rawName ? fileName : rawName).replace(/\.mt[tr]$/i, '').replace(/^\d+\s*[,-]\s*/, '').replace(/^SN_/, '').replace(/\s*DD\.MM\.YYYY\b/gi, '').replace(/\s+(PMV\s+)?Template(\s+[\d.]+)?$/i, '').replace(/\s{2,}/g, ' ').trim();
-  return { notes, template: {
+  // From a record: the make and model typed in Ansur, to suggest a name and manufacturer (never the serial, customer or engineer).
+  const dutVal = (n) => txt(kids(at(root, 'Setup/DUT'), 'Item').find(i => i.getAttribute('Name') === n));
+  return { notes, info: { manufacturer: dutVal('Manufacturer'), model: dutVal('Model') }, template: {
     name, desc: `Imported from Ansur ${/\.mtt$/i.test(fileName) ? 'template' : 'record'} ${fileName}`,
     dut: setupDut.length ? setupDut : ['Serial number', 'Manufacturer', 'Model', 'Customer', 'CHS asset #', 'Customer asset #', 'Testing engineer'],
     esaAuto: true, esaHalt, appliedParts: usesAp ? groups : undefined, steps } };
+}
+
+/* ======================= Ansur import review: the CHS conventions (docs/bench-notes.md §8) ======================= */
+/* After an Ansur file is converted, Import shows a review: a clean name, group and manufacturer, the CHS device details, the applied
+   part types, every electrical safety limit that differs from AS/NZS 3551 (use the standard or keep Ansur: never changed silently,
+   both are written in the description), and the typed performance checks the ProSim 8 can run. These functions only work on data. */
+const CHS_DUT = ['Serial number', 'Manufacturer', 'Model', 'Customer', 'Location', 'CHS asset #', 'Customer asset #', 'Testing company', 'Testing engineer'];
+const EST_STD = { pe: 0.2, ins: { MINS: 1, MAINS_NE: 1 }, encl: { NC: 100, ON: 500, OE: 500 }, earthl: { NC: 5000, ON: 10000 } };
+const blank = (v) => v === '' || v == null;
+
+/** "0000-Rad-97 Nomoline AS-NZS 3551 EST and PVT Master" + Masimo → "Masimo Rad-97 Nomoline". */
+function ansurCleanName(name, manufacturer) {
+  let n = String(name || '').replace(/\.mt[tr]$/i, '').replace(/^(SN[_-]|\d+\s*[,_-]\s*)+/i, '')
+    .replace(/\b(AS[\/ -]?NZS?|ASNZ)\s*3551(:\d{4})?/gi, '').replace(/\bEST\s*(and|\+|&)\s*PVT\b/gi, '').replace(/\b(EST|PVT|PMV)\b/g, '')
+    .replace(/\b(Master|Template)\b/gi, '').replace(/\b\d{1,2}[./]\d{1,2}[./]\d{2,4}\b/g, '').replace(/\bDD\.MM\.YYYY\b/gi, '')
+    .replace(/\s*[,+&]\s*(?=[,+&]|$)/g, '').replace(/[\s,+&-]+$/g, '').replace(/^[\s,+&-]+/g, '').replace(/\s{2,}/g, ' ').trim();
+  const m = String(manufacturer || '').trim();
+  if (m && n && !n.toLowerCase().includes(m.toLowerCase())) n = `${m} ${n}`;
+  return n || String(name || '').trim();
+}
+
+const condsText = (conds) => conds.map(c => `${c.c} ${blank(c.hi) ? '–' : c.hi}`).join(', ') + ' µA';
+
+/** Every electrical safety limit that differs from AS/NZS 3551, and a protective earth test missing from a Class I device. */
+function ansurLimitIssues(t) {
+  const out = [], steps = t.steps;
+  steps.forEach((s, i) => {
+    const p = s.params || {};
+    if (s.type === 'esa_pe' && +p.hi !== EST_STD.pe) out.push({ id: `l${i}`, i, kind: 'pe', what: s.title, ansur: blank(p.hi) ? 'no limit' : `≤ ${p.hi} Ω`, std: `≤ ${EST_STD.pe} Ω` });
+    if (s.type === 'esa_ins') {
+      const want = EST_STD.ins[p.target];
+      if (want != null ? +p.lo !== want || blank(p.lo) : !blank(p.lo)) out.push({ id: `l${i}`, i, kind: 'ins', what: s.title, ansur: blank(p.lo) ? 'recorded, no limit' : `≥ ${p.lo} MΩ`, std: want != null ? `≥ ${want} MΩ` : 'recorded, no limit' });
+    }
+    if (s.type === 'esa_encl' || s.type === 'esa_earthl') {
+      const table = s.type === 'esa_encl' ? EST_STD.encl : EST_STD.earthl;
+      const fixed = (p.conds || []).map(c => ({ ...c, hi: table[c.c.replace(/^R/, '')] ?? c.hi }));
+      if (fixed.some((c, k) => +c.hi !== +p.conds[k].hi || blank(p.conds[k].hi))) out.push({ id: `l${i}`, i, kind: s.type === 'esa_encl' ? 'encl' : 'earthl', what: s.title, ansur: condsText(p.conds), std: condsText(fixed) + (s.type === 'esa_earthl' ? ' (B11.6)' : '') });
+    }
+  });
+  if (!steps.some(s => s.type === 'esa_pe') && steps.some(s => s.type === 'esa_earthl')) out.push({ id: 'addpe', i: -1, kind: 'addpe', what: 'Protective earth resistance', ansur: 'no protective earth test', std: `add one, ≤ ${EST_STD.pe} Ω (the device has earth leakage, so it is Class I)` });
+  return out;
+}
+
+/** Applies one limit to the standard (mutates t). `step` is the step the issue is about (the steps may have moved since). */
+function ansurUseStandard(t, issue, step) {
+  if (issue.kind === 'addpe') {
+    const at = t.steps.findIndex(s => s.type === 'esa_mains');
+    t.steps.splice(at + 1, 0, newStep('esa_pe', { title: 'Protective earth resistance', params: { hi: EST_STD.pe } }));
+    return;
+  }
+  const p = step.params;
+  if (issue.kind === 'pe') p.hi = EST_STD.pe;
+  if (issue.kind === 'ins') p.lo = EST_STD.ins[p.target] ?? '';
+  if (issue.kind === 'encl' || issue.kind === 'earthl') { const table = EST_STD[issue.kind]; p.conds = p.conds.map(c => ({ ...c, hi: table[c.c.replace(/^R/, '')] ?? c.hi })); }
+}
+
+/** Steps repeated in the Ansur file (a container held twice, sometimes one copy with a check more): the indexes of the copies to
+    leave out. A copy is repeated when another step of the same name holds every one of its checks; the fuller copy is kept. */
+function ansurDuplicates(t) {
+  const key = (s) => JSON.stringify([s.type, s.title]);
+  const ents = (s) => s.type === 'check' ? [...(s.params.items || []).map(x => 'i' + x), ...(s.params.readings || []).map(r => 'r' + JSON.stringify(r))] : [JSON.stringify(s.params)];
+  const drop = new Set();
+  t.steps.forEach((s, i) => t.steps.forEach((o, j) => {
+    if (i === j || drop.has(i) || drop.has(j) || key(s) !== key(o)) return;
+    const a = ents(s), b = ents(o);
+    if (a.every(x => b.includes(x)) && (a.length < b.length || i > j)) drop.add(i);
+  }));
+  return [...drop].sort((x, y) => x - y);
+}
+
+/** The area a typed check belongs to, from its title: one ProSim step type, or null (none, or more than one area). */
+const PS_AREAS = [
+  ['ps_gauge', /\bNIBP\b|\bNIPB\b|non-?invasive blood pressure|blood pressure/i],
+  ['ps_ibp', /\bIBP\b|\binvasive (blood )?pressure|arterial pressure/i],
+  ['ps_spo2', /spo2|oximet|saturation/i],
+  ['ps_nsr', /\bECG\b|heart rate/i],
+  ['ps_resp', /\bresp\b|respiration/i],
+  ['ps_temp', /\btemp(erature)?\b/i],
+];
+function psAreaOf(title) {
+  const t = String(title || '');
+  const hits = PS_AREAS.filter(([type, re]) => re.test(type === 'ps_ibp' ? t.replace(/\bNIBP\b|non-?invasive/gi, '') : t)).map(a => a[0]);   // "non-invasive" is not IBP
+  return hits.length === 1 ? hits[0] : null;
+}
+const PROBE_OF = [[/masimo/i, 'MASIM'], [/nellcor|covidien|medtronic/i, 'NELCR'], [/nonin/i, 'NONIN'], [/philips/i, 'PHIL'], [/nihon/i, 'NIHON'], [/ohmeda|\bGE\b/i, 'OHMED'], [/mindray/i, 'MINDR']];
+const midOf = (r) => (r && !blank(r.lo) && !blank(r.hi) ? (+r.lo + +r.hi) / 2 : null);
+const inRange = (v, lo, hi) => v != null && Number.isFinite(v) && v >= lo && v <= hi;
+
+/** A ProSim step for one area from a check's readings and items: { step, on, why }. */
+function psStepFor(type, { title, instructions, readings, items, images, hold }, manufacturer) {
+  const first = readings[0], mid = midOf(first);
+  const text = [title, instructions, ...items, ...readings.map(r => r.label)].join(' ');
+  let params, on = true, why = '';
+  const mon = (label, unit, lo, hi) => first ? { enabled: true, label: first.label, unit: first.unit || unit, lo: first.lo, hi: first.hi } : monitorCheck(label, unit, lo, hi);
+  if (type === 'ps_spo2') {
+    const sat = !first || inRange(97, +first.lo || 0, blank(first.hi) ? 100 : +first.hi) || !inRange(mid, 50, 100) ? 97 : Math.round(mid);   // 97 % unless the limits rule it out
+    const probe = (PROBE_OF.find(([re]) => re.test(manufacturer || '') || re.test(text)) || [, 'MINDR'])[1];
+    params = { sat, probe, monitor: mon('SpO2 on monitor', '%', sat - 2, Math.min(100, sat + 3)) };
+    if (/healthy|person|finger|own/i.test(text)) { on = false; why = 'Ansur measures on a person’s finger'; }
+  } else if (type === 'ps_nsr') {
+    const rate = inRange(mid, 30, 300) ? Math.round(mid) : 80;
+    params = { who: 'A', rate, ampl: '1.00', monitor: mon('Heart rate on monitor', 'bpm', rate - 1, rate + 1) };
+  } else if (type === 'ps_resp') {
+    const rate = inRange(mid, 10, 150) ? Math.round(mid) : 20;
+    params = { rate, monitor: mon('Respiration rate on monitor', 'rpm', rate - 2, rate + 2) };
+    if (/ventilat|tidal|anaes/i.test(text)) { on = false; why = 'looks like a ventilator check'; }
+  } else if (type === 'ps_temp') {
+    const near = inRange(mid, 30, 42) ? TEMPS.reduce((a, b) => (Math.abs(b - mid) < Math.abs(a - mid) ? b : a)) : '37.0';
+    params = { t: near, monitor: mon('Temperature on monitor', '°C', +(+near - 0.1).toFixed(1), +(+near + 0.1).toFixed(1)) };
+    if (/infrared|\bIR\b|\bear\b|forehead|tympanic|ambient|heater|humidif|warm/i.test(text)) { on = false; why = 'not a YSI probe input'; }
+  } else if (type === 'ps_ibp') {
+    const pr = inRange(mid, -10, 300) ? Math.round(mid) : 200, tol = Math.max(2, Math.round(Math.abs(pr) * 0.02));
+    params = { ch: '1', p: pr, monitor: mon('IBP on monitor', 'mmHg', pr - tol, pr + tol) };
+  } else {
+    params = { monitor: mon('Reading on monitor', 'mmHg', '', '') };
+  }
+  const extra = [...readings.slice(first ? 1 : 0).map(r => ({ label: r.label, unit: r.unit || '', lo: r.lo, hi: r.hi })), ...items.map(label => ({ label, unit: '', lo: '', hi: '' }))];
+  if (extra.length) params.extra = extra;
+  const T = TYPES[type];
+  const instr = type === 'ps_gauge' ? [T.instructions, instructions].filter(Boolean).join('\n\n') : [instructions, T.instructions].filter(Boolean).join('\n\n');
+  return { step: newStep(type, { title, instructions: instr, images: images || [], hold: hold || 0, params }), on, why };
+}
+
+/** A check's readings and items in sections: Ansur merges a container's lists as "Section: label". In order, with the section's own
+    instructions (the "Section:\n…" paragraph of the step's instructions). */
+function checkSections(s) {
+  const p = s.params || {}, out = [];
+  const paras = String(s.instructions || '').split(/\n\n/);
+  const get = (name) => { let sec = out.find(x => x.name === name); if (!sec) { sec = { name, readings: [], items: [] }; out.push(sec); } return sec; };
+  const split = (label) => { const m = String(label).match(/^(.{2,80}?): (.+)$/s); return m ? [m[1], m[2]] : [null, label]; };
+  for (const it of p.items || []) { const [n, l] = split(it); get(n).items.push(l); }
+  for (const r of (p.readings || []).filter(r => r.label)) { const [n, l] = split(r.label); get(n).readings.push({ ...r, label: l }); }
+  for (const sec of out) { const para = sec.name && paras.find(x => x.startsWith(sec.name + ':\n')); sec.instructions = para ? para.slice(sec.name.length + 2).trim() : ''; }
+  return out;
+}
+
+/** The typed performance checks the ProSim 8 can run, each with the step it would become. `on` is the suggested choice. A check whose
+    title names one area is taken whole; a mixed one (Ansur's "Performance Testing") is offered section by section. */
+function ansurProsimSuggestions(t, manufacturer) {
+  const out = [], dup = new Set(ansurDuplicates(t));
+  t.steps.forEach((s, i) => {
+    if (s.type !== 'check' || dup.has(i)) return;
+    const p = s.params || {}, whole = psAreaOf(s.title);
+    if (whole) {
+      const r = psStepFor(whole, { title: s.title, instructions: s.instructions, readings: (p.readings || []).filter(x => x.label), items: p.items || [], images: s.images, hold: s.hold }, manufacturer);
+      out.push({ id: `p${i}`, i, section: null, type: whole, ...r, label: TYPES[whole].label, summary: TYPES[whole].summary(r.step) });
+      return;
+    }
+    checkSections(s).forEach((sec, k) => {
+      const type = sec.name && psAreaOf(sec.name); if (!type) return;
+      const r = psStepFor(type, { title: sec.name, instructions: sec.instructions, readings: sec.readings, items: sec.items }, manufacturer);
+      out.push({ id: `p${i}_${k}`, i, section: sec.name, type, ...r, label: TYPES[type].label, summary: TYPES[type].summary(r.step) });
+    });
+  });
+  return out;
+}
+
+/** The steps a mixed check becomes when some of its sections are ProSim steps: in the original order, the sections left typed
+    gathered into checks between them. */
+function splitCheck(s, chosen) {
+  const out = []; let rest = null;
+  const flush = () => { if (rest && (rest.params.items.length || rest.params.readings.length)) out.push(rest); rest = null; };
+  for (const sec of checkSections(s)) {
+    const sg = chosen.find(x => x.section === sec.name && sec.name);
+    if (sg) { flush(); out.push(clone(sg.step)); continue; }
+    if (!rest) rest = { ...clone(s), id: out.length ? uid() : s.id, title: s.title, instructions: '', params: { ...clone(s.params), items: [], readings: [] }, secs: [] };
+    const pre = sec.name ? `${sec.name}: ` : '';
+    rest.params.items.push(...sec.items.map(x => pre + x)); rest.params.readings.push(...sec.readings.map(r => ({ ...r, label: pre + r.label })));
+    rest.secs.push(sec);
+  }
+  flush();
+  for (const x of out) if (x.secs) {   // a gathered check of one section is titled by it; its instructions are its sections'
+    if (x.secs.length === 1 && x.secs[0].name) { const n = x.secs[0].name; x.title = n; x.params.items = x.params.items.map(l => l.slice(n.length + 2)); x.params.readings = x.params.readings.map(r => ({ ...r, label: r.label.slice(n.length + 2) })); x.instructions = x.secs[0].instructions; }
+    else x.instructions = x.secs.map(c => c.instructions ? (c.name ? `${c.name}:\n${c.instructions}` : c.instructions) : '').filter(Boolean).join('\n\n') || (x.secs.some(c => !c.name) ? s.instructions : '');
+    delete x.secs;
+  }
+  return out;
+}
+
+/** Builds the reviewed template from the converted one and the choices made on the review screen. */
+function ansurApplyReview(t0, { name, category, manufacturer, chsDut, apClasses = {}, limits = {}, prosim = {}, dropDupes = true }, issues, suggestions, fileName) {
+  const t = clone(t0), refs = t.steps.slice();   // the steps as converted; issues and suggestions point at these
+  const changed = [], kept = [], ps = [];
+  const useStd = (is) => (limits[is.id] || 'std') === 'std';
+  for (const is of issues) {
+    if (!useStd(is)) kept.push(`${is.what.toLowerCase()} ${is.ansur} (AS/NZS 3551: ${is.std})`);
+    else changed.push(is.kind === 'addpe' ? `protective earth resistance ≤ ${EST_STD.pe} Ω added (Ansur had none)` : `${is.what.toLowerCase()} ${is.std} (Ansur: ${is.ansur})`);
+  }
+  for (const is of issues) if (useStd(is) && is.kind !== 'addpe') ansurUseStandard(t, is, refs[is.i]);
+  const dupes = dropDupes ? ansurDuplicates(t0).map(i => refs[i]) : [];
+  if (dupes.length) { t.steps = t.steps.filter(s => !dupes.includes(s)); changed.push(`${dupes.length} repeated step${dupes.length === 1 ? '' : 's'} left out (${[...new Set(dupes.map(s => `“${s.title}”`))].join(', ')} twice in the Ansur file; the fuller copy kept)`); }
+  const chosen = suggestions.filter(sg => prosim[sg.id] ?? sg.on);
+  for (const i of [...new Set(chosen.map(sg => sg.i))]) {
+    const s = refs[i], mine = chosen.filter(sg => sg.i === i), at = t.steps.indexOf(s); if (at < 0) continue;
+    t.steps.splice(at, 1, ...(mine[0].section == null ? [clone(mine[0].step)] : splitCheck(s, mine)));
+    ps.push(...mine.map(sg => sg.label.replace(/ \(.*\)$/, '')));
+  }
+  if (issues.some(is => is.kind === 'addpe' && useStd(is))) ansurUseStandard(t, issues.find(is => is.kind === 'addpe'));
+  (t.appliedParts || []).forEach((g, k) => { const c = apClasses[k]; if (c && c !== g.apclass) { changed.push(`applied part “${g.name}” type ${c} (Ansur: ${g.apclass})`); g.apclass = c; } });
+  t.name = String(name || t.name).trim() || t.name;
+  t.category = String(category || '').trim();
+  if (String(manufacturer || '').trim()) t.manufacturer = String(manufacturer).trim();
+  if (chsDut) t.dut = [...CHS_DUT];
+  const kind = /\.mtt$/i.test(fileName || '') ? 'template' : 'record';
+  t.desc = [`From the CHS Ansur ${kind} “${fileName}”. Electrical safety to AS/NZS 3551:2012+A2.`,
+    changed.length ? `Changed from Ansur: ${changed.join('; ')}.` : '',
+    kept.length ? `Kept as in Ansur, differs from AS/NZS 3551 (for Jonathan to confirm): ${kept.join('; ')}.` : '',
+    ps.length ? `ProSim 8 steps: ${[...new Set(ps)].join(', ')}.` : ''].filter(Boolean).join(' ');
+  return t;
+}
+
+/** The review screen. Resolves to the reviewed template and whether to save it to the shared folder, 'raw' to import it unchanged, or null. */
+async function ansurReview(conv, fileName) {
+  const t = conv.template, info = conv.info || {};
+  const issues = ansurLimitIssues(t), sugg = ansurProsimSuggestions(t, info.manufacturer), dupes = ansurDuplicates(t);
+  const cats = [...new Set(Store.templates.map(x => x.category).filter(Boolean))].sort();
+  const makers = [...new Set(['Mindray', ...Store.templates.map(x => x.manufacturer).filter(Boolean)])].sort();
+  const sec = (h, body) => `<h3 style="margin:16px 0 6px;font-size:15px">${h}</h3>${body}`;
+  const row = (a, b) => `<tr><td style="padding:6px 8px 6px 0;vertical-align:top;overflow-wrap:anywhere">${a}</td><td style="padding:6px 0;text-align:right;vertical-align:top;width:1%;white-space:nowrap">${b}</td></tr>`;
+  const sel = (attr, opts) => `<select class="select" ${attr} style="width:auto;min-width:0">${opts}</select>`;
+  const body = `<p class="muted" style="margin-top:0">Check what the import will set up, then import. Nothing here changes a limit without you choosing it.</p>
+    ${sec('Template', `<div class="field"><label for="arName">Name</label><input class="input" id="arName" value="${esc(ansurCleanName(t.name, info.manufacturer))}"></div>
+      <div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:180px"><label for="arCat">Group</label><input class="input" id="arCat" list="arCats" placeholder="e.g. Promed"><datalist id="arCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div>
+      <div class="field" style="flex:1;min-width:180px"><label for="arMan">Manufacturer</label><input class="input" id="arMan" list="arMans" value="${esc(info.manufacturer || '')}"><datalist id="arMans">${makers.map(c => `<option value="${esc(c)}">`).join('')}</datalist></div></div>
+      <label class="check"><input type="checkbox" id="arDut" checked> Ask for the CHS device details at the start <span class="muted">(${esc(CHS_DUT.join(', '))})</span></label>`)}
+    ${(t.appliedParts || []).length ? sec('Applied parts', `<table style="width:100%">${t.appliedParts.map((g, k) => row(`${esc(g.name)} <span class="muted">on ${esc(g.leads.join(', '))}</span>`, sel(`data-arap="${k}"`, ['B', 'BF', 'CF'].map(c => `<option${c === g.apclass ? ' selected' : ''}>${c}</option>`).join('')))).join('')}</table><p class="hint">Check the type against the symbol on the device’s label: it sets the patient leakage and mains on applied parts limits.</p>`) : ''}
+    ${sec('Electrical safety limits (AS/NZS 3551)', issues.length ? `<table style="width:100%">${issues.map(x => row(`<b>${esc(x.what)}</b><br><span class="muted">Ansur: ${esc(x.ansur)}<br>AS/NZS 3551: ${esc(x.std)}</span>`, sel(`data-arlim="${x.id}"`, '<option value="std">AS/NZS 3551</option><option value="ansur">Keep Ansur</option>'))).join('')}</table><p class="hint">Your choice is written in the template’s description.</p>` : '<p>Every limit matches AS/NZS 3551.</p>')}
+    ${sec('ProSim 8 steps', sugg.length ? `<table style="width:100%">${sugg.map(x => row(`<b>${esc(x.step.title)}</b>${x.section ? ` <span class="muted">(from “${esc(t.steps[x.i].title)}”)</span>` : ''}<br><span class="muted">${esc(x.label)}: ${esc(x.summary)}${x.why ? ` · not ticked: ${esc(x.why)}` : ''}</span>`, `<label class="check"><input type="checkbox" data-arps="${x.id}"${x.on ? ' checked' : ''}> ProSim</label>`)).join('')}</table><p class="hint">A ticked check becomes a ProSim step that sends the setting; its readings and items stay. A section taken out of a longer Ansur step becomes a step of its own, in the same order. Change the settings in the template afterwards if needed.</p>` : '<p>No typed checks the ProSim 8 can run were found.</p>')}
+    ${dupes.length ? sec('Repeated steps', `<label class="check"><input type="checkbox" id="arDupes" checked> Leave out the repeated ${[...new Set(dupes.map(i => `“${esc(t.steps[i].title)}”`))].join(', ')} <span class="muted">(in the Ansur file twice; the copy with more checks is kept)</span></label>`) : ''}
+    ${conv.notes.length ? sec('Not imported', `<ul style="margin:0;padding-left:20px">${[...new Set(conv.notes)].map(x => `<li>${esc(x)}</li>`).join('')}</ul>`) : ''}
+    ${Shared.supported() ? `<label class="check" style="margin-top:14px"><input type="checkbox" id="arSave" checked> Save it to the shared templates folder too</label>` : ''}`;
+  const r = await dialog({ title: `Import “${fileName}”`, wide: true, body, focus: '#arCat',
+    buttons: [{ label: 'Cancel', value: null, cls: 'quiet', cancel: true }, { label: 'Import as it is', value: 'raw', cls: 'secondary' }, { label: 'Import', value: 'ok' }],
+    collect: (ov) => ({ name: $('#arName', ov).value, category: $('#arCat', ov).value, manufacturer: $('#arMan', ov).value, chsDut: $('#arDut', ov).checked,
+      save: !!$('#arSave', ov)?.checked, dropDupes: !!$('#arDupes', ov)?.checked,
+      apClasses: Object.fromEntries($$('[data-arap]', ov).map(e => [e.dataset.arap, e.value])),
+      limits: Object.fromEntries($$('[data-arlim]', ov).map(e => [e.dataset.arlim, e.value])),
+      prosim: Object.fromEntries($$('[data-arps]', ov).map(e => [e.dataset.arps, e.checked])) }) });
+  if (!r.value) return null;
+  if (r.value === 'raw') return 'raw';
+  return { template: ansurApplyReview(t, r.data, issues, sugg, fileName), save: r.data.save };
 }
 
 /* ======================= PDF report (built in the page with pdf-lib, no print dialog) ======================= */
