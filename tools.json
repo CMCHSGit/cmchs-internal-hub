@@ -88,6 +88,17 @@
     "visible": true
   },
   {
+    "id": "logreader",
+    "name": "Log Reader",
+    "short": "Log Reader",
+    "description": "Open a Mindray device's logs (a defibrillator's log.tar to start with) and search them, on this device only",
+    "link": "/logreader/",
+    "category": "Service",
+    "icon": "file-text",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "simpro",
     "name": "Simpro Asset Sync",
     "short": "Simpro Asset Sync",
