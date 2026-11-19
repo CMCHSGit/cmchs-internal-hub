@@ -106,6 +106,23 @@ await check('not signed out', false, () => setDoc(doc(anon, 'settings/toolNews')
 await check('nothing but the list', false, () => setDoc(doc(as('pat'), 'settings/toolNews'), { dismissed: [], note: 'x' }))
 await check('not a list', false, () => setDoc(doc(as('pat'), 'settings/toolNews'), { dismissed: 'quote' }))
 
+console.log('\nThe emailed team update (newsInbox)')
+const seedInbox = () => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'newsInbox/gmail-1'),
+  { subject: 'Next few weeks', html: '<p>Hi</p>', text: 'Hi', receivedAtMs: 1, status: 'new' }))
+async function checkInbox(label, allowed, fn) {
+  await check(label, allowed, async () => { await seedInbox(); await env.withSecurityRulesDisabled(c => setDoc(doc(c.firestore(), 'users/nat'), { displayName: 'Nat', role: 'user', team: '' })); return fn() })
+}
+await checkInbox('anyone who posts news reads it', true, () => import('firebase/firestore').then(f => f.getDoc(doc(as('pat'), 'newsInbox/gmail-1'))))
+await checkInbox('not someone who can\'t post', false, () => import('firebase/firestore').then(f => f.getDoc(doc(as('nat'), 'newsInbox/gmail-1'))))
+await checkInbox('not signed out', false, () => import('firebase/firestore').then(f => f.getDoc(doc(anon, 'newsInbox/gmail-1'))))
+await checkInbox('marks it used', true, () => updateDoc(doc(as('bob'), 'newsInbox/gmail-1'), { status: 'used', doneAtMs: 5 }))
+await checkInbox('puts it away', true, () => updateDoc(doc(as('pat'), 'newsInbox/gmail-1'), { status: 'dismissed', doneAtMs: 5 }))
+await checkInbox('not back to new', false, () => updateDoc(doc(as('pat'), 'newsInbox/gmail-1'), { status: 'new', doneAtMs: 5 }))
+await checkInbox('not the email itself', false, () => updateDoc(doc(as('pat'), 'newsInbox/gmail-1'), { status: 'used', doneAtMs: 5, html: '<p>Changed</p>' }))
+await checkInbox('not by someone who can\'t post', false, () => updateDoc(doc(as('nat'), 'newsInbox/gmail-1'), { status: 'used', doneAtMs: 5 }))
+await checkInbox('nobody makes one', false, () => setDoc(doc(as('admin1'), 'newsInbox/gmail-2'), { subject: 'x', html: '', text: 'x', receivedAtMs: 1, status: 'new' }))
+await checkInbox('nobody deletes one', false, () => deleteDoc(doc(as('admin1'), 'newsInbox/gmail-1')))
+
 await env.cleanup()
 console.log(`\n${pass} passed, ${fail} failed`)
 process.exit(fail ? 1 : 0)
