@@ -395,6 +395,16 @@ service cloud.firestore {
         && request.resource.data.dismissed is list
         && request.resource.data.dismissed.size() <= 200;
     }
+    // The weekly team update email, brought in from Gmail by
+    // backend/apps-script/news-inbox (a service account: no client creates).
+    // Anyone who may post news reads it and marks it used or put away.
+    match /newsInbox/{id} {
+      allow read: if canEditProjects();
+      allow update: if canEditProjects()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'doneAtMs'])
+        && request.resource.data.status in ['used', 'dismissed']
+        && request.resource.data.doneAtMs is int;
+    }
 
     // Tool requests and feedback (Manage → Tool requests / Feedback). Tool
     // requests are public so people can +1 them; feedback is seen only by

@@ -15,6 +15,7 @@ import { loadDirectory } from './people.js'
 import { SERVICE_TOOL_IDS, tools } from './tools.js'
 import { dismissTool, loadDismissed, toolDraft, toolsToAnnounce } from './tool-news.js'
 import { splitEmail } from './emailSplit.js'
+import { arrivedLabel, loadInbox, markEmail } from './news-inbox.js'
 import { loadProjectSuggestions } from './suggest.js'
 import { notifyNews } from './social.js'
 import {
@@ -69,6 +70,7 @@ export default function Manage({ user, route }) {
 function NewsTab({ ctx }) {
   const [list, setList] = useState(null)
   const [mode, setMode] = useState('list') // list | paste | export
+  const [fromInbox, setFromInbox] = useState(null) // the emailed update being turned into drafts
   const [editing, setEditing] = useState(null)
   const [cat, setCat] = useState('All')
   const [region, setRegion] = useState('')
@@ -84,9 +86,23 @@ function NewsTab({ ctx }) {
     const msg = await dismissTool(t.id)
     ctx.showToast(msg || `${t.name} won’t be offered again.`)
   }
+  // The team update email, brought in from Gmail (news-inbox.js)
+  const [inbox, setInbox] = useState([])
+  const reloadInbox = () => loadInbox().then(setInbox)
+  useEffect(() => { if (poster) reloadInbox() }, [poster])
+  async function putAway(m) {
+    try {
+      await markEmail(m.id, 'dismissed')
+      setInbox(x => x.filter(y => y.id !== m.id))
+      ctx.showToast('Put away.')
+    } catch (e) { ctx.showToast(failMsg(e)) }
+  }
 
   if (!list) return <span className="caption">Loading…</span>
-  if (mode === 'paste') return <PasteEmail ctx={ctx} list={list} onDone={() => { setMode('list'); reload() }} />
+  if (mode === 'paste') {
+    return <PasteEmail ctx={ctx} list={list} email={fromInbox}
+      onDone={() => { setMode('list'); setFromInbox(null); reload(); reloadInbox() }} />
+  }
   if (mode === 'export') return <ExportEmail ctx={ctx} list={list} onDone={() => setMode('list')} />
 
   const legacy = list.filter(a => a.legacy)
@@ -108,6 +124,15 @@ function NewsTab({ ctx }) {
         <button className="btn btn-secondary" onClick={() => setMode('export')}><Icon name="mail" size={16} /> Export for email</button>
       </div>
       {!poster && <div className="alert">Posting is for people on a team. Pick your team in the staff schedule, or ask an admin.</div>}
+      {poster && inbox.map(m => (
+        <div key={m.id} className="card mg-note mg-newtool">
+          <span className="body-sm"><strong>The team update email arrived</strong> · {m.subject} · {arrivedLabel(m.receivedAtMs)}. It’s split into drafts for you to check before anything is posted.</span>
+          <span className="mg-newtool-actions">
+            <button className="btn btn-primary" onClick={() => { setFromInbox(m); setMode('paste') }}><Icon name="mail" size={16} /> Make drafts</button>
+            <button className="btn btn-secondary" onClick={() => putAway(m)}>Put away</button>
+          </span>
+        </div>
+      ))}
       {newTools.map(t => (
         <div key={t.id} className="card mg-note mg-newtool">
           <span className="body-sm"><strong>New tool: {t.name}</strong> was added to the hub. Announce it? A draft is ready to check before it’s posted.</span>
@@ -354,9 +379,10 @@ function postLabel(posts, updates, [post, update]) {
   return s[0].toUpperCase() + s.slice(1)
 }
 
-function PasteEmail({ ctx, list, onDone }) {
-  const [paste, setPaste] = useState({ html: '', text: '' })
-  const [drafts, setDrafts] = useState(null)
+// `email`: one brought in from Gmail (news-inbox.js), opened already split; posting from it marks it used.
+function PasteEmail({ ctx, list, email, onDone }) {
+  const [paste, setPaste] = useState(() => (email ? { html: email.html || '', text: email.text || '' } : { html: '', text: '' }))
+  const [drafts, setDrafts] = useState(() => (email ? splitDrafts(email) : null))
   const [date, setDate] = useState(isoToday())
   const [notify, setNotify] = useState(true) // one "Team update" push for everything posted
   const [busy, setBusy] = useState(false)
@@ -371,10 +397,13 @@ function PasteEmail({ ctx, list, onDone }) {
     else setPaste({ html: '', text })
   }
   // A repeat of an existing post (a running event) starts unticked, with the option to update that post instead.
-  const split = () => setDrafts(splitEmail(paste, { people: ctx.people }).map(d => {
-    const match = findSimilar(d, list)
-    return match ? { ...d, include: false, match } : d
-  }))
+  function splitDrafts(p) {
+    return splitEmail(p, { people: ctx.people }).map(d => {
+      const match = findSimilar(d, list)
+      return match ? { ...d, include: false, match } : d
+    })
+  }
+  const split = () => setDrafts(splitDrafts(paste))
   const update = (i, patch) => setDrafts(d => d.map((x, j) => (j === i ? { ...x, ...patch } : x)))
   const remove = i => setDrafts(d => d.filter((_, j) => j !== i))
   const merge = i => setDrafts(d => {
@@ -404,6 +433,7 @@ function PasteEmail({ ctx, list, onDone }) {
           regions: [...new Set([...(m.regions || []), ...d.regions])], people: [...new Set([...(m.people || []), ...d.people])],
         })
       }
+      if (email) await markEmail(email.id, 'used').catch(e => console.warn('Couldn’t mark the email used:', e.code || e))
       ctx.showToast(postLabel(n, updates.length, ['Posted', 'updated']) + '.')
       onDone()
     } catch (e) { console.error(e); ctx.showToast(failMsg(e)); setBusy(false) }
@@ -424,7 +454,7 @@ function PasteEmail({ ctx, list, onDone }) {
           {paste.html && <span className="caption">Pasted with its formatting, so links and bullets are kept.</span>}
           <div className="pp-section-foot">
             <button className="btn btn-secondary" onClick={onDone}>Cancel</button>
-            <button className="btn btn-primary" disabled={!paste.text.trim()} onClick={split}>Split into announcements</button>
+            <button className="btn btn-primary" disabled={!paste.text.trim() && !paste.html} onClick={split}>Split into announcements</button>
           </div>
         </section>
       </div>
