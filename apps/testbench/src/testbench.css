@@ -3,6 +3,22 @@
 .tb-frame { flex: 1 1 auto; width: 100%; min-height: 0; border: 0; background: var(--surface-card); }
 .tb-frame[hidden] { display: none; }
 
+/* The bench with Saved reports beside it (section.jsx): side by side on a wide screen, stacked on a narrow one. */
+.tb-split { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.tb-split[hidden] { display: none; }
+.tb-split.has-side { grid-template-columns: minmax(0, 1fr) minmax(440px, 44%); }
+.tb-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tb-side { display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--border-subtle); }
+.tb-side[hidden] { display: none; }
+.tb-side > .tb-reports { flex: 1 1 auto; }
+.tb-tabs .tb-side-toggle { margin-left: auto; }
+@media (max-width: 1100px) {
+  .tb-split.has-side { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; overflow-y: auto; }
+  .tb-split.has-side .tb-main { height: calc(100dvh - 190px); min-height: 480px; }
+  .tb-split.has-side .tb-side { border-left: 0; border-top: 1px solid var(--border-subtle); }
+  .tb-split.has-side .tb-side > .tb-reports { overflow-y: visible; }
+}
+
 .tb-tabs { flex: 0 0 auto; display: flex; gap: 4px; padding: 6px 12px 0; border-bottom: 1px solid var(--border-subtle); background: var(--surface-card); }
 .tb-tabs button { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; background: transparent; border: 0; border-bottom: 3px solid transparent; cursor: pointer; color: var(--text-muted); font: var(--type-body-strong); }
 .tb-tabs button.is-on { color: var(--text-strong); border-bottom-color: var(--chs-purple); }

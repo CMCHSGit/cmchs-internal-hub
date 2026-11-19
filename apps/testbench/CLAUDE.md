@@ -18,9 +18,9 @@ Electrical-safety and performance testing (AS/NZS 3551) of medical equipment, dr
 | Half | Where | What it owns |
 |---|---|---|
 | **The bench page** | `bench/index.html` (one ~5,000-line file, global objects in one `<script>`), built to `/bench-app/` | Running tests, the ESA612/ProSim driver, templates, autosave, PDF (pdf-lib) and Ansur `.mtr` export/import. Data in the laptop's IndexedDB `chs-test-bench`. Works with no hub, no sign-in, no network. |
-| **The hub section** | `src/section.jsx` (React, under the hub header, frames the bench with `allow="serial"`) | Saved reports (`reports.js`, IndexedDB `chs-bench-reports`), zip download (`zip.js`), Simpro attach via the outbox (`outbox.js`, `simpro-api.js`, `JobPicker.jsx`), shared previous tests (`bench-tests*.js`), Orders (`orders*.js`, `Orders.jsx`), "Test this device" links (`device-link.js`). |
+| **The hub section** | `src/section.jsx` (React, under the hub header, frames the bench with `allow="serial"`) | Saved reports, **shown beside the bench, not as a tab** (right on a wide screen, below on a narrow one; it gives way to the bench while a test runs or Templates / Devices / Log is open, which the bench reports with `chs-bench:state`; a button in the tab bar shows or hides it) (`reports.js`, IndexedDB `chs-bench-reports`), zip download (`zip.js`), Simpro attach via the outbox (`outbox.js`, `simpro-api.js`, `JobPicker.jsx`), shared previous tests (`bench-tests*.js`), Orders (`orders*.js`, `Orders.jsx`), "Test this device" links (`device-link.js`). |
 
-Messages are all `chs-bench:*` (`hello`, `file`, `run`, `run-data`, `shared-list`, `get-run`, `delete-run`, `deleted`, `build-pdf`/`pdf`,
+Messages are all `chs-bench:*` (`hello`, `state`, `file`, `run`, `run-data`, `shared-list`, `get-run`, `delete-run`, `deleted`, `build-pdf`/`pdf`,
 `build-mtr`/`mtr`, `sheet-state`/`get-sheet`/`sheet-file`, `pending-customers`/`add-pending`/`pending-reply`, `open-device`, `orders`, `model-colours`/`-reply`, `home`). Change both sides together, and search both files for the
 name. The bench's hand-off point is `offerToHub()`. The bench stays loaded (hidden) behind the other tabs so a test and the USB link survive.
 

@@ -170,7 +170,7 @@ logActivity(null, 'Added a PM for Hutt (First PM)') // ...then say what happened
 The electrical-safety and performance test app (AS/NZS 3551, ESA612 and ProSim over USB), moved in 2 Nov 2026 from the
 SharePoint file `ServiceCHS Test Bench.html`. Chrome or Edge on a laptop (Web Serial and the folder picker need it).
 
-**Tabs:** Test Bench, Saved reports, Orders and **Customers** (11 Nov 2026: the old New equipment page, `/new-equipment/`, which now forwards to
+**Tabs:** Test Bench (with **Saved reports** beside it: a pane at the right on a wide screen, below on a narrow one; it gives way to the bench while a test is running or Templates / Devices / Log is open, and a button in the tab bar shows or hides it), Orders and **Customers** (11 Nov 2026: the old New equipment page, `/new-equipment/`, which now forwards to
 `/testbench/?tab=customers`): pick a customer, set its asset list and reports folder links (Edit links), record assets that are not in the asset
 list yet, and see which units have been tested.
 
@@ -180,7 +180,7 @@ list yet, and see which units have been tested.
   (chosen once per laptop and address), results can still go to the SharePoint Results folder. Nothing is shared between laptops
   while testing, so any number can be used at once.
 - **Offline:** open it once online; the page and its fonts (kept beside it) are then cached by the service worker.
-- **Saved reports** (a tab beside the bench): every file the bench saves (PDF, results file, Ansur record) is handed up to the hub and
+- **Saved reports** (beside the bench, not a tab; an old `?tab=reports` link opens it there): every file the bench saves (PDF, results file, Ansur record) is handed up to the hub and
   kept on that laptop (IndexedDB `chs-bench-reports`, `reports.js`) with the test's customer, serial, model and time, until someone
   removes it. The tab sorts them by customer or by day, filters by customer, when, search and "not yet sent", and lets you tick tests
   (or a whole customer or day) and then **download them as one zip** or **attach them to one Simpro job**. Each file remembers which

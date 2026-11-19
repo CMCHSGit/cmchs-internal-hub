@@ -4010,7 +4010,7 @@ const Records = {
     box.innerHTML = runs.length ? `<table class="meas-table prev-table"><thead><tr><th>Date</th><th>Device</th><th>Template</th><th>Result</th><th></th></tr></thead><tbody>${runs.slice(0, 30).map(r => {
       const d = new Date(r.finished || r.started); const dev = r.dut ? (r.dut['Serial number'] || r.dut['Serial Number'] || Object.values(r.dut)[0] || '') : '';
       return `<tr><td>${esc(isNaN(d) ? '—' : d.toLocaleDateString('en-NZ'))}</td><td>${esc(dev)}${r.dut?.Model ? ` <span class="muted">${esc(r.dut.Model)}</span>` : ''}${r.shared ? `<br><span class="muted" style="font-size:12.5px">Shared by ${esc(r.shared.byName || r.shared.by)}</span>` : ''}</td><td>${esc(r.template?.name || '')}${r.imported ? ` <span class="badge info">${esc(r.imported.source)}</span>` : ''}</td><td>${badge(r.shared ? r.shared.overall : overallOf(r), r)}</td>
-        <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button>${!r.shared || canRemoveShared(r.id) ? `<button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>${runs.length > 30 ? `<p class="hint">Showing the 30 most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
+        <td style="white-space:nowrap"><button type="button" class="btn ghost sm" data-open="${esc(r.id)}">Open</button>${r.inProgress ? '' : `<button type="button" class="btn ghost sm" data-dl="pdf" data-id="${esc(r.id)}" title="Download the PDF report">${icon('download')}PDF</button>${r.imported ? '' : `<button type="button" class="btn ghost sm" data-dl="mtr" data-id="${esc(r.id)}" title="Download the Ansur record (.mtr)">${icon('download')}.mtr</button>`}`}${!r.shared || canRemoveShared(r.id) ? `<button type="button" class="icon-btn" data-delrun="${esc(r.id)}" aria-label="Remove this test from the list">${icon('trash')}</button>` : ''}</td></tr>`; }).join('')}</tbody></table>${runs.length > 30 ? `<p class="hint">Showing the 30 most recent of ${runs.length}. Search to find older tests.</p>` : ''}`
       : `<div class="empty">${q ? 'No tests match.' : 'Finished tests appear here. You can also open a results file or an Ansur record.'}</div>`;
     if (othersHidden) box.insertAdjacentHTML('beforeend', `<p class="hint">${othersHidden} test${othersHidden === 1 ? '' : 's'} by other engineers ${othersHidden === 1 ? 'is' : 'are'} hidden. Search by serial, model, customer or engineer to find ${othersHidden === 1 ? 'it' : 'one'}.</p>`);
     $$('[data-open]', box).forEach(b => b.addEventListener('click', async () => {
@@ -4020,6 +4020,22 @@ const Records = {
       try { Runner.open(await SharedTests.fetch(id)); this.renderList(); }
       catch (err) { dialog({ title: 'Couldn’t open that test', body: `<p>${esc(err.message)}</p>` }); }
       b.disabled = false; b.textContent = label;
+    }));
+    // PDF report or Ansur record (.mtr) straight from the list, as a download: no folder to choose, named like the summary's files (the test's own day).
+    $$('[data-dl]', box).forEach(b => b.addEventListener('click', async () => {
+      const id = b.dataset.id, kind = b.dataset.dl, label = b.innerHTML;
+      b.disabled = true; b.textContent = 'Making…';
+      let fetched = false;
+      try {
+        let run = (await this.list()).find(x => x.id === id);
+        if (!run) { run = await SharedTests.fetch(id); fetched = true; }
+        const when = run.finished || run.started;
+        if (kind === 'pdf') download(outName(run, 'pdf', when), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' }));
+        else download(outName(run, 'mtr', when), new Blob([buildMtr(run)], { type: 'application/xml' }));
+        log('in', 'RUN', `Downloaded ${outName(run, kind, when)}`);
+      } catch (err) { dialog({ title: kind === 'pdf' ? 'Couldn’t create the PDF' : 'Couldn’t create the Ansur file', body: `<p>${esc(err.message)}</p>` }); }
+      if (fetched) { this.renderList(); return; }
+      b.disabled = false; b.innerHTML = label;
     }));
     $$('[data-delrun]', box).forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.delrun, isLocal = (await this.list()).some(x => x.id === id), everywhere = canRemoveShared(id);
@@ -4901,7 +4917,22 @@ window.addEventListener('message', async (e) => {
 const SharedTests = {
   list: [], me: '', admin: false, ok: false, asks: new Map(), timers: {},
   inHub() { return window.parent !== window; },
-  hello() { if (this.inHub()) window.parent.postMessage({ type: 'chs-bench:hello' }, location.origin); },
+  hello() { if (this.inHub()) { window.parent.postMessage({ type: 'chs-bench:hello' }, location.origin); this.watchState(); } },
+  /** Tells the hub which page is open and whether a test is being run, so it can give the bench the whole width then (Saved reports sits beside the bench the rest of the time). */
+  watchState() {
+    if (this.stateWatching) return;
+    this.stateWatching = true;
+    let last = '', timer = 0;
+    const send = () => {
+      const view = (($$('nav.tabs [data-view]').find(b => b.getAttribute('aria-selected') === 'true') || {}).dataset || {}).view || 'run';
+      const testing = !$('#runActive').hidden;
+      const key = view + '/' + testing; if (key === last) return;
+      last = key;
+      window.parent.postMessage({ type: 'chs-bench:state', view, testing }, location.origin);
+    };
+    new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(send, 80); }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden', 'aria-selected'] });
+    send();
+  },
   /** Sends a finished test up to be shared, a moment later so a burst of changes goes once. Not tests that are still being done or came from a file or an Ansur record. */
   share(run) {
     if (!this.inHub() || !run || !run.finished || run.inProgress || run.imported) return;
@@ -5004,12 +5035,12 @@ function setEngineer(name) {
   try { localStorage.setItem('chsBench.engineer', n); } catch {}
   $$('#dutFields input').filter(i => /^testing engineer/i.test(i.dataset.k.trim()) && !i.value.trim()).forEach(i => { i.value = n; });
 }
-function outName(run, ext) {
+function outName(run, ext, when) {   // `when`: the test's own day (a download from Previous tests); none: today
   const dut = run.dut || {}, pick = (re) => { const k = Object.keys(dut).find(k => re.test(k.trim())); return k ? String(dut[k] || '').trim() : ''; };
   const all = [pick(/^serial/i), ...otherDevices(run).map(d => d.serial)].filter(Boolean);
   let sn = all[0] || String(dut[Object.keys(dut)[0]] || '').trim() || 'Device', model = pick(/^model$/i);
   for (let i = 1; i < all.length; i++) { const more = `${sn}, ${all[i]}`; if (more.length > 110) { sn += ` and ${all.length - i} more`; break; } sn = more; }   // a set: "AA3F46248926, AA3D58264234 - N1 Handle …"
-  const d = new Date(), dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+  const d = when && !isNaN(new Date(when)) ? new Date(when) : new Date(), dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
   return `${safeName(sn)}${model ? ` - ${safeName(model)}` : ''} ${dd}${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}`;   // a rerun has its own files, so the first test's are not replaced
 }
 
