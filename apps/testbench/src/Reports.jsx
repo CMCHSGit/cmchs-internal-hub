@@ -9,6 +9,7 @@ import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
 import { clearableIds, storageSummary, withStatus } from './bench-status.js'
 import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, startedOf, statusByStart, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
+import { startJobFor } from './jobDraft.js'
 import { bookletPdf, mergePdfs, printPdf } from './print.js'
 
 /** Downloaded PDFs go in a folder of their own (inside the folder chosen, or in the zip); the Ansur records stay beside it. */
@@ -467,6 +468,11 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
               <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} job={job} onJob={setJob} disabled={!!sim.access} />
               <Button disabled={busy || !job || !(attachCount || hasUpdate)} onClick={attach} title="Only the PDF reports go to the job; the notes, stage and status below are added to it as well">{attachCount ? `${canSimpro ? 'Attach' : 'Queue'} ${attachCount} PDF${attachCount === 1 ? '' : 's'} ${canSimpro ? 'to' : 'for'} ${job ? job.label.split(' ')[0] : 'job'}${hasUpdate ? ' and update it' : ''}` : hasUpdate ? `Update ${job ? job.label.split(' ')[0] : 'job'}` : `${canSimpro ? 'Attach PDFs to' : 'Queue PDFs for'} ${job ? job.label.split(' ')[0] : 'job'}`}</Button>
             </div>
+            {canSimpro && picked > 0 && !job && (
+              <p className="tb-muted tb-nojob">No job for {picked === 1 ? 'this test' : 'these tests'} yet?{' '}
+                <a href="/simprojobs/" onClick={() => startJobFor(visible.filter((g) => chosen.has(g.base)))}>Create one in Simpro Jobs</a>.
+                {' '}It opens the new-job form with the title and description filled in; you pick the customer and site, review it and press Create. Nothing is created before that.</p>
+            )}
             {job && (
               <details className="tb-jobupd" open={hasUpdate || undefined}>
                 <summary>Update the job: notes, stage and status <span className="tb-muted">(optional){jobInfo ? ' · now ' + [jobInfo.Stage, jobInfo.Status?.Name].filter(Boolean).join(' · ') : ''}</span></summary>

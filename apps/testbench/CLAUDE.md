@@ -43,6 +43,8 @@ until it does everything, those keep working as they are. Its own map and rules:
   those files must then be copied into SharePoint to be used.
 - **Simpro:** only through the Apps Script proxy (`shared/proxy.js`); the key never reaches the page.
 
+**No job to attach to?** The bar offers **Create one in Simpro Jobs** (`src/jobDraft.js`): it only pre-fills that tool's new-job form and leaves a way back; nothing is created from the Test Bench (see `apps/simprojobs/README.md`).
+
 ## Rules for changes
 
 - **Never break the hardware rules** (bench-notes §6): 150 ms gap after an ESA612 reply, wait for the expected reply type, skip late `!21`,
