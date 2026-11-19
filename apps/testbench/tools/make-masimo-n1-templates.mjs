@@ -56,10 +56,14 @@ const COMMON = 'Applied parts type BF on RA, as the Ansur records measured them 
 
 const templates = [
   masimo('Masimo Rad-97 Pulse CO-Oximeter',
-    `Masimo Rad-97 (Class I, SpO2; NIBP where fitted). From the CHS Ansur template “Rad-97 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template listed both 500/1000 and 5000/10000). ${COMMON} Readings keep the Ansur limits.`,
+    `Masimo Rad-97 (Class I, SpO2; NomoLine capnography and NIBP where fitted). From the CHS Ansur template “Rad-97 AS-NZS 3551 EST and PVT”; the capnography checks from “Rad-97 Nomoline AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template listed both 500/1000 and 5000/10000). ${COMMON} Readings keep the Ansur limits.`,
     'SpO2',
     [visual, mains, pe(), ins('ins-mins', 'MINS', 'mains to protective earth', 1), encl(), earthl, pat(SPO2_SENSOR), map(SPO2_SENSOR),
       spo2Finger(94, 101),
+      step('co2', 'check', 'Capnography (NomoLine)', 'Only if the Rad-97 has NomoLine capnography (CO2); otherwise skip this step.\n1. Connect a NomoLine sampling line to the LEGI connector.\n2. Breathe briefly into the sampling line.\n3. Block the end of the sampling line to cause an occlusion.', { items: [
+        'The LEGI connector shows a steady green light (the system is OK).',
+        'Breathing into the sampling line gives a valid CO2 waveform and values.',
+        'Blocking the sampling line gives an occlusion alarm and the LEGI connector flashes red.'] }),
       step('touch', 'check', 'Touchscreen', 'Check each touch gesture on the display.', { items: [
         'Touch and release: the action is performed once the finger is released.',
         'Touch and hold: the action is performed once the hold duration is reached, and a notification is displayed.',

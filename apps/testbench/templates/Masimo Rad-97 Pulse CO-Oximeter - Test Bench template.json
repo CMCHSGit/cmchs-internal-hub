@@ -4,8 +4,9 @@
  "template": {
   "id": "xkkpsrpfhjqn",
   "name": "Masimo Rad-97 Pulse CO-Oximeter",
-  "desc": "Masimo Rad-97 (Class I, SpO2; NIBP where fitted). From the CHS Ansur template “Rad-97 AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template listed both 500/1000 and 5000/10000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. Readings keep the Ansur limits.",
-  "category": "Promed", "manufacturer": "Masimo",
+  "desc": "Masimo Rad-97 (Class I, SpO2; NomoLine capnography and NIBP where fitted). From the CHS Ansur template “Rad-97 AS-NZS 3551 EST and PVT”; the capnography checks from “Rad-97 Nomoline AS-NZS 3551 EST and PVT”. Electrical safety to AS/NZS 3551:2012+A2: PE 0.2 ohm, insulation mains–PE over 1 Mohm, enclosure 100/500/500 µA, earth leakage 5000/10000 µA (B11.6; the Ansur template listed both 500/1000 and 5000/10000). Applied parts type BF on RA, as the Ansur records measured them (patient leakage 100/500 µA, mains on applied parts 5000 µA); the Ansur template also listed CF limits that were not applied. Patient auxiliary current has no bench step and is left out. Readings keep the Ansur limits.",
+  "category": "Promed",
+  "manufacturer": "Masimo",
   "highlight": true,
   "color": "red",
   "updated": 1794262982276,
@@ -186,6 +187,21 @@
        "lo": 94,
        "hi": 101
       }
+     ]
+    }
+   },
+   {
+    "id": "co2nomou534a",
+    "type": "check",
+    "title": "Capnography (NomoLine)",
+    "instructions": "Only if the Rad-97 has NomoLine capnography (CO2); otherwise skip this step.\n1. Connect a NomoLine sampling line to the LEGI connector.\n2. Breathe briefly into the sampling line.\n3. Block the end of the sampling line to cause an occlusion.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The LEGI connector shows a steady green light (the system is OK).",
+      "Breathing into the sampling line gives a valid CO2 waveform and values.",
+      "Blocking the sampling line gives an occlusion alarm and the LEGI connector flashes red."
      ]
     }
    },
