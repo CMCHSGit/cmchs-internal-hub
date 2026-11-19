@@ -35,6 +35,7 @@ export function readTar(bytes) {
     for (let i = 0; i < 512; i++) sum += (i >= 148 && i < 156) ? 32 : h[i]
     if (sum !== num(h, 148, 8)) throw new Error('This is not a tar archive (or it is damaged).')
     const size = num(h, 124, 12)
+    const mtime = num(h, 136, 12) // seconds since 1970
     const type = String.fromCharCode(h[156] || 48)
     let name = str(h, 0, 100)
     const magic = str(h, 257, 6)
@@ -53,7 +54,7 @@ export function readTar(bytes) {
       continue
     }
     if (longName) { name = longName; longName = null }
-    if (type === '0' || type === '\0' || type === '7') out.push({ name, size, data })
+    if (type === '0' || type === '\0' || type === '7') out.push({ name, size, data, mtime })
   }
   return out
 }

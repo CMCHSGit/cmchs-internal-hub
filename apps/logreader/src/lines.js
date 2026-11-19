@@ -11,8 +11,12 @@
    `early` and take the time of the nearest real line in the same file so they
    stay in place when files are merged. */
 
-const LINE = /^(\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d):(\d\d) (?:(\d+) )?(INFO|ERROR|WARN|WARNING|DEBUG|FATAL|TRACE)\s*-\s?(.*)$/
-const SRC = /^(.*?)\s*\[([A-Za-z0-9_.+-]+\.[A-Za-z]+:\d+)\]\s*$/
+const LINE = /^(\d\d)\/(\d\d)\/(\d\d) (\d\d):(\d\d):(\d\d) (?:\[?(\d+)\]? )?(INFO|ERROR|WARN|WARNING|DEBUG|FATAL|TRACE)\s*-\s?(.*)$/
+/* The system log (sys.log) is plain syslog: `Oct 14 21:32:54 HOST user.debug Process: message`, with no year. */
+const SYSLOG = /^([A-Z][a-z]{2})\s+(\d{1,2}) (\d\d):(\d\d):(\d\d) \S+ ([a-z]+)\.([a-z]+) (.*)$/
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const SYS_LEVEL = { debug: 'DEBUG', info: 'INFO', notice: 'INFO', warn: 'WARN', warning: 'WARN', err: 'ERROR', error: 'ERROR', crit: 'ERROR', alert: 'ERROR', emerg: 'ERROR' }
+const SRC =/^(.*?)\s*\[([A-Za-z0-9_.+-]+\.[A-Za-z]+:\d+)\]\s*$/
 
 /** A file name without its rotation suffix: `PrintServerLog.log.2.lzo` → `PrintServerLog`. */
 export function familyOf(name) {
@@ -30,7 +34,10 @@ export const LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG']
 const level = (s) => s === 'WARNING' ? 'WARN' : s === 'FATAL' ? 'ERROR' : s === 'TRACE' ? 'DEBUG' : s
 
 /** `[{ t, early, lvl, thr, msg, src, file, n }]` for one file's text. `file` is the number the caller gives it. */
-export function parseLog(text, file = 0) {
+export function parseLog(text, file = 0, { ref = Date.now() } = {}) {
+  // A syslog line has no year: use the year of `ref` (when the file was written), or the one before for months well after it.
+  const refD = new Date(ref)
+  const refYear = refD.getUTCFullYear(), refMonth = refD.getUTCMonth()
   const out = []
   let cur = null, start = 0
   const len = text.length
@@ -41,7 +48,15 @@ export function parseLog(text, file = 0) {
     if (line.endsWith('\r')) line = line.slice(0, -1)
     start = end + 1
     const m = LINE.exec(line)
-    if (m) {
+    const sy = m ? null : SYSLOG.exec(line)
+    if (sy && MONTHS.includes(sy[1])) {
+      const mon = MONTHS.indexOf(sy[1])
+      cur = {
+        t: Date.UTC(mon > refMonth + 1 ? refYear - 1 : refYear, mon, +sy[2], +sy[3], +sy[4], +sy[5]),
+        early: false, lvl: SYS_LEVEL[sy[7]] || 'INFO', thr: '', msg: sy[8], src: '', file, n: out.length + 1,
+      }
+      out.push(cur)
+    } else if (m) {
       const yy = +m[3]
       const year = yy >= 70 && yy < 100 ? 1900 + yy : 2000 + yy
       const s = SRC.exec(m[9])

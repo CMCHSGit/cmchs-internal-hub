@@ -11,6 +11,8 @@ import { fmtTime, mergeLines } from './lines.js'
 import { profileFor } from './profiles.js'
 import { LogView } from './LogView.jsx'
 import { ShockTable } from './ShockTable.jsx'
+import { AlarmsTab } from './AlarmsTab.jsx'
+import { ALARM_FAMILY } from './alarms.js'
 
 const mb = (n) => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'
 const day = (t) => fmtTime(t).slice(0, 10)
@@ -60,10 +62,21 @@ export default function App() {
   const backend = fam && byName.get(fam.backend)?.lines
   const print = fam && byName.get(fam.print)?.lines
   const hasShocks = !!(profile?.id === 'defib' && backend && print)
+  const hasAlarms = byName.has(ALARM_FAMILY)
+  const alarmLines = byName.get(ALARM_FAMILY)?.lines
 
-  const showInLogs = (line) => {
-    // both defibrillator logs side by side in one timeline
-    setOn(profile.firstFamilies.filter(n => byName.has(n)))
+  // The alarm records are in a log that may not have been opened yet: read it when its tab is first asked for.
+  const openTab = async (t) => {
+    if (t === 'alarms' && !alarmLines) {
+      setError(''); setBusy('Reading…')
+      try { await loadFamily(byName.get(ALARM_FAMILY), setBusy); bump() } catch (e) { setError(e.message); return } finally { setBusy('') }
+    }
+    setTab(t)
+  }
+
+  // `fams`: the logs to show together at that moment (default: the one the line is in)
+  const showInLogs = (line, fams = [line.fam]) => {
+    setOn(fams.filter(n => byName.has(n)))
     setTab('logs'); setJump({ t: line.t, line })
   }
 
@@ -71,10 +84,11 @@ export default function App() {
   const dropFiles = (e) => { e.preventDefault(); setDrag(false); pickFiles(e.dataTransfer.files) }
   const over = (e) => { if (e.dataTransfer?.types?.includes('Files')) { e.preventDefault(); setDrag(true) } }
 
-  const input = <input ref={fileRef} type="file" multiple hidden accept=".tar,.log,.txt,.lzo,.0,.1,.2,.3,.4,.5" onChange={e => { const f = [...e.target.files]; e.target.value = ''; pickFiles(f) }} />
+  const input = <input ref={fileRef} type="file" multiple hidden accept=".tar,.zip,.gz,.tgz,.log,.txt,.lzo,.0,.1,.2,.3,.4,.5" onChange={e => { const f = [...e.target.files]; e.target.value = ''; pickFiles(f) }} />
 
+  // data-working: opened logs exist only in this tab, so the app must not reload onto a new version under them (shared/updateGuard.js).
   return (
-    <div className="lr" onDragOver={over} onDragLeave={() => setDrag(false)} onDrop={dropFiles} data-drag={drag ? '' : undefined}>
+    <div className="lr" onDragOver={over} onDragLeave={() => setDrag(false)} onDrop={dropFiles} data-drag={drag ? '' : undefined} data-working={session ? '' : undefined}>
       {input}
       <div className="lr-top">
         <h1 className="lr-title"><FileText size={20} aria-hidden /> Log Reader</h1>
@@ -93,7 +107,7 @@ export default function App() {
           <div className="lr-drop">
             <FileText size={40} aria-hidden />
             <h2>Open a device’s logs</h2>
-            <p>Drop a <b>log.tar</b> from a device export here (a defibrillator’s Orbit export, for example), or loose <b>.log</b>, <b>.txt</b> and <b>.lzo</b> files.</p>
+            <p>Drop a device’s <b>log.tar</b> or service <b>.zip</b> here (a defibrillator’s Orbit export, an A5 service export, a monitor’s log tar), or loose <b>.log</b>, <b>.txt</b> and <b>.lzo</b> files.</p>
             <Button iconLeft={<FolderOpen size={16} />} onClick={() => fileRef.current.click()} disabled={!!busy}>Choose a file</Button>
             <p className="lr-fine">The logs are read in this browser tab and forgotten when you close it. They are not sent anywhere, saved in the hub or kept for next time.</p>
             <p className="lr-fine">Defibrillators get a shock-to-print table. Other Mindray devices open in the same viewer, and get their own extras as they are added.</p>
@@ -126,18 +140,26 @@ export default function App() {
               })}
             </ul>
             <p className="lr-fine">Tick two or more to read them together in one timeline.</p>
+            {session.skipped?.length > 0 && (
+              <p className="lr-fine" title={[...new Set(session.skipped)].slice(0, 40).join(', ')}>
+                {session.skipped.length.toLocaleString('en-NZ')} other files were not opened: screenshots, databases, binary data and crash dumps. The Log Reader only reads text logs.
+              </p>
+            )}
           </aside>
 
           <section className="lr-content">
-            {hasShocks && (
+            {(hasShocks || hasAlarms) && (
               <div className="lr-tabs" role="tablist">
-                <button role="tab" aria-selected={tab === 'logs'} className={tab === 'logs' ? 'on' : ''} onClick={() => setTab('logs')}>Log lines</button>
-                <button role="tab" aria-selected={tab === 'shocks'} className={tab === 'shocks' ? 'on' : ''} onClick={() => setTab('shocks')}>Shock events</button>
+                <button role="tab" aria-selected={tab === 'logs'} className={tab === 'logs' ? 'on' : ''} onClick={() => openTab('logs')}>Log lines</button>
+                {hasAlarms && <button role="tab" aria-selected={tab === 'alarms'} className={tab === 'alarms' ? 'on' : ''} onClick={() => openTab('alarms')}>Alarms</button>}
+                {hasShocks && <button role="tab" aria-selected={tab === 'shocks'} className={tab === 'shocks' ? 'on' : ''} onClick={() => openTab('shocks')}>Shock events</button>}
               </div>
             )}
             {tab === 'shocks' && hasShocks
-              ? <ShockTable backend={backend} print={print} onShow={showInLogs} />
-              : <LogView lines={lines} famNames={on} profile={profile} jump={jump} />}
+              ? <ShockTable backend={backend} print={print} onShow={(line) => showInLogs(line, profile.firstFamilies)} />
+              : tab === 'alarms' && alarmLines
+                ? <AlarmsTab lines={alarmLines} onShow={(line) => showInLogs(line, [ALARM_FAMILY])} />
+                : <LogView lines={lines} famNames={on} profile={profile} jump={jump} />}
           </section>
         </div>
       )}

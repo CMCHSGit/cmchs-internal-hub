@@ -8,6 +8,7 @@ import { LEVELS, csvCell, fmtTime, parseLocalInput, toLocalInput } from './lines
 import { filterIndexes, makeMatcher } from './filter.js'
 import { lowerBound } from './defib.js'
 import { download } from './download.js'
+import { alarmMarker } from './alarms.js'
 
 const ROW = 22
 const OVERSCAN = 12
@@ -27,7 +28,7 @@ export function LogView({ lines, famNames, profile, jump }) {
   const [goto, setGoto] = useState(null)
 
   const matcher = useMemo(() => makeMatcher(q, regex), [q, regex])
-  const markFn = profile?.marker
+  const markFn = profile?.marker || alarmMarker
   const fromT = parseLocalInput(from), toT = parseLocalInput(to)
   const rows = useMemo(() => filterIndexes(lines, {
     levels, from: fromT, to: toT, test: matcher.test, context, marked: markedOnly && markFn ? markFn : null,

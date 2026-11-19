@@ -112,3 +112,9 @@
   .lr-fam { display: none; }
   .lr-privacy { flex-basis: 100%; }
 }
+
+/* Alarms */
+.mk-alarm .lr-mk { background: var(--status-attention-tint); color: #7a3e00; }
+.lr-pr-High.on, .lr-prp-High { background: var(--status-critical-tint); border-color: var(--status-critical); color: var(--status-critical); }
+.lr-pr-Medium.on, .lr-prp-Medium { background: var(--status-attention-tint); border-color: var(--status-attention); color: #7a3e00; }
+.lr-prp-Low, .lr-prp-Prompt, .lr-prp-Exclusive { background: var(--surface-subtle); color: var(--text-body); }
