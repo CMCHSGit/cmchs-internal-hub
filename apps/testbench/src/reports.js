@@ -232,37 +232,6 @@ export function sharedGroups(reports, shared) {
   })
 }
 
-/**
- * The tests that exist only on this laptop (still in progress, opened from a file, or not shared yet), from the bench's own list of its tests
- * (chs-bench:runs): listed with the others in Previous tests, so that list is the one list. A test that already has a saved file, or is shared,
- * is there already and not repeated.
- */
-export function localGroups(runs, reports, shared) {
-  const have = new Set([...(reports || []).map((r) => r.meta && r.meta.testedAt), ...(shared || []).map((t) => t && t.started)].filter(Boolean))
-  const sharedIds = new Set((shared || []).map((t) => t && t.id).filter(Boolean))
-  return (runs || []).filter((r) => r && r.id && !sharedIds.has(r.id) && !(r.started && have.has(r.started))).map((r) => {
-    const finished = Date.parse(r.finished || r.started) || 0, tested = Date.parse(r.started) || finished
-    return {
-      base: 'local:' + r.id, local: true, runId: r.id, inProgress: !!r.inProgress, imported: !!r.imported, overall: r.inProgress ? 'incomplete' : r.overall,
-      serial: r.serial || r.id, model: r.model || '', date: nzDmy(r.finished || r.started), rerun: 0, customer: r.customer || NO_CUSTOMER, template: r.template || '',
-      files: [], savedAt: finished, testedAt: tested, downloadedAt: 0, day: nzDay(tested || finished), sentTo: [], unsent: true, uploaded: false, started: r.started, finished: r.finished,
-    }
-  })
-}
-
-/**
- * What Previous tests shows on each test beyond its files: how it came out (Pass, Fail, Incomplete), whether the bench can open it, and
- * whether it has an Ansur record to make. Found by the test's start time among the bench's own tests and the shared ones.
- */
-export function withResult(groups, runs, shared) {
-  return groups.map((g) => {
-    const started = g.started || (g.files.map((f) => f.meta && f.meta.testedAt).find(Boolean)) || ''
-    const run = (runs || []).find((r) => r && ((g.runId && r.id === g.runId) || (started && r.started === started)))
-    const st = (shared || []).find((t) => t && ((g.sharedId && t.id === g.sharedId) || (started && t.started === started)))
-    return { ...g, overall: g.overall || (st && st.overall) || (run && run.overall) || '', openId: g.sharedId || g.runId || (run && run.id) || (st && st.id) || '', imported: !!(g.imported || (run && run.imported)) }
-  })
-}
-
 export const PERIODS = [['all', 'Any time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['7', 'Last 7 days'], ['30', 'Last 30 days']]
 /** Whether a New Zealand day ("2026-11-02") falls in the period, as of `now`. */
 export function inPeriod(day, period, now = Date.now()) {

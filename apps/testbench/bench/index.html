@@ -70,8 +70,6 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .field{display:flex;flex-direction:column;gap:5px}
 .field>label,.lbl{font-weight:600;font-size:13.5px;color:var(--text-strong)}
 .hint{font-size:12.5px;color:var(--text-muted)}
-/* Inside the hub its Previous tests list (beside the bench) is the one list, so this page keeps only the way to open a file. */
-.in-hub #prevSearch,.in-hub #prevList,.in-hub #prevCard .hint{display:none}
 .input,.select,.textarea{width:100%;min-height:38px;padding:7px 10px;border:1px solid var(--border-hairline);border-radius:var(--radius-md);background:#fff;transition:border-color .15s var(--ease),box-shadow .15s var(--ease)}
 .input:hover,.select:hover,.textarea:hover{border-color:var(--chs-black-40)}
 .input:focus,.select:focus,.textarea:focus{border-color:var(--chs-purple);box-shadow:var(--focus-ring);outline:none}
@@ -4002,7 +4000,6 @@ const Records = {
   async list() { try { return ((await DB.all('runs')) || []).sort((a, b) => String(b.finished || b.saved || b.started).localeCompare(String(a.finished || a.saved || a.started))); } catch { return []; } },
   async renderList() {
     const box = $('#prevList'); if (!box) return;
-    this.publish();
     const q = ($('#prevSearch')?.value || '').trim().toLowerCase();
     const local = await this.list(), have = new Set(local.map(r => r.id));
     // Tests other engineers (or another laptop) have shared, that aren't on this PC yet, are listed after the same fashion; opening one fetches it.
@@ -4036,9 +4033,12 @@ const Records = {
       b.disabled = true; b.textContent = 'Making…';
       let fetched = false;
       try {
-        const made = await this.makeFile(id, kind); fetched = made.fetched;
-        download(made.name, made.blob);
-        log('in', 'RUN', `Downloaded ${made.name}`);
+        let run = (await this.list()).find(x => x.id === id);
+        if (!run) { run = await SharedTests.fetch(id); fetched = true; }
+        const when = run.finished || run.started;
+        if (kind === 'pdf') download(outName(run, 'pdf', when), new Blob([await ReportPdf.build(run)], { type: 'application/pdf' }));
+        else download(outName(run, 'mtr', when), new Blob([buildMtr(run)], { type: 'application/xml' }));
+        log('in', 'RUN', `Downloaded ${outName(run, kind, when)}`);
       } catch (err) { dialog({ title: kind === 'pdf' ? 'Couldn’t create the PDF' : 'Couldn’t create the Ansur file', body: `<p>${esc(err.message)}</p>` }); }
       if (fetched) { this.renderList(); return; }
       b.disabled = false; b.innerHTML = label;
@@ -4054,32 +4054,6 @@ const Records = {
       if (isLocal) await DB.del('runs', id).catch(() => {});
       this.renderList();
     }));
-  },
-  /** Opens a test from the list: this laptop's, or a shared one fetched first. Also what the hub's Previous tests list asks for. */
-  async openId(id) {
-    const r = (await this.list()).find(x => x.id === id);
-    if (r) { Runner.open(r); return; }
-    try { Runner.open(await SharedTests.fetch(id)); this.renderList(); }
-    catch (err) { dialog({ title: 'Couldn’t open that test', body: `<p>${esc(err.message)}</p>` }); }
-  },
-  /** The PDF report or the Ansur record (.mtr) of a test, named for the day it was run: { name, blob, fetched }. Fetches a shared test first when it isn't on this laptop. */
-  async makeFile(id, kind) {
-    let run = (await this.list()).find(x => x.id === id), fetched = false;
-    if (!run) { run = await SharedTests.fetch(id); fetched = true; }
-    const when = run.finished || run.started, name = outName(run, kind === 'pdf' ? 'pdf' : 'mtr', when);
-    if (kind === 'pdf') return { name, fetched, blob: new Blob([await ReportPdf.build(run)], { type: 'application/pdf' }) };
-    if (run.imported) throw new Error('This test was opened from an Ansur record, so it has no new record to make.');
-    return { name, fetched, blob: new Blob([buildMtr(run)], { type: 'application/xml' }) };
-  },
-  /** Inside the hub the hub's Previous tests list is the one list: it is told what is on this laptop, so it can show the tests that exist only here (still in progress, opened from a file, not shared yet). */
-  publish() {
-    if (window.parent === window) return;
-    const pick = (d, re) => { const k = Object.keys(d || {}).find(k => re.test(k.trim())); return k ? String(d[k] || '').trim() : ''; };
-    this.list().then(runs => window.parent.postMessage({ type: 'chs-bench:runs', runs: runs.map(r => ({
-      id: String(r.id), started: String(r.started || ''), finished: String(r.finished || ''), overall: r.inProgress ? 'incomplete' : (r.overall || 'incomplete'),
-      inProgress: !!r.inProgress, imported: !!r.imported, template: String((r.template && r.template.name) || ''), serial: allSerials(r), model: pick(r.dut, /^model$/i),
-      customer: pick(r.dut, /^(customer|client|hospital|site|owner)\b/i), sharedBy: String(r.sharedBy || ''),
-    })) }, location.origin)).catch(() => {});
   },
   async openFile(e) {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
@@ -5020,18 +4994,6 @@ window.addEventListener('message', async (e) => {
     reply({ mime: 'application/pdf', buffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) });
   } catch (err) { log('er', 'RUN', 'PDF for Saved reports failed: ' + err.message); reply({ error: err.message }); }
 });
-/** Inside the hub, its Previous tests list asks the bench to open a test, to make a test's PDF or Ansur record, or to take a test off this laptop. */
-window.addEventListener('message', async (e) => {
-  if (window.parent === window || e.source !== window.parent || e.origin !== location.origin) return;
-  const m = e.data; if (!m || typeof m.type !== 'string' || !m.id) return;
-  if (m.type === 'chs-bench:open-run') { Records.openId(String(m.id)); return; }
-  if (m.type === 'chs-bench:remove-run') { await DB.del('runs', String(m.id)).catch(() => {}); Records.renderList(); return; }
-  if (m.type === 'chs-bench:make-file' && (m.kind === 'pdf' || m.kind === 'mtr')) {
-    const reply = (o) => window.parent.postMessage({ type: 'chs-bench:made', reqId: m.reqId, ...o }, location.origin);
-    try { const f = await Records.makeFile(String(m.id), m.kind); reply({ name: f.name, mime: f.blob.type, buffer: await f.blob.arrayBuffer() }); if (f.fetched) Records.renderList(); }
-    catch (err) { log('er', 'RUN', 'File for Previous tests failed: ' + err.message); reply({ error: err.message }); }
-  }
-});
 /** Inside the hub: the colour each device model has on the Run a test page (its template's highlight colour, as this engineer set it), so
     Saved reports can show a model in the same colour. Asked with { models: [...] }; replies { map: { model: { color, template } }, hex }. */
 window.addEventListener('message', (e) => {
@@ -5216,10 +5178,7 @@ const SharedTests = {
       const key = view + '/' + testing; if (key === last) return;
       last = key;
       window.parent.postMessage({ type: 'chs-bench:state', view, testing }, location.origin);
-      try { Records.publish(); } catch {}   // what is on this laptop may have changed with the page
     };
-    document.body.classList.add('in-hub');
-    const pt = $('#prevCard h2'); if (pt) pt.textContent = 'Open a saved test file';
     new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(send, 80); }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['hidden', 'aria-selected'] });
     send();
   },

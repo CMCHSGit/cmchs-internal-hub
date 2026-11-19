@@ -445,7 +445,7 @@ test('Saved reports sits beside the bench (not a tab); Previous tests rows downl
   assert.ok(bench.includes("type: 'chs-bench:state', view, testing") && bench.includes('watchState()'), 'the state message')
   assert.ok(bench.includes('data-dl="pdf"') && bench.includes('data-dl="mtr"') && bench.includes("${r.imported ? '' : `<button type=\"button\" class=\"btn ghost sm\" data-dl=\"mtr\""), 'PDF on every finished test, .mtr not on one imported from an Ansur record')
   assert.ok(bench.includes("${r.inProgress ? '' : `<button type=\"button\" class=\"btn ghost sm\" data-dl=\"pdf\""), 'nothing to download for a test still in progress')
-  assert.ok(bench.includes('download(made.name, made.blob)') && bench.includes("name = outName(run, kind === 'pdf' ? 'pdf' : 'mtr', when)") && bench.includes('new Blob([await ReportPdf.build(run)]') && bench.includes('new Blob([buildMtr(run)]'), 'a plain download, no folder to choose')
+  assert.ok(bench.includes("download(outName(run, 'pdf', when), new Blob([await ReportPdf.build(run)]") && bench.includes("download(outName(run, 'mtr', when), new Blob([buildMtr(run)]"), 'a plain download, no folder to choose')
   // outName: the file is named for the day the test was run when asked (a download from Previous tests), today otherwise
   const fn = bench.match(/function outName\(run, ext, when\) \{[\s\S]*?\n\}/)[0]
   const outName = new Function('otherDevices', 'safeName', `${fn}; return outName`)(() => [], (s) => String(s))
@@ -457,18 +457,4 @@ test('Saved reports sits beside the bench (not a tab); Previous tests rows downl
   const tools = JSON.parse(readFileSync(new URL('../../../tools.json', import.meta.url), 'utf8'))
   assert.ok(!tools.some((t) => t.id === 'new-equipment'), 'no New equipment entry')
   assert.ok(readFileSync(new URL('../../hub/src/router.js', import.meta.url), 'utf8').includes("'/new-equipment/'"), '/new-equipment/ is still routed')
-})
-
-test('Previous tests is one list: the hub lists every test (customer, result, Open, PDF, .mtr) and the bench keeps only the way to open a file', () => {
-  const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
-  const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
-  const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
-  // the bench: tells the hub what is on this laptop, opens / makes a file / removes a test when asked, and drops its own list inside the hub
-  assert.ok(bench.includes("type: 'chs-bench:runs'") && bench.includes('this.publish();'), 'it reports its tests')
-  assert.ok(bench.includes("m.type === 'chs-bench:open-run'") && bench.includes("m.type === 'chs-bench:remove-run'") && bench.includes("m.type === 'chs-bench:make-file'") && bench.includes("type: 'chs-bench:made'"), 'open, remove and make a file on request')
-  assert.ok(bench.includes("document.body.classList.add('in-hub')") && bench.includes('.in-hub #prevList'), 'its own list is hidden inside the hub')
-  // the hub: asks for them, lists the laptop-only tests, and each row has what Previous tests had
-  assert.ok(section.includes("m?.type === 'chs-bench:runs'") && section.includes("m?.type === 'chs-bench:made'") && section.includes("type: 'chs-bench:make-file'") && section.includes("type: 'chs-bench:open-run'") && section.includes("type: 'chs-bench:remove-run'"), 'the hub side of the messages')
-  assert.ok(ui.includes('localGroups(localRuns, reports, sharedTests)') && ui.includes('withResult(') && ui.includes('onOpen?.(g.openId)') && ui.includes("quick(g, 'pdf')") && ui.includes("quick(g, 'mtr')") && ui.includes('<h2>Previous tests</h2>'), 'one list with Open, PDF and .mtr on each test')
-  assert.ok(section.includes('Previous tests') && !section.includes('>Saved reports<') , 'the button and the pane are called Previous tests')
 })

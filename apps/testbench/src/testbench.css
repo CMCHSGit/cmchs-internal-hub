@@ -134,4 +134,3 @@
 /* The Customers tab (newequip/Customers.jsx) sits in the same scrolling area as Saved reports. */
 .tb-reports > .ne-host { width: 100%; padding: 0; }
 .tb-reports .ne-title { font: var(--type-h3); }
-.tb-rowact { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }

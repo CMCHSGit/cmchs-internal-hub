@@ -7,7 +7,7 @@ import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { JOB_STAGES, getJob, listStatusCodes, updateJob } from './simpro-api.js'
 import { clearableIds, storageSummary, withStatus } from './bench-status.js'
-import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, localGroups, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob, withResult } from './reports.js'
+import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
 import { bookletPdf, mergePdfs, printPdf } from './print.js'
 
@@ -64,7 +64,7 @@ function saveBlob(name, blob) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
 
-export default function Reports({ orders = [], status = {}, onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], localRuns = [], onOpen, onMakeFile, onRemoveLocal, onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
+export default function Reports({ orders = [], status = {}, onClearShared, reports, fresh, sim, onJobUpdated, onJob = null, onJobFiles, outbox, online, onAttach, onAddFiles, onMarkDownloaded, modelColours, sharedTests = [], onFetchShared, sheet = null, onSyncSheet, makeMtr, makePdf, onDelete, onRemoveOutbox, onSendWaiting, onRetryFailed, user, onlySerials = [], onShowAll, startUnsent = false, startJob = null }) {
   const [by, setBy] = useState('customer')
   const [text, setText] = useState('')
   const [customer, setCustomer] = useState('')
@@ -112,15 +112,7 @@ export default function Reports({ orders = [], status = {}, onClearShared, repor
   const me = String(user?.email || '').toLowerCase()
   const lookingFor = !!(text.trim() || onlySerials.length || showOthers)
   // "Sent to" and "Downloaded" as any laptop recorded them (status), on top of what this laptop knows.
-  // The one list of previous tests: this laptop's saved files, the shared tests, and the tests that are only on this laptop (in progress, opened from a file, not shared yet).
-  const allGroups = useMemo(() => withResult(withStatus(withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id))), ...localGroups(localRuns, reports, sharedTests)], onJob), sharedTests, status), localRuns, sharedTests).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, localRuns, hidden, status])
-  // A PDF or an Ansur record of a test, made by the bench and saved as a download (no folder to choose).
-  const quick = async (g, kind) => {
-    setBusy(true)
-    try { const f = await onMakeFile(g.openId, kind); saveBlob(f.name, new Blob([f.buffer], { type: f.mime })) } catch (e) { setNote({ text: e?.message || 'Couldn’t make that file.', tone: 'warning' }) }
-    setBusy(false)
-  }
-  const removeLocal = (g) => { if (window.confirm(`Take ${g.serial} off this laptop's list? It is only on this laptop${g.inProgress ? ' and still in progress' : ''}, so it can't be brought back.`)) onRemoveLocal?.(g.runId) }
+  const allGroups = useMemo(() => withStatus(withOnJob([...groupReports(reports), ...sharedGroups(reports, sharedTests.filter((t) => !hidden.has(t.id)))], onJob), sharedTests, status).sort((a, b) => (b.testedAt || b.savedAt) - (a.testedAt || a.savedAt)), [onJob, reports, sharedTests, hidden, status])
   const isOthers = (g) => g.shared && !!g.sharedByEmail && g.sharedByEmail !== me
   const forJob = (g) => {
     if (!job) return false
@@ -335,8 +327,8 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
     <div className="tb-reports">
       <div className="tb-rhead">
         <div>
-          <h2>Previous tests</h2>
-          <p className="tb-muted">Every test, with its customer: the ones on this laptop (even if still in progress) and the ones other engineers have finished. Open one in the bench, download its PDF or Ansur record, or tick tests to download or attach them together to a Simpro job: their reports are made when you download or attach them. Every report the bench saves is also kept here on this laptop.
+          <h2>Saved reports</h2>
+          <p className="tb-muted">Every report the bench saves is also kept here on this laptop, and the tests other engineers have finished are listed too: their reports are made here when you download or attach them. Tick the tests you want, then download them together or attach them to a Simpro job.
             {reports.length > 0 && <> {groups.length} test{groups.length === 1 ? '' : 's'} · {kb(total)} kept.</>}</p>
         </div>
       </div>
@@ -432,22 +424,12 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
                   <div className="tb-test-main">
                     <div className="tb-test-title"><strong>{g.serial}</strong>{g.model ? ` · ${g.model}` : ''}
                       {g.files.some((f) => fresh.has(f.name)) && <Badge tone="purple">New</Badge>}
-                      {g.inProgress ? <Badge tone="orange">In progress</Badge> : g.overall ? <Badge tone={g.overall === 'pass' ? 'green' : g.overall === 'fail' ? 'red' : 'orange'}>{g.overall === 'pass' ? 'Pass' : g.overall === 'fail' ? 'Fail' : 'Incomplete'}</Badge> : null}
-                      {g.local && !g.inProgress && <Badge tone="grey">Only on this laptop</Badge>}
                       {g.uploaded && <Badge tone="grey">Added by you</Badge>}
                       {g.shared && <Badge tone="purple">Tested by {g.sharedBy || 'another engineer'}</Badge>}
                       {g.sentTo.length ? <Badge tone="green">Sent to {g.sentTo.join(', ')}</Badge> : <Badge tone="grey">Not sent</Badge>}
                       {g.downloadedAt ? <span title={`Downloaded ${new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(g.downloadedAt))}`}><Badge tone="green">Downloaded</Badge></span> : <Badge tone="grey">Not downloaded</Badge>}
                     </div>
                     <div className="tb-muted">{[by !== 'customer' && g.customer !== 'No customer recorded' ? g.customer : '', by !== 'day' ? `${g.day} ${timeOf(g)}` : timeOf(g), g.template].filter(Boolean).join(' · ')}</div>
-                    {(g.openId || g.local) && (
-                      <div className="tb-rowact">
-                        {g.openId && <Button variant="secondary" size="sm" onClick={() => onOpen?.(g.openId)} title="Open this test in the bench: view it, print it, change the details or carry on with it">Open</Button>}
-                        {g.openId && !g.inProgress && <Button variant="ghost" size="sm" disabled={busy} onClick={() => quick(g, 'pdf')} title="Download the PDF report">PDF</Button>}
-                        {g.openId && !g.inProgress && !g.imported && <Button variant="ghost" size="sm" disabled={busy} onClick={() => quick(g, 'mtr')} title="Download the Ansur record (.mtr)">.mtr</Button>}
-                        {g.local && <Button variant="ghost" size="sm" onClick={() => removeLocal(g)} title="Take this test off this laptop's list">Remove</Button>}
-                      </div>
-                    )}
                     <div className="tb-chips">
                       {g.shared && <><span className="tb-chip is-made" title="Made here from the shared test when you download or attach it">Report · made when needed</span><span className="tb-chip is-made" title="Made here from the shared test when you download or attach it">Ansur record · made when needed</span></>}
                       {g.files.map((f) => (
