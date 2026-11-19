@@ -417,3 +417,6 @@ fitted); network, battery and production test. `IBPP` (dynamic pressure) is from
 
 ## Zero the earth lead from a failed result (19/11/2026)
 When protective earth resistance fails in the auto sequence and the lead wasn't zeroed (the default), the failure box has a **Zero lead and re-test** button: it asks for the red lead on the ESA612 null post, zeroes it (`IDLE`, `ERES`, `ZERO`, as the "Zero the test lead" setting does) and measures again. The ESA612 stays in remote mode. The setting itself is unchanged (off by default).
+
+## Rad-97: NomoLine capnography step (19/11/2026)
+The Masimo Rad-97 template has a **Capnography (NomoLine)** check after SpO2, from the CHS Ansur template "Rad-97 Nomoline AS-NZS 3551 EST and PVT" (record 1.10.2021): the LEGI connector shows steady green; breathing into the sampling line gives a valid CO2 waveform and values; blocking the line gives an occlusion alarm with the LEGI connector flashing red. Skipped on a Rad-97 without CO2. The plain Rad-97 Ansur template (used for the 2025 records) has no CO2 test.
