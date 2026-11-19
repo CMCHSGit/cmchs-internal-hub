@@ -24,7 +24,29 @@ export const tools = allTools.filter(t => t.visible !== false)
 
 /** The service team's tools: the Service menu in the header lists them, so the home page's grid doesn't. */
 export const SERVICE_TOOL_IDS = ['service-orders', 'ansur', 'testbench', 'pdf-editor', 'simpro', 'simpro-search', 'simpro-jobs', 'maintenance', 'oncall', 'checklists', 'knowledge']
+
+/** What a service tool is for, so the menu and the Service page can colour-code it. Brand colours; `dark` is the lighter
+    shade that reads on the dark theme. A tool not listed in GROUP_OF falls into "Other" until it is given a group. */
+export const SERVICE_GROUPS = {
+  simpro:  { name: 'Simpro',                color: '#554596', dark: '#a99be0' },
+  testing: { name: 'Testing and checks',    color: '#5a8a00', dark: '#9fd338' },
+  orders:  { name: 'Orders and planning',   color: '#d46a00', dark: '#f5a24d' },
+  docs:    { name: 'Documents and reference', color: '#0f7c8a', dark: '#5fc4d1' },
+  other:   { name: 'Other',                 color: '#6b6e72', dark: '#a7a9ac' },
+}
+const GROUP_OF = {
+  simpro: 'simpro', 'simpro-search': 'simpro', 'simpro-jobs': 'simpro',
+  ansur: 'testing', testbench: 'testing', checklists: 'testing',
+  'service-orders': 'orders', maintenance: 'orders', oncall: 'orders',
+  'pdf-editor': 'docs', knowledge: 'docs',
+}
+export const serviceGroupOf = id => SERVICE_GROUPS[GROUP_OF[id]] || SERVICE_GROUPS.other
+/** Inline custom properties the CSS reads for a tool's colour. */
+export const groupStyle = id => { const g = serviceGroupOf(id); return { '--grp': g.color, '--grp-dark': g.dark } }
+
+/** Alphabetical by the name shown in the menu, so a new tool lands in the right place without anyone ordering it. */
 export const serviceTools = SERVICE_TOOL_IDS.map(id => tools.find(t => t.id === id)).filter(Boolean)
+  .sort((a, b) => (a.short || a.name).localeCompare(b.short || b.name, 'en', { sensitivity: 'base' }))
 
 export function toolGroups() {
   const known = CATEGORIES.map(([name, c1, c2]) => ({ name, c1, c2 }))

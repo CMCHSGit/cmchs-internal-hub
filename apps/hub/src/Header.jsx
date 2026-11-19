@@ -3,7 +3,7 @@ import { Boxes, CalendarDays, ChevronDown, ClipboardList, Ellipsis, FolderKanban
 import { initialsOf, signOutUser } from '../../../shared/session.js'
 import { currentTheme, setTheme } from '../../../shared/tool-chrome.js'
 import Icon from './Icon.jsx'
-import { serviceTools } from './tools.js'
+import { serviceTools, groupStyle, serviceGroupOf } from './tools.js'
 import { openSearch } from './Palette.jsx'
 import { EVENT, KEY, badgeText, readAll } from '../../../shared/badges.js'
 
@@ -122,7 +122,7 @@ function ServiceMenu({ on }) {
             <Icon name="wrench" size={16} /> All service tools
           </a>
           {serviceTools.map(t => (
-            <a key={t.id} className="menu-item" role="menuitem" href={t.link} onClick={() => setOpen(false)}>
+            <a key={t.id} className="menu-item svc-item" role="menuitem" href={t.link} style={groupStyle(t.id)} title={serviceGroupOf(t.id).name} onClick={() => setOpen(false)}>
               <Icon name={t.icon} size={16} /> {t.short || t.name}
             </a>
           ))}
