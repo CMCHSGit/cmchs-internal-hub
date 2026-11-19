@@ -432,17 +432,17 @@ test('a step already answered (a Pass clicked by mistake) can be skipped: asked 
   assert.ok(html.includes('Skip this step?') && html.includes(`r.rows = []; log('in', 'RUN', 'A recorded step was skipped`), 'it asks, then clears what was recorded')
 })
 
-test('Previous tests is the one list (customer, ticks, sent) with a bar under the bench for the ticked ones; PDF and .mtr on each row; the bench says when a test is running', async () => {
+test('Previous tests is the one list (customer, ticks, sent) with a bar at the right of the bench for the ticked ones; PDF and .mtr on each row; the bench says when a test is running', async () => {
   const bench = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
   const css = readFileSync(new URL('../src/testbench.css', import.meta.url), 'utf8')
-  // the hub: no Saved reports tab and no side pane; a bar under the bench works on the tests ticked in the bench's table, and gives way while a test runs
+  // the hub: no Saved reports tab and no side pane; a bar at the right of the bench works on the tests ticked in the bench's table, and gives way while a test runs
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(!section.includes("tab === 'reports'") && !section.includes('tb-side') && !section.includes('openReports') && !section.includes('showSide'), 'no Saved reports tab or pane')
-  assert.ok(section.includes('className="tb-bottom"') && section.includes('barOnly ticked={ticked}') && section.includes('hidden={!showBar}') && section.includes("m?.type === 'chs-bench:state'"), 'the bar under the bench, hidden (not unmounted) while a test runs')
+  assert.ok(section.includes('className="tb-bar"') && section.includes('barOnly ticked={ticked}') && section.includes('hidden={!showBar}') && section.includes("m?.type === 'chs-bench:state'"), 'the bar at the right of the bench, hidden (not unmounted) while a test runs')
   assert.ok(section.includes("m?.type === 'chs-bench:ticked'") && section.includes("type: 'chs-bench:filter'") && section.includes("type: 'chs-bench:status'") && section.includes("m?.type === 'chs-bench:filter-cleared'") && section.includes("type: 'chs-bench:clear-ticks'"), 'ticks in, filter, status and clear out')
   assert.ok(ui.includes('barOnly') && ui.includes('startedOf(g)') && ui.includes('statusByStart(allGroups)') && ui.includes('Clear the ticks'), 'the bar works on the ticked tests and reports what was sent')
-  assert.ok(css.includes('.tb-bottom {') && !css.includes('has-side'), 'the bar is styled; the side pane is gone')
+  assert.ok(css.includes('.tb-split.has-bar { grid-template-columns: minmax(0, 1fr) minmax(380px, 30%)') && !css.includes('has-side'), 'the bar is at the right of the bench, and styled')
   // the bench's table: customer, a tick on each test, sent status, the asset list filter
   assert.ok(bench.includes('<th>Customer</th>') && bench.includes('data-tick=') && bench.includes('id="prevTickAll"') && bench.includes("type: 'chs-bench:ticked'") && bench.includes("m.type === 'chs-bench:filter'") && bench.includes("m.type === 'chs-bench:status'") && bench.includes("m.type === 'chs-bench:clear-ticks'") && bench.includes("type: 'chs-bench:filter-cleared'"), 'customer column, ticks, status and filter in the bench table')
   // the bench: says which page is open and whether a test is running; a PDF and .mtr download on each finished row
