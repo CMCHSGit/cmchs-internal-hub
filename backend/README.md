@@ -9,7 +9,7 @@ them in (`git log --oneline 0798b65^2` for the proxy).
 |---|---|---|
 | `apps-script/proxy/` | The Apps Script web app every tool calls (`shared/proxy.js`): the demo tracker's database pass (`rtdbToken`), Simpro (`simproSync`, the tracker's job create/update/close), pushes (`notifyHubRequest`, `notifyAsk`, `testPush`), and the demo tracker's reminder timers | Google, as a web app |
 | `apps-script/backup/` | Nightly 3am backup to Google Drive: the demo tracker (a spreadsheet, and its whole database as JSON to restore from), the project tracker, Asks, and the hub's activity log (a spreadsheet a month, and a JSON file a night; kept for good) | Google, on a timer |
-| `apps-script/news-inbox/` | Every 10 minutes: the weekly team update email, Bcc'd to a Gmail address, into Manage → News as drafts to check (`newsInbox`) | Google, on a timer |
+| `apps-script/news-inbox/` | Every 10 minutes: the weekly team update email, saved to a Drive folder by a Power Automate flow, into Manage → News as drafts to check (`newsInbox`) | Google, on a timer |
 | `tile-sync/` | Daily Tile tracker locations into the demo tracker's database | GitHub Actions, `.github/workflows/tile-sync.yml` |
 
 Secrets are never here: the Simpro key and the service-account key are Apps
@@ -68,70 +68,100 @@ words only, never names.
 
 ## News inbox
 
-The weekly team update email reaches Manage → News without anyone pasting it.
-Whoever writes it adds one address in **Bcc**; `apps-script/news-inbox/` reads
-that Gmail every 10 minutes and saves new ones to `newsInbox/{id}`; Manage → News
-shows "The team update email arrived" with **Make drafts** (Paste an email, already
-split) and **Put away**. Nothing is posted until a person presses Post. No IT or
-Microsoft admin is involved: a Bcc is an ordinary recipient, not a forward.
+The weekly team update email reaches Manage → News without anyone pasting it,
+forwarding it or asking the writer for anything. No Gmail, and no IT or Microsoft
+admin is involved:
 
-It is its own Apps Script project, not part of the proxy, so the permission to read
-the mailbox is never held by the public `/exec` web app. It runs as the Google
-account that owns it and reads only that account's Gmail: use the account that owns
-the backup script (it already has the service-account key).
+1. A **Power Automate** flow in the receiver's own Outlook ("When a new email
+   arrives", from the writer, with the usual subject) saves the email's body as an
+   `.html` file in a Google Drive folder of `internal@cass.co.nz` (the Google
+   account that owns the scripts). Nothing is forwarded, so Exchange's block on
+   automatic forwarding doesn't apply.
+2. `apps-script/news-inbox/`, running as that account, checks the folder every 10
+   minutes. It saves each new `.html` / `.txt` file to `newsInbox/drive-<file id>`
+   and moves the file into the folder's `Imported` subfolder.
+3. Manage → News shows "The team update email arrived" with **Make drafts** (Paste an
+   email, already split) and **Put away**. Nothing is posted until a person presses
+   Post.
 
-**What it brings in:** mail delivered to `NEWS_INBOX_TO`, from an address in
-`NEWS_INBOX_FROM`, in the last 14 days, not labelled `hub-imported`, and not failed by
-Gmail's sender check (`dmarc=fail`). Every message it looks at gets the label, whatever
-happened; take the label off in Gmail to have one looked at again. Pictures inside the
-email are dropped (the splitter doesn't use them). Logs and the Background jobs page
-give counts only.
+Who can put a file in the folder is who can send news drafts, so keep the folder
+private to that account. It is its own Apps Script project, not part of the proxy, so
+the public `/exec` web app never has Drive access. Pictures inside the email are
+dropped (the splitter doesn't use them). A forwarded email splits from what was
+forwarded. Logs and the Background jobs page give counts only.
 
 ### Setting it up (once)
 
-1. **Make the project**, signed in to clasp as that Google account
-   (`npx clasp login` if it isn't). The Apps Script API must be on at
-   script.google.com/home/usersettings.
-   ```bash
-   git pull
-   cd backend/apps-script/news-inbox
-   npx clasp create --type standalone --title "CMCHS Hub news inbox" --rootDir .
-   npx clasp push --force
-   ```
-   Commit the `.clasp.json` it makes (the script id isn't a secret; the others are
-   committed too). Without clasp: script.google.com → New project, paste `Code.js`;
-   Project Settings → tick "Show appsscript.json" and paste that file too.
-2. **Script Properties** (the project → Project Settings → Script properties):
-   - `NEWS_INBOX_TO`: that account's address with `+hubnews` before the `@`
-     (Gmail delivers `name+hubnews@…` to `name@…`).
-   - `NEWS_INBOX_FROM`: who may send it, comma-separated: the writers' addresses,
-     or `@cass.co.nz` for anyone at the company.
-   - `FIREBASE_SERVICE_ACCOUNT_KEY`: copy the value from the backup project's
-     Script Properties (same key). Never paste it anywhere else.
+**A. The Drive folder** (signed in to Google as `internal@cass.co.nz`)
+
+1. drive.google.com → New → New folder → `Hub news inbox`. Don't share it.
+2. Open it. Its address is `https://drive.google.com/drive/folders/<id>`: copy the
+   `<id>` part.
+
+**B. The script** (same account, at script.google.com)
+
+1. Make the project: New project, name it `CMCHS Hub news inbox`. Paste in
+   `Code.js`. In Project Settings, tick "Show appsscript.json", then paste that file
+   over the editor's `appsscript.json`. If an earlier Gmail version was pasted, replace
+   both files whole. (With clasp signed in as that account:
+   `npx clasp create --type standalone --title "CMCHS Hub news inbox" --rootDir .` then
+   `npx clasp push --force` from this folder, and commit the `.clasp.json`.)
+2. Script Properties (Project Settings → Script properties):
+   - `NEWS_INBOX_FOLDER_ID`: the folder id from A2.
+   - `FIREBASE_SERVICE_ACCOUNT_KEY`: copy the whole value of the proxy's
+     `FCM_SERVICE_ACCOUNT_KEY` (same key). Never paste it anywhere else.
    - `FIREBASE_SCHEDULE_PROJECT_ID`: only if not `cmchsstaffschedule`.
-3. **Run `setupNewsInbox`** in the editor (function menu → Run). Google asks for
-   permission: Gmail (read and label), external requests, timers. On "Google hasn't
-   verified this app": Advanced → Go to CMCHS Hub news inbox (it's your own script).
-   It makes the `hub-imported` label and the 10-minute timer.
-4. **Publish the rules:** paste the whole of `rules/firestore.rules` into Firebase
-   console → cmchsstaffschedule → Firestore → Rules → Publish (`match /newsInbox`).
-   Until then the card can't be read and Manage simply doesn't show it.
-5. **The writer** adds the `+hubnews` address in Bcc of the weekly email (Bcc so
-   nobody's reply-all goes there). Saving it in their Outlook contacts makes it one
-   click.
-6. **Check:** send a short test from an allowed address with the Bcc. Run
-   `checkNewsInbox` in the editor: it says what is waiting and changes nothing. Within
-   10 minutes Manage → News shows the card; Settings → Background jobs shows "Team
-   update email". Put the test away.
+   - Delete `NEWS_INBOX_TO` / `NEWS_INBOX_FROM` if they were added for the Gmail
+     version. They are no longer used.
+3. Choose `setupNewsInbox` in the function menu and press **Run**. Approve the
+   permissions (Drive, external requests, timers). On "Google hasn't verified this
+   app": Advanced → Go to CMCHS Hub news inbox (it's your own script). It makes the
+   `Imported` subfolder and the 10-minute timer.
 
-Optional: a Gmail filter on that account (To: the `+hubnews` address → Skip the
-Inbox) keeps its inbox tidy; the script finds the mail either way.
+**C. The rules:** paste the whole of `rules/firestore.rules` into Firebase console →
+cmchsstaffschedule → Firestore → Rules → Publish (`match /newsInbox`). Until then
+Manage simply doesn't show the card.
 
-**Changing the code:** `git pull`, then `npx clasp push --force` from
-`apps-script/news-inbox/`. It isn't a web app, so there is no `clasp deploy`: the next
-run uses the new code. New permissions in `appsscript.json` need `setupNewsInbox` run
-and approved again. **To stop it:** delete its trigger (the clock icon in the editor)
-or clear `NEWS_INBOX_TO`.
+**D. The flow** (make.powerautomate.com, signed in with your own Microsoft account,
+the one that receives the weekly email)
+
+1. Create → **Automated cloud flow**. Name it `Team update to the hub`. Trigger:
+   **When a new email arrives (V3)** (Office 365 Outlook) → Create.
+2. In the trigger, open **Show all** (advanced parameters):
+   - Folder: `Inbox`.
+   - From: the writer's address. Add more, separated by `;`, if someone covers for them.
+   - Subject Filter: a phrase that is always in the subject. The match is "contains",
+     not case sensitive.
+   - Include Attachments: No.
+3. **+ New step** → search "Google Drive" → **Create file**. Sign in as
+   `internal@cass.co.nz` when it asks, and allow access.
+   - Folder path: pick `/Hub news inbox` with the folder icon.
+   - File name: in the **Expression** tab, paste
+     `concat(replace(triggerOutputs()?['body/subject'], '/', '-'), '.html')`
+     (the subject, with any `/` made safe, plus `.html`).
+   - File content: **Body** from the trigger's dynamic content.
+4. **Save.** If Power Automate refuses because of a "data loss prevention" (DLP)
+   policy, the company blocks Outlook-to-Google flows. Fall back to "Paste an
+   email", or ask IT.
+
+**E. Check**
+
+1. To test before the real email: add your own address to the trigger's From
+   (`writer@…;you@…`), save, and send yourself an email with the subject phrase in
+   its subject. Take your address out again afterwards. Or just wait for the real one.
+2. A `.html` file appears in the folder within a minute or two.
+3. In the script editor, run `checkNewsInbox`. It says "Firestore key works" and
+   counts what's waiting, changing nothing.
+4. Within 10 minutes the file moves to `Imported`. Manage → News shows the card, and
+   Settings → Background jobs shows "Team update email". Put a test away with **Put
+   away**.
+
+**Changing the code:** paste the new `Code.js` into the editor (or `git pull`, then
+`npx clasp push --force` from `apps-script/news-inbox/`). It isn't a web app, so there
+is no `clasp deploy`: the next run uses the new code. New permissions in
+`appsscript.json` need `setupNewsInbox` run and approved again. **To stop it:** turn the
+flow off, or delete the script's trigger (the clock icon in the editor). **To bring a
+file in again:** move it back out of `Imported`.
 
 ## Tile sync
 

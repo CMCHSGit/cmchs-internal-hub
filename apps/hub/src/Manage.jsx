@@ -86,7 +86,7 @@ function NewsTab({ ctx }) {
     const msg = await dismissTool(t.id)
     ctx.showToast(msg || `${t.name} won’t be offered again.`)
   }
-  // The team update email, brought in from Gmail (news-inbox.js)
+  // The team update email, brought in from its Drive folder (news-inbox.js)
   const [inbox, setInbox] = useState([])
   const reloadInbox = () => loadInbox().then(setInbox)
   useEffect(() => { if (poster) reloadInbox() }, [poster])
@@ -379,7 +379,7 @@ function postLabel(posts, updates, [post, update]) {
   return s[0].toUpperCase() + s.slice(1)
 }
 
-// `email`: one brought in from Gmail (news-inbox.js), opened already split; posting from it marks it used.
+// `email`: one brought in from its Drive folder (news-inbox.js), opened already split; posting from it marks it used.
 function PasteEmail({ ctx, list, email, onDone }) {
   const [paste, setPaste] = useState(() => (email ? { html: email.html || '', text: email.text || '' } : { html: '', text: '' }))
   const [drafts, setDrafts] = useState(() => (email ? splitDrafts(email) : null))

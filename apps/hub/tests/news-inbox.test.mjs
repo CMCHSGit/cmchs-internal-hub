@@ -1,4 +1,4 @@
-// npm test -w apps/hub — the emailed team update: what the Gmail reader
+// npm test -w apps/hub — the emailed team update: what the Drive folder reader
 // (backend/apps-script/news-inbox/Code.js, read straight from the file so the
 // test checks what's pushed) picks up and saves, and what Manage offers
 // (news-inbox.js).
@@ -11,46 +11,17 @@ import { splitEmail } from '../src/emailSplit.js'
 
 const ctx = vm.createContext({})
 vm.runInContext(readFileSync(new URL('../../../backend/apps-script/news-inbox/Code.js', import.meta.url), 'utf8'), ctx)
-const b64 = (s) => Buffer.from(s, 'utf8').toString('base64url')
-const decode = (d) => Buffer.from(d, 'base64url').toString('utf8')
 
-test('the Gmail search: delivered to the address, not yet brought in, recent', () => {
-  assert.equal(ctx.newsInboxQuery_(' hub+hubnews@gmail.com ', 14), 'deliveredto:hub+hubnews@gmail.com -label:hub-imported newer_than:14d')
-})
-
-test('only senders on the list, by address or whole domain', () => {
-  assert.equal(ctx.senderAddress_('Pat Poster <Pat@Cass.co.nz>'), 'pat@cass.co.nz')
-  assert.equal(ctx.senderAddress_('pat@cass.co.nz'), 'pat@cass.co.nz')
-  assert.equal(ctx.senderAllowed_('pat@cass.co.nz', 'pat@cass.co.nz, kai@cass.co.nz'), true)
-  assert.equal(ctx.senderAllowed_('zed@cass.co.nz', 'pat@cass.co.nz, kai@cass.co.nz'), false)
-  assert.equal(ctx.senderAllowed_('zed@chsnz.co.nz', '@cass.co.nz;@chsnz.co.nz'), true)
-  assert.equal(ctx.senderAllowed_('x@notcass.co.nz', '@cass.co.nz'), false)
-  assert.equal(ctx.senderAllowed_('evil@cass.co.nz.example.com', '@cass.co.nz'), false)
-  assert.equal(ctx.senderAllowed_('', '@cass.co.nz'), false)
-  assert.equal(ctx.senderAllowed_('pat@cass.co.nz', ''), false)
-})
-
-test('mail that fails Gmail’s sender check is never brought in', () => {
-  assert.equal(ctx.failsDmarc_('mx.google.com; dkim=pass; spf=pass; dmarc=pass (p=NONE)'), false)
-  assert.equal(ctx.failsDmarc_('mx.google.com; spf=softfail; dmarc=fail (p=QUARANTINE)'), true)
-  assert.equal(ctx.failsDmarc_(''), false)
-})
-
-test('the HTML and plain bodies, from the nested parts Outlook sends, never an attachment', () => {
-  const payload = {
-    mimeType: 'multipart/mixed',
-    parts: [
-      { mimeType: 'multipart/alternative', parts: [
-        { mimeType: 'text/plain', body: { data: b64('Hi All, plain') } },
-        { mimeType: 'text/html', body: { data: b64('<html><body><p>Hi All – ā</p></body></html>') } },
-      ] },
-      { mimeType: 'text/html', filename: 'old.html', body: { data: b64('<p>attached</p>') } },
-    ],
-  }
-  const b = ctx.bodiesOf_(payload, decode)
-  assert.equal(b.text, 'Hi All, plain')
-  assert.equal(b.html, '<html><body><p>Hi All – ā</p></body></html>')
-  assert.deepEqual({ ...ctx.bodiesOf_({ mimeType: 'text/plain', body: { data: b64('only text') } }, decode) }, { html: '', text: 'only text' })
+test('which files in the folder are brought in, and the subject from the file name', () => {
+  assert.equal(ctx.fileKind_('Next few weeks of places to be.html', 'text/html'), 'html')
+  assert.equal(ctx.fileKind_('update.HTM', 'application/octet-stream'), 'html')
+  assert.equal(ctx.fileKind_('update', 'text/html'), 'html')
+  assert.equal(ctx.fileKind_('update.txt', ''), 'text')
+  assert.equal(ctx.fileKind_('photo.jpg', 'image/jpeg'), null)
+  assert.equal(ctx.fileKind_('notes.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'), null)
+  assert.equal(ctx.subjectFromName_('Next few weeks   of places to be.html'), 'Next few weeks of places to be')
+  assert.equal(ctx.subjectFromName_('Update.TXT'), 'Update')
+  assert.equal(ctx.subjectFromName_('.html'), '')
 })
 
 test('the HTML kept: the body, without styles, comments or pictures', () => {

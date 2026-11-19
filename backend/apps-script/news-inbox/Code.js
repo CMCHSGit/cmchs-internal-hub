@@ -3,38 +3,45 @@
  * =====================================================
  * Brings the weekly team update email into the hub without anyone pasting it.
  *
- * The person who writes the email adds one extra address in Bcc: a "+hubnews"
- * address of the Google account this script runs as. Every 10 minutes this
- * script looks in that account's Gmail for new mail delivered to that address,
- * from a sender on the allowed list, and saves its body to the hub's Firestore
- * as `newsInbox/gmail-<message id>` with status 'new'. Manage → News then shows
- * "The team update email arrived" and splits it into drafts with the same code
- * as "Paste an email". A person still ticks, edits and posts: nothing here
- * puts anything on the home page by itself.
+ * A Power Automate flow in the receiver's own Outlook ("When a new email
+ * arrives" from the writer, with the usual subject → Google Drive "Create
+ * file") saves each one's body as an .html file in a Google Drive folder of
+ * the account this script runs as. Nothing is forwarded, so Exchange's block
+ * on automatic forwarding doesn't apply, and no admin is needed.
+ *
+ * Every 10 minutes this script takes each new .html (or .txt) file in that
+ * folder, saves it to the hub's Firestore as `newsInbox/drive-<file id>` with
+ * status 'new', and moves the file into the folder's "Imported" subfolder.
+ * Manage → News then shows "The team update email arrived" and splits it into
+ * drafts with the same code as "Paste an email". A person still ticks, edits
+ * and posts: nothing here puts anything on the home page by itself.
+ *
+ * Who can put a file in the folder is who can send it: keep the folder
+ * private to this account (the flow writes as this account).
  *
  * A SEPARATE Apps Script project from ../proxy (the public web app) on
- * purpose: only this small timer-only script holds the permission to read the
- * mailbox, so no request to the proxy's /exec address ever runs with it.
+ * purpose: only this small timer-only script reads the folder.
  *
  * SETUP (once; the full walk-through is backend/README.md "News inbox"):
  *   Script Properties (Project settings → Script properties):
- *     NEWS_INBOX_TO     the +hubnews address mail is Bcc'd to
- *     NEWS_INBOX_FROM   who may send it: addresses, or @domain, comma-separated
- *     FIREBASE_SERVICE_ACCOUNT_KEY   the same JSON key the backup script has
+ *     NEWS_INBOX_FOLDER_ID  the Drive folder's id (from its address, after /folders/)
+ *     FIREBASE_SERVICE_ACCOUNT_KEY   the same JSON key as the proxy's FCM_SERVICE_ACCOUNT_KEY
  *     FIREBASE_SCHEDULE_PROJECT_ID   optional; defaults to cmchsstaffschedule
  *   Then run setupNewsInbox() once and approve the permissions, and
  *   checkNewsInbox() to see what it would pick up.
  *
- * Code changes: `npx clasp push --force` from this folder. It is not a web
- * app, so there is no deployment: the next run uses the new code.
+ * Code changes: `npx clasp push --force` from this folder (or paste Code.js
+ * into the editor). It is not a web app, so there is no deployment: the next
+ * run uses the new code.
  *
- * Logs give counts only, never subjects, senders or addresses.
+ * Logs give counts only, never subjects or names.
  */
 
 const SCHEDULE_PROJECT_ID_DEFAULT = 'cmchsstaffschedule';
-const IMPORTED_LABEL = 'hub-imported';
-const LOOK_BACK_DAYS = 14;
+const IMPORTED_FOLDER = 'Imported';
 const MAX_PER_RUN = 10;
+// Bigger than any real team update; a file over this is skipped, not read.
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 // Firestore documents are at most 1 MiB; leave room for the other fields.
 const MAX_HTML_CHARS = 700000;
 const MAX_TEXT_CHARS = 200000;
@@ -43,58 +50,22 @@ const JOB_ID = 'news-inbox';
 
 // ── Pure helpers (also checked by apps/hub/tests/news-inbox.test.mjs) ─────
 
-// The Gmail search for mail not yet brought in.
-function newsInboxQuery_(to, days) {
-  return 'deliveredto:' + String(to).trim() + ' -label:' + IMPORTED_LABEL + ' newer_than:' + days + 'd';
+// 'html', 'text', or null for a file this script doesn't bring in.
+function fileKind_(name, mimeType) {
+  const n = String(name || '').toLowerCase();
+  const t = String(mimeType || '').toLowerCase();
+  if (/\.html?$/.test(n) || t === 'text/html') return 'html';
+  if (/\.txt$/.test(n) || t === 'text/plain') return 'text';
+  return null;
 }
 
-function headerOf_(headers, name) {
-  const want = name.toLowerCase();
-  const h = (headers || []).filter(function(x) { return String(x.name).toLowerCase() === want; })[0];
-  return h ? String(h.value) : '';
-}
-
-// "Pat Poster <pat@cass.co.nz>" → "pat@cass.co.nz"
-function senderAddress_(from) {
-  const m = String(from || '').match(/<([^<>\s]+@[^<>\s]+)>/) || String(from || '').match(/([^\s<>"]+@[^\s<>"]+)/);
-  return m ? m[1].toLowerCase() : '';
-}
-
-// allowed: "pat@cass.co.nz, @chsnz.co.nz" — exact addresses or whole domains.
-function senderAllowed_(address, allowed) {
-  const a = String(address || '').toLowerCase();
-  if (!a || a.indexOf('@') < 1) return false;
-  return String(allowed || '').split(/[,;\s]+/).map(function(s) { return s.trim().toLowerCase(); }).filter(Boolean)
-    .some(function(rule) { return rule.charAt(0) === '@' ? a.slice(-rule.length) === rule : a === rule; });
-}
-
-// Gmail marks mail that claims a sender it wasn't sent by (dmarc=fail). That
-// mail is never brought in, even from an allowed address.
-function failsDmarc_(authResults) {
-  return /\bdmarc=fail\b/i.test(String(authResults || ''));
-}
-
-// The first text/html and text/plain parts of a Gmail message payload.
-// decode(data) turns a part's base64url body into a string.
-function bodiesOf_(payload, decode) {
-  const out = { html: '', text: '' };
-  (function walk(p) {
-    if (!p) return;
-    const type = String(p.mimeType || '').toLowerCase();
-    const data = p.body && p.body.data;
-    const attachment = p.filename || /attachment/i.test(headerOf_(p.headers, 'Content-Disposition'));
-    if (data && !attachment) {
-      if (type === 'text/html' && !out.html) out.html = decode(data);
-      else if (type === 'text/plain' && !out.text) out.text = decode(data);
-    }
-    (p.parts || []).forEach(walk);
-  })(payload);
-  return out;
+// "Next few weeks of places to be.html" → "Next few weeks of places to be"
+function subjectFromName_(name) {
+  return String(name || '').replace(/\.(html?|txt)$/i, '').replace(/\s+/g, ' ').trim();
 }
 
 // What the hub needs of the HTML: the body, without scripts, styles, Outlook's
-// conditional comments or pictures sent inside the email (those are what make
-// it too big, and the splitter ignores them anyway).
+// conditional comments or pictures (the splitter ignores them anyway).
 function cleanEmailHtml_(html) {
   let s = String(html || '');
   const body = s.match(/<body[^>]*>([\s\S]*)<\/body>/i);
@@ -130,17 +101,19 @@ function scheduleProjectId_() {
   return props_().getProperty('FIREBASE_SCHEDULE_PROJECT_ID') || SCHEDULE_PROJECT_ID_DEFAULT;
 }
 
-function config_() {
-  const p = props_();
-  const to = (p.getProperty('NEWS_INBOX_TO') || '').trim();
-  const from = (p.getProperty('NEWS_INBOX_FROM') || '').trim();
-  if (!to || to.indexOf('@') < 1) throw new Error('Script Property NEWS_INBOX_TO is not set');
-  if (!from) throw new Error('Script Property NEWS_INBOX_FROM is not set');
-  return { to: to, from: from };
+function inboxFolder_() {
+  const id = (props_().getProperty('NEWS_INBOX_FOLDER_ID') || '').trim();
+  if (!id) throw new Error('Script Property NEWS_INBOX_FOLDER_ID is not set');
+  try { return DriveApp.getFolderById(id); } catch (err) { throw new Error('The folder in NEWS_INBOX_FOLDER_ID can’t be opened by this account'); }
 }
 
-// An access token for the service account in FIREBASE_SERVICE_ACCOUNT_KEY
-// (the same key as the backup script), cached for 50 minutes.
+function importedFolder_(folder) {
+  const it = folder.getFoldersByName(IMPORTED_FOLDER);
+  return it.hasNext() ? it.next() : folder.createFolder(IMPORTED_FOLDER);
+}
+
+// An access token for the service account in FIREBASE_SERVICE_ACCOUNT_KEY,
+// cached for 50 minutes.
 function firestoreToken_() {
   const cache = CacheService.getScriptCache();
   const hit = cache.get('newsInboxToken');
@@ -189,57 +162,44 @@ function createInboxDoc_(id, fields) {
   throw new Error('Firestore refused the email (' + code + ')');
 }
 
-function importedLabelId_() {
-  const labels = (Gmail.Users.Labels.list('me').labels || []);
-  const found = labels.filter(function(l) { return l.name === IMPORTED_LABEL; })[0];
-  if (found) return found.id;
-  return Gmail.Users.Labels.create({ name: IMPORTED_LABEL, labelListVisibility: 'labelShow', messageListVisibility: 'show' }, 'me').id;
-}
-
-function decodeBody_(data) {
-  return Utilities.newBlob(Utilities.base64DecodeWebSafe(data)).getDataAsString('UTF-8');
-}
-
-// Looks at what's waiting. With dryRun, says what it would do and changes nothing.
-function scanInbox_(dryRun) {
-  const cfg = config_();
-  const list = Gmail.Users.Messages.list('me', { q: newsInboxQuery_(cfg.to, LOOK_BACK_DAYS), maxResults: MAX_PER_RUN });
-  const ids = (list.messages || []).map(function(m) { return m.id; });
-  const n = { found: ids.length, imported: 0, already: 0, wrongSender: 0, failedCheck: 0, empty: 0 };
-  if (!ids.length) return n;
-  const labelId = dryRun ? null : importedLabelId_();
-  ids.forEach(function(id) {
-    const msg = Gmail.Users.Messages.get('me', id, { format: 'full' });
-    const headers = (msg.payload && msg.payload.headers) || [];
+// Looks at the folder. With dryRun, says what it would do and changes nothing.
+function scanFolder_(dryRun) {
+  const folder = inboxFolder_();
+  const n = { found: 0, imported: 0, already: 0, skipped: 0 };
+  const files = [];
+  const it = folder.getFiles();
+  while (it.hasNext() && files.length < MAX_PER_RUN) files.push(it.next());
+  n.found = files.length;
+  if (!files.length) return n;
+  const done = dryRun ? null : importedFolder_(folder);
+  files.forEach(function(file) {
+    const kind = fileKind_(file.getName(), file.getMimeType());
     let outcome;
-    if (!senderAllowed_(senderAddress_(headerOf_(headers, 'From')), cfg.from)) outcome = 'wrongSender';
-    else if (failsDmarc_(headerOf_(headers, 'Authentication-Results'))) outcome = 'failedCheck';
+    if (!kind || file.getSize() > MAX_FILE_BYTES) outcome = 'skipped';
+    else if (dryRun) outcome = 'imported';
     else {
-      const bodies = bodiesOf_(msg.payload, decodeBody_);
-      if (!bodies.html && !bodies.text) outcome = 'empty';
-      else if (dryRun) outcome = 'imported';
-      else outcome = createInboxDoc_('gmail-' + id, inboxFields_(headerOf_(headers, 'Subject'), bodies, Number(msg.internalDate))) === 'created' ? 'imported' : 'already';
+      const body = file.getBlob().getDataAsString('UTF-8');
+      const bodies = kind === 'html' ? { html: body, text: '' } : { html: '', text: body };
+      outcome = createInboxDoc_('drive-' + file.getId(), inboxFields_(subjectFromName_(file.getName()), bodies, file.getDateCreated().getTime())) === 'created' ? 'imported' : 'already';
     }
     n[outcome]++;
-    // Labelled whatever happened, so the next run doesn't look at it again.
-    // Take the label off in Gmail to have it looked at once more.
-    if (!dryRun) Gmail.Users.Messages.modify({ addLabelIds: [labelId] }, 'me', id);
+    // Moved whatever happened, so the next run doesn't look at it again.
+    // Move it back out of "Imported" to have it looked at once more.
+    if (!dryRun) file.moveTo(done);
   });
   return n;
 }
 
 function summary_(n) {
-  return n.found + ' new, ' + n.imported + ' brought in' +
+  return n.found + ' new file' + (n.found === 1 ? '' : 's') + ', ' + n.imported + ' brought in' +
     (n.already ? ', ' + n.already + ' already there' : '') +
-    (n.wrongSender ? ', ' + n.wrongSender + ' from a sender not on the list' : '') +
-    (n.failedCheck ? ', ' + n.failedCheck + ' failed Gmail’s sender check' : '') +
-    (n.empty ? ', ' + n.empty + ' with no body' : '');
+    (n.skipped ? ', ' + n.skipped + ' skipped (not .html or .txt, or too big)' : '');
 }
 
 // The timer runs this.
 function importNewsEmails() {
   try {
-    const n = scanInbox_(false);
+    const n = scanFolder_(false);
     Logger.log(summary_(n));
     reportJob_(JOB_ID, true, n.imported ? 'Brought in ' + n.imported + ' email' + (n.imported === 1 ? '' : 's') : 'Ran');
   } catch (err) {
@@ -249,23 +209,22 @@ function importNewsEmails() {
   }
 }
 
-// Run once from the editor: approves the permissions, makes the label and
-// starts the 10-minute timer (replacing any earlier one).
+// Run once from the editor: approves the permissions, makes the Imported
+// folder and starts the 10-minute timer (replacing any earlier one).
 function setupNewsInbox() {
-  config_();
+  importedFolder_(inboxFolder_());
   firestoreToken_();
-  importedLabelId_();
   ScriptApp.getProjectTriggers()
     .filter(function(t) { return t.getHandlerFunction() === 'importNewsEmails'; })
     .forEach(function(t) { ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('importNewsEmails').timeBased().everyMinutes(10).create();
-  Logger.log('Ready: checks for the team update email every 10 minutes.');
+  Logger.log('Ready: checks the folder for the team update email every 10 minutes.');
 }
 
 // Run from the editor any time: what it would bring in now, changing nothing.
 function checkNewsInbox() {
   firestoreToken_();
-  Logger.log('Firestore key works. Waiting in Gmail: ' + summary_(scanInbox_(true)) + '.');
+  Logger.log('Firestore key works. Waiting in the folder: ' + summary_(scanFolder_(true)) + '.');
   const timers = ScriptApp.getProjectTriggers().filter(function(t) { return t.getHandlerFunction() === 'importNewsEmails'; }).length;
   Logger.log(timers ? 'The 10-minute timer is on.' : 'No timer yet: run setupNewsInbox().');
 }

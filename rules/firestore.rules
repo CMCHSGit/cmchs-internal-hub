@@ -395,7 +395,7 @@ service cloud.firestore {
         && request.resource.data.dismissed is list
         && request.resource.data.dismissed.size() <= 200;
     }
-    // The weekly team update email, brought in from Gmail by
+    // The weekly team update email, brought in from a Drive folder by
     // backend/apps-script/news-inbox (a service account: no client creates).
     // Anyone who may post news reads it and marks it used or put away.
     match /newsInbox/{id} {
