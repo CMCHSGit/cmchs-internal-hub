@@ -4,6 +4,7 @@
 import { Alert, Button, Spinner } from '../../../shared/ui/index.jsx'
 import { describeRun } from './plan.js'
 import { Sheet } from './Sheets.jsx'
+import { clearReturn, readReturn, returnHref } from '../../testbench/src/jobDraft.js'
 
 const Mark = ({ state }) => {
   if (state === 'running') return <span className="sj-mark"><Spinner size={16} /></span>
@@ -15,6 +16,8 @@ export function ReviewSheet({ plan, run, running, onCreate, onDiscard, onNew, on
   const state = (id) => (run?.done?.includes(id) ? 'done' : running && run?.inflight === id ? 'running' : run?.failed?.step === id ? 'failed' : 'pending')
   const outcome = run && !running ? describeRun(plan, run) : null
   const started = !!run
+  // Came here from the Test Bench's "Create one in Simpro Jobs": once the job exists, a way back to attach the tests' reports to it.
+  const back = outcome?.state === 'done' ? readReturn() : null
   const title = run?.jobId ? `Job ${run.jobId}` : started ? 'Creating the job' : 'Check before creating'
 
   return (
@@ -54,8 +57,9 @@ export function ReviewSheet({ plan, run, running, onCreate, onDiscard, onNew, on
         {running && <Button variant="primary" size="lg" block disabled>Creating… keep this page open</Button>}
         {outcome?.state === 'done' && (
           <>
+            {back && <a className="btn btn-primary btn-lg btn-block" href={returnHref(back, run.jobId)} onClick={() => clearReturn()}>Attach the test reports to job {run.jobId}</a>}
             <a className="btn btn-secondary btn-lg btn-block" href={`/simprosearch/#/job/${run.jobId}`}>Open job {run.jobId}</a>
-            <Button variant="primary" size="lg" block onClick={onNew}>Start a new job</Button>
+            <Button variant={back ? 'secondary' : 'primary'} size="lg" block onClick={onNew}>Start a new job</Button>
           </>
         )}
         {outcome?.state === 'partial' && (
