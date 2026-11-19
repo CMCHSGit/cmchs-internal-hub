@@ -198,7 +198,31 @@ function draft(fields, people) {
  *   [{ key, include, title, body, category, section, regions, people, note? }]
  * `people` (optional) is for detectPeople().
  */
+// A forward's header: "From: …" then, within a few lines, "Subject: …"
+// (Outlook's From/Sent/To/Cc/Subject, Gmail's From/Date/Subject/To).
+const FWD_FROM = /^from:\s*\S/i
+const FWD_FIELD = /^(sent|date|to|cc|subject|importance):/i
+
+/**
+ * Where the forwarded email starts, past the forwarder's own note and
+ * signature and the first forward header; 0 if it wasn't forwarded.
+ */
+export function forwardedStart(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].bullet || !FWD_FROM.test(lines[i].text)) continue
+    let j = i + 1, subject = false
+    while (j < lines.length && j <= i + 8 && (!lines[j].text || FWD_FIELD.test(lines[j].text))) {
+      if (/^subject:/i.test(lines[j].text)) subject = true
+      j++
+    }
+    if (subject) return j
+  }
+  return 0
+}
+
 export function splitLines(lines, { people = null } = {}) {
+  // A forwarded email: only what was forwarded.
+  lines = lines.slice(forwardedStart(lines))
   // Trim the greeting and everything from the sign-off on.
   let start = 0
   while (start < lines.length && (!lines[start].text || GREETING.test(lines[start].text))) start++
