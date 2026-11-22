@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
+import { AccessoryList } from './Accessories.jsx'
 import { AdminDialog } from './Items.jsx'
 import { auditTone, AUDIT_LABELS, clashesFor, dateRange, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, startsSoon } from './model.js'
 
@@ -183,6 +184,7 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
         <div className="eq-loan-body">
           <LoanActions g={g} s={s} all={all} go={go} onDone={onDone} start={start} onStarted={onStarted} />
           {g.notes && <p className="eq-loan-notes">{g.notes}</p>}
+          <AccessoryList list={g.doc?.accessories} />
           <ul className="eq-devices">
             {g.items.map((e) => <Device key={e.id} e={e} g={g} next={nextFor(e.CHSAssetNo)} clashes={clashes.get(e.CHSAssetNo) || []} onRemove={() => setRemoving({ e })} />)}
             {g.kind !== 'booking' && waiting > 0 && (

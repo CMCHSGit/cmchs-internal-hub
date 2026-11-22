@@ -401,3 +401,30 @@ textarea.eq-autotext { overflow-y: hidden; }
 
 /* Clashes (clashesFor in model.js): one device wanted by two loans or bookings on overlapping dates. */
 .eq-clash { color: var(--status-critical); font-weight: 600; }
+
+/* A loan's accessories (Accessories.jsx): code, name and quantity. */
+.eq-acc { display: flex; flex-direction: column; gap: 8px; }
+.eq-acc-sets { display: flex; flex-wrap: wrap; gap: 6px; }
+.eq-acc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.eq-acc-table th { text-align: left; font-weight: 600; font-size: 12px; color: var(--text-muted); padding: 4px 6px; border-bottom: 1px solid var(--border); }
+.eq-acc-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.eq-acc-table td:first-child { width: 32%; }
+.eq-acc-table .input { width: 100%; min-width: 0; }
+.eq-acc-qty { width: 120px; text-align: right; }
+.eq-acc-step { display: inline-flex; align-items: center; gap: 2px; }
+.eq-acc-step .input { width: 44px; text-align: center; padding-left: 4px; padding-right: 4px; }
+.eq-acc-add { display: flex; gap: 8px; align-items: center; }
+.eq-acc-add .input { flex: 1; min-width: 0; }
+.eq-acc-hits { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.eq-acc-hits button { display: block; width: 100%; text-align: left; padding: 6px 10px; background: none; border: 0; border-bottom: 1px solid var(--border); font: inherit; cursor: pointer; }
+.eq-acc-hits li:last-child button { border-bottom: 0; }
+.eq-acc-hits button:hover, .eq-acc-hits button:focus-visible { background: var(--surface-2, rgba(0,0,0,.04)); }
+.eq-acc-view { margin: 4px 0 8px; font-size: 13px; }
+.eq-acc-view td:first-child { width: 28%; }
+@media (max-width: 600px) { .eq-acc-qty { width: 104px; } .eq-acc-table td:first-child { width: 30%; } }
+/* The loan form styles every input as a full-width box; its Accessories tick box stays a tick box. */
+.eq-lf .eq-check { display: flex; }
+.eq-lf .eq-check input[type="checkbox"] { width: auto; flex: none; padding: 0; border: 0; background: none; }
+.eq-acc-view td { color: var(--text-strong); font-size: 13px; font-weight: 400; }
+.eq-acc-view td.eq-mono { font-size: 12px; }
+.eq-acc-view td.eq-acc-qty { font-weight: 600; }

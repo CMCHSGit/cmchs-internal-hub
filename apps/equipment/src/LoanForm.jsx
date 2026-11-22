@@ -10,25 +10,29 @@
      viewing    a loan's form from its card. Save keeps changes (and brings
                 its Simpro job up to date, as the old Save Changes). */
 import AutoText from './AutoText.jsx'
+import { AccessoryEditor } from './Accessories.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
-import { fmtDate, formRows, loanFormHtml, loanFormRtf, toISO } from './model.js'
+import { cleanAccessories, fmtDate, formRows, loanFormHtml, loanFormRtf, toISO } from './model.js'
 
 export default function LoanForm({ s, docKey, doc, info, items, finishing = null, onClose, onDone }) {
   const [f, setF] = useState(() => ({
     loanTo: doc?.loanTo || info.loanTo || '', location: doc?.location || info.location || '',
     startDate: doc?.startDate || info.startDate || s.today, endDate: info.longTerm ? '' : (doc?.endDate || info.endDate || ''),
     accountManager: doc?.accountManager || info.accountManager || '', contactNumber: doc?.contactNumber || info.contactNumber || '',
-    rows: formRows(doc, items, s.equipment), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '',
+    rows: formRows(doc, items, s.equipment), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '', accessories: cleanAccessories(doc?.accessories),
   }))
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [done, setDone] = useState([])
   const [edited, setEdited] = useState(false)
+  // Accessories are optional: the list shows once ticked (or when the loan already has some); unticked, the loan has none.
+  const [withAcc, setWithAcc] = useState(() => cleanAccessories(doc?.accessories).length > 0)
+  const models = useMemo(() => [...new Set((items || []).map((e) => e.Model).filter(Boolean))], [items])
   const set = (k) => (e) => { setF((x) => ({ ...x, [k]: e.target.value })); setEdited(true) }
   const setCell = (r, c) => (e) => { const v = e.target.value; setF((x) => ({ ...x, rows: x.rows.map((row, i) => (i === r ? row.map((cell, j) => (j === c ? v : cell)) : row)) })); setEdited(true) }
-  const form = useMemo(() => ({ ...f, items, longTerm: !!info.longTerm }), [f, items, info.longTerm])
+  const form = useMemo(() => ({ ...f, accessories: withAcc ? cleanAccessories(f.accessories) : [], items, longTerm: !!info.longTerm }), [f, withAcc, items, info.longTerm])
   const formInfo = info
 
   async function step(label, fn) {
@@ -117,6 +121,10 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           </table>
         </div>
         <Button size="sm" variant="ghost" iconLeft={<Plus size={14} />} onClick={() => { setF((x) => ({ ...x, rows: [...x.rows, ['', '', '', '', '']] })); setEdited(true) }}>Add a row</Button>
+        <div className="field">
+          <label className="eq-check"><input type="checkbox" checked={withAcc} onChange={(e) => { setWithAcc(e.target.checked); setEdited(true) }} /> Accessories (cuffs, sensors, leads…) by code and quantity</label>
+          {withAcc && <AccessoryEditor value={f.accessories} onChange={(list) => { setF((x) => ({ ...x, accessories: list })); setEdited(true) }} s={s} models={models} notKey={docKey} />}
+        </div>
         <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
         <label className="field"><span className="field-label">Shipping details</span><AutoText rows={1} value={f.shipping} onChange={set('shipping')} /></label>
         {done.map((d) => <p key={d} className="eq-note">{d}</p>)}

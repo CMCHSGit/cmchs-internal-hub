@@ -1218,9 +1218,86 @@ export function formDoc(form, stored = {}, info = {}) {
     savedRows: (form.rows || []).filter((r) => r.some((c) => String(c || '').trim())).map((r) => r.map((c) => String(c || '').trim())),
     notesCell: form.notes || '', authCell: form.shipping || '',
   }
+  // Accessories: what the form gives, else what it had (saves that don't know about them keep them).
+  const acc = cleanAccessories(form.accessories !== undefined ? form.accessories : stored?.accessories)
+  if (acc.length) doc.accessories = acc
   if (job != null) doc.simproJobId = job
   if (stored?.simproClosedAt) doc.simproClosedAt = stored.simproClosedAt
   return doc
+}
+
+/* ── Accessories on a loan: cuffs, sensors, lead sets… by code and quantity, kept on its form
+   (loanDocs/<key>.accessories, Firestore loans/{key}.form). Optional: a loan with none shows nothing. ── */
+
+const accKey = (code) => String(code || '').toLowerCase().replace(/[\s\-_.]/g, '')
+
+/** A loan's accessories tidied: [{ code, name, qty }], code or name needed, qty a whole number 1–999, the same code once (quantities added). */
+export function cleanAccessories(list) {
+  const out = [], at = new Map()
+  for (const a of Array.isArray(list) ? list : []) {
+    const code = String(a?.code || '').trim(), name = String(a?.name || '').trim()
+    if (!code && !name) continue
+    const qty = Math.min(999, Math.max(1, Math.round(Number(a?.qty) || 1)))
+    const k = code ? accKey(code) : 'name:' + name.toLowerCase()
+    if (at.has(k)) { const x = out[at.get(k)]; x.qty = Math.min(999, x.qty + qty); if (!x.name && name) x.name = name; continue }
+    at.set(k, out.length)
+    out.push({ code, name, qty })
+  }
+  return out
+}
+
+/**
+ * What the picker suggests: the catalogue (accessories.js) and every code used on a loan's form, each once,
+ * with the name it was last given and how many loans used it. [{ code, name, models, group, uses }]
+ */
+export function accessoryCatalogue(loanDocs = {}, list = []) {
+  const by = new Map()
+  for (const a of list) {
+    if (!a || !a.code) continue
+    by.set(accKey(a.code), { code: String(a.code).trim(), name: a.name || '', models: a.models || [], group: a.group || '', uses: 0 })
+  }
+  const docs = Object.values(loanDocs || {}).filter((d) => d && Array.isArray(d.accessories))
+    .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
+  for (const d of docs) {
+    for (const a of d.accessories) {
+      if (!a || !a.code) continue
+      const k = accKey(a.code), cur = by.get(k)
+      if (cur) { cur.uses++; if (!list.some((x) => x && accKey(x.code) === k) && a.name) cur.name = a.name }
+      else by.set(k, { code: String(a.code).trim(), name: a.name || '', models: [], group: '', uses: 1 })
+    }
+  }
+  return [...by.values()]
+}
+
+/**
+ * The picker's matches for what was typed: a code however it's typed (dashes and spaces ignored), or every
+ * word in its name. Those suiting the loan's monitors (`models`) first, then the most used.
+ */
+export function searchAccessories(catalogue, q, { models = [], limit = 8 } = {}) {
+  const text = String(q || '').trim().toLowerCase()
+  if (!text) return []
+  const words = text.split(/\s+/), key = accKey(text)
+  const suits = (a) => (a.models || []).some((m) => models.some((x) => String(x || '').toLowerCase() === String(m || '').toLowerCase()))
+  return catalogue
+    .filter((a) => (key && accKey(a.code).includes(key)) || words.every((w) => `${a.name} ${a.group}`.toLowerCase().includes(w)))
+    .sort((a, b) => Number(suits(b)) - Number(suits(a)) || (b.uses || 0) - (a.uses || 0) || a.code.localeCompare(b.code))
+    .slice(0, limit)
+}
+
+/**
+ * "As last time": the accessories on the newest loan whose devices include this model, for one button that
+ * adds them all. null if no loan with that model had any. { loanTo, startDate, accessories }
+ */
+export function lastAccessoriesFor(model, loanDocs = {}, { not = '' } = {}) {
+  const m = String(model || '').trim().toLowerCase()
+  if (!m) return null
+  let best = null
+  for (const [key, d] of Object.entries(loanDocs || {})) {
+    if (!d || key === not || !cleanAccessories(d.accessories).length) continue
+    if (!(d.items || []).some((i) => String(i?.Model || '').trim().toLowerCase() === m)) continue
+    if (!best || String(d.startDate || '') > String(best.startDate || '')) best = d
+  }
+  return best ? { loanTo: best.loanTo || '', startDate: best.startDate || '', accessories: cleanAccessories(best.accessories) } : null
 }
 
 /**
@@ -1244,6 +1321,12 @@ export function loanFormRtf(doc) {
   rtf += gap + rule + line(b('CHS ASSET #'.padEnd(12) + '  ' + 'MODEL'.padEnd(18) + '  ' + 'DESCRIPTION'.padEnd(30) + '  SERIAL/PART #')) + rule
   for (const r of rows) rtf += line(esc(r))
   rtf += rule
+  const acc = cleanAccessories(doc.accessories)
+  if (acc.length) {
+    rtf += gap + line(b('ACCESSORIES')) + rule + line(b('CODE'.padEnd(18) + '  ' + 'ACCESSORY'.padEnd(40) + '  QTY')) + rule
+    for (const a of acc) rtf += line(esc(String(a.code).padEnd(18) + '  ' + String(a.name).padEnd(40) + '  ' + a.qty))
+    rtf += rule
+  }
   if (String(doc.notes || '').trim()) { rtf += gap + line(b('Notes:')); for (const n of String(doc.notes).split('\n')) rtf += line(esc(n)) }
   rtf += gap + rule + '{\\pard\\i Please ensure this form accompanies demo stock throughout trial and is returned to Connected Healthcare. Check all units have current ESC.\\par}\n}}'
   const who = String(doc.loanTo || 'loan').replace(/[^a-zA-Z0-9_\- ]/g, '').trim().replace(/\s+/g, '_') || 'loan'
@@ -1259,6 +1342,7 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
   const box = '<td style="border:1px solid #ccc;text-align:center"><div style="width:12px;height:12px;border:1.5px solid #333;margin:0 auto"></div></td>'
   const rows = (doc.rows || []).map((r) => `<tr>${r.map((c) => td(c)).join('')}${box}</tr>`).join('')
   const pre = (v) => escHtml(v).replace(/\n/g, '<br>')
+  const acc = cleanAccessories(doc.accessories) // optional: only a loan that has some gets the table
   return `<div style="font-family:Arial,sans-serif;max-width:760px;margin:0 auto;color:#1a1917">
 <table style="width:100%;border-collapse:collapse;margin-bottom:10px"><tr>
 <td style="font-size:26px;font-weight:700;line-height:1.1">CMCHS Demo Equipment Loan Form</td>
@@ -1267,6 +1351,7 @@ export function loanFormHtml(doc, { logo = 'https://internal.chsnz.co.nz/brand/l
 <table style="width:100%;border-collapse:collapse"><tr>${th('Event and/or Customer Name')}${th('Customer Address')}${th('Loan Date')}${th('Loan Ends Date' + (doc.longTerm ? ' — long term' : ''))}${th('Account Manager')}${th('Contact Number')}</tr>
 <tr>${td(doc.loanTo)}${td(doc.location)}${td(oldDate(doc.startDate))}${td(doc.longTerm ? '' : oldDate(doc.endDate))}${td(doc.accountManager)}${td(doc.contactNumber)}</tr></table>
 <table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>${th('CHS Asset #')}${th('Model')}${th('Description')}${th('Serial/Part #')}${th('Notes/Additional Info')}${th('Data cleared on return', 'text-align:center')}</tr>${rows}</table>
+${acc.length ? `<table style="width:100%;border-collapse:collapse;margin-top:10px"><tr>${th('Accessory code')}${th('Accessory')}${th('Qty', 'text-align:right;width:8%')}${th('Packed', 'text-align:center;width:9%')}${th('Back', 'text-align:center;width:9%')}</tr>${acc.map((x) => `<tr>${td(x.code)}${td(x.name)}${td(x.qty, 'text-align:right')}${box}${box}</tr>`).join('')}</table>` : ''}
 <table style="width:100%;border-collapse:collapse"><tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;width:14%;text-align:right">Notes:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.notes)}</td></tr>
 <tr><td style="border:1px solid #ccc;padding:2px 6px;font-size:11px;font-weight:700;text-align:right">Shipping Details:</td><td style="border:1px solid #ccc;padding:4px 6px;font-size:12px">${pre(doc.shipping)}</td></tr></table>
 <table style="width:100%;border-collapse:collapse"><tr>

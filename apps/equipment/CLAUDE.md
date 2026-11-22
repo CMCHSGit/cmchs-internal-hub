@@ -30,6 +30,7 @@ demo.chsnz.co.nz is the chs-equipment repo's own page and still forwards everyth
 | `src/db.js` | Where the data is: reads `settings/equipmentCutover` and sends `read`/`write`/`watch` to the old Realtime Database or to `db-paths.js`. Also `readTiles`. |
 | `src/db-paths.js` → `db-firestore.js` → `fs-shape.js` | The old database's paths answered from Firestore; one transaction per change, only the documents that changed; documents ⇄ the shapes `model.js` uses. |
 | `src/db-local.js` | Made-up data for `npm run dev` with no `.env` (also the emulator seed's equipment). |
+| `src/Accessories.jsx` + `src/accessories.js` | A loan's accessories (cuffs, sensors, leads…) by code and quantity, optional ("Add accessories" on New loan and the loan form), kept on its form as `accessories` and printed/emailed as a packing list. `accessories.js` is the catalogue the picker suggests from (codes and names only, never prices: the repo is public); the rules are `cleanAccessories`, `accessoryCatalogue`, `searchAccessories`, `lastAccessoriesFor` in `model.js`. |
 | Screens | `Overview`, `Items`/`BrowseEquipment`/`AssetPicker`, `Loans` + `LoanActions` (every action on a loan), `NewLoan` + `LoanForm`, `AddToLoan`, `Scan` + `Scanner` (camera: `@zxing/library`, `jsqr`), `Calendar`, `History`, `Manage`, `Labels` (lazy, `qrcode-generator`), `TestReports`. Styles in `equipment.css`, components from `shared/ui`. |
 
 Header comments in `db-firestore.js`, `fs-shape.js` and `store.jsx` still say "not used yet" / "both trackers side by

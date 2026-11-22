@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { commit as fsCommit } from './db-firestore.js'
 import {
   activateBookings, applyImport, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent,
+  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories,
 } from './model.js'
 
 const Store = createContext(null)
@@ -637,11 +637,14 @@ export function StoreProvider({ children }) {
     const items = plan.loaned.map((e) => ({ CHSAssetNo: e.CHSAssetNo, Model: e.Model, Description: e.Description, SerialNo: e.SerialNo }))
     const doc = { loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate, accountManager: f.am, contactNumber: f.contact || '',
       jobType: f.jobType || 'Demo', demoType: f.demoType || '', island: f.island || '', longTerm: !!f.longTerm, notes: f.notes || '', notesCell: f.notes || '', authCell: f.shipping || '', items }
+    // Accessories (optional; Accessories.jsx): kept on the form, printed and emailed with it.
+    const accessories = cleanAccessories(f.accessories)
+    if (accessories.length) doc.accessories = accessories
     try { await write('loanDocs/' + enc(batchId), doc); setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [batchId]: doc } })) } catch (e) { console.warn('[equipment] loan form not saved', e) }
     // Its form email, queued until the loan form sends it, so the proxy sends it if the browser never does (queuedFormEmail).
     if (!testMode && !isLocal && f.email) {
       const queued = queuedFormEmail({ loanTo: doc.loanTo, location: doc.location, startDate: doc.startDate, endDate: doc.endDate, accountManager: doc.accountManager,
-        contactNumber: doc.contactNumber, rows: formRows(doc, plan.loaned, plan.equipment), notes: doc.notesCell, shipping: doc.authCell, items: plan.loaned, longTerm: doc.longTerm }, { to: f.email, name: f.am })
+        contactNumber: doc.contactNumber, rows: formRows(doc, plan.loaned, plan.equipment), notes: doc.notesCell, shipping: doc.authCell, items: plan.loaned, longTerm: doc.longTerm, accessories: doc.accessories }, { to: f.email, name: f.am })
       try { await patchMeta(batchId, { formEmail: queued }) } catch (e) { console.warn('[equipment] form email not queued', e) }
     }
     if (f.demoType) await addDemoType(f.demoType)

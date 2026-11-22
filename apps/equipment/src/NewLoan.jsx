@@ -19,7 +19,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
-import { ISLANDS, JOB_TYPES, assetStatus, demoTypeOptions, loanSections, newLoanProblem, roleOf } from './model.js'
+import { AccessoryEditor } from './Accessories.jsx'
+import { ISLANDS, JOB_TYPES, assetStatus, cleanAccessories, demoTypeOptions, findAsset, loanSections, newLoanProblem, roleOf } from './model.js'
 
 const blank = (today) => ({ loanTo: '', location: '', startDate: today, endDate: '', longTerm: false, am: '', email: '', contact: '', jobType: 'Demo', demoType: '', island: '', notes: '', shipping: '' })
 
@@ -39,6 +40,10 @@ export default function NewLoan({ s, params, go, onDone }) {
     const nos = params.move ? String(params.nos || '').split(',').filter(Boolean) : source.items.map((e) => e.CHSAssetNo)
     return [...new Set(nos)]
   })
+  // Accessories (cuffs, sensors, leads…) by code and quantity: optional, off until ticked. A copied loan brings its own.
+  const [accessories, setAccessories] = useState(() => (params.copy && source?.doc?.accessories ? cleanAccessories(source.doc.accessories) : []))
+  const [withAcc, setWithAcc] = useState(() => accessories.length > 0)
+  const models = useMemo(() => [...new Set(picked.map((no) => findAsset(s.equipment, no)?.Model).filter(Boolean))], [picked, s.equipment])
   // An account manager books as themselves (old phone: mpResetBookWizard): their name and email filled in, once the team has loaded.
   useEffect(() => {
     const me = s.me
@@ -67,7 +72,7 @@ export default function NewLoan({ s, params, go, onDone }) {
     }))) return
     setBusy(true); setError('')
     try {
-      const r = await s.createLoan({ ...f, endDate: f.longTerm ? '' : f.endDate }, picked, params.move && source ? { from: { key: source.batchId || source.key, loanTo: source.loanTo, items: source.items } } : {})
+      const r = await s.createLoan({ ...f, endDate: f.longTerm ? '' : f.endDate, accessories: withAcc ? cleanAccessories(accessories) : [] }, picked, params.move && source ? { from: { key: source.batchId || source.key, loanTo: source.loanTo, items: source.items } } : {})
       setMade(r)
       if (params.ref) {
         const msg = { type: 'chs-demo-loan-created', ref: params.ref, batchId: r.batchId, loanTo: f.loanTo, location: f.location, startDate: f.startDate, endDate: f.longTerm ? '' : f.endDate,
@@ -92,7 +97,7 @@ export default function NewLoan({ s, params, go, onDone }) {
 
   return (
     // data-working holds off the app's update reload while a loan is being filled in (shared/updateGuard.js)
-    <form className="eq-newloan" onSubmit={submit} data-working={busy || picked.length || f.loanTo || f.location || f.notes || f.shipping ? '' : undefined}>
+    <form className="eq-newloan" onSubmit={submit} data-working={busy || picked.length || accessories.length || f.loanTo || f.location || f.notes || f.shipping ? '' : undefined}>
       {params.ref && <Alert tone="info" title="A loan for the project tracker">Filled in from the job. Pick the devices, then make the loan: the project tracker hears about it.</Alert>}
       {source && (
         <Alert tone="info" title={params.move ? `Moving ${picked.length} from ${source.loanTo} to a new loan` : `Copying ${source.loanTo}’s devices`}>
@@ -150,6 +155,11 @@ export default function NewLoan({ s, params, go, onDone }) {
       <section className="card eq-newloan-part">
         <h2 className="eq-section-title">Devices</h2>
         <AssetPicker s={s} picked={picked} onChange={setPicked} when={when} />
+      </section>
+      <section className="card eq-newloan-part">
+        <h2 className="eq-section-title">Accessories</h2>
+        <label className="eq-check"><input type="checkbox" checked={withAcc} onChange={(e) => setWithAcc(e.target.checked)} /> Add accessories (cuffs, sensors, leads…) by code and quantity</label>
+        {withAcc && <AccessoryEditor value={accessories} onChange={setAccessories} s={s} models={models} />}
       </section>
       {error && <Alert tone="critical" title="Not made yet">{error}</Alert>}
       <div className="eq-actions-row">
