@@ -10,7 +10,7 @@ const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8
 const files = readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
 
 test('there are templates for the monitors, modules, vital signs monitors and BeneHeart defibrillators', () => {
-  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle', 'Vetal 3', 'ePM12']) {
+  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'Microstream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle', 'Vetal 3', 'ePM12']) {
     assert.ok(files.some((f) => f.includes(want)), `a template for ${want}`)
   }
 })
@@ -97,4 +97,15 @@ test('every template, the built-in samples and a new template ask for the testin
   const builtIn = [...html.matchAll(/dut: (\[[^\]]*\])/g)].map((m) => m[1])
   assert.ok(builtIn.length >= 4)
   for (const d of builtIn) assert.ok(d.includes("'Testing company'") && d.includes("'Testing engineer'"), d)
+})
+
+test('the Sidestream and Microstream CO2 modules have the electrical safety sequence: module in its monitor, CO2 type BF on RA', () => {
+  for (const n of ['Sidestream CO2', 'Microstream CO2']) {
+    const t = JSON.parse(readFileSync(new URL(files.find((f) => f.includes(n)), dir), 'utf8')).template
+    assert.deepEqual(t.steps.filter((s) => s.type.startsWith('esa_')).map((s) => s.type), ['esa_mains', 'esa_pe', 'esa_ins', 'esa_ins', 'esa_ins', 'esa_encl', 'esa_earthl', 'esa_pat', 'esa_map'], n)
+    assert.deepEqual(t.appliedParts.map((g) => [g.name, g.apclass, g.leads.join()]), [['CO2', 'BF', 'RA']], n)
+    assert.equal(t.category, 'Modules', n)
+    assert.match(t.steps.find((s) => s.type === 'esa_mains').instructions, /Fit the (sidestream|microstream) CO2 module in a monitor/, n)
+    assert.ok(t.dut.includes('Testing company') && t.dut.includes('Testing engineer'), n)
+  }
 })
