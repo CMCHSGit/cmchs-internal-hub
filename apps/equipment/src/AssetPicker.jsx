@@ -2,9 +2,11 @@
    Add items rows and the database basket): type or scan an asset number and
    press Enter, or search the equipment and pick. Each one picked says what
    it would do: free, out on another loan (dates clash or not), on a
-   long-term loan, or booked next for someone. */
+   long-term loan, or booked next for someone. A kit's trigger (any device
+   of its model) offers the kit's accessories by model: tap a model to
+   choose which of its units goes. */
 import { useMemo, useRef, useState } from 'react'
-import { Camera, X } from 'lucide-react'
+import { Camera, ChevronDown, X } from 'lucide-react'
 import Scanner from './Scanner.jsx'
 import { assetStatus, dateRange, findAsset, fmtDate, kitFor, searchEquipment } from './model.js'
 import BrowseEquipment from './BrowseEquipment.jsx'
@@ -23,15 +25,21 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
     return searchEquipment(s.equipment, q).filter((e) => !picked.includes(e.CHSAssetNo) && !skip.includes(e.CHSAssetNo)).slice(0, 8)
   }, [q, s.equipment, picked, skip])
 
+  // A kit's trigger (or any device of its model) offers its accessories by model (old: checkKitSuggestion).
+  const offerKit = (no, all) => {
+    const k = kitFor(s.kits, s.equipment, no, all, { ...ctx, upcoming: s.upcoming })
+    if (!k || !k.models.some((m) => m.need > 0)) return false
+    setKit({ ...k, tick: new Set(k.models.flatMap((m) => m.pick)), open: '' })
+    return true
+  }
+
   const add = (no) => {
     const e = findAsset(s.equipment, no)
     if (!e) { setMiss(`${String(no).trim()} isn’t in the equipment list.`); return }
     setMiss('')
     const next = picked.includes(e.CHSAssetNo) || skip.includes(e.CHSAssetNo) ? picked : [...picked, e.CHSAssetNo]
     if (next !== picked) onChange(next)
-    // A kit's trigger device offers its accessories (old: checkKitSuggestion).
-    const k = kitFor(s.kits, s.equipment, e.CHSAssetNo, [...next, ...skip])
-    if (k && k.accessories.some((a) => !a.picked)) setKit({ ...k, tick: new Set(k.accessories.filter((a) => a.free).map((a) => a.item.CHSAssetNo)) })
+    offerKit(e.CHSAssetNo, [...next, ...skip])
     setQ('')
     if (!camera) box.current?.focus() // scanning with the camera: the phone's keyboard stays down
   }
@@ -42,10 +50,7 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
     setBrowsing(false)
     const next = [...new Set([...picked, ...nos.filter((no) => !skip.includes(no))])]
     if (next.length !== picked.length) onChange(next)
-    for (const no of nos) {
-      const k = kitFor(s.kits, s.equipment, no, [...next, ...skip])
-      if (k && k.accessories.some((a) => !a.picked)) { setKit({ ...k, tick: new Set(k.accessories.filter((a) => a.free).map((a) => a.item.CHSAssetNo)) }); break }
-    }
+    for (const no of nos) if (offerKit(no, [...next, ...skip])) break
   }
 
   return (
@@ -91,23 +96,8 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
       {camera && <Scanner onCode={add} onClose={() => setCamera(false)} />}
       {browsing && <BrowseEquipment s={s} taken={[...picked, ...skip]} onAdd={addMany} onClose={() => setBrowsing(false)} />}
       {miss && <p className="eq-note eq-problem">{miss}</p>}
-      {kit && (
-        <div className="card eq-kit-offer">
-          <span className="eq-strong">{kit.label}: it usually goes with these</span>
-          <ul className="eq-picklist">
-            {kit.accessories.filter((a) => !a.picked).map((a) => (
-              <li key={a.assetNo}><label className="eq-pick">
-                <input type="checkbox" disabled={!a.free} checked={kit.tick.has(a.item?.CHSAssetNo)} onChange={() => setKit((x) => { const t = new Set(x.tick); const n = a.item.CHSAssetNo; if (t.has(n)) t.delete(n); else t.add(n); return { ...x, tick: t } })} />
-                <span><span className="eq-strong">{a.item?.CHSAssetNo || a.assetNo}</span> {a.item?.Model || a.model}<span className="eq-small">{!a.item ? 'Not in the equipment list' : a.out ? `On loan to ${a.item.OnLoanTo}` : 'Free'}</span></span>
-              </label></li>
-            ))}
-          </ul>
-          <div className="eq-actions-row">
-            <button type="button" className="btn btn-primary btn-sm" disabled={!kit.tick.size} onClick={() => { onChange([...new Set([...picked, ...kit.tick])]); setKit(null) }}>Add {kit.tick.size || ''}</button>
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setKit(null)}>Not these</button>
-          </div>
-        </div>
-      )}
+      {kit && <KitOffer kit={kit} setKit={setKit} today={when.today || s.today}
+        onAdd={() => { onChange([...new Set([...picked, ...kit.tick])]); setKit(null) }} onClose={() => setKit(null)} />}
       {matches.length > 0 && (
         <ul className="eq-matches" role="listbox" aria-label="Matching equipment">
           {matches.map((e) => (
@@ -118,6 +108,73 @@ export default function AssetPicker({ s, picked, onChange, when = {}, skip = [],
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/**
+ * What a kit offers, model by model (kitFor): each row says how many of the model are free; tapped, it
+ * opens that model's units to choose from (free first, the kit's own first among them; ones out on these
+ * dates shown but not choosable). Where one of a model goes, choosing a unit swaps it for the one chosen.
+ */
+function KitOffer({ kit, setKit, today, onAdd, onClose }) {
+  const rows = kit.models.filter((m) => m.need > 0)
+  const toggle = (m, no) => setKit((x) => {
+    const t = new Set(x.tick)
+    if (t.has(no)) t.delete(no)
+    else { if (m.need === 1) m.units.forEach((u) => t.delete(u.no)); t.add(no) }
+    return { ...x, tick: t, open: m.need === 1 && t.has(no) ? '' : x.open }
+  })
+  const note = (u) => {
+    const e = u.item
+    if (u.status === 'out') return `${e.LoanStartDate && e.LoanStartDate > today ? 'Booked for' : 'On loan to'} ${e.OnLoanTo}${e.LoanStartDate && e.LoanStartDate > today ? ` from ${fmtDate(e.LoanStartDate)}` : ''}${e.LoanEndDate ? ` until ${fmtDate(e.LoanEndDate)}` : ''}${u.own ? ' · usually goes with this one' : ''}`
+    if (u.status === 'clash') return u.waiting.map((c) => `⚠ Clash: ${c.loanTo} is waiting for it ${dateRange(c.startDate, c.endDate)}`).join(' · ')
+    return ['Free', u.own && 'usually goes with this one',
+      u.will === 'reclaim' && `booked for ${e.OnLoanTo} from ${fmtDate(e.LoanStartDate)}, after this loan`,
+      u.next && `booked next for ${u.next.loanTo} from ${fmtDate(u.next.startDate)}`].filter(Boolean).join(' · ')
+  }
+  return (
+    <div className="card eq-kit-offer">
+      <span className="eq-strong">{kit.label}: it usually goes with these</span>
+      <span className="eq-small eq-kit-hint">Tap a model to choose which unit goes.</span>
+      <ul className="eq-kit-models">
+        {rows.map((m) => {
+          const chosen = m.units.filter((u) => kit.tick.has(u.no))
+          const free = m.units.filter((u) => u.status !== 'out').length
+          const out = m.units.length - free
+          const open = kit.open === m.key
+          return (
+            <li key={m.key} className="eq-kit-model">
+              <button type="button" className="eq-kit-head" aria-expanded={open} disabled={!m.units.length}
+                onClick={() => setKit((x) => ({ ...x, open: x.open === m.key ? '' : m.key }))}>
+                <span className="eq-grow">
+                  <span className="eq-strong">{m.model}</span>{m.need > 1 && <span className="eq-kit-qty"> ×{m.need}</span>}
+                  <span className={`eq-small ${free ? '' : 'eq-st-warn'}`}>
+                    {!m.units.length ? 'None in the equipment list' : `${free ? `${free} free` : 'None free'}${out ? ` · ${out} on loan or booked` : ''}`}
+                  </span>
+                </span>
+                {m.units.length > 0 && <span className={`eq-kit-chosen${chosen.length ? '' : ' eq-kit-choose'}`}>{chosen.length ? chosen.map((u) => u.no).join(', ') : 'Choose'}</span>}
+                {m.units.length > 0 && <ChevronDown size={16} aria-hidden="true" className={`eq-kit-chev${open ? ' eq-kit-chev-open' : ''}`} />}
+              </button>
+              {open && (
+                <ul className="eq-kit-units" aria-label={`${m.model} units`}>
+                  {m.units.map((u) => (
+                    <li key={u.no}><label className={`eq-pick${u.status === 'out' ? ' eq-pick-off' : ''}`}>
+                      <input type="checkbox" disabled={u.status === 'out'} checked={kit.tick.has(u.no)} onChange={() => toggle(m, u.no)} />
+                      <span><span className="eq-strong">{u.no}</span>{u.item.SerialNo && <span className="eq-mono text-muted"> {u.item.SerialNo}</span>}
+                        <span className={`eq-small eq-st-${u.status === 'free' ? 'ok' : u.status === 'clash' ? 'warn' : 'note'}`}>{note(u)}</span></span>
+                    </label></li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+      <div className="eq-actions-row">
+        <button type="button" className="btn btn-primary btn-sm" disabled={!kit.tick.size} onClick={onAdd}>Add {kit.tick.size || ''}</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Not these</button>
+      </div>
     </div>
   )
 }

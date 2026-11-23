@@ -238,6 +238,22 @@
 .eq-kit-list { display: flex; flex-direction: column; gap: 6px; }
 .eq-selbar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; position: sticky; top: 8px; z-index: 3; }
 .eq-kit-offer { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-left: 4px solid var(--accent-fg); }
+/* A kit's accessories by model (AssetPicker.jsx KitOffer): a row per model, tapped open to choose the unit. */
+.eq-kit-offer .eq-kit-hint { margin-top: -6px; }
+.eq-kit-models { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.eq-kit-model + .eq-kit-model { border-top: 1px solid var(--border-subtle); }
+.eq-kit-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; min-height: 44px; cursor: pointer; font: var(--type-body-sm); color: var(--text-body); }
+.eq-kit-head:hover:not(:disabled), .eq-kit-head:focus-visible { background: var(--surface-subtle); }
+.eq-kit-head:focus-visible { outline: 2px solid var(--accent-fg); outline-offset: -2px; }
+.eq-kit-head:disabled { cursor: default; }
+.eq-kit-qty { font-weight: 600; color: var(--text-strong); }
+.eq-kit-chosen { flex: none; max-width: 45%; text-align: right; font-weight: 600; color: var(--text-strong); overflow-wrap: anywhere; }
+.eq-kit-choose { font-weight: 600; color: var(--accent-fg); }
+.eq-kit-chev { flex: none; color: var(--text-muted); transition: transform .15s; }
+.eq-kit-chev-open { transform: rotate(180deg); }
+.eq-kit-units { list-style: none; margin: 0; padding: 0 12px 4px 34px; max-height: 280px; overflow-y: auto; border-top: 1px dashed var(--border-subtle); }
+.eq-kit-units li + li { border-top: 1px solid var(--border-subtle); }
+.eq-pick-off { cursor: default; opacity: .7; }
 .eq-device { position: relative; padding-right: 36px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
 .eq-device .eq-small { display: inline; margin: 0; }
 .eq-device-x { position: absolute; right: 0; top: 2px; color: var(--text-muted); }

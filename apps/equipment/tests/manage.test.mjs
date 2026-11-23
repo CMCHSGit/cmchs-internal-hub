@@ -33,11 +33,11 @@ test('import: column names, dates, update or add; export as quoted CSV', () => {
   assert.equal(toCsv([{ a: 'x"y', b: 1 }], [['a', 'A'], ['b', 'B']]), 'A,B\n"x""y","1"')
 })
 
-test('kits: a trigger offers its accessories, each with its state', () => {
-  const kits = { k: { label: 'Kit', triggers: [' A1 '], accessories: [{ assetNo: 'A2' }, { assetNo: 'A3' }, { assetNo: 'A9' }] } }
-  const eq = [item('1'), item('2'), item('3', { OnLoanTo: 'Hutt', Returned: 'No' })]
-  const k = kitFor(kits, eq, 'A1', ['A1'])
-  assert.deepEqual(k.accessories.map((a) => [a.assetNo, a.free, a.out, !!a.item]), [['A2', true, false, true], ['A3', false, true, true], ['A9', false, false, false]])
+test('kits: a trigger offers its accessories by model, each unit with its state (more in kits.test.mjs)', () => {
+  const kits = { k: { label: 'Kit', triggers: [' A1 '], accessories: [{ assetNo: 'A2' }, { assetNo: 'A3' }, { assetNo: 'A9', model: 'Gone' }] } }
+  const eq = [item('1', { Model: 'T' }), item('2', { Model: 'P' }), item('3', { Model: 'Q', OnLoanTo: 'Hutt', Returned: 'No', LoanStartDate: '2026-11-01' })]
+  const k = kitFor(kits, eq, 'A1', ['A1'], { startDate: '2026-11-20', endDate: '2026-11-28', today: '2026-11-20' })
+  assert.deepEqual(k.models.map((m) => [m.model, m.units.map((u) => [u.no, u.status]), m.pick]), [['P', [['A2', 'free']], ['A2']], ['Q', [['A3', 'out']], []], ['Gone', [], []]])
   assert.equal(kitFor(kits, eq, 'A2'), null)
 })
 
