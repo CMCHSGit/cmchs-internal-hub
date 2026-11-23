@@ -329,6 +329,7 @@ There is **exactly one of each on the origin**, both owned by the hub. A second 
 
 - `apps/hub/public/manifest.webmanifest` — `scope: "/"` is what makes every tool open inside the installed app.
 - `apps/hub/src/sw.js` → served as `/sw.js`, scope `/`. Registered by `shared/register-sw.js`, which every app calls (`main.jsx`, `gate.js`, …). Calling it from more than one place is a no-op, and it means someone who only ever opens one tool still gets the update check.
+- `shared/pullToRefresh.js` — **swipe down to refresh on phones** (touch screens only), switched on by `registerServiceWorker()`, so every page has it. At the very top of a page, drag down past the line and let go: it reloads onto the newest version (`reloadOntoLatest`). It ignores a drag that starts in a part-scrolled list, field, canvas, dialog or `data-no-pull` area, and does nothing while the update guard says work is in progress (a dialog, a typed-into form, a run). Pure rules are tested in `apps/hub/tests/pullToRefresh.test.mjs`.
 
 Two things about the build are easy to trip over:
 
