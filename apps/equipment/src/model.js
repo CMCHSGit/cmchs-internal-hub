@@ -1226,6 +1226,45 @@ export function formDoc(form, stored = {}, info = {}) {
   return doc
 }
 
+/**
+ * What a loan form save changed, as words for the audit and activity logs (never the text itself):
+ * customer, address, dates, account manager, contact number, device rows, accessories, notes, shipping details.
+ * `before` is the stored form. Its device rows are compared only once it has saved rows: a new loan's first save
+ * (finishing it) writes them from its devices for the first time, which isn't a change anyone made.
+ */
+export function formChanges(before, after) {
+  const b = before || {}, a = after || {}
+  const same = (x, y) => String(x ?? '').trim() === String(y ?? '').trim()
+  const rowsOf = (d) => JSON.stringify((Array.isArray(d.savedRows) ? d.savedRows : []).map((r) => (r || []).map((c) => String(c ?? '').trim())).filter((r) => r.some(Boolean)))
+  const out = []
+  if (!same(b.loanTo, a.loanTo)) out.push('customer')
+  if (!same(b.location, a.location)) out.push('address')
+  if (!same(toISO(b.startDate || ''), toISO(a.startDate || '')) || !same(toISO(b.endDate || ''), toISO(a.endDate || ''))) out.push('dates')
+  if (!same(b.accountManager, a.accountManager)) out.push('account manager')
+  if (!same(b.contactNumber, a.contactNumber)) out.push('contact number')
+  if (Array.isArray(b.savedRows) && rowsOf(b) !== rowsOf(a)) out.push('device rows')
+  if (JSON.stringify(cleanAccessories(b.accessories)) !== JSON.stringify(cleanAccessories(a.accessories))) out.push('accessories')
+  if (!same(b.notesCell ?? b.notes, a.notesCell ?? a.notes)) out.push('notes')
+  if (!same(b.authCell, a.authCell)) out.push('shipping details')
+  return out
+}
+
+/**
+ * Devices typed into a loan form's table that aren't on the loan. The table is only the printed sheet:
+ * a device is put on a loan with Add items, so one typed here is never booked, tracked or returned.
+ */
+export function formAssetsNotOnLoan(rows = [], items = [], equipment = []) {
+  const on = new Set((items || []).map((e) => String(e?.CHSAssetNo || '').trim().toLowerCase()))
+  const out = []
+  for (const r of rows || []) {
+    const no = String(r?.[0] || '').trim()
+    if (!no || on.has(no.toLowerCase())) continue
+    const e = findAsset(equipment, no)
+    if (e && !out.includes(e.CHSAssetNo)) out.push(e.CHSAssetNo)
+  }
+  return out
+}
+
 /* ── Accessories on a loan: cuffs, sensors, lead sets… by code and quantity, kept on its form
    (loanDocs/<key>.accessories, Firestore loans/{key}.form). Optional: a loan with none shows nothing. ── */
 
@@ -1458,7 +1497,7 @@ export function filterHistory(history, { q = '', action = '' } = {}) {
 
 /** The audit log's kinds of entry, labelled as the old one, and its three filters. */
 export const AUDIT_LABELS = {
-  loan_created: 'Loan created', loan_deleted: 'Loan deleted', scheduled_deleted: 'Scheduled deleted', loan_extended: 'Extended', loan_edited: 'Edited',
+  loan_created: 'Loan created', loan_deleted: 'Loan deleted', scheduled_deleted: 'Scheduled deleted', loan_extended: 'Extended', loan_edited: 'Edited', loan_form_saved: 'Loan form saved',
   loan_longterm_on: 'Made long-term', loan_longterm_off: 'Returned to active', items_returned: 'Returned', item_removed: 'Item removed', items_added: 'Items added',
   orphan_recovered: 'Orphan recovered', orphan_deleted: 'Orphan deleted', items_transferred: 'Transferred', loan_reassigned: 'Moved',
   simpro_created: 'Simpro created', simpro_updated: 'Simpro updated', simpro_closed: 'Simpro closed',
@@ -1467,7 +1506,7 @@ export const AUDIT_LABELS = {
   kit_deleted: 'Kit deleted', kit_accessory_removed: 'Kit accessory removed', test_report_uploaded: 'Test report uploaded', test_report_deleted: 'Test report deleted', history_deleted: 'History deleted',
 }
 export const AUDIT_KINDS = {
-  loans: ['loan_created', 'loan_deleted', 'loan_extended', 'loan_edited', 'loan_longterm_on', 'loan_longterm_off', 'items_returned', 'item_removed', 'items_added', 'items_transferred', 'loan_reassigned', 'scheduled_deleted', 'orphan_recovered', 'orphan_deleted', 'upcoming_loan_deleted', 'upcoming_item_removed'],
+  loans: ['loan_created', 'loan_deleted', 'loan_extended', 'loan_edited', 'loan_form_saved', 'loan_longterm_on', 'loan_longterm_off', 'items_returned', 'item_removed', 'items_added', 'items_transferred', 'loan_reassigned', 'scheduled_deleted', 'orphan_recovered', 'orphan_deleted', 'upcoming_loan_deleted', 'upcoming_item_removed'],
   database: ['asset_added', 'asset_edited', 'asset_deleted', 'asset_retired'],
   simpro: ['simpro_created', 'simpro_updated', 'simpro_closed'],
 }

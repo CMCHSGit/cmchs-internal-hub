@@ -19,7 +19,7 @@ import { can } from '../../../shared/can.js'
 import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, write } from './db.js'
 import { commit as fsCommit } from './db-firestore.js'
 import {
-  activateBookings, applyImport, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
+  activateBookings, applyImport, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories,
 } from './model.js'
 
@@ -401,22 +401,30 @@ export function StoreProvider({ children }) {
 
   /**
    * Edit (old: confirmReassignAM in edit mode). A blank field keeps what it
-   * had. A booking is changed on the booking, and if its start has now come
-   * it takes any devices that are free (as the old one). A loan's devices
-   * are changed in /data. A new account manager goes in loanMeta; contact,
-   * notes, shipping and demo type go on the loan form.
+   * had. A loan's devices are changed in /data. Its booking (a booking on its
+   * own, or the devices a loan is still waiting for, kept under its BatchID)
+   * is changed too, and if a booking or scheduled loan's start has now come
+   * it takes any devices that are free (as the old one). A new account
+   * manager goes in loanMeta; the loan form gets the same customer, place
+   * and dates (or a later save of the form would put the old ones back), and
+   * the contact, notes, shipping and demo type.
    */
   const editLoan = useCallback(async (g, f) => {
     const today = nzDate(), ts = nzNow()
     const docKey = g.kind === 'booking' ? g.batchId : loanDocKey(g)
     let started = null
-    if (g.kind === 'booking') {
-      const u = latest.current.upcoming.find((x) => x.id === g.batchId)
-      if (!u) throw new Error('That booking has gone: someone may have changed it. Reload and try again.')
+    const u = g.batchId ? latest.current.upcoming.find((x) => x.id === g.batchId) : null
+    if (g.kind === 'booking' && !u) throw new Error('That booking has gone: someone may have changed it. Reload and try again.')
+    if (g.kind !== 'booking') {
+      await updateData((d) => ({ ...d, equipment: editEquipment(d.equipment, g, f) }))
+      if (f.am) for (const k of [...new Set([g.batchId, docKey].filter(Boolean))]) await patchMeta(k, { accountManager: f.am })
+    }
+    if (u) {
       const next = editBooking(u, f)
       await write('upcomingLoans/' + enc(u.id), next)
       setState((s) => ({ ...s, upcoming: s.upcoming.map((x) => (x.id === u.id ? next : x)) }))
-      if (next.startDate && next.startDate <= today) {
+      // A loan already started that waits on devices is left to Reassign: only a booking or a scheduled loan starts here.
+      if (g.kind !== 'loan' && next.startDate && next.startDate <= today) {
         let a = null
         // All the bookings, not just this one: a loan it takes a device from
         // keeps its claim on its own booking, which has to be found to be kept.
@@ -427,12 +435,13 @@ export function StoreProvider({ children }) {
         const own = a.changes.find((c) => c.id === u.id)
         started = own ? (own.remove ? 'all' : 'some') : 'none'
       }
-    } else {
-      await updateData((d) => ({ ...d, equipment: editEquipment(d.equipment, g, f) }))
-      if (f.am) for (const k of [...new Set([g.batchId, docKey].filter(Boolean))]) await patchMeta(k, { accountManager: f.am })
     }
     if (docKey) {
-      const patch = { contactNumber: f.contact || '', notesCell: f.notes || '', authCell: f.shipping || '', demoType: f.demoType || '', ...(f.am ? { accountManager: f.am } : {}) }
+      const patch = {
+        ...(f.loanTo ? { loanTo: f.loanTo } : {}), ...(f.location ? { location: f.location } : {}),
+        ...(f.startDate ? { startDate: f.startDate } : {}), ...(f.endDate && !g.longTerm ? { endDate: f.endDate } : {}),
+        contactNumber: f.contact || '', notesCell: f.notes || '', authCell: f.shipping || '', demoType: f.demoType || '', ...(f.am ? { accountManager: f.am } : {}),
+      }
       try {
         await write('loanDocs/' + enc(docKey), patch, { method: 'PATCH' })
         setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [docKey]: { ...(s.loanDocs[docKey] || {}), ...patch } } }))
@@ -548,8 +557,11 @@ export function StoreProvider({ children }) {
   const saveForm = useCallback(async (key, form, info = {}, { simproToo = true } = {}) => {
     const { data: stored } = await read('loanDocs/' + enc(key))
     const doc = formDoc(form, stored || {}, info)
+    const changed = formChanges(stored, doc)
     await write('loanDocs/' + enc(key), doc)
     setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: doc } }))
+    // One line in the audit and activity logs saying what changed, in words (never the notes themselves).
+    if (changed.length) await audit('loan_form_saved', `Loan form for ${doc.loanTo || 'a loan'} saved: ${changed.join(', ')} changed`, { loanTo: doc.loanTo || '', batchId: key, changed })
     const mine = (e) => e && (form.items || []).some((i) => i.id === e.id || i.CHSAssetNo === e.CHSAssetNo) && (!e.BatchID || e.BatchID === key)
     const set = {
       ...(form.loanTo ? { OnLoanTo: form.loanTo } : {}), ...(form.location ? { Location: form.location } : {}),
@@ -573,7 +585,7 @@ export function StoreProvider({ children }) {
     }
     await touch()
     return { doc, job }
-  }, [patchMeta, submitJob, touch, updateData])
+  }, [audit, patchMeta, submitJob, touch, updateData])
 
   /**
    * The loan form emailed to the account manager (old: sendLoanDocEmail and
