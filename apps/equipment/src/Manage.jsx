@@ -6,6 +6,7 @@ import AutoText from './AutoText.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, Badge, Button, Dialog, Loading, useConfirm } from '../../../shared/ui/index.jsx'
 import { AdminDialog } from './Items.jsx'
+import ManageAccessories from './ManageAccessories.jsx'
 import { setCutover } from './db.js'
 import { TRACKER_ROLES, removeMember, setMemberRole } from '../../admin/src/tracker.js'
 import {
@@ -13,7 +14,7 @@ import {
 } from './model.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
-const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['simpro', 'Simpro'], ['team', 'Team'], ['notify', 'Test notifications'], ['test', 'Test mode'], ['source', 'Data source']]
+const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['accessories', 'Accessories'], ['simpro', 'Simpro'], ['team', 'Team'], ['notify', 'Test notifications'], ['test', 'Test mode'], ['source', 'Data source']]
 
 /** A library from the same CDN the old tracker uses, once (old: needLib): SheetJS and PapaParse. */
 const LIBS = { xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'XLSX'], papa: ['https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js', 'Papa'] }
@@ -45,6 +46,7 @@ export default function Manage({ s, params, setParams, onDone }) {
       {part !== 'team' && <p className="eq-note">The tracker’s team (account managers, Service &amp; Projects) is in {s.isAdmin ? <><a href={'#/manage?part=team'}>Team</a> here, and </> : ''}<a href="/settings/people">Settings, People and access</a>.</p>}
       {part === 'retired' && <Retired s={s} onDone={onDone} />}
       {part === 'kits' && <Kits s={s} onDone={onDone} />}
+      {part === 'accessories' && <ManageAccessories s={s} onDone={onDone} lib={lib} />}
       {part === 'data' && <Data s={s} onDone={onDone} />}
       {part === 'simpro' && <Simpro s={s} onDone={onDone} />}
       {part === 'team' && s.isAdmin && <Team s={s} onDone={onDone} />}

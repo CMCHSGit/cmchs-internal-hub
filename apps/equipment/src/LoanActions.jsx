@@ -2,7 +2,8 @@
    the old card's buttons: testing and dispatch (buildReadinessButtons),
    Extend, Return to active, Return items, Make long-term, the loan form,
    Add items, Transfer (to another loan, or a new one), Copy (a new loan
-   with the same devices), Edit and Delete. */
+   with the same devices), Accessories (its accessory list, by code and
+   quantity, changed without opening the form), Edit and Delete. */
 import AutoText from './AutoText.jsx'
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, FileText } from 'lucide-react'
@@ -10,8 +11,9 @@ import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
+import { AccessoryEditor, AccessoryNotesHint } from './Accessories.jsx'
 import { useNarrow } from './useNarrow.js'
-import { addedText, canExtend, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanLabel, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { addedText, canExtend, cleanAccessories, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanLabel, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
@@ -64,11 +66,14 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
   // columns, and the rest under "More" (a loan's own page is where an account manager mostly returns, extends, adds and transfers).
   const reassignNeeded = go && (g.pending || []).length > 0 && g.startDate && g.startDate <= s.today
   const hasItems = g.kind !== 'booking' && g.items.length > 0
+  const docKey = g.kind === 'booking' ? g.batchId : loanDocKey(g)
+  const accCount = cleanAccessories((s.loanDocs?.[docKey] || g.doc)?.accessories).length
   const btn = {
     extend: canExtend(g) && <Button key="extend" size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>,
     return: hasItems && <Button key="return" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>,
     form: <Button key="form" size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>,
     add: <Button key="add" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>,
+    accessories: docKey && <Button key="accessories" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('accessories')}>{accCount ? `Accessories (${accCount})` : 'Accessories'}</Button>,
     transfer: hasItems && <Button key="transfer" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('transfer')}>Transfer</Button>,
     edit: <Button key="edit" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('edit')}>Edit</Button>,
     active: g.kind === 'loan' && g.longTerm && <Button key="active" size="sm" disabled={busy} onClick={() => setAsking('active')}>Return to active</Button>,
@@ -89,7 +94,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
     delete: <Button key="delete" size="sm" variant="ghost" className="eq-danger" disabled={busy} onClick={() => setAsking('delete')}>{g.kind === 'booking' ? 'Cancel booking' : 'Delete'}</Button>,
   }
   const pick = (names) => names.map((n) => btn[n]).filter(Boolean)
-  const main = pick(['reassign', 'extend', 'return', 'transfer', 'add', 'active', 'form'])
+  const main = pick(['reassign', 'extend', 'return', 'transfer', 'add', 'accessories', 'active', 'form'])
   const rest = pick(['edit', 'longTerm', 'reports', 'copy', 'job', 'delete'])
 
   return (
@@ -103,7 +108,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
         </>
       ) : (
         <>
-          <div className="eq-actions-row">{[...pick(['extend', 'return']), btn.form, ...pick(['add', 'transfer', 'edit', 'active', 'longTerm', 'reports', 'reassign', 'copy', 'job']), btn.delete]}</div>
+          <div className="eq-actions-row">{[...pick(['extend', 'return']), btn.form, ...pick(['add', 'accessories', 'transfer', 'edit', 'active', 'longTerm', 'reports', 'reassign', 'copy', 'job']), btn.delete]}</div>
           {readiness}
         </>
       )}
@@ -154,8 +159,12 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
           onNew={(nos) => { setAsking(null); go?.('new', { move: g.kind + ':' + g.key, nos: nos.join(',') }) }}
           onSave={(nos, target) => run(() => s.transfer(g, nos, target), (r) => `${plural(r.moved, 'item', 'items')} moved to ${target.loanTo}.`).then((ok) => { if (ok) nextHolder(target) })} />
       )}
+      {asking === 'accessories' && (
+        <AccessoriesDialog g={g} s={s} docKey={docKey} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+          onSave={(list) => run(() => s.saveAccessories(g, list), (acc) => (acc.length ? `${g.loanTo}: ${plural(acc.length, 'accessory line', 'accessory lines')} saved.` : `${g.loanTo}: no accessories.`))} />
+      )}
       {asking === 'edit' && (
-        <EditDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
+        <EditDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }} onAccessories={docKey ? () => { setAsking('accessories'); setError('') } : null}
           onSave={(f) => run(() => s.editLoan(g, f), (r) => (r.started === 'all' ? 'Loan updated: it has started.' : r.started === 'some' ? 'Loan updated, but some devices are still out on another loan.' : 'Loan updated.'))} />
       )}
       {asking === 'delete' && (
@@ -164,6 +173,27 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       )}
       {confirmDialog}
     </div>
+  )
+}
+
+/**
+ * A loan's accessories, by code and quantity, from its card: the same picker as New loan and the loan form
+ * (Accessories.jsx), saved on its form without touching anything else there. Emptied, the loan has none.
+ */
+function AccessoriesDialog({ g, s, docKey, busy, error, onClose, onSave }) {
+  const [list, setList] = useState(() => cleanAccessories((s.loanDocs?.[docKey] || g.doc)?.accessories))
+  const models = [...new Set([...(g.items || []), ...(g.pending || [])].map((e) => e.Model).filter(Boolean))]
+  return (
+    <Dialog title={`Accessories: ${g.loanTo}`} description="What goes with the devices, by code and quantity: packed, printed on the loan form and checked back." onClose={onClose} width={720}>
+      <div className="eq-form">
+        <AccessoryEditor value={list} onChange={setList} s={s} models={models} notKey={docKey} />
+        {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
+        <div className="dialog-actions">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={() => onSave(cleanAccessories(list))} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+        </div>
+      </div>
+    </Dialog>
   )
 }
 
@@ -292,7 +322,7 @@ function ActiveDialog({ g, today, busy, error, onClose, onSave }) {
 }
 
 /** A loan's details (old: the Edit Loan modal): who, where, when, the account manager and the loan form's extras. */
-function EditDialog({ g, s, busy, error, onClose, onSave }) {
+function EditDialog({ g, s, busy, error, onClose, onSave, onAccessories }) {
   const doc = g.doc || {}
   const managerOf = (name) => (s.managers || []).find((m) => m.name === name)
   const [f, setF] = useState(() => ({
@@ -338,7 +368,8 @@ function EditDialog({ g, s, busy, error, onClose, onSave }) {
               </select>}
           </label>
         </div>
-        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <div className="field"><label className="field-label" htmlFor="eq-ed-notes">Notes</label><AutoText id="eq-ed-notes" rows={2} value={f.notes} onChange={set('notes')} />
+          <AccessoryNotesHint text={f.notes} onUse={onAccessories} useLabel="Open Accessories (this edit isn’t saved)" /></div>
         <label className="field"><span className="field-label">Shipping and authorisation</span><AutoText rows={2} value={f.shipping} onChange={set('shipping')} /></label>
         <p className="eq-note">A box left empty keeps what it had, as it did in the old tracker (notes, shipping, contact and demo type are saved as shown).</p>
         {problem && <p className="eq-note eq-problem">{problem}</p>}

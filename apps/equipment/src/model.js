@@ -1285,27 +1285,125 @@ export function cleanAccessories(list) {
   return out
 }
 
+/* The accessory list (Manage › Accessories): what the picker offers, kept in its own Firestore document,
+   settings/equipmentAccessories { items: [{ code, name, group, models }], updatedAt, by }. Codes and names, a
+   group (SpO2, NIBP…) and the monitor models each fits; never prices. */
+
+export const ACCESSORY_LIST_MAX = 2000
+export const accessoryKey = (a) => (a.code ? accKey(a.code) : 'name:' + String(a.name || '').trim().toLowerCase())
+const cut = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
+
+/** One list item tidied: { code, name, group, models[] }, or null with neither code nor name. models may be "N17, ePM 12M". */
+export function cleanAccessoryItem(x) {
+  const code = cut(x?.code, 60), name = cut(x?.name, 200)
+  if (!code && !name) return null
+  const raw = Array.isArray(x?.models) ? x.models : String(x?.models ?? '').split(/[,;/|\n]+/)
+  const models = [...new Set(raw.map((m) => cut(m, 40)).filter(Boolean))].slice(0, 20)
+  return { code, name, group: cut(x?.group, 60), models }
+}
+
+/** The list tidied: each item once (by code, else by name; a later one wins), by group then name. */
+export function cleanAccessoryList(items) {
+  const by = new Map()
+  for (const x of Array.isArray(items) ? items : []) { const a = cleanAccessoryItem(x); if (a) by.set(accessoryKey(a), a) }
+  return [...by.values()].sort((a, b) => (a.group || '~').localeCompare(b.group || '~') || (a.name || a.code).localeCompare(b.name || b.code)).slice(0, ACCESSORY_LIST_MAX)
+}
+
+// A spreadsheet's headings, however they're written ("Part No.", "Item code", "Description", "Fits"…).
+const HEAD = (h) => String(h || '').toLowerCase().replace(/[^a-z0-9#]+/g, ' ').trim()
+const ACC_HEADINGS = [
+  ['code', /^(code|item code|part ?(no|number|#)|part|product code|sku|cat(alogue)? ?(no|number)|order code|ref(erence)?|mindray code|accessory code)$/],
+  ['name', /^(name|accessory|accessory name|item|item name|product|product name|description|item description)$/],
+  ['group', /^(group|category|type|kind|section)$/],
+  ['models', /^(fits|fits models?|models?|for|for models?|compatible( with)?|monitors?|devices?|used with)$/],
+]
+
 /**
- * What the picker suggests: the catalogue (accessories.js) and every code used on a loan's form, each once,
- * with the name it was last given and how many loans used it. [{ code, name, models, group, uses }]
+ * An imported sheet's rows (objects by heading, as SheetJS and PapaParse give them) as list items. A column
+ * the list doesn't keep (price, stock…) is left out. { items, skipped: rows with neither code nor name, columns, problem? }
+ */
+export function accessoryListFromRows(rows) {
+  const heads = [...new Set((rows || []).flatMap((r) => Object.keys(r || {})))]
+  const col = {}
+  for (const [field, re] of ACC_HEADINGS) {
+    const hits = heads.filter((h) => re.test(HEAD(h)))
+    // A sheet with both a Name and a Description: the name.
+    col[field] = field === 'name' ? hits.find((h) => !/description/.test(HEAD(h))) || hits[0] : hits[0]
+  }
+  if (!col.code && !col.name) return { items: [], skipped: (rows || []).length, columns: col, problem: 'No Code or Name column found. The first row should be headings, such as Code, Name, Group, Fits.' }
+  const items = [], seen = new Map()
+  let skipped = 0
+  for (const r of rows || []) {
+    const a = cleanAccessoryItem({ code: r?.[col.code], name: r?.[col.name], group: r?.[col.group], models: r?.[col.models] })
+    if (!a) { skipped++; continue }
+    const k = accessoryKey(a)
+    if (seen.has(k)) items[seen.get(k)] = a; else { seen.set(k, items.length); items.push(a) }
+  }
+  return { items, skipped, columns: col }
+}
+
+/**
+ * An import put into the list: added to it (an item already there by code, or by name if it has no code, is
+ * updated) or replacing it. { items, added, updated, unchanged, removed }
+ */
+export function mergeAccessoryList(existing, incoming, { replace = false } = {}) {
+  const was = new Map(cleanAccessoryList(existing).map((a) => [accessoryKey(a), a]))
+  const next = replace ? new Map() : new Map(was)
+  let added = 0, updated = 0, unchanged = 0
+  for (const x of incoming || []) {
+    const a = cleanAccessoryItem(x)
+    if (!a) continue
+    const k = accessoryKey(a), old = was.get(k)
+    if (!old) added++
+    else if (JSON.stringify(old) === JSON.stringify(a)) unchanged++
+    else updated++
+    next.set(k, a)
+  }
+  const removed = replace ? [...was.keys()].filter((k) => !next.has(k)).length : 0
+  return { items: cleanAccessoryList([...next.values()]), added, updated, unchanged, removed }
+}
+
+/**
+ * What the picker offers: the accessory list (listed: true) and every code used on a loan's form, each once,
+ * with how many loans used it. A code only ever used on loans keeps the name it was last given.
+ * [{ code, name, models, group, uses, listed }]
  */
 export function accessoryCatalogue(loanDocs = {}, list = []) {
   const by = new Map()
-  for (const a of list) {
-    if (!a || !a.code) continue
-    by.set(accKey(a.code), { code: String(a.code).trim(), name: a.name || '', models: a.models || [], group: a.group || '', uses: 0 })
-  }
+  for (const a of cleanAccessoryList(list)) by.set(accessoryKey(a), { ...a, uses: 0, listed: true })
   const docs = Object.values(loanDocs || {}).filter((d) => d && Array.isArray(d.accessories))
     .sort((a, b) => String(a.startDate || '').localeCompare(String(b.startDate || '')))
   for (const d of docs) {
     for (const a of d.accessories) {
       if (!a || !a.code) continue
       const k = accKey(a.code), cur = by.get(k)
-      if (cur) { cur.uses++; if (!list.some((x) => x && accKey(x.code) === k) && a.name) cur.name = a.name }
-      else by.set(k, { code: String(a.code).trim(), name: a.name || '', models: [], group: '', uses: 1 })
+      if (cur) { cur.uses++; if (!cur.listed && a.name) cur.name = a.name }
+      else by.set(k, { code: String(a.code).trim(), name: a.name || '', models: [], group: '', uses: 1, listed: false })
     }
   }
   return [...by.values()]
+}
+
+/**
+ * The picker's list, opened: everything (or what matches what's typed: a code however it's typed, or every
+ * word in its name, group or models), in sections: those that fit the monitors on the loan first, then each
+ * group A–Z (Other last), then codes only used on earlier loans. [{ title, items }]
+ */
+export function accessoryChoices(catalogue, q = '', { models = [] } = {}) {
+  const text = String(q || '').trim().toLowerCase(), words = text.split(/\s+/).filter(Boolean), key = accKey(text)
+  const fits = (a) => (a.models || []).some((m) => models.some((x) => modelKey(x) === modelKey(m)))
+  const match = (a) => !text || (key && accKey(a.code).includes(key)) || words.every((w) => `${a.name} ${a.group} ${(a.models || []).join(' ')}`.toLowerCase().includes(w))
+  const byName = (a, b) => (a.name || a.code).localeCompare(b.name || b.code)
+  const shown = catalogue.filter(match)
+  const sections = []
+  const fitting = shown.filter((a) => a.listed && fits(a)).sort(byName)
+  if (fitting.length) sections.push({ title: `Fits the ${[...new Set(models.filter(Boolean))].join(', ')}`, items: fitting })
+  const groups = new Map()
+  for (const a of shown.filter((x) => x.listed && !fits(x))) { const g = a.group || 'Other'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(a) }
+  for (const g of [...groups.keys()].sort((a, b) => (a === 'Other') - (b === 'Other') || a.localeCompare(b))) sections.push({ title: g, items: groups.get(g).sort(byName) })
+  const earlier = shown.filter((a) => !a.listed).sort((a, b) => (b.uses || 0) - (a.uses || 0) || byName(a, b))
+  if (earlier.length) sections.push({ title: 'Used on earlier loans (not in the list)', items: earlier })
+  return sections
 }
 
 /**
@@ -1321,6 +1419,23 @@ export function searchAccessories(catalogue, q, { models = [], limit = 8 } = {})
     .filter((a) => (key && accKey(a.code).includes(key)) || words.every((w) => `${a.name} ${a.group}`.toLowerCase().includes(w)))
     .sort((a, b) => Number(suits(b)) - Number(suits(a)) || (b.uses || 0) - (a.uses || 0) || a.code.localeCompare(b.code))
     .slice(0, limit)
+}
+
+/**
+ * Accessories written into a loan's notes, which belong in its accessory list instead (packed, printed and
+ * checked back by code and quantity): the words found, each once, as written. [] when there are none.
+ */
+const ACC_WORDS = /\b(cuffs?|spo2|sp02|nibp|ibp|ecg|ekg|(?:3|5|6|10|12)[- ]?leads?|lead ?sets?|leads?|cables?|sensors?|probes?|transducers?|electrodes?|pucks?|sampling lines?|water ?traps?|adaptors?|adapters?|hoses?|masks?|circuits?)\b/gi
+export function accessoryWordsIn(text) {
+  const seen = new Map()
+  for (const m of String(text || '').matchAll(ACC_WORDS)) { const k = m[0].toLowerCase().replace(/s$/, ''); if (!seen.has(k)) seen.set(k, m[0]) }
+  return [...seen.values()].slice(0, 6)
+}
+
+/** The list item a loan's accessory line is (by code, else by name), or null: a listed line is shown, not typed. */
+export function listedAccessory(line, list = []) {
+  const k = accessoryKey({ code: String(line?.code || '').trim(), name: line?.name })
+  return cleanAccessoryList(list).find((a) => accessoryKey(a) === k) || null
 }
 
 /**
@@ -1503,11 +1618,11 @@ export const AUDIT_LABELS = {
   simpro_created: 'Simpro created', simpro_updated: 'Simpro updated', simpro_closed: 'Simpro closed',
   asset_added: 'Asset added', asset_edited: 'Asset edited', asset_deleted: 'Asset deleted', asset_retired: 'Asset retired',
   upcoming_loan_deleted: 'Booking cancelled', upcoming_item_removed: 'Item removed', am_removed: 'AM removed', am_added: 'AM added', am_role: 'AM role changed',retired_asset_deleted: 'Retired asset deleted',
-  kit_deleted: 'Kit deleted', kit_accessory_removed: 'Kit accessory removed', test_report_uploaded: 'Test report uploaded', test_report_deleted: 'Test report deleted', history_deleted: 'History deleted',
+  kit_deleted: 'Kit deleted', kit_accessory_removed: 'Kit accessory removed', accessory_list: 'Accessory list', loan_accessories: 'Accessories', test_report_uploaded: 'Test report uploaded', test_report_deleted: 'Test report deleted', history_deleted: 'History deleted',
 }
 export const AUDIT_KINDS = {
-  loans: ['loan_created', 'loan_deleted', 'loan_extended', 'loan_edited', 'loan_form_saved', 'loan_longterm_on', 'loan_longterm_off', 'items_returned', 'item_removed', 'items_added', 'items_transferred', 'loan_reassigned', 'scheduled_deleted', 'orphan_recovered', 'orphan_deleted', 'upcoming_loan_deleted', 'upcoming_item_removed'],
-  database: ['asset_added', 'asset_edited', 'asset_deleted', 'asset_retired'],
+  loans: ['loan_created', 'loan_deleted', 'loan_extended', 'loan_edited', 'loan_form_saved', 'loan_accessories', 'loan_longterm_on', 'loan_longterm_off', 'items_returned', 'item_removed', 'items_added', 'items_transferred', 'loan_reassigned', 'scheduled_deleted', 'orphan_recovered', 'orphan_deleted', 'upcoming_loan_deleted', 'upcoming_item_removed'],
+  database: ['asset_added', 'asset_edited', 'asset_deleted', 'asset_retired', 'accessory_list'],
   simpro: ['simpro_created', 'simpro_updated', 'simpro_closed'],
 }
 export function filterAudit(entries, { q = '', kind = '' } = {}) {

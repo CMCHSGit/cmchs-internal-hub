@@ -140,6 +140,9 @@ await check('an admin turns Simpro job creation on', true, () => updateDoc(doc(a
 await check('Sam changes a demo type while job creation is on (leaves it on)', true, () => updateDoc(doc(as('sam'), 'settings/equipment'), { demoTypes: ['Evaluation'] }))
 await check('Sam turns it off again', true, () => updateDoc(doc(as('sam'), 'settings/equipment'), { 'simproConfig.createJobs': false }))
 await check('an admin deletes a history entry', true, () => deleteDoc(doc(as('admin1'), 'equipmentHistory/h4')))
+await check('Sam imports the accessory list', true, () => setDoc(doc(as('sam'), 'settings/equipmentAccessories'), { items: [{ code: '0010-30-12257', name: 'NIBP cuff, adult', group: 'NIBP', models: ['N17'] }], updatedAt: 'T', by: 'Sam' }))
+await check('Sam reads the accessory list', true, () => getDoc(doc(as('sam'), 'settings/equipmentAccessories')))
+await check('Sam empties the accessory list', true, () => updateDoc(doc(as('sam'), 'settings/equipmentAccessories'), { items: [] }))
 
 console.log('\nThe team on users (step 5A) — must work')
 await check('an admin makes Kiri a test-mode tester', true, () => updateDoc(doc(as('admin1'), 'users/kiri'), { trackerTester: true }))
@@ -182,6 +185,10 @@ await check('an admin writes a Tile location from the browser', false, () => set
 await check('a placeholder account (not signed in yet) reads the Tile locations', false, () => getDocs(collection(as('placeholder'), 'tileLocations')))
 await check('someone signed out reads the Tile locations', false, () => getDocs(collection(anon, 'tileLocations')))
 await check('Sam gives himself a tracker role', false, () => updateDoc(doc(as('sam'), 'users/sam'), { trackerRole: 'service' }))
+await check('someone signed in with no hub account reads the accessory list', false, () => getDoc(doc(as('stranger'), 'settings/equipmentAccessories')))
+await check('Sam deletes the accessory list document', false, () => deleteDoc(doc(as('sam'), 'settings/equipmentAccessories')))
+await check('an accessory list that is not a list', false, () => setDoc(doc(as('sam'), 'settings/equipmentAccessories'), { items: 'cuffs' }))
+await check('an accessory list of over 2,000', false, () => setDoc(doc(as('sam'), 'settings/equipmentAccessories'), { items: Array.from({ length: 2001 }, (_, i) => ({ code: 'C' + i })) }))
 
 console.log(`\n${pass} passed, ${fail} failed`)
 await env.cleanup()
