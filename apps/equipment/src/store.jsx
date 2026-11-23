@@ -19,7 +19,7 @@ import { can } from '../../../shared/can.js'
 import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, write } from './db.js'
 import { changeAccessoryList as saveAccessoryList, commit as fsCommit, watchAccessoryList } from './db-firestore.js'
 import {
-  activateBookings, applyImport, cleanAccessoryList, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
+  activateBookings, applyImport, cleanAccessoryList, cleanAccessorySets, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
   jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories,
 } from './model.js'
 
@@ -98,7 +98,7 @@ export function StoreProvider({ children }) {
   useEffect(() => { load() }, [load])
 
   // The accessory list (Manage, Accessories): its own document, kept up to date (db-firestore.js).
-  useEffect(() => watchAccessoryList((d) => setState((s) => ({ ...s, accessoryList: cleanAccessoryList(d?.items), accessoryListAt: d?.updatedAt || '', accessoryListBy: d?.by || '', accessoryListReady: true }))), [])
+  useEffect(() => watchAccessoryList((d) => setState((s) => ({ ...s, accessoryList: cleanAccessoryList(d?.items), accessorySets: cleanAccessorySets(d?.sets), accessoryListAt: d?.updatedAt || '', accessoryListBy: d?.by || '', accessoryListReady: true }))), [])
 
   // Someone saved (here or in the old tracker): the version marker moves, so
   // read everything again, as the old tracker's syncFromFirebase does.
@@ -916,16 +916,24 @@ export function StoreProvider({ children }) {
   }, [audit, touch])
 
   /**
-   * The accessory list changed (Manage, Accessories): fn(the items now) gives the new items, saved in one
-   * transaction with who and when; then one audit line, in counts (auditEntry: [type, summary, detail]).
+   * The accessory list or its sets changed (Manage, Accessories): fn({ items, sets } now) gives what changes
+   * ({ items }, { sets } or both), saved in one transaction with who and when, keeping anything else the
+   * document holds; then one audit line, in counts (auditEntry: [type, summary, detail]).
    */
-  const changeAccessoryList = useCallback(async (fn, auditEntry) => {
-    let items = []
-    await saveAccessoryList((d) => { items = cleanAccessoryList(fn(cleanAccessoryList(d?.items))); return { items, updatedAt: nzNow(), by: operator } })
-    setState((s) => ({ ...s, accessoryList: items }))
+  const changeAccessoryDoc = useCallback(async (fn, auditEntry) => {
+    let out = null
+    await saveAccessoryList((d) => {
+      const now = { items: cleanAccessoryList(d?.items), sets: cleanAccessorySets(d?.sets) }
+      const next = fn(now) || {}
+      out = { items: next.items ? cleanAccessoryList(next.items) : now.items, sets: next.sets ? cleanAccessorySets(next.sets) : now.sets }
+      return { ...(d || {}), ...out, updatedAt: nzNow(), by: operator }
+    })
+    setState((s) => ({ ...s, accessoryList: out.items, accessorySets: out.sets }))
     if (auditEntry) await audit(...auditEntry)
-    return items
+    return out
   }, [audit, operator])
+  /** The list's items changed: fn(the items now) gives the new items (the sets kept). */
+  const changeAccessoryList = useCallback(async (fn, auditEntry) => (await changeAccessoryDoc((d) => ({ items: fn(d.items) }), auditEntry)).items, [changeAccessoryDoc])
 
   /**
    * A loan's accessories changed from its card (LoanActions, Accessories): kept on its form as accessories,
@@ -1099,11 +1107,11 @@ export function StoreProvider({ children }) {
     profile: people.profile, isAdmin: can(people.profile, 'equipment.admin'), canTestMode: can(people.profile, 'equipment.testMode'),
     updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    saveItem, addAssets, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, changeAccessoryList, saveAccessories, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    saveItem, addAssets, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, changeAccessoryList, changeAccessoryDoc, saveAccessories, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
     setJobNumber, removeFromLoan, removeFromBooking, deleteHistory, testPush, reloadTeam, hubUsers: people.users, audit,
   }), [state, team, people, load, user, me, operator, updateData, setReadiness, extendLoan, returnItems, makeLongTerm, returnToActive, editLoan, deleteLoan,
     createLoan, saveForm, submitJob, emailForm, addItems, transfer, countItem, loadAudit,
-    testMode, setTestMode, saveItem, addAssets, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, changeAccessoryList, saveAccessories, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
+    testMode, setTestMode, saveItem, addAssets, deleteItem, deleteItems, retireItem, restoreItems, editRetired, importRetired, deleteRetired, importItems, changeKits, changeAccessoryList, changeAccessoryDoc, saveAccessories, setJobCreation, loadJobConfig, listReports, uploadReport, reportFile, deleteReport,
     setJobNumber, removeFromLoan, removeFromBooking, deleteHistory, testPush, reloadTeam, audit])
   return <Store.Provider value={value}>{children}</Store.Provider>
 }
