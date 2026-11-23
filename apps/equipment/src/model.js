@@ -1709,20 +1709,82 @@ export function applyImport(equipment, rows) {
   return { equipment: eq, added, updated }
 }
 
-/* Kits: a device that, when loaned, usually goes with accessories (old: kitGroups, checkKitSuggestion) */
+/* Kits: a device that, when loaned, usually goes with accessories (old: kitGroups, checkKitSuggestion).
+   Offered by model, not by unit: any device of a trigger's model starts the kit, and each accessory is
+   offered as its model, with every unit of that model to choose from, so another one can go when the
+   kit's own is out (three EP30s, each with its own ES30 and charger; two A9s sharing the vaporisers). */
 
-/** The kit a device starts, with each accessory's state: free, out, already picked, or not in the list. */
-export function kitFor(kits, equipment, assetNo, picked = []) {
-  const no = String(assetNo || '').trim()
-  const key = Object.keys(kits || {}).find((k) => (kits[k].triggers || []).map((t) => String(t).trim()).includes(no))
-  if (!key) return null
-  const kit = kits[key]
-  const accessories = (kit.accessories || []).map((a) => {
-    const e = equipment.find((x) => x && String(x.CHSAssetNo || '').trim() === String(a.assetNo || '').trim())
-    const isPicked = picked.includes(e?.CHSAssetNo || a.assetNo)
-    return { ...a, item: e || null, picked: isPicked, out: !!e && isOut(e), free: !!e && !isOut(e) && !isPicked }
+/** A model as kits compare it: case, spaces and dashes ignored ('SP5-1S' is 'SP5-1s'). */
+export const modelKey = (m) => String(m || '').toLowerCase().replace(/[\s\-_.]/g, '')
+const assetKey = (no) => String(no || '').trim().toLowerCase()
+
+/** Every device of a model in the equipment list. */
+export const unitsOfModel = (equipment, model) => {
+  const k = modelKey(model)
+  return k ? (equipment || []).filter((e) => e && e.CHSAssetNo && modelKey(e.Model) === k) : []
+}
+
+/**
+ * The kit a device starts and what it offers, by model. The kit whose trigger devices include this one;
+ * failing that, every kit whose trigger is the same model (an EP30 in no kit gets what the EP30 kits
+ * have). Each accessory model says how many go with each trigger (`qty`), how many are still wanted on
+ * this loan (`need`: one set per trigger of that model picked, less those of the model already picked),
+ * and every unit of the model not yet picked, with what it would do on this loan's dates (`ctx`, as
+ * assetStatus): 'free' (goes now), 'clash' (free, but another booking is waiting for it on these dates)
+ * or 'out' (on loan or booked over these dates). `pick` is what is ticked to start with: the kit's own
+ * units that are free, and only for the device's own kit; any other unit is the person's choice.
+ * Returns null when the device starts no kit.
+ */
+export function kitFor(kits, equipment, assetNo, picked = [], ctx = {}) {
+  const device = findAsset(equipment, assetNo)
+  const no = assetKey(device?.CHSAssetNo || assetNo)
+  const all = Object.entries(kits || {}).filter(([, k]) => k && typeof k === 'object')
+  const own = all.find(([, k]) => (k.triggers || []).some((t) => assetKey(t) === no))
+  const model = modelKey(device?.Model)
+  const triggerModel = (t) => modelKey(findAsset(equipment, t)?.Model)
+  const found = own ? [own] : model ? all.filter(([, k]) => (k.triggers || []).some((t) => triggerModel(t) === model)) : []
+  if (!found.length) return null
+  const pickedKeys = new Set(picked.map(assetKey))
+  const pickedItems = picked.map((p) => findAsset(equipment, p)).filter(Boolean)
+  const triggersPicked = Math.max(1, model ? pickedItems.filter((e) => modelKey(e.Model) === model).length : 1)
+
+  // The accessories, model by model: the most of a model any one of these kits has is how many go with each trigger.
+  const groups = new Map()
+  for (const [, k] of found) {
+    const inKit = new Map()
+    for (const a of k.accessories || []) {
+      const item = findAsset(equipment, a.assetNo)
+      const name = item?.Model || a.model || ''
+      const key = modelKey(name) || 'asset:' + assetKey(a.assetNo)
+      if (key === model) continue // another of the trigger itself isn't an accessory of it
+      const g = inKit.get(key) || { key, model: name || String(a.assetNo || ''), qty: 0, own: [] }
+      g.qty++
+      if (item) g.own.push(item.CHSAssetNo)
+      inKit.set(key, g)
+    }
+    for (const g of inKit.values()) {
+      const have = groups.get(g.key)
+      if (!have) groups.set(g.key, { ...g, own: own ? g.own : [] })
+      else have.qty = Math.max(have.qty, g.qty)
+    }
+  }
+
+  const rank = { free: 0, clash: 1, out: 2 }
+  const models = [...groups.values()].map((g) => {
+    const units = (g.key.startsWith('asset:') ? [] : unitsOfModel(equipment, g.model))
+      .filter((e) => assetKey(e.CHSAssetNo) !== no)
+    const already = units.filter((e) => pickedKeys.has(assetKey(e.CHSAssetNo))).length
+    const offered = units.filter((e) => !pickedKeys.has(assetKey(e.CHSAssetNo))).map((e) => {
+      const st = assetStatus(equipment, ctx.upcoming || [], e.CHSAssetNo, ctx)
+      const status = st.will === 'follow' ? 'out' : st.waiting?.length ? 'clash' : 'free'
+      return { no: e.CHSAssetNo, item: e, status, own: g.own.includes(e.CHSAssetNo), will: st.will, next: st.next || null, waiting: st.waiting || [] }
+    }).sort((a, b) => rank[a.status] - rank[b.status] || Number(b.own) - Number(a.own) || String(a.no).localeCompare(String(b.no), undefined, { numeric: true }))
+    const need = Math.max(0, g.qty * triggersPicked - already)
+    const pick = offered.filter((u) => u.own && u.status === 'free').slice(0, need).map((u) => u.no)
+    return { key: g.key, model: g.model, qty: g.qty, need, units: offered, pick }
   })
-  return { key, label: kit.label || key, accessories }
+  const [key, kit] = found[0]
+  return { key, label: found.length === 1 ? kit.label || key : device?.Model || kit.label || key, own: !!own, models }
 }
 
 /* Simpro job health (old: findLoansMissingSimproJob, _isPreWindDownLoan) */

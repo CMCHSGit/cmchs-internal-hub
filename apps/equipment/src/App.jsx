@@ -351,7 +351,7 @@ function KitFromTicked({ s, ticked, onClose, onDone }) {
     } catch (e) { setError(e.message || String(e)) } finally { setBusy(false) }
   }
   return (
-    <Dialog title="Make a kit from these" description="When the trigger is picked for a loan, the others are offered with it." onClose={onClose} width={520}>
+    <Dialog title="Make a kit from these" description="When the trigger, or any other device of its model, is picked for a loan, the others are offered by model: any free unit of each can go." onClose={onClose} width={520}>
       <form className="eq-form" onSubmit={save}>
         <label className="field"><span className="field-label">Trigger device</span>
           <select value={t.id} onChange={(e) => { setTrigger(e.target.value); const n = ticked.find((x) => x.id === e.target.value); if (n) setLabel(n.Model || n.CHSAssetNo || '') }}>

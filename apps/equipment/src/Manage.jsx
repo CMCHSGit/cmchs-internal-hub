@@ -9,7 +9,7 @@ import { AdminDialog } from './Items.jsx'
 import { setCutover } from './db.js'
 import { TRACKER_ROLES, removeMember, setMemberRole } from '../../admin/src/tracker.js'
 import {
-  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, toCsv,
+  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, toCsv, unitsOfModel,
 } from './model.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
@@ -206,7 +206,8 @@ function Kits({ s, onDone }) {
   const find = (no) => (s.equipment || []).find((e) => e && String(e.CHSAssetNo || '').trim().toLowerCase() === String(no || '').trim().toLowerCase())
   return (
     <>
-      <p className="eq-note">When a kit’s trigger device is picked for a loan, its accessories are offered too.</p>
+      <p className="eq-note">When a kit’s trigger device, or any other device of its model, is picked for a loan, its accessories are offered by model:
+        tap a model to choose which unit goes. The kit’s own units are ticked first when they’re free.</p>
       {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
       {Object.entries(kits).map(([key, kit]) => (
         <section key={key} className="card eq-kit">
@@ -217,10 +218,10 @@ function Kits({ s, onDone }) {
               run(() => s.changeKits((k) => { const n = { ...k }; delete n[key]; return n }, ['kit_deleted', `Kit "${kit.label || key}" deleted`, { kit: kit.label || key }]), 'Kit deleted.')
             }}>Delete kit</Button>
           </div>
-          <KitList title="Trigger devices" items={(kit.triggers || []).map((t) => ({ assetNo: t }))} find={find}
+          <KitList title="Trigger devices" kind="trigger" equipment={s.equipment} items={(kit.triggers || []).map((t) => ({ assetNo: t }))} find={find}
             onAdd={(no) => run(() => s.changeKits((k) => ({ ...k, [key]: { ...k[key], triggers: [...new Set([...(k[key]?.triggers || []), no])] } })))}
             onRemove={(no) => run(() => s.changeKits((k) => ({ ...k, [key]: { ...k[key], triggers: (k[key]?.triggers || []).filter((t) => t !== no) } })))} />
-          <KitList title="Accessories" items={kit.accessories || []} find={find}
+          <KitList title="Accessories" kind="accessory" equipment={s.equipment} items={kit.accessories || []} find={find}
             onAdd={(no) => { const e = find(no); return run(() => s.changeKits((k) => ({ ...k, [key]: { ...k[key], accessories: [...(k[key]?.accessories || []).filter((a) => a.assetNo !== no), { assetNo: no, model: e?.Model || '', desc: e?.Description || '' }] } }))) }}
             onRemove={(no) => run(() => s.changeKits((k) => ({ ...k, [key]: { ...k[key], accessories: (k[key]?.accessories || []).filter((a) => a.assetNo !== no) } }), ['kit_accessory_removed', `${no} removed from kit "${kit.label || key}"`, { kit: key, assetNo: no }]))} />
         </section>
@@ -237,15 +238,20 @@ function Kits({ s, onDone }) {
   )
 }
 
-function KitList({ title, items, find, onAdd, onRemove }) {
+/** A kit's trigger devices or accessories; where the fleet has more of a model, any of them counts (kitFor). */
+function KitList({ title, kind, equipment, items, find, onAdd, onRemove }) {
   const [no, setNo] = useState('')
   const known = no.trim() && find(no)
   return (
     <div className="eq-kit-list">
       <span className="field-label">{title}</span>
       <ul className="eq-picklist">
-        {items.map((a) => { const e = find(a.assetNo); return (
-          <li key={a.assetNo} className="eq-picked"><span className="eq-picked-main"><span className="eq-strong">{a.assetNo}</span> {e?.Model || a.model}{!e && <span className="eq-small eq-st-bad">Not in the equipment list</span>}</span>
+        {items.map((a) => {
+          const e = find(a.assetNo)
+          const more = e ? unitsOfModel(equipment, e.Model).length : 0
+          return (
+          <li key={a.assetNo} className="eq-picked"><span className="eq-picked-main"><span className="eq-strong">{a.assetNo}</span> {e?.Model || a.model}{!e && <span className="eq-small eq-st-bad">Not in the equipment list</span>}
+            {more > 1 && <span className="eq-small">{kind === 'trigger' ? `Any of the ${more} ${e.Model} starts this kit` : `Offered as any of the ${more} ${e.Model}`}</span>}</span>
             <button type="button" className="icon-btn icon-btn-sm" aria-label={`Remove ${a.assetNo}`} onClick={() => onRemove(a.assetNo)}>×</button></li>
         ) })}
         {!items.length && <li className="eq-note">None yet.</li>}
