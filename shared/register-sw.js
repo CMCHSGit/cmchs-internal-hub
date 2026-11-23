@@ -1,4 +1,5 @@
 import { shouldCheck, shouldReload, startGuard } from './updateGuard.js'
+import { enablePullToRefresh } from './pullToRefresh.js'
 
 // Registers the single service worker for this origin, at scope "/", and tells
 // people when a newer version of the site is ready.
@@ -25,6 +26,11 @@ import { shouldCheck, shouldReload, startGuard } from './updateGuard.js'
 // It also asks for a new version when the page comes back into view (at most every
 // 15 seconds), after 10 idle minutes, and every 30 minutes.
 export function registerServiceWorker() {
+  const guard = startGuard()
+  // Phones: drag down at the top of a page to refresh (pullToRefresh.js). Before the
+  // dev-mode return below, so it can be tried in `npm run dev` too.
+  enablePullToRefresh({ refresh: () => reloadOntoLatest(), busy: guard.busy })
+
   // In `npm run dev` there is no built /sw.js — registering would only log a
   // failure. `npm run preview` serves a real build, so it still registers.
   if (!import.meta.env.PROD) return
@@ -34,7 +40,6 @@ export function registerServiceWorker() {
   // an update, and prompting (or reloading) on it would be pointless.
   const hadController = !!navigator.serviceWorker.controller
   const phone = matchMedia('(pointer: coarse)').matches
-  const guard = startGuard()
   let ready = false
   let waiting = 0
   // Reload if a new version is ready and nobody is in the middle of anything.
