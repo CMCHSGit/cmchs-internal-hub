@@ -8,13 +8,20 @@
                 the account manager and makes the Simpro job (if job creation
                 is on and it isn't long term): what closing the old form did.
      viewing    a loan's form from its card. Save keeps changes (and brings
-                its Simpro job up to date, as the old Save Changes). */
+                its Simpro job up to date, as the old Save Changes). Typed
+                changes are never lost quietly: leaving the form any way but
+                Discard changes saves them (the phone's Back, another tab of
+                the tracker), closing or reloading the page asks first, and
+                emailing it saves it first, so the email is what's kept.
+
+   The device table is only the printed sheet: a device goes on a loan with
+   Add items. One typed into the table that isn't on the loan is pointed out. */
 import AutoText from './AutoText.jsx'
 import { AccessoryEditor } from './Accessories.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
-import { cleanAccessories, fmtDate, formRows, loanFormHtml, loanFormRtf, toISO } from './model.js'
+import { cleanAccessories, fmtDate, formAssetsNotOnLoan, formRows, loanFormHtml, loanFormRtf, toISO } from './model.js'
 
 export default function LoanForm({ s, docKey, doc, info, items, finishing = null, onClose, onDone }) {
   const [f, setF] = useState(() => ({
@@ -34,16 +41,23 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
   const setCell = (r, c) => (e) => { const v = e.target.value; setF((x) => ({ ...x, rows: x.rows.map((row, i) => (i === r ? row.map((cell, j) => (j === c ? v : cell)) : row)) })); setEdited(true) }
   const form = useMemo(() => ({ ...f, accessories: withAcc ? cleanAccessories(f.accessories) : [], items, longTerm: !!info.longTerm }), [f, withAcc, items, info.longTerm])
   const formInfo = info
+  const notOnLoan = useMemo(() => formAssetsNotOnLoan(f.rows, items, s.equipment), [f.rows, items, s.equipment])
+  // For leaving without Save: what's typed now, whether it's unsaved, and whether it was thrown away on purpose.
+  const editedRef = useRef(false), formRef = useRef(form), discarded = useRef(false)
+  editedRef.current = edited
+  formRef.current = form
 
   async function step(label, fn) {
     setBusy(label); setError('')
     try { return await fn() } catch (e) { setError(e.message || String(e)); throw e } finally { setBusy('') }
   }
-  const save = () => step('Saving…', async () => { const r = await s.saveForm(docKey, form, formInfo, { simproToo: !finishing }); setEdited(false); return r })
-  const send = () => step('Sending…', async () => {
+  const save = () => step('Saving…', async () => { const r = await s.saveForm(docKey, form, formInfo, { simproToo: !finishing }); editedRef.current = false; setEdited(false); return r })
+  // Emailing saves first: the email never shows changes the tracker doesn't have.
+  const send = () => (edited ? save() : Promise.resolve()).then(() => step('Sending…', async () => {
     const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager, { key: docKey })
     setDone((d) => [...d, r.simulated ? 'Email not sent (test mode or the dev server).' : `Emailed to ${finishing?.email || info.email}.`])
-  })
+  }))
+  const discard = () => { discarded.current = true; onClose() }
   async function finish({ away = false } = {}) {
     started.current = true
     try {
@@ -81,6 +95,23 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
       setTimeout(() => { if (!alive.current && !started.current) finishRef.current({ away: true }) }, 0)
     }
   }, [finishing])
+  // Viewing: left with changes unsaved (Back, another tab of the tracker) they're saved; closing or reloading the page asks first.
+  useEffect(() => {
+    if (finishing) return undefined
+    const warn = (e) => { if (editedRef.current && !discarded.current) { e.preventDefault(); e.returnValue = '' } }
+    window.addEventListener('beforeunload', warn)
+    return () => {
+      window.removeEventListener('beforeunload', warn)
+      alive.current = false
+      setTimeout(() => {
+        if (alive.current || !editedRef.current || discarded.current) return
+        editedRef.current = false
+        s.saveForm(docKey, formRef.current, formInfo, { simproToo: true })
+          .then(() => onDone?.('Loan form saved as you left it.'))
+          .catch((e) => console.warn('[equipment] loan form not saved on leaving', e))
+      }, 0)
+    }
+  }, [finishing]) // eslint-disable-line react-hooks/exhaustive-deps
   function print() {
     const w = window.open('', '_blank')
     if (!w) return setError('The print window was blocked. Allow pop-ups for this site and try again.')
@@ -121,6 +152,12 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           </table>
         </div>
         <Button size="sm" variant="ghost" iconLeft={<Plus size={14} />} onClick={() => { setF((x) => ({ ...x, rows: [...x.rows, ['', '', '', '', '']] })); setEdited(true) }}>Add a row</Button>
+        <p className="eq-note">This table is the printed form only. To put a device on the loan or take one off, use Add items or the × beside it on the loan card.</p>
+        {notOnLoan.length > 0 && (
+          <Alert tone="warning" title={`${notOnLoan.join(', ')} ${notOnLoan.length === 1 ? 'is' : 'are'} on the form but not on the loan`}>
+            Typing a device here only prints it: it isn’t booked, tracked or expected back. Close this form and use Add items on the loan card to put {notOnLoan.length === 1 ? 'it' : 'them'} on the loan.
+          </Alert>
+        )}
         <div className="field">
           <label className="eq-check"><input type="checkbox" checked={withAcc} onChange={(e) => { setWithAcc(e.target.checked); setEdited(true) }} /> Accessories (cuffs, sensors, leads…) by code and quantity</label>
           {withAcc && <AccessoryEditor value={f.accessories} onChange={(list) => { setF((x) => ({ ...x, accessories: list })); setEdited(true) }} s={s} models={models} notKey={docKey} />}
@@ -137,8 +174,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
             const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rtf], { type: 'application/rtf' })); a.download = name; a.click()
             setTimeout(() => URL.revokeObjectURL(a.href), 1000)
           }}>Export RTF</Button>
-          {!finishing && (info.email || f.accountManager) && <Button variant="ghost" iconLeft={<Send size={16} />} onClick={() => send().catch(() => {})} disabled={!!busy || !info.email}>Email it{info.email ? ` to ${info.email}` : ''}</Button>}
-          {!finishing && edited && <Button variant="ghost" onClick={onClose} disabled={!!busy}>Discard changes</Button>}
+          {!finishing && (info.email || f.accountManager) && <Button variant="ghost" iconLeft={<Send size={16} />} onClick={() => send().catch(() => {})} disabled={!!busy || !info.email}>{edited ? 'Save and email it' : 'Email it'}{info.email ? ` to ${info.email}` : ''}</Button>}
+          {!finishing && edited && <Button variant="ghost" onClick={discard} disabled={!!busy}>Discard changes</Button>}
           {!finishing && <Button variant="secondary" onClick={close} disabled={!!busy}>{edited ? 'Save and close' : 'Close'}</Button>}
           {!finishing && <Button onClick={() => save().then(() => onDone?.('Loan form saved.')).catch(() => {})} disabled={!!busy || !edited}>{busy || 'Save'}</Button>}
           {finishing && <Button onClick={finish} disabled={!!busy}>{busy || 'Finish'}</Button>}
