@@ -7,18 +7,20 @@
                     monitors first, then by group; typing narrows it. Picking one adds its code and name; a
                     line from the list shows them as text, so nobody retypes them. Something not on the list
                     can still be added as typed (and then edited). Quantities with − and +; "As the last ePM
-                    12M loan" adds that loan's list.
+                    12M loan" adds that loan's list; a set (Manage › Accessories, e.g. "ED monitoring") adds all
+                    its accessories with their quantities in one tap.
    AccessoryList    the list on a loan card, read only.
    AccessoryNotesHint  under a notes box: accessories written in the notes (model.js accessoryWordsIn) belong
                     in the accessory list, so they're packed, printed and checked back; a button to go there. */
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Minus, Plus, X } from 'lucide-react'
-import { accessoryCatalogue, accessoryChoices, accessoryWordsIn, cleanAccessories, lastAccessoriesFor, listedAccessory } from './model.js'
+import { accessoryCatalogue, accessoryChoices, accessoryWordsIn, addSet, cleanAccessories, lastAccessoriesFor, listedAccessory, setSize } from './model.js'
 
 const SHOW_MAX = 200 // options drawn at once; typing narrows the rest
 
-export function AccessoryEditor({ value = [], onChange, s, models = [], notKey = '' }) {
+export function AccessoryEditor({ value = [], onChange, s, models = [], notKey = '', withSets = true }) {
   const list = s.accessoryList || []
+  const sets = withSets ? s.accessorySets || [] : []
   const catalogue = useMemo(() => accessoryCatalogue(s.loanDocs, list), [s.loanDocs, list])
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
@@ -29,7 +31,7 @@ export function AccessoryEditor({ value = [], onChange, s, models = [], notKey =
   const flat = useMemo(() => sections.flatMap((sec) => sec.items).slice(0, SHOW_MAX), [sections])
   const total = sections.reduce((n, sec) => n + sec.items.length, 0)
   // One button a model on the loan: the accessories the newest loan with that model had.
-  const sets = useMemo(() => [...new Set(models.filter(Boolean))]
+  const lastSets = useMemo(() => [...new Set(models.filter(Boolean))]
     .map((m) => ({ model: m, last: lastAccessoriesFor(m, s.loanDocs, { not: notKey }) })).filter((x) => x.last), [models, s.loanDocs, notKey])
 
   // A tap anywhere else closes the list.
@@ -57,8 +59,18 @@ export function AccessoryEditor({ value = [], onChange, s, models = [], notKey =
   return (
     <div className="eq-acc">
       {sets.length > 0 && (
+        <div className="eq-acc-sets" role="group" aria-label="Accessory sets">
+          <span className="eq-small eq-acc-sets-label">Add a set:</span>
+          {sets.map((set) => { const n = setSize(set); return (
+            <button key={set.id} type="button" className="tag eq-acc-set" onClick={() => onChange(addSet(value, set, list))} title={`${n.lines} accessories, ${n.pieces} pieces`}>
+              <Plus size={12} aria-hidden="true" /> {set.name} ({n.pieces})
+            </button>
+          ) })}
+        </div>
+      )}
+      {lastSets.length > 0 && (
         <div className="eq-acc-sets">
-          {sets.map((x) => (
+          {lastSets.map((x) => (
             <button key={x.model} type="button" className="tag" onClick={() => add(x.last.accessories)} title={`From ${x.last.loanTo}`}>
               <Plus size={12} aria-hidden="true" /> As the last {x.model} loan ({x.last.accessories.length})
             </button>

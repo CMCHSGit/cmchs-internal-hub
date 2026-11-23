@@ -420,7 +420,8 @@ textarea.eq-autotext { overflow-y: hidden; }
 
 /* A loan's accessories (Accessories.jsx): code, name and quantity. */
 .eq-acc { display: flex; flex-direction: column; gap: 8px; }
-.eq-acc-sets { display: flex; flex-wrap: wrap; gap: 6px; }
+.eq-acc-sets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.eq-acc-sets-label { display: inline; margin: 0 2px 0 0; }
 .eq-acc-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .eq-acc-table th { text-align: left; font-weight: 600; font-size: 12px; color: var(--text-muted); padding: 4px 6px; border-bottom: 1px solid var(--border); }
 .eq-acc-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -442,7 +443,7 @@ textarea.eq-autotext { overflow-y: hidden; }
 .eq-acc-opt-on, .eq-acc-opt:hover, .eq-acc-opt:focus-visible { background: var(--surface-accent-tint, rgba(0,0,0,.05)); }
 .eq-acc-other { color: var(--accent-fg); font-weight: 600; }
 .eq-acc-menu-note { margin: 0; padding: 8px 12px; }
-.eq-acc-fixed { color: var(--text-strong); }
+.eq-acc-fixed { color: var(--text-strong); font-weight: 400; }
 .eq-acc-hint { color: #a85800; }
 .eq-linkbtn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--accent-fg); text-decoration: underline; cursor: pointer; }
 /* Manage › Accessories (ManageAccessories.jsx) */

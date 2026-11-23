@@ -70,3 +70,25 @@ test('accessories written in the notes are found, each once, so the notes box ca
   assert.deepEqual(accessoryWordsIn('Truck delivery, call before 9am'), [])
   assert.deepEqual(accessoryWordsIn('Cuffs and a cuff'), ['Cuffs'])
 })
+
+test('sets: read from a sheet with Set and Qty columns; codes alone keep the list names; one name replaces', async () => {
+  const { accessoryListFromRows: read, mergeAccessoryList: merge, mergeAccessorySets: mergeSets, addSet, setLines, setSize, cleanAccessorySets } = await import('../src/model.js')
+  const r = read([
+    { Set: 'ED monitoring', Code: '0010-30-12257', Qty: 3 },
+    { Set: 'ED monitoring', Code: '0010-10-12202', Qty: '2' },
+    { Set: 'ED monitoring', Code: '0010-30-12257', Qty: 1 },
+    { Set: 'SCBU', Code: '0010-10-12202', Qty: '' },
+  ])
+  assert.deepEqual(r.sets.map((s) => [s.name, s.lines.map((l) => `${l.code}x${l.qty}`)]), [['ED monitoring', ['0010-30-12257x4', '0010-10-12202x2']], ['SCBU', ['0010-10-12202x1']]])
+  // A sheet of codes alone doesn't blank the names already on the list.
+  assert.equal(merge([cuff], r.items).items.find((a) => a.code === cuff.code).name, cuff.name)
+  const was = [{ id: 'set_1', name: 'ed MONITORING', lines: [{ code: 'X', qty: 1 }] }, { id: 'set_2', name: 'Theatre', lines: [{ code: 'Y', qty: 1 }] }]
+  const m = mergeSets(was, r.sets)
+  assert.deepEqual([m.added, m.replaced, m.sets.map((s) => s.name)], [1, 1, ['ED monitoring', 'SCBU', 'Theatre']])
+  // Added to a loan: the list's names, quantities added to what's already there.
+  const ed = m.sets[0]
+  assert.equal(setLines(ed, [cuff])[0].name, cuff.name)
+  assert.deepEqual(addSet([{ code: '0010-30-12257', name: 'x', qty: 1 }], ed, [cuff]).map((l) => [l.code, l.qty]), [['0010-30-12257', 5], ['0010-10-12202', 2]])
+  assert.deepEqual(setSize(ed), { lines: 2, pieces: 6 })
+  assert.deepEqual(cleanAccessorySets([{ name: ' ', lines: [] }, { name: 'B', lines: [{ code: 'Q', qty: 0 }] }]).map((s) => [s.name, s.lines[0].qty]), [['B', 1]])
+})

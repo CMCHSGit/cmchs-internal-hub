@@ -1316,11 +1316,15 @@ const ACC_HEADINGS = [
   ['name', /^(name|accessory|accessory name|item|item name|product|product name|description|item description)$/],
   ['group', /^(group|category|type|kind|section)$/],
   ['models', /^(fits|fits models?|models?|for|for models?|compatible( with)?|monitors?|devices?|used with)$/],
+  ['set', /^(set|set name|accessory set|kit|kit name|package|bundle)$/],
+  ['qty', /^(qty|quantity|count|how many|amount)$/],
 ]
 
 /**
  * An imported sheet's rows (objects by heading, as SheetJS and PapaParse give them) as list items. A column
- * the list doesn't keep (price, stock…) is left out. { items, skipped: rows with neither code nor name, columns, problem? }
+ * the list doesn't keep (price, stock…) is left out. A sheet with a Set column is sets as well: each row is a
+ * line of its set, with its Qty (1 if none), and its item goes on the list too.
+ * { items, sets, skipped: rows with neither code nor name, columns, problem? }
  */
 export function accessoryListFromRows(rows) {
   const heads = [...new Set((rows || []).flatMap((r) => Object.keys(r || {})))]
@@ -1328,32 +1332,42 @@ export function accessoryListFromRows(rows) {
   for (const [field, re] of ACC_HEADINGS) {
     const hits = heads.filter((h) => re.test(HEAD(h)))
     // A sheet with both a Name and a Description: the name.
-    col[field] = field === 'name' ? hits.find((h) => !/description/.test(HEAD(h))) || hits[0] : hits[0]
+    const h = field === 'name' ? hits.find((x) => !/description/.test(HEAD(x))) || hits[0] : hits[0]
+    if (h) col[field] = h
   }
   if (!col.code && !col.name) return { items: [], skipped: (rows || []).length, columns: col, problem: 'No Code or Name column found. The first row should be headings, such as Code, Name, Group, Fits.' }
-  const items = [], seen = new Map()
+  const items = [], seen = new Map(), sets = new Map()
   let skipped = 0
   for (const r of rows || []) {
     const a = cleanAccessoryItem({ code: r?.[col.code], name: r?.[col.name], group: r?.[col.group], models: r?.[col.models] })
     if (!a) { skipped++; continue }
     const k = accessoryKey(a)
-    if (seen.has(k)) items[seen.get(k)] = a; else { seen.set(k, items.length); items.push(a) }
+    if (seen.has(k)) { const was = items[seen.get(k)]; items[seen.get(k)] = fillFrom(a, was) } else { seen.set(k, items.length); items.push(a) }
+    const setName = col.set ? cut(r?.[col.set], 80) : ''
+    if (setName) {
+      if (!sets.has(setName.toLowerCase())) sets.set(setName.toLowerCase(), { name: setName, lines: [] })
+      sets.get(setName.toLowerCase()).lines.push({ code: a.code, name: a.name, qty: col.qty ? r?.[col.qty] : 1 })
+    }
   }
-  return { items, skipped, columns: col }
+  return { items, sets: cleanAccessorySets([...sets.values()]), skipped, columns: col }
 }
+
+// An imported item with a blank field keeps what the list had there (a sets sheet may have codes and nothing else).
+const fillFrom = (a, old) => (old ? { code: a.code || old.code, name: a.name || old.name, group: a.group || old.group, models: a.models.length ? a.models : old.models || [] } : a)
 
 /**
  * An import put into the list: added to it (an item already there by code, or by name if it has no code, is
- * updated) or replacing it. { items, added, updated, unchanged, removed }
+ * updated; a blank in the sheet keeps what it had) or replacing it. { items, added, updated, unchanged, removed }
  */
 export function mergeAccessoryList(existing, incoming, { replace = false } = {}) {
   const was = new Map(cleanAccessoryList(existing).map((a) => [accessoryKey(a), a]))
   const next = replace ? new Map() : new Map(was)
   let added = 0, updated = 0, unchanged = 0
   for (const x of incoming || []) {
-    const a = cleanAccessoryItem(x)
+    let a = cleanAccessoryItem(x)
     if (!a) continue
     const k = accessoryKey(a), old = was.get(k)
+    a = fillFrom(a, old)
     if (!old) added++
     else if (JSON.stringify(old) === JSON.stringify(a)) unchanged++
     else updated++
@@ -1361,6 +1375,47 @@ export function mergeAccessoryList(existing, incoming, { replace = false } = {})
   }
   const removed = replace ? [...was.keys()].filter((k) => !next.has(k)).length : 0
   return { items: cleanAccessoryList([...next.values()]), added, updated, unchanged, removed }
+}
+
+/* Accessory sets (Manage › Accessories): a named set of accessories with quantities, such as "ED monitoring"
+   or "Children's / SCBU", added to a loan in one tap. Kept beside the list in its document:
+   sets: [{ id, name, lines: [{ code, name, qty }] }]. A line is known by its code (or its name with none). */
+
+export const ACCESSORY_SETS_MAX = 50
+
+/** The sets tidied: a name needed, each name once (a later one wins), lines as a loan's (cleanAccessories), by name. */
+export function cleanAccessorySets(sets) {
+  const by = new Map()
+  for (const x of Array.isArray(sets) ? sets : []) {
+    const name = cut(x?.name, 80)
+    if (!name) continue
+    const lines = cleanAccessories(x?.lines).slice(0, 200)
+    const id = cut(x?.id, 40) || 'set_' + name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30)
+    by.set(name.toLowerCase(), { id, name, lines })
+  }
+  return [...by.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(0, ACCESSORY_SETS_MAX)
+}
+
+/** A set's lines with the list's current names (a line whose item has gone from the list keeps the name it had). */
+export function setLines(set, list = []) {
+  const items = new Map(cleanAccessoryList(list).map((a) => [accessoryKey(a), a]))
+  return cleanAccessories(set?.lines).map((l) => ({ ...l, name: items.get(accessoryKey(l))?.name || l.name }))
+}
+
+/** A set added to a loan's accessories: its lines put in, quantities added to any of the same already there. */
+export const addSet = (value, set, list = []) => cleanAccessories([...(value || []), ...setLines(set, list)])
+
+/** How big a set is, for its button: lines and pieces. */
+export const setSize = (set) => { const lines = cleanAccessories(set?.lines); return { lines: lines.length, pieces: lines.reduce((n, l) => n + l.qty, 0) } }
+
+/**
+ * Sets put in: a set with the same name (case aside) as one there is replaced, the rest added.
+ * { sets, added, replaced }
+ */
+export function mergeAccessorySets(existing, incoming) {
+  const now = cleanAccessorySets(existing), names = new Set(now.map((s) => s.name.toLowerCase()))
+  const fresh = cleanAccessorySets(incoming)
+  return { sets: cleanAccessorySets([...now, ...fresh]), added: fresh.filter((s) => !names.has(s.name.toLowerCase())).length, replaced: fresh.filter((s) => names.has(s.name.toLowerCase())).length }
 }
 
 /**
