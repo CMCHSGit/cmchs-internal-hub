@@ -827,6 +827,14 @@ service cloud.firestore {
       allow read: if isStaff();
       allow create, update: if isStaff() && (isAdmin() || !turnsJobsOn());
     }
+    // settings/equipmentAccessories: the tracker's accessory list, which the loan picker offers
+    // ({ items: [{ code, name, group, models }], updatedAt, by }; Manage, Accessories). Its own document:
+    // copies of the tracker from before it existed rewrite settings/equipment whole. Staff read and change
+    // it, as kits; never deleted (an empty list is an empty items).
+    match /settings/equipmentAccessories {
+      allow read: if isStaff();
+      allow create, update: if isStaff() && request.resource.data.items is list && request.resource.data.items.size() <= 2000;
+    }
     function turnsJobsOn() {
       let was = resource == null ? false : resource.data.get('simproConfig', {}).get('createJobs', false);
       return request.resource.data.get('simproConfig', {}).get('createJobs', false) == true && was != true;

@@ -461,7 +461,7 @@ function trackerList_(docs) {
 /**
  * The tracker's data from Firestore, as the old database's tree: data
  * (equipment, history, loanMeta), loanDocs, upcomingLoans, retired, kitGroups,
- * customDemoTypes, simproConfig, auditLog, testReports (each report's details;
+ * customDemoTypes, simproConfig, accessoryList, auditLog, testReports (each report's details;
  * the files are read one at a time by trackerFsReportFile_).
  */
 function trackerTreeFromFirestore_() {
@@ -480,6 +480,10 @@ function trackerTreeFromFirestore_() {
   const settingsResp = UrlFetchApp.fetch(trackerFsBase_() + 'settings/equipment', { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
   if (settingsResp.getResponseCode() !== 200 && settingsResp.getResponseCode() !== 404) throw new Error('Firestore refused to read the tracker\'s settings (' + settingsResp.getResponseCode() + ')');
   const settings = settingsResp.getResponseCode() === 200 ? fsUnpack_(fsFields_(JSON.parse(settingsResp.getContentText()).fields)) : {};
+  // The accessory list (Manage, Accessories): its own document, since 24 Nov 2026.
+  const accResp = UrlFetchApp.fetch(trackerFsBase_() + 'settings/equipmentAccessories', { headers: { Authorization: 'Bearer ' + token }, muteHttpExceptions: true });
+  if (accResp.getResponseCode() !== 200 && accResp.getResponseCode() !== 404) throw new Error('Firestore refused to read the tracker\'s accessory list (' + accResp.getResponseCode() + ')');
+  const accessories = accResp.getResponseCode() === 200 ? fsUnpack_(fsFields_(JSON.parse(accResp.getContentText()).fields)) : {};
   const audit = readCollection_(token, 'equipmentAudit');
   Object.keys(audit).forEach(function(k) { audit[k] = fsUnpack_(audit[k]); });
 
@@ -504,6 +508,7 @@ function trackerTreeFromFirestore_() {
     loanDocs: loanDocs, upcomingLoans: upcomingLoans,
     retired: trackerList_(readCollection_(token, 'retiredEquipment')),
     kitGroups: kits, customDemoTypes: settings.demoTypes || [], simproConfig: settings.simproConfig || {},
+    accessoryList: accessories.items || [],
     auditLog: audit, testReports: testReports
   };
 }

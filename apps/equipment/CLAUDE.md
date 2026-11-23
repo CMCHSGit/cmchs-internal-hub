@@ -30,7 +30,7 @@ demo.chsnz.co.nz is the chs-equipment repo's own page and still forwards everyth
 | `src/db.js` | Where the data is: reads `settings/equipmentCutover` and sends `read`/`write`/`watch` to the old Realtime Database or to `db-paths.js`. Also `readTiles`. |
 | `src/db-paths.js` → `db-firestore.js` → `fs-shape.js` | The old database's paths answered from Firestore; one transaction per change, only the documents that changed; documents ⇄ the shapes `model.js` uses. |
 | `src/db-local.js` | Made-up data for `npm run dev` with no `.env` (also the emulator seed's equipment). |
-| `src/Accessories.jsx` + `src/accessories.js` | A loan's accessories (cuffs, sensors, leads…) by code and quantity, optional ("Add accessories" on New loan and the loan form), kept on its form as `accessories` and printed/emailed as a packing list. `accessories.js` is the catalogue the picker suggests from (codes and names only, never prices: the repo is public); the rules are `cleanAccessories`, `accessoryCatalogue`, `searchAccessories`, `lastAccessoriesFor` in `model.js`. |
+| `src/Accessories.jsx`, `src/ManageAccessories.jsx` | A loan's accessories (cuffs, sensors, leads…) by code and quantity, optional ("Add accessories" on New loan and the loan form), kept on its form as `accessories` and printed/emailed as a packing list. The picker opens **the accessory list**, kept by the team in Manage, Accessories (import a spreadsheet: Code, Name, Group, Fits; add, change, remove, export), stored in its own Firestore document `settings/equipmentAccessories` (`db-firestore.js` watch/changeAccessoryList), never in the code. The rules are `accessoryListFromRows`, `mergeAccessoryList`, `accessoryCatalogue`, `accessoryChoices`, `cleanAccessories`, `lastAccessoriesFor` in `model.js`. |
 | Screens | `Overview`, `Items`/`BrowseEquipment`/`AssetPicker`, `Loans` + `LoanActions` (every action on a loan), `NewLoan` + `LoanForm`, `AddToLoan`, `Scan` + `Scanner` (camera: `@zxing/library`, `jsqr`), `Calendar`, `History`, `Manage`, `Labels` (lazy, `qrcode-generator`), `TestReports`. Styles in `equipment.css`, components from `shared/ui`. |
 
 Header comments in `db-firestore.js`, `fs-shape.js` and `store.jsx` still say "not used yet" / "both trackers side by
@@ -42,7 +42,8 @@ side": **stale**. The tracker has run on Firestore since the cutover and the old
   `equipment`, `retiredEquipment`, `loans/{batchId}` (meta + form + booking, with `status`, `waitingFor`, `assetNos`…;
   test reports in `loans/{id}/reports/{id}/chunks/{n}`, ~900 KB chunks), `equipmentHistory`, `equipmentAudit`,
   `equipmentKits`, `settings/equipment` (`simproConfig`, demo types), `tileLocations` (written only by Tile sync),
-  `equipmentReminders` (the proxy's). Rules: the tracker block in `rules/firestore.rules`, tested by
+  `equipmentReminders` (the proxy's), `settings/equipmentAccessories` (the accessory list: its own document because copies of the
+  tracker from before it rewrite `settings/equipment` whole on every change; **never add a field there that older copies don't know**). Rules: the tracker block in `rules/firestore.rules`, tested by
   `rules/tests/equipment-rules.test.mjs`. **A push doesn't publish rules** — paste the whole file in the console and say so.
 - **Old Realtime Database** (`chs-equipment` project): frozen read-only since 5 Nov. Still in the code as the `rtdb`
   side of the switch ("Back to the old database" in Manage) until 5C removes it. Don't write new code against it.

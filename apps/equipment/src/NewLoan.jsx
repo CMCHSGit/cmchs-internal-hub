@@ -19,7 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Button, useConfirm } from '../../../shared/ui/index.jsx'
 import AssetPicker from './AssetPicker.jsx'
 import LoanForm from './LoanForm.jsx'
-import { AccessoryEditor } from './Accessories.jsx'
+import { AccessoryEditor, AccessoryNotesHint } from './Accessories.jsx'
 import { ISLANDS, JOB_TYPES, assetStatus, cleanAccessories, demoTypeOptions, findAsset, loanSections, newLoanProblem, roleOf } from './model.js'
 
 const blank = (today) => ({ loanTo: '', location: '', startDate: today, endDate: '', longTerm: false, am: '', email: '', contact: '', jobType: 'Demo', demoType: '', island: '', notes: '', shipping: '' })
@@ -149,14 +149,15 @@ export default function NewLoan({ s, params, go, onDone }) {
             </label>
           )}
         </div>
-        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <div className="field"><label className="field-label" htmlFor="eq-nl-notes">Notes</label><AutoText id="eq-nl-notes" rows={2} value={f.notes} onChange={set('notes')} />
+          <AccessoryNotesHint text={f.notes} onUse={() => { setWithAcc(true); document.getElementById('eq-nl-acc')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }} /></div>
         <label className="field"><span className="field-label">Shipping details</span><AutoText rows={2} value={f.shipping} onChange={set('shipping')} /></label>
       </section>
       <section className="card eq-newloan-part">
         <h2 className="eq-section-title">Devices</h2>
         <AssetPicker s={s} picked={picked} onChange={setPicked} when={when} />
       </section>
-      <section className="card eq-newloan-part">
+      <section className="card eq-newloan-part" id="eq-nl-acc">
         <h2 className="eq-section-title">Accessories</h2>
         <label className="eq-check"><input type="checkbox" checked={withAcc} onChange={(e) => setWithAcc(e.target.checked)} /> Add accessories (cuffs, sensors, leads…) by code and quantity</label>
         {withAcc && <AccessoryEditor value={accessories} onChange={setAccessories} s={s} models={models} />}

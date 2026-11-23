@@ -429,12 +429,27 @@ textarea.eq-autotext { overflow-y: hidden; }
 .eq-acc-qty { width: 120px; text-align: right; }
 .eq-acc-step { display: inline-flex; align-items: center; gap: 2px; }
 .eq-acc-step .input { width: 44px; text-align: center; padding-left: 4px; padding-right: 4px; }
-.eq-acc-add { display: flex; gap: 8px; align-items: center; }
-.eq-acc-add .input { flex: 1; min-width: 0; }
-.eq-acc-hits { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.eq-acc-hits button { display: block; width: 100%; text-align: left; padding: 6px 10px; background: none; border: 0; border-bottom: 1px solid var(--border); font: inherit; cursor: pointer; }
-.eq-acc-hits li:last-child button { border-bottom: 0; }
-.eq-acc-hits button:hover, .eq-acc-hits button:focus-visible { background: var(--surface-2, rgba(0,0,0,.04)); }
+/* Choosing an accessory: a box that opens the accessory list (Accessories.jsx AccessoryEditor). */
+.eq-acc-pick { position: relative; }
+.eq-acc-combo { display: flex; align-items: center; gap: 4px; }
+.eq-acc-combo .input { flex: 1; min-width: 0; }
+.eq-acc-toggle { flex: none; width: 40px; height: 40px; }
+.eq-acc-menu { margin-top: 4px; max-height: min(52vh, 360px); overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-card); box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+.eq-acc-menu-head { position: sticky; top: 0; z-index: 1; padding: 6px 12px 4px; font: var(--weight-semibold) 12px/1.3 var(--font-body); color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; background: var(--surface-subtle, var(--surface-card)); border-bottom: 1px solid var(--border); }
+.eq-acc-opt { display: block; width: 100%; text-align: left; padding: 8px 12px; min-height: 44px; box-sizing: border-box; background: none; border: 0; border-bottom: 1px solid var(--border); font: inherit; font-weight: 400; color: var(--text-body); cursor: pointer; }
+.eq-acc-opt:last-child { border-bottom: 0; }
+.eq-acc-opt-name { color: var(--text-strong); font-weight: 500; }
+.eq-acc-opt-on, .eq-acc-opt:hover, .eq-acc-opt:focus-visible { background: var(--surface-accent-tint, rgba(0,0,0,.05)); }
+.eq-acc-other { color: var(--accent-fg); font-weight: 600; }
+.eq-acc-menu-note { margin: 0; padding: 8px 12px; }
+.eq-acc-fixed { color: var(--text-strong); }
+.eq-acc-hint { color: #a85800; }
+.eq-linkbtn { background: none; border: 0; padding: 0; font: inherit; font-weight: 600; color: var(--accent-fg); text-decoration: underline; cursor: pointer; }
+/* Manage › Accessories (ManageAccessories.jsx) */
+.eq-acclist-wrap { overflow-x: auto; }
+.eq-acclist { min-width: 560px; }
+.eq-acclist td:first-child { width: 20%; }
+.eq-acclist-act { white-space: nowrap; text-align: right; width: 1%; }
 .eq-acc-view { margin: 4px 0 8px; font-size: 13px; }
 .eq-acc-view td:first-child { width: 28%; }
 @media (max-width: 600px) { .eq-acc-qty { width: 104px; } .eq-acc-table td:first-child { width: 30%; } }

@@ -17,7 +17,7 @@
    The device table is only the printed sheet: a device goes on a loan with
    Add items. One typed into the table that isn't on the loan is pointed out. */
 import AutoText from './AutoText.jsx'
-import { AccessoryEditor } from './Accessories.jsx'
+import { AccessoryEditor, AccessoryNotesHint } from './Accessories.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
@@ -162,7 +162,8 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
           <label className="eq-check"><input type="checkbox" checked={withAcc} onChange={(e) => { setWithAcc(e.target.checked); setEdited(true) }} /> Accessories (cuffs, sensors, leads…) by code and quantity</label>
           {withAcc && <AccessoryEditor value={f.accessories} onChange={(list) => { setF((x) => ({ ...x, accessories: list })); setEdited(true) }} s={s} models={models} notKey={docKey} />}
         </div>
-        <label className="field"><span className="field-label">Notes</span><AutoText rows={2} value={f.notes} onChange={set('notes')} /></label>
+        <div className="field"><label className="field-label" htmlFor="eq-lf-notes">Notes</label><AutoText id="eq-lf-notes" rows={2} value={f.notes} onChange={set('notes')} />
+          <AccessoryNotesHint text={f.notes} onUse={withAcc ? null : () => { setWithAcc(true); setEdited(true) }} /></div>
         <label className="field"><span className="field-label">Shipping details</span><AutoText rows={1} value={f.shipping} onChange={set('shipping')} /></label>
         {done.map((d) => <p key={d} className="eq-note">{d}</p>)}
         {error && <Alert tone="critical" title="Something didn’t work">{error}</Alert>}

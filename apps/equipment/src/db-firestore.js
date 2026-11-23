@@ -164,6 +164,45 @@ export async function loadAudit(n = 300) {
   return snap.docs.map((d) => d.data())
 }
 
+/* ── The accessory list (Manage › Accessories): settings/equipmentAccessories ──
+   Its own document, not a field of settings/equipment: copies of the tracker from before it existed rewrite
+   that document whole on every change, which would wipe the list. { items, updatedAt, by }. */
+export const ACCESSORY_DOC = ['settings', 'equipmentAccessories']
+const ACC_LOCAL = 'dev:equipment-accessories'
+const accLocal = new Set()
+const readAccLocal = () => { try { return JSON.parse(localStorage.getItem(ACC_LOCAL) || 'null') } catch { return null } }
+
+/** Calls onChange(document or null) now and whenever it changes. Returns stop(). */
+export function watchAccessoryList(onChange) {
+  if (local) {
+    accLocal.add(onChange)
+    setTimeout(() => onChange(readAccLocal()), 0)
+    const onStorage = (e) => { if (e.key === ACC_LOCAL) onChange(readAccLocal()) }
+    window.addEventListener('storage', onStorage)
+    return () => { accLocal.delete(onChange); window.removeEventListener('storage', onStorage) }
+  }
+  if (!firestore) return () => {}
+  return onSnapshot(doc(firestore, ...ACCESSORY_DOC), (snap) => onChange(snap.exists() ? snap.data() : null),
+    (err) => { console.warn('[equipment] accessory list not read', err?.code || err); onChange(null) })
+}
+
+/** The list changed: fn(document now, or null) gives the new document, saved in one transaction. Resolves with it. */
+export async function changeAccessoryList(fn) {
+  if (local) {
+    const next = fn(readAccLocal())
+    try { localStorage.setItem(ACC_LOCAL, JSON.stringify(next)) } catch { /* private mode */ }
+    accLocal.forEach((l) => l(next))
+    return next
+  }
+  const ref = doc(firestore, ...ACCESSORY_DOC)
+  return runTransaction(firestore, async (tx) => {
+    const snap = await tx.get(ref)
+    const next = fn(snap.exists() ? snap.data() : null)
+    tx.set(ref, next)
+    return next
+  })
+}
+
 /* ── Test reports: kept with the loan, the file in chunks ── */
 const localReports = new Map()
 const reportsOf = (key) => collection(firestore, 'loans', key, 'reports')
