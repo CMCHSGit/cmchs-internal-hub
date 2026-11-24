@@ -396,6 +396,15 @@ export function readinessKey(g) {
 }
 
 /**
+ * The loans that have test reports, by readiness key, from testReports as the old database kept it
+ * ({ key: { reportId: details } }; old: _testReportsKeys): their Test reports button is marked. A loan
+ * with none left is left out (Firestore gives {} for it, the old database nothing).
+ */
+export function reportKeysOf(testReports) {
+  return Object.entries(testReports || {}).filter(([, r]) => r && typeof r === 'object' && Object.keys(r).length).map(([k]) => k)
+}
+
+/**
  * Testing and dispatch, as the old card shows them (old: buildReadinessButtons,
  * its read-only part): "No test required", or a "Not tested" warning for a
  * loan that started in the last 7 days untested; Tested and Dispatched with

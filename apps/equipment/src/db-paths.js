@@ -14,7 +14,7 @@
    instead, shared/can.js), returnDueSoonReminders (the proxy's own record).
    Their writes do nothing and their reads give null. The audit log and test
    reports have their own calls in db-firestore.js. */
-import { addAudit, commit, current, deleteReport, listReports, loadAudit, reportFile, uploadReport } from './db-firestore.js'
+import { addAudit, allReports, commit, current, deleteReport, listReports, loadAudit, reportFile, uploadReport } from './db-firestore.js'
 
 /** The Firestore state laid out as the old database was. */
 export function asTree(s) {
@@ -55,6 +55,8 @@ export async function read(path) {
   if (!parts.length) return { data: clone(asTree(await current())), etag: null }
   if (IGNORED.has(parts[0]) || (parts[0] === 'data' && parts[1] === '_v')) return { data: null, etag: null }
   if (parts[0] === 'auditLog') return { data: Object.fromEntries((await loadAudit()).map((e) => [e.id, e])), etag: null }
+  // Every loan's reports' details (which loans have any), then one loan's; not in the state tree.
+  if (parts[0] === 'testReports' && parts.length === 1) return { data: await allReports(), etag: null }
   if (parts[0] === 'testReports' && parts.length === 2) return { data: Object.fromEntries((await listReports(parts[1])).map(({ id, ...m }) => [id, m])), etag: null }
   if (parts[0] === 'testReportFiles' && parts.length === 3) return { data: await reportFile(parts[1], parts[2]), etag: null }
   return { data: clone(get(asTree(await current()), parts)), etag: null }

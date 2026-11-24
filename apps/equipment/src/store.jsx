@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { changeAccessoryList as saveAccessoryList, commit as fsCommit, watchAccessoryList } from './db-firestore.js'
 import {
   activateBookings, applyImport, cleanAccessoryList, cleanAccessorySets, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories, extendedForm, extendsBooking, extendedBookings,
+  jobNumber, readinessKey, reportKeysOf, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories, extendedForm, extendsBooking, extendedBookings,
 } from './model.js'
 
 const Store = createContext(null)
@@ -71,7 +71,8 @@ export function StoreProvider({ children }) {
   const load = useCallback(async () => {
     await loadCutover() // where the data is (db.js): the old database, or Firestore after the cutover
     const extras = Promise.all([read('loanDocs'), read('kitGroups'), read('retired'), read('customDemoTypes'),
-      read('testReports').catch(() => ({ data: {} }))]) // which loans have test reports (old: _testReportsKeys): their button shows it
+      // Which loans have test reports (old: _testReportsKeys): their button shows it. Without it, no marks.
+      read('testReports').catch((e) => { console.warn('[equipment] which loans have test reports not read', e?.code || e); return { data: {} } })])
     extras.catch(() => {}) // reported below, once the first part is showing
     try {
       const [data, upcoming, meta] = await Promise.all([read('data'), read('upcomingLoans'), read('loanMeta')])
@@ -89,7 +90,7 @@ export function StoreProvider({ children }) {
     try {
       const [loanDocs, kits, retired, demoTypes, reports] = await extras
       setState((s) => ({ ...s, loanDocs: loanDocs.data || {}, kits: kits.data || {}, retired: list(retired.data),
-        demoTypes: Array.isArray(demoTypes.data) ? demoTypes.data.filter(Boolean) : [], reportKeys: Object.keys(reports.data || {}), extrasReady: true }))
+        demoTypes: Array.isArray(demoTypes.data) ? demoTypes.data.filter(Boolean) : [], reportKeys: reportKeysOf(reports.data), extrasReady: true }))
     } catch (e) {
       setState((s) => ({ ...s, error: 'The loan forms didn’t load: ' + (e.message || e) }))
     }
@@ -1101,7 +1102,7 @@ export function StoreProvider({ children }) {
     await write(`testReports/${enc(key)}/${report.id}`, null, { method: 'DELETE' })
     await write(`testReportFiles/${enc(key)}/${report.id}`, null, { method: 'DELETE' })
     await audit('test_report_deleted', `${report.filename || 'Report'} deleted — ${loanTo}`, { key, filename: report.filename || '' })
-    try { const { data } = await read('testReports/' + enc(key)); if (!data) setState((s) => ({ ...s, reportKeys: (s.reportKeys || []).filter((k) => k !== key) })) } catch { /* the mark stays until the next load */ }
+    try { const { data } = await read('testReports/' + enc(key)); if (!reportKeysOf({ [key]: data }).length) setState((s) => ({ ...s, reportKeys: (s.reportKeys || []).filter((k) => k !== key) })) } catch { /* the mark stays until the next load */ }
     await touch()
   }, [audit, touch])
 
