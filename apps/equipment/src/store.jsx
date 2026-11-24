@@ -1115,6 +1115,30 @@ export function StoreProvider({ children }) {
   }, [audit, touch])
 
   /**
+   * A device's row taken off a loan's form (key: its BatchID) and, if the loan has a Simpro job, the job's
+   * device list brought up to date: after the device comes off the loan, or off the devices the loan waits
+   * for. `rowsIfNone`: the rows a form never saved has (null: nothing to update). Never fails the removal.
+   */
+  const takeOffForm = useCallback(async (key, assetNo, loanTo, rowsIfNone = null) => {
+    try {
+      const { data: doc } = await read('loanDocs/' + enc(key))
+      if (!doc) return
+      const rows = Array.isArray(doc.savedRows) ? rowsWithout(doc.savedRows, [assetNo]) : rowsIfNone
+      if (Array.isArray(doc.savedRows)) {
+        await write('loanDocs/' + enc(key), { savedRows: rows }, { method: 'PATCH' })
+        setState((s) => (s.loanDocs?.[key] ? { ...s, loanDocs: { ...s.loanDocs, [key]: { ...s.loanDocs[key], savedRows: rows } } } : s))
+      }
+      const jobId = jobNumber(doc.simproJobId)
+      if (!jobId || !rows) return
+      await simpro({ loanTo: doc.loanTo || '', location: doc.location || '', notes: doc.notesCell || '', shippingDetails: doc.authCell || '', startDate: toISO(doc.startDate || ''), endDate: toISO(doc.endDate || ''),
+        accountManager: doc.accountManager || '', contactNumber: doc.contactNumber || '', jobType: doc.jobType || 'Demo',
+        items: rows.filter((r) => r[0]).map((r) => ({ CHSAssetNo: r[0], Description: r[2] || r[1] || '', SerialNo: r[3] || '' })), jobId, pdfKey: key })
+      // As the old one recorded it (old: removeItemFromLoan's simpro_updated).
+      await audit('simpro_updated', `Simpro job #${jobId} updated — ${assetNo} removed from ${loanTo || 'the loan'}`, { loanTo: loanTo || '', jobId, pdfKey: key })
+    } catch (e) { console.warn('[equipment] loan form not updated after removing a device', e) }
+  }, [audit, simpro])
+
+  /**
    * One device off a loan with no history entry, after the admin password,
    * for putting a mistake right (old: removeDeviceFromLoan): its loan
    * cleared, its row off the loan form, the Simpro job's device list updated.
@@ -1122,26 +1146,16 @@ export function StoreProvider({ children }) {
   const removeFromLoan = useCallback(async (g, item) => {
     await updateData((d) => ({ ...d, equipment: d.equipment.map((e) => (e && e.id === item.id ? { ...e, OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '', BorrowerEmail: '', _transferNote: null } : e)) }))
     await audit('item_removed', `${item.CHSAssetNo} removed from loan${g.loanTo ? ' to ' + g.loanTo : ''}`, { assetNo: item.CHSAssetNo, loanTo: g.loanTo || '' })
-    if (g.batchId) {
-      try {
-        const { data: doc } = await read('loanDocs/' + enc(g.batchId))
-        if (doc) {
-          const rows = Array.isArray(doc.savedRows) ? rowsWithout(doc.savedRows, [item.CHSAssetNo])
-            : g.items.filter((e) => e.id !== item.id).map((e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || '', ''])
-          if (Array.isArray(doc.savedRows)) await write('loanDocs/' + enc(g.batchId), { savedRows: rows }, { method: 'PATCH' })
-          const jobId = jobNumber(doc.simproJobId)
-          if (jobId) await simpro({ loanTo: doc.loanTo || '', location: doc.location || '', notes: doc.notesCell || '', shippingDetails: doc.authCell || '', startDate: toISO(doc.startDate || ''), endDate: toISO(doc.endDate || ''),
-            accountManager: doc.accountManager || '', contactNumber: doc.contactNumber || '', jobType: doc.jobType || 'Demo',
-            items: rows.filter((r) => r[0]).map((r) => ({ CHSAssetNo: r[0], Description: r[2] || r[1] || '', SerialNo: r[3] || '' })), jobId, pdfKey: g.batchId })
-          // As the old one recorded it (old: removeItemFromLoan's simpro_updated).
-          if (jobId) await audit('simpro_updated', `Simpro job #${jobId} updated — ${item.CHSAssetNo} removed from ${g.loanTo || 'the loan'}`, { loanTo: g.loanTo || '', jobId, pdfKey: g.batchId })
-        }
-      } catch (e) { console.warn('[equipment] loan form not updated after removing a device', e) }
-    }
+    if (g.batchId) await takeOffForm(g.batchId, item.CHSAssetNo, g.loanTo,
+      g.items.filter((e) => e.id !== item.id).map((e) => [e.CHSAssetNo || '', e.Model || '', e.Description || e.Model || '', e.SerialNo || '', '']))
     await touch()
-  }, [audit, simpro, touch, updateData])
+  }, [audit, takeOffForm, touch, updateData])
 
-  /** One device off a booking's list, after the admin password (old: removeItemFromUpcomingLoan); a booking left empty goes. */
+  /**
+   * One device off a booking's list, after the admin password (old: removeItemFromUpcomingLoan); a booking
+   * left empty goes. Its row comes off the loan form too, and the Simpro job's list, as removeFromLoan does
+   * (the old one left it there, so the form went on printing it and warning "on the form but not on the loan").
+   */
   const removeFromBooking = useCallback(async (g, assetNo) => {
     const u = (latest.current.upcoming || []).find((x) => x.id === g.batchId)
     if (!u) throw new Error('That booking has gone.')
@@ -1149,9 +1163,10 @@ export function StoreProvider({ children }) {
     await updateData((d) => ({ ...d, equipment: d.equipment.map((e) => (e && e.CHSAssetNo === assetNo && e._upcomingLoanId === u.id ? { ...e, _upcomingLoanId: null } : e)) }))
     await saveBookings((latest.current.upcoming || []).map((x) => (x.id === u.id ? { ...u, items: left } : x)), [u.id])
     await audit('upcoming_item_removed', `${assetNo} removed from upcoming loan for ${u.loanTo}${left.length ? '' : ' (loan cancelled — no items left)'}`, { loanTo: u.loanTo, assetNo })
+    await takeOffForm(u.id, assetNo, u.loanTo)
     await touch()
     return { emptied: !left.length }
-  }, [audit, saveBookings, touch, updateData])
+  }, [audit, saveBookings, takeOffForm, touch, updateData])
 
   /** History entries deleted, after the admin password (old: deleteSelectedHistory). */
   const deleteHistory = useCallback(async (ids) => {
