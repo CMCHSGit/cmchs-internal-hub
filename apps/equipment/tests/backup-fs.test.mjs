@@ -31,6 +31,7 @@ const state = {
 }
 const docs = toDocs(state, { today: '2026-10-19' })
 const accessoryList = [{ code: '0010-30-12257', name: 'NIBP cuff, adult', group: 'NIBP', models: ['N17', 'ePM 12M'] }]
+const accessorySets = [{ id: 'set_1', name: 'ED monitoring', lines: [{ code: '0010-30-12257', name: 'NIBP cuff, adult', qty: 3 }] }]
 const report = 'data:application/pdf;base64,' + 'x'.repeat(2000000)
 const parts = chunksOf(report)
 const audit = { e1: { id: 'e1', ts: 1, action: 'retire' } }
@@ -39,7 +40,7 @@ function backup({ cutover }) {
   const byPath = {
     'settings/equipmentCutover': cutover && { source: cutover },
     'settings/equipment': docs.settings,
-    'settings/equipmentAccessories': { items: accessoryList, updatedAt: 'T', by: 'Sam' },
+    'settings/equipmentAccessories': { items: accessoryList, sets: accessorySets, updatedAt: 'T', by: 'Sam' },
     [`loans/${encodeURIComponent(nelson)}/reports/rep1`]: { filename: 'r.pdf', size: report.length, chunks: parts.length },
   }
   const collections = { equipment: docs.equipment, equipmentHistory: docs.history, retiredEquipment: docs.retired, loans: docs.loans, equipmentKits: docs.kits, equipmentAudit: new Map(Object.entries(audit)) }
@@ -81,6 +82,7 @@ test('Firestore turned back into the old tree: what migrate.mjs reads, and the s
   assert.deepEqual(t.customDemoTypes, state.demoTypes)
   assert.deepEqual(t.simproConfig, state.simproConfig)
   assert.deepEqual(t.accessoryList, accessoryList, 'the accessory list, from its own document')
+  assert.deepEqual(t.accessorySets, accessorySets, 'and its sets')
   assert.deepEqual(t.auditLog, audit)
   assert.deepEqual(t.testReports, { [nelson]: { rep1: { filename: 'r.pdf', size: report.length } } }, 'only the tracker\'s reports, without the chunk count')
 })

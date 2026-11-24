@@ -461,7 +461,7 @@ function trackerList_(docs) {
 /**
  * The tracker's data from Firestore, as the old database's tree: data
  * (equipment, history, loanMeta), loanDocs, upcomingLoans, retired, kitGroups,
- * customDemoTypes, simproConfig, accessoryList, auditLog, testReports (each report's details;
+ * customDemoTypes, simproConfig, accessoryList, accessorySets, auditLog, testReports (each report's details;
  * the files are read one at a time by trackerFsReportFile_).
  */
 function trackerTreeFromFirestore_() {
@@ -508,7 +508,7 @@ function trackerTreeFromFirestore_() {
     loanDocs: loanDocs, upcomingLoans: upcomingLoans,
     retired: trackerList_(readCollection_(token, 'retiredEquipment')),
     kitGroups: kits, customDemoTypes: settings.demoTypes || [], simproConfig: settings.simproConfig || {},
-    accessoryList: accessories.items || [],
+    accessoryList: accessories.items || [], accessorySets: accessories.sets || [],
     auditLog: audit, testReports: testReports
   };
 }
