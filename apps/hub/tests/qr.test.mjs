@@ -4,10 +4,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { code128Problem, code128Svg, code128Values, code128Widths, MAX_LENGTH, _internals } from '../../codes/src/code128.js'
-import { qrMatrix, qrSvg, LEVELS } from '../../codes/src/qr.js'
-import { looksLikeNhi } from '../../codes/src/privacy.js'
-import { fileNameFor } from '../../codes/src/download.js'
+import { code128Problem, code128Svg, code128Values, code128Widths, MAX_LENGTH, _internals } from '../../qr/src/code128.js'
+import { qrMatrix, qrSvg, LEVELS } from '../../qr/src/qr.js'
+import { looksLikeNhi } from '../../qr/src/privacy.js'
+import { fileNameFor } from '../../qr/src/download.js'
 
 const require = createRequire(import.meta.url)
 const jsQR = require('jsqr')

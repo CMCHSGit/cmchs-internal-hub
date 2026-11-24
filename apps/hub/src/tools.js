@@ -23,7 +23,7 @@ const CATEGORIES = [
 export const tools = allTools.filter(t => t.visible !== false)
 
 /** The service team's tools: the Service menu in the header lists them, so the home page's grid doesn't. */
-export const SERVICE_TOOL_IDS = ['service-orders', 'ansur', 'testbench', 'pdf-editor', 'simpro', 'simpro-search', 'simpro-jobs', 'maintenance', 'oncall', 'checklists', 'knowledge']
+export const SERVICE_TOOL_IDS = ['service-orders', 'ansur', 'testbench', 'pdf-editor', 'simpro', 'simpro-search', 'simpro-jobs', 'maintenance', 'oncall', 'checklists', 'knowledge', 'qr']
 
 /** What a service tool is for, so the menu and the Service page can colour-code it. Brand colours; `dark` is the lighter
     shade that reads on the dark theme. A tool not listed in GROUP_OF falls into "Other" until it is given a group. */
@@ -38,7 +38,7 @@ const GROUP_OF = {
   simpro: 'simpro', 'simpro-search': 'simpro', 'simpro-jobs': 'simpro',
   ansur: 'testing', testbench: 'testing', checklists: 'testing',
   'service-orders': 'orders', maintenance: 'orders', oncall: 'orders',
-  'pdf-editor': 'docs', knowledge: 'docs',
+  'pdf-editor': 'docs', knowledge: 'docs', qr: 'docs',
 }
 export const serviceGroupOf = id => SERVICE_GROUPS[GROUP_OF[id]] || SERVICE_GROUPS.other
 /** Inline custom properties the CSS reads for a tool's colour. */
