@@ -614,6 +614,21 @@ export const extendEquipment = (equipment, g, newDate) => {
   return equipment.map((e) => (e && ids.has(e.id) ? { ...e, LoanEndDate: newDate } : e))
 }
 
+/**
+ * Whether Extend changes a booking's end date too: a booking's own, or the booking a loan keeps under its BatchID
+ * for the devices still waiting for it (loanSections' g.pending: "needs reassign", or a scheduled loan short of a
+ * device). activateBookings gives each waiting device the booking's endDate as it starts, so a booking left on the
+ * old date would start them with it. Never a long-term loan's (that one is "Return to active").
+ * (Until 25-Nov-2026 only a booking's own end date was changed.)
+ */
+export const extendsBooking = (g) => !!g.batchId && !g.longTerm && (g.kind === 'booking' || (g.pending || []).length > 0)
+
+/** The bookings after Extend: the one it changes (extendsBooking) on the new end date; the same list when there's none. */
+export function extendedBookings(upcoming, g, newDate) {
+  if (!extendsBooking(g) || !upcoming.some((u) => u.id === g.batchId)) return upcoming
+  return upcoming.map((u) => (u.id === g.batchId ? { ...u, endDate: newDate } : u))
+}
+
 /** Where a loan's form is kept for a given end date: its BatchID, else the old key, which has the end date in it. */
 export const loanDocKey = (g, endDate = g.endDate) => g.batchId || legacyKeys(g.loanTo, endDate)[0]
 
