@@ -21,7 +21,7 @@ import { AccessoryEditor, AccessoryNotesHint } from './Accessories.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
-import { cleanAccessories, fmtDate, formAssetsNotOnLoan, formFromDoc, loanFormHtml, loanFormRtf, toISO } from './model.js'
+import { cleanAccessories, fmtDate, formAssetsNotOnLoan, formFromDoc, loanFormHtml, loanFormRtf, rowsWithout, toISO } from './model.js'
 
 export default function LoanForm({ s, docKey, doc, info, items, finishing = null, onClose, onDone }) {
   const [f, setF] = useState(() => formFromDoc(doc, info, items, s.equipment, s.today))
@@ -160,7 +160,12 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
         <p className="eq-note">This table is the printed form only. To put a device on the loan or take one off, use Add items or the × beside it on the loan card.</p>
         {notOnLoan.length > 0 && (
           <Alert tone="warning" title={`${notOnLoan.join(', ')} ${notOnLoan.length === 1 ? 'is' : 'are'} on the form but not on the loan`}>
-            Typing a device here only prints it: it isn’t booked, tracked or expected back. Close this form and use Add items on the loan card to put {notOnLoan.length === 1 ? 'it' : 'them'} on the loan.
+            Typing a device here only prints it: it isn’t booked, tracked or expected back. To put {notOnLoan.length === 1 ? 'it' : 'them'} on the loan, close this form and use Add items on the loan card. If {notOnLoan.length === 1 ? 'it was' : 'they were'} taken off the loan, take {notOnLoan.length === 1 ? 'it' : 'them'} off the form too.
+            <div className="eq-actions-row">
+              <Button size="sm" variant="secondary" onClick={() => { setF((x) => ({ ...x, rows: rowsWithout(x.rows, notOnLoan) })); setEdited(true) }}>
+                Take {notOnLoan.length === 1 ? notOnLoan[0] : 'them'} off the form
+              </Button>
+            </div>
           </Alert>
         )}
         <div className="field">
