@@ -23,6 +23,7 @@ import { auth, db as firestore } from '../../schedule/src/firebase.js'
 import { ensureProfile } from '../../schedule/src/profile.js'
 import * as fsPaths from './db-paths.js'
 import { watchTracker } from './db-firestore.js'
+import { watchWhenKnown } from './live.js'
 import { PROXY_URL } from '../../../shared/proxy.js'
 import * as devDb from './db-local.js'
 
@@ -41,8 +42,14 @@ const norm = (d) => ({ source: d?.source === 'firestore' ? 'firestore' : 'rtdb',
 /** Where the tracker's data is now: { source, readOnly, by, at }. */
 export const cutover = () => cut
 export const onFirestore = () => cut.source === 'firestore'
-/** Reads the switch (once, before the first read of the data). */
-export async function loadCutover() {
+let switchRead = null // the first read of the switch: watch() waits for it
+/** Reads the switch (before every read of the data, as store.jsx load does). */
+export function loadCutover() {
+  const p = readSwitch()
+  if (!switchRead) switchRead = p
+  return p
+}
+async function readSwitch() {
   if (local || !firestore) { try { cut = norm(JSON.parse(localStorage.getItem(DEV_SWITCH) || 'null')) } catch { cut = norm(null) } return cut }
   try { const snap = await getDoc(doc(firestore, ...CUTOVER)); cut = norm(snap.exists() ? snap.data() : null) } catch { cut = norm(null) }
   return cut
@@ -197,8 +204,15 @@ export async function write(path, value, { method = 'PUT', etag = null } = {}) {
  * over the database's event stream, as the old tracker watches data/_v. The
  * stream is reopened with a fresh pass when the old one runs out; if streams
  * don't work at all, it checks every 15 seconds instead. Returns stop().
+ *
+ * Which database it watches depends on the switch, so it starts only once the switch has been read
+ * (live.js says what went wrong when it started straight away: on Firestore, nothing from anyone else
+ * reached the screen until a reload).
  */
 export function watch(path, onChange) {
+  return watchWhenKnown(switchRead || loadCutover(), () => watchNow(path, onChange))
+}
+function watchNow(path, onChange) {
   if (onFirestore()) {
     let last, n = 0
     return watchTracker((s) => {

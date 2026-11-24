@@ -1283,6 +1283,62 @@ export function formChanges(before, after) {
 }
 
 /**
+ * What a loan form shows when it opens (LoanForm.jsx): its stored document, else the loan's own details (`info`).
+ * The same rule gives a stored document as the form would show it, for formOverStored.
+ */
+export function formFromDoc(doc, info = {}, items = [], equipment = [], today = '') {
+  return {
+    loanTo: doc?.loanTo || info.loanTo || '', location: doc?.location || info.location || '',
+    startDate: doc?.startDate || info.startDate || today, endDate: info.longTerm ? '' : (doc?.endDate || info.endDate || ''),
+    accountManager: doc?.accountManager || info.accountManager || '', contactNumber: doc?.contactNumber || info.contactNumber || '',
+    rows: formRows(doc, items, equipment), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '', accessories: cleanAccessories(doc?.accessories),
+  }
+}
+const FORM_FIELDS = ['loanTo', 'location', 'startDate', 'endDate', 'accountManager', 'contactNumber', 'rows', 'notes', 'shipping']
+const sameValue = (a, b) => JSON.stringify(a ?? '') === JSON.stringify(b ?? '')
+
+/**
+ * A loan form saved from what it showed (`opened`: formFromDoc when it opened, or what it last saved), which may
+ * be out of date, onto the document stored now (`stored`). Each field the person changed is theirs; every other
+ * one is what's stored now, and accessories are merged line by line (mergeAccessories), so a save never puts
+ * back what someone else changed meanwhile. The details the form doesn't show (job and demo type, island) are
+ * the stored ones too. Gives { form, info } for formDoc. With nothing opened or nothing stored, as they are.
+ * (24-Nov-2026: a form opened from an out-of-date copy showed no accessories; saved, it would have written
+ * none over the 29 just added, and every other field back as it was.)
+ */
+export function formOverStored(form, opened, stored, { info = {}, equipment = [], today = '' } = {}) {
+  if (!opened || !stored) return { form, info }
+  const now = formFromDoc(stored, info, form.items || [], equipment, today)
+  const out = { ...form }
+  for (const k of FORM_FIELDS) if (sameValue(form[k], opened[k])) out[k] = now[k]
+  if (form.accessories !== undefined) out.accessories = mergeAccessories(form.accessories, opened.accessories, stored.accessories)
+  const keep = (k) => (stored[k] != null ? stored[k] : info[k])
+  return { form: out, info: { ...info, jobType: keep('jobType'), demoType: keep('demoType'), island: keep('island') } }
+}
+
+/**
+ * A loan's accessories saved from a list that may be out of date: the lines the person added, changed or took
+ * off (against `opened`, the list they started from) are applied to the lines stored now (`stored`), so lines
+ * someone else saved meanwhile are kept. When nothing changed meanwhile, simply theirs.
+ */
+export function mergeAccessories(mine, opened, stored) {
+  const m = cleanAccessories(mine), o = cleanAccessories(opened), n = cleanAccessories(stored)
+  if (sameValue(o, n)) return m
+  const key = (a) => (a.code ? accKey(a.code) : 'name:' + a.name.toLowerCase())
+  const was = new Map(o.map((a) => [key(a), a])), now = new Map(m.map((a) => [key(a), a]))
+  const out = []
+  for (const a of n) {
+    const k = key(a)
+    if (was.has(k) && !now.has(k)) continue                                    // they took it off
+    out.push(now.has(k) && !sameValue(now.get(k), was.get(k)) ? now.get(k) : a) // they changed or added it, else as stored
+  }
+  const have = new Set(out.map(key))
+  // What they added, or changed after someone else took it off.
+  for (const a of m) if (!have.has(key(a)) && (!was.has(key(a)) || !sameValue(a, was.get(key(a))))) out.push(a)
+  return out
+}
+
+/**
  * Devices typed into a loan form's table that aren't on the loan. The table is only the printed sheet:
  * a device is put on a loan with Add items, so one typed here is never booked, tracked or returned.
  */

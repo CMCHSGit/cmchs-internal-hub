@@ -161,7 +161,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
       )}
       {asking === 'accessories' && (
         <AccessoriesDialog g={g} s={s} docKey={docKey} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }}
-          onSave={(list) => run(() => s.saveAccessories(g, list), (acc) => (acc.length ? `${g.loanTo}: ${plural(acc.length, 'accessory line', 'accessory lines')} saved.` : `${g.loanTo}: no accessories.`))} />
+          onSave={(list, opened) => run(() => s.saveAccessories(g, list, opened), (acc) => (acc.length ? `${g.loanTo}: ${plural(acc.length, 'accessory line', 'accessory lines')} saved.` : `${g.loanTo}: no accessories.`))} />
       )}
       {asking === 'edit' && (
         <EditDialog g={g} s={s} busy={busy} error={error} onClose={() => { setAsking(null); setError('') }} onAccessories={docKey ? () => { setAsking('accessories'); setError('') } : null}
@@ -179,9 +179,11 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
 /**
  * A loan's accessories, by code and quantity, from its card: the same picker as New loan and the loan form
  * (Accessories.jsx), saved on its form without touching anything else there. Emptied, the loan has none.
+ * What it opened with goes with the save, so lines someone else saved meanwhile are kept (store.jsx saveAccessories).
  */
 function AccessoriesDialog({ g, s, docKey, busy, error, onClose, onSave }) {
-  const [list, setList] = useState(() => cleanAccessories((s.loanDocs?.[docKey] || g.doc)?.accessories))
+  const [opened] = useState(() => cleanAccessories((s.loanDocs?.[docKey] || g.doc)?.accessories))
+  const [list, setList] = useState(opened)
   const models = [...new Set([...(g.items || []), ...(g.pending || [])].map((e) => e.Model).filter(Boolean))]
   return (
     <Dialog title={`Accessories: ${g.loanTo}`} description="What goes with the devices, by code and quantity: packed, printed on the loan form and checked back." onClose={onClose} width={720}>
@@ -190,7 +192,7 @@ function AccessoriesDialog({ g, s, docKey, busy, error, onClose, onSave }) {
         {error && <Alert tone="critical" title="Not saved">{error}</Alert>}
         <div className="dialog-actions">
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={() => onSave(cleanAccessories(list))} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
+          <Button onClick={() => onSave(cleanAccessories(list), opened)} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Button>
         </div>
       </div>
     </Dialog>

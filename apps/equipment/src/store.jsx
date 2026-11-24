@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { changeAccessoryList as saveAccessoryList, commit as fsCommit, watchAccessoryList } from './db-firestore.js'
 import {
   activateBookings, applyImport, cleanAccessoryList, cleanAccessorySets, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems,
+  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories,
 } from './model.js'
 
 const Store = createContext(null)
@@ -571,19 +571,49 @@ export function StoreProvider({ children }) {
   }, [audit, simpro])
 
   /**
+   * One loan form document changed: fn(the document stored now, or null) gives the new one, worked out on
+   * what is stored at the moment it's saved. On Firestore that is inside the save's transaction, so if
+   * someone else changed it first, fn is run again on theirs (db-firestore.js commit). Giving back what it
+   * was given changes nothing. Resolves with the document as saved.
+   */
+  const changeLoanDoc = useCallback(async (key, fn) => {
+    if (cutover().readOnly) throw new Error('The demo tracker is read-only for a few minutes while its data moves. Try again shortly.')
+    let next = null
+    if (onFirestore()) {
+      await fsCommit((s) => {
+        const now = s.loanDocs?.[key] || null
+        next = fn(now)
+        return next === now ? {} : { loanDocs: { ...s.loanDocs, [key]: next } }
+      })
+    } else {
+      const now = (await read('loanDocs/' + enc(key))).data || null
+      next = fn(now)
+      if (next !== now) await write('loanDocs/' + enc(key), next)
+    }
+    if (next) setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: next } }))
+    return next
+  }, [])
+
+  /**
    * The loan form saved (old: saveLoanDocChanges): the whole form document,
    * keeping what the form doesn't show (formDoc); the devices still on this
    * loan get any changed customer, place or dates; a changed account manager
    * goes in loanMeta; a booking's own details follow. Then, unless told not
    * to, its Simpro job is brought up to date (or made, if creation is on),
    * never for a long-term loan.
+   *
+   * `opened` (LoanForm): what the form showed when it opened, or last saved. Then only what the person
+   * changed since is theirs; everything else is kept as stored now (formOverStored), so a form opened from an
+   * out-of-date copy never puts back what someone else has saved since.
    */
-  const saveForm = useCallback(async (key, form, info = {}, { simproToo = true } = {}) => {
-    const { data: stored } = await read('loanDocs/' + enc(key))
-    const doc = formDoc(form, stored || {}, info)
+  const saveForm = useCallback(async (key, asked, info = {}, { simproToo = true, opened = null } = {}) => {
+    let stored = null, doc = null, form = asked
+    await changeLoanDoc(key, (now) => {
+      const use = formOverStored(asked, opened, now, { info, equipment: latest.current.equipment || [], today: nzDate() })
+      stored = now; form = use.form; doc = formDoc(form, now || {}, use.info)
+      return doc
+    })
     const changed = formChanges(stored, doc)
-    await write('loanDocs/' + enc(key), doc)
-    setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: doc } }))
     // One line in the audit and activity logs saying what changed, in words (never the notes themselves).
     if (changed.length) await audit('loan_form_saved', `Loan form for ${doc.loanTo || 'a loan'} saved: ${changed.join(', ')} changed`, { loanTo: doc.loanTo || '', batchId: key, changed })
     // Accessories typed on it (not chosen from the list) go on the list too.
@@ -611,7 +641,7 @@ export function StoreProvider({ children }) {
     }
     await touch()
     return { doc, job }
-  }, [audit, listTypedAccessories, patchMeta, submitJob, touch, updateData])
+  }, [audit, changeLoanDoc, listTypedAccessories, patchMeta, submitJob, touch, updateData])
 
   /**
    * The loan form emailed to the account manager (old: sendLoanDocEmail and
@@ -961,20 +991,27 @@ export function StoreProvider({ children }) {
 
   /**
    * A loan's accessories changed from its card (LoanActions, Accessories): kept on its form as accessories,
-   * nothing else there touched; none left, the field goes. One audit line, in counts.
+   * nothing else there touched; none left, the field goes. `opened`: the list the dialog started from; then the
+   * person's additions, changes and removals are applied to the lines stored now (mergeAccessories), so lines
+   * someone else saved meanwhile are kept. One audit line, in counts.
    */
-  const saveAccessories = useCallback(async (g, list) => {
+  const saveAccessories = useCallback(async (g, list, opened = null) => {
     const key = g.kind === 'booking' ? g.batchId : loanDocKey(g)
     if (!key) throw new Error('This loan has no loan form to keep its accessories on.')
-    const acc = cleanAccessories(list)
-    const before = cleanAccessories(latest.current.loanDocs?.[key]?.accessories), was = before.length
-    await write('loanDocs/' + enc(key) + '/accessories', acc.length ? acc : null, acc.length ? {} : { method: 'DELETE' })
-    setState((s) => { const d = { ...(s.loanDocs[key] || {}) }; if (acc.length) d.accessories = acc; else delete d.accessories; return { ...s, loanDocs: { ...s.loanDocs, [key]: d } } })
+    let acc = [], before = [], was = 0
+    await changeLoanDoc(key, (now) => {
+      before = cleanAccessories(now?.accessories); was = before.length
+      acc = opened ? mergeAccessories(list, opened, now?.accessories) : cleanAccessories(list)
+      if (!now && !acc.length) return now
+      const d = { ...(now || {}) }
+      if (acc.length) d.accessories = acc; else delete d.accessories
+      return d
+    })
     await audit('loan_accessories', `Accessories for ${g.loanTo} changed: ${acc.length} line${acc.length === 1 ? '' : 's'} (was ${was})`, { loanTo: g.loanTo, batchId: key, lines: acc.length, was })
     await listTypedAccessories(acc, before, `the loan for ${g.loanTo}`) // typed ones go on the list too
     await touch()
     return acc
-  }, [audit, listTypedAccessories, touch])
+  }, [audit, changeLoanDoc, listTypedAccessories, touch])
 
   /**
    * Several assets added at once, and a kit made from them if asked (old: the Add Assets form, maSaveAll).
