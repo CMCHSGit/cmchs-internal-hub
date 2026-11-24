@@ -18,3 +18,6 @@ ui-debug.log
 rules/node_modules/
 rules/layer-stub.mjs
 rules/layer.bundle.mjs
+
+# The Test Bench's one-file offline copy (node apps/testbench/tools/build-offline.mjs): a snapshot to hand out, never committed.
+dist-offline/

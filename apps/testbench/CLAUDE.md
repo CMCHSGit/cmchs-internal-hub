@@ -68,6 +68,7 @@ stops when the tab is left; the bench behind it stays loaded.
 - **Imported Ansur records pass through unformatted.** Encodings: `.mtr` is cp1252 + CRLF; the PDF font is WinAnsi (Ω→Ohm, ≤/≥→max/min).
 - **Folder pickers / `requestPermission` must run before any long `await`**, or the click is lost.
 - **Keep the page offline-capable:** local fonts in `bench/fonts/`, no CDN. Templates are never precached (`scripts/build.mjs`).
+- **One-file offline copy** (25 Nov 2026): `node apps/testbench/tools/build-offline.mjs` writes `dist-offline/CHS-Test-Bench-offline-<date>.html` (git-ignored): the bench page with fonts and every template inside, opened by double-click in Chrome or Edge, no hub, no folder, no internet. It patches a copy of `bench/index.html` at four anchors (fonts link, `</head>`, `Shared.init`'s "no folder" line, `</body>`) and stops the build if one is gone, so if you change those lines, run `npm test --prefix apps/testbench` (`tests/build-offline.test.mjs`). It is a snapshot: rebuild and hand out a new one after the bench or a template changes. Not tried with a real ESA612 / ProSim yet.
 - **A set of devices is one test** (`run.devices`, "Other devices in this test"): every serial is in the one `benchTests.serial`
   field joined by " + " (file names: ", "). Anything that matches tests or reports by serial must use `splitSerials` (`src/bench-tests.js`).
 - **Activity log:** hub-side data changes (sharing/removing tests, orders, sends to Simpro, pending assets) log one line with counts only,
