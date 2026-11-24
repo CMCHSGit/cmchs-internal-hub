@@ -21,15 +21,15 @@ import { AccessoryEditor, AccessoryNotesHint } from './Accessories.jsx'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FileText, Plus, Printer, Send, X } from 'lucide-react'
 import { Alert, Button, Dialog } from '../../../shared/ui/index.jsx'
-import { cleanAccessories, fmtDate, formAssetsNotOnLoan, formRows, loanFormHtml, loanFormRtf, toISO } from './model.js'
+import { cleanAccessories, fmtDate, formAssetsNotOnLoan, formFromDoc, loanFormHtml, loanFormRtf, toISO } from './model.js'
 
 export default function LoanForm({ s, docKey, doc, info, items, finishing = null, onClose, onDone }) {
-  const [f, setF] = useState(() => ({
-    loanTo: doc?.loanTo || info.loanTo || '', location: doc?.location || info.location || '',
-    startDate: doc?.startDate || info.startDate || s.today, endDate: info.longTerm ? '' : (doc?.endDate || info.endDate || ''),
-    accountManager: doc?.accountManager || info.accountManager || '', contactNumber: doc?.contactNumber || info.contactNumber || '',
-    rows: formRows(doc, items, s.equipment), notes: doc?.notesCell || doc?.notes || '', shipping: doc?.authCell || '', accessories: cleanAccessories(doc?.accessories),
-  }))
+  const [f, setF] = useState(() => formFromDoc(doc, info, items, s.equipment, s.today))
+  // What it showed when it opened, then what it last saved: a save keeps what's stored now for anything not
+  // changed since (store.jsx saveForm, model.js formOverStored), so a form opened from an out-of-date copy
+  // never puts back what someone else saved meanwhile.
+  const opened = useRef(null)
+  if (!opened.current) opened.current = f
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [done, setDone] = useState([])
@@ -51,7 +51,12 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
     setBusy(label); setError('')
     try { return await fn() } catch (e) { setError(e.message || String(e)); throw e } finally { setBusy('') }
   }
-  const save = () => step('Saving…', async () => { const r = await s.saveForm(docKey, form, formInfo, { simproToo: !finishing }); editedRef.current = false; setEdited(false); return r })
+  const save = () => step('Saving…', async () => {
+    const sent = form
+    const r = await s.saveForm(docKey, sent, formInfo, { simproToo: !finishing, opened: opened.current })
+    opened.current = sent; editedRef.current = false; setEdited(false)
+    return r
+  })
   // Emailing saves first: the email never shows changes the tracker doesn't have.
   const send = () => (edited ? save() : Promise.resolve()).then(() => step('Sending…', async () => {
     const r = await s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing?.email || info.email, finishing?.name || f.accountManager, { key: docKey })
@@ -62,7 +67,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
     started.current = true
     try {
       const notes = []
-      await step('Saving…', () => s.saveForm(docKey, form, formInfo, { simproToo: false }))
+      await step('Saving…', () => s.saveForm(docKey, form, formInfo, { simproToo: false, opened: opened.current }))
       if (finishing.email) {
         try {
           const r = await step('Sending the email…', () => s.emailForm({ ...form, startDate: toISO(f.startDate), endDate: toISO(f.endDate) }, finishing.email, finishing.name, { key: docKey, once: true }))
@@ -106,7 +111,7 @@ export default function LoanForm({ s, docKey, doc, info, items, finishing = null
       setTimeout(() => {
         if (alive.current || !editedRef.current || discarded.current) return
         editedRef.current = false
-        s.saveForm(docKey, formRef.current, formInfo, { simproToo: true })
+        s.saveForm(docKey, formRef.current, formInfo, { simproToo: true, opened: opened.current })
           .then(() => onDone?.('Loan form saved as you left it.'))
           .catch((e) => console.warn('[equipment] loan form not saved on leaving', e))
       }, 0)
