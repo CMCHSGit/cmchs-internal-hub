@@ -293,6 +293,13 @@ main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48p
 .stage{padding:22px}
 .stage-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
 .stage .instructions{white-space:pre-wrap;color:var(--text-body);font-size:16px;line-height:1.55;font-weight:400;margin:0 0 16px;max-width:78ch}
+.psadj{margin:0 0 14px;border:1px solid var(--chs-black-10,#d9d9d9);border-radius:var(--radius-md);background:var(--surface,#fff)}
+.psadj>summary{cursor:pointer;padding:10px 14px;font-weight:600}
+.psadj-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px 18px;padding:4px 14px 14px}
+.psadj-body .field{margin:0}
+.psb{display:flex;flex-direction:column;gap:8px}
+.psb-params{align-items:flex-end;gap:10px}
+.psb-p{display:flex;flex-direction:column;gap:4px;font-size:13px}
 .stage .gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:18px}
 .stage .gallery img{width:100%;border-radius:var(--radius-md);cursor:zoom-in;background:var(--chs-black-05)}
 .readout{font:500 52px/1.05 var(--font-mono);color:var(--text-strong);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
@@ -1346,14 +1353,178 @@ function apHandle(e, groups) {
 }
 const apSummary = (tpl) => getAP(tpl).filter(g => g.leads.length).map(g => `${g.name} (${g.apclass})`).join(', ') || 'no applied parts';
 
-const PERF = [['SQUARE=2.0', 'Square wave 2 Hz'], ['SQUARE=2.5', 'Square wave 2.5 Hz'], ['SQUARE=0.125', 'Square wave 0.125 Hz'], ['TRI=2.0', 'Triangle wave 2 Hz'], ['TRI=2.5', 'Triangle wave 2.5 Hz'], ...[0.05, 0.5, 1, 2, 5, 10, 25, 30, 40, 50, 60, 100, 150].map(f => [`SINE=${f}`, `Sine wave ${f} Hz`]), ['PULSE=30', 'Pulse 30 bpm'], ['PULSE=60', 'Pulse 60 bpm'], ['PULSE=80', 'Pulse 80 bpm']];
+const PERF = [['SQUARE=0.125', 'Square wave 0.125 Hz', 'Square'], ['SQUARE=2.0', 'Square wave 2 Hz', 'Square'], ['SQUARE=2.5', 'Square wave 2.5 Hz', 'Square'], ['TRI=0.125', 'Triangle wave 0.125 Hz', 'Triangle'], ['TRI=2.0', 'Triangle wave 2 Hz', 'Triangle'], ['TRI=2.5', 'Triangle wave 2.5 Hz', 'Triangle'], ...[0.05, 0.5, 1, 2, 5, 10, 25, 30, 40, 50, 60, 100, 150].map(f => [`SINE=${f}`, `Sine wave ${f} Hz`, 'Sine']), ['PULSE=30', 'Pulse 30 bpm', 'Pulse'], ['PULSE=60', 'Pulse 60 bpm', 'Pulse'], ['PULSE=80', 'Pulse 80 bpm', 'Pulse']];
 const PACED = [['ASY', 'Asynchronous'], ['ATR', 'Atrial'], ['DFS', 'Demand, frequent sinus'], ['DOS', 'Demand, occasional sinus'], ['AVS', 'AV sequential'], ['NCP', 'Non-capture'], ['NFN', 'Non-function']];
-const ARR = [['SPVWAVE=AFL', 'Atrial flutter'], ['SPVWAVE=SNA', 'Sinus arrhythmia'], ['SPVWAVE=MB80', 'Missed beat, 80 bpm'], ['SPVWAVE=ATC', 'Atrial tachycardia'], ['SPVWAVE=SVT', 'Supraventricular tachycardia'], ['PREWAVE=PAC', 'Premature atrial contraction'], ['PREWAVE=PVC1', 'PVC type 1'], ['PREWAVE=MF', 'Multifocal PVCs'], ['VNTWAVE=PVC6M', 'PVCs 6/min'], ['VNTWAVE=BIG', 'Bigeminy'], ['VNTWAVE=TRIG', 'Trigeminy'], ['VNTWAVE=RUN5', 'Run of 5 PVCs'], ['VNTWAVE=ASYS', 'Asystole'], ['CNDWAVE=1DB', '1st degree block'], ['CNDWAVE=2DB1', '2nd degree block, type I'], ['CNDWAVE=3DB', '3rd degree block'], ['CNDWAVE=RBBB', 'Right bundle branch block'], ['CNDWAVE=LBBB', 'Left bundle branch block'], ['AFIB=COARSE', 'Atrial fibrillation, coarse'], ['AFIB=FINE', 'Atrial fibrillation, fine'], ['VFIB=COARSE', 'Ventricular fibrillation, coarse'], ['VFIB=FINE', 'Ventricular fibrillation, fine'], ['MONOVTACH=160', 'Monomorphic VT, 160 bpm']];
-const PROBES = [['MINDR', 'Mindray'], ['NELCR', 'Nellcor'], ['MASIM', 'Masimo'], ['MASIMR', 'Masimo Rainbow'], ['NONIN', 'Nonin'], ['OHMED', 'Ohmeda'], ['PHIL', 'Philips'], ['NIHON', 'Nihon Kohden'], ['BCI', 'BCI']];
+/* Every rhythm in the ProSim 8 Communications Interface (Fluke, revision 3.17). Third item = the group it is shown under. */
+const ARR = [
+  ...[['AFL', 'Atrial flutter'], ['SNA', 'Sinus arrhythmia'], ['MB80', 'Missed beat, 80 bpm'], ['MB120', 'Missed beat, 120 bpm'], ['ATC', 'Atrial tachycardia'], ['PAT', 'Paroxysmal atrial tachycardia'], ['NOD', 'Nodal rhythm'], ['SVT', 'Supraventricular tachycardia']].map(([v, l]) => [`SPVWAVE=${v}`, l, 'Supraventricular']),
+  ...[['PAC', 'Premature atrial contraction'], ['PNC', 'Premature nodal contraction'], ['PVC1', 'PVC type 1 (left, standard)'], ['PVC1E', 'PVC type 1 (left, early)'], ['PVC1R', 'PVC type 1 (left, R on T)'], ['PVC2', 'PVC type 2 (right, standard)'], ['PVC2E', 'PVC type 2 (right, early)'], ['PVC2R', 'PVC type 2 (right, R on T)'], ['MF', 'Multifocal PVCs']].map(([v, l]) => [`PREWAVE=${v}`, l, 'Premature']),
+  ...[['PVC6M', 'PVCs 6/min'], ['PVC12M', 'PVCs 12/min'], ['PVC24M', 'PVCs 24/min'], ['FMF', 'Frequent multifocal PVCs'], ['TRIG', 'Trigeminy'], ['BIG', 'Bigeminy'], ['PAIR', 'Pair of PVCs'], ['RUN5', 'Run of 5 PVCs'], ['RUN11', 'Run of 11 PVCs'], ['ASYS', 'Asystole']].map(([v, l]) => [`VNTWAVE=${v}`, l, 'Ventricular']),
+  ...[120, 140, 160, 180, 200, 220, 240, 260, 280, 300].map(r => [`MONOVTACH=${r}`, `Monomorphic VT, ${r} bpm`, 'Ventricular tachycardia']),
+  ...[1, 2, 3, 4, 5].map(t => [`POLYVTACH=${t}`, `Polymorphic VT, type ${t}`, 'Ventricular tachycardia']),
+  ['AFIB=COARSE', 'Atrial fibrillation, coarse', 'Fibrillation'], ['AFIB=FINE', 'Atrial fibrillation, fine', 'Fibrillation'], ['AFIB2=COARSE', 'Atrial fibrillation 2 (less random), coarse', 'Fibrillation'], ['AFIB2=FINE', 'Atrial fibrillation 2 (less random), fine', 'Fibrillation'],
+  ['VFIB=COARSE', 'Ventricular fibrillation, coarse', 'Fibrillation'], ['VFIB=FINE', 'Ventricular fibrillation, fine', 'Fibrillation'], ['VFIB2=COARSE', 'Ventricular fibrillation 2 (50% faster), coarse', 'Fibrillation'], ['VFIB2=FINE', 'Ventricular fibrillation 2 (50% faster), fine', 'Fibrillation'],
+  ...[['1DB', '1st degree block'], ['2DB1', '2nd degree block, type I (Wenckebach)'], ['2DB2', '2nd degree block, type II'], ['3DB', '3rd degree block'], ['RBBB', 'Right bundle branch block'], ['LBBB', 'Left bundle branch block']].map(([v, l]) => [`CNDWAVE=${v}`, l, 'Conduction']),
+  ...[['SBC', 'Sinus bradycardia'], ['PTU', 'Polymorphic VT, unstable'], ['MTU', 'Monomorphic VT, unstable'], ['NSI', 'Narrow QRS tachycardia, sinus'], ['NSV', 'Narrow QRS tachycardia, SVT'], ['WSI', 'Wide QRS tachycardia, sinus'], ['WSV', 'Wide QRS tachycardia, SVT'], ['TDP', 'Torsade de pointes']].map(([v, l]) => [`ACLSWAVE=${v}`, l, 'ACLS']),
+  ['EHAFIBS', 'Hartwell atrial fibrillation, slow (80 bpm)', 'Hartwell special'], ['EHAFIBF', 'Hartwell atrial fibrillation, fast (130 bpm)', 'Hartwell special'],
+  ...[43, 50, 60, 75, 100, 150].map(r => [`EHAFL${r}`, `Hartwell atrial flutter, ${r} bpm`, 'Hartwell special']),
+];
+const PROBES = [['MINDR', 'Mindray'], ['NELCR', 'Nellcor'], ['MASIM', 'Masimo'], ['MASIMR', 'Masimo Rainbow'], ['NONIN', 'Nonin'], ['NONIN610XCX', 'Nonin 610 XCX'], ['NONIN810XSX', 'Nonin 810 XSX'], ['NONIN810XAX', 'Nonin 810 XAX'], ['OHMED', 'Ohmeda'], ['PHIL', 'Philips'], ['NIHON', 'Nihon Kohden'], ['BCI', 'BCI']];
 const ECG_AMPL = [...Array.from({ length: 9 }, (_, i) => (0.05 * (i + 1)).toFixed(2)), ...Array.from({ length: 19 }, (_, i) => (0.5 + 0.25 * i).toFixed(2))];
 const TEMPS = Array.from({ length: 25 }, (_, i) => (30 + i * 0.5).toFixed(1));
 const optLabel = (list, v) => (list.find(o => o[0] === v) || [, v])[1];
 const monitorCheck = (label, unit, lo, hi) => ({ enabled: true, label, unit, lo, hi });
+
+/* ---- the rest of the ProSim 8's settings (same manual). An empty value means "leave the simulator as it is". ---- */
+const LEAVE = ['', 'Leave as is'];
+const withLeave = (list) => [LEAVE, ...list.map(o => Array.isArray(o) ? o : [String(o), String(o)])];
+const SIGNED = (n, w) => `${+n < 0 ? '-' : '+'}${pad(n, w)}`;
+const DP = (n, d, w) => (Math.round(+n * 10 ** d) / 10 ** d).toFixed(d).padStart(w, '0');
+const RANGE = (a, b, by, fmt = String) => { const o = []; for (let v = a; v <= b + 1e-9; v += by) o.push(fmt(+v.toFixed(4))); return o; };
+const ECG_AXIS = [['INT', 'Intermediate'], ['HOR', 'Horizontal'], ['VER', 'Vertical']];
+const ST_DEV = ['-0.80', '-0.70', '-0.60', '-0.50', '-0.40', '-0.30', '-0.20', '-0.10', '-0.05', '+0.00', '+0.05', '+0.10', '+0.20', '+0.30', '+0.40', '+0.50', '+0.60', '+0.70', '+0.80'].map(v => [v, v + ' mV']);
+const ECG_ARTIFACT = [['OFF', 'Off'], ['50', '50 Hz sine'], ['60', '60 Hz sine'], ['MSC', 'Muscular'], ['WAND', 'Wandering baseline'], ['RESP', 'Respiration']];
+const ECG_ART_SIZE = [['025', '25 %'], ['050', '50 %'], ['100', '100 %']];
+const ECG_ART_LEAD = [['ALL', 'All leads'], ...['RA', 'LL', 'LA', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'].map(l => [l, l])];
+const PACE_POL = [['P', 'Positive'], ['N', 'Negative']];
+const PACE_AMPL = ['000', '002', '004', '006', '008', '010', '012', '014', '016', '018', '020', '050', '100', '200', '500', '700'].map(v => [v, String(+v)]);
+const PACE_WIDTH = [['0.1', '0.1 ms'], ['0.2', '0.2 ms'], ['0.5', '0.5 ms'], ['1.0', '1.0 ms'], ['2.0', '2.0 ms']];
+const DET_RATES = [30, 60, 80, 120, 200, 250];
+const TALLT = RANGE(0, 150, 10, v => pad(v, 3)).map(v => [v, `${+v} %`]);
+const RESP_WAVE = [['NORM', 'Normal'], ['VENT', 'Ventilated']];
+const RESP_BASE = [['0500', '500 Ω'], ['1000', '1000 Ω'], ['1500', '1500 Ω'], ['2000', '2000 Ω']];
+const ON_OFF = [['TRUE', 'On'], ['FALSE', 'Off']];
+const IBP_WAVES = [['ART', 'Arterial'], ['RART', 'Radial artery'], ['LV', 'Left ventricle'], ['LA', 'Left atrium'], ['RV', 'Right ventricle'], ['PA', 'Pulmonary artery'], ['PAW', 'PA wedge'], ['RA', 'Right atrium (CVP)']];
+const IBP_ARTIFACT = [['0', 'Off'], ['5', '5'], ['10', '10']];   // percent for ART, RART, LV; mmHg for the others
+const IBP_PCT_WAVES = ['ART', 'RART', 'LV'];
+const IBP_SENS = [['40', '40 (µV/V/mmHg)'], ['5', '5 (µV/V/mmHg)']];
+const CO_WAVES = [['2.5', '2.5 l/min'], ['5', '5 l/min'], ['10', '10 l/min'], ['FAULTY', 'Faulty injectate'], ['LRSHUNT', 'Left/right shunt'], ['CAL', 'Calibrated pulse']];
+const NIBP_VOL = RANGE(0.1, 1.25, 0.05, v => v.toFixed(2)).map(v => [v, v + ' mL']);
+const NIBP_SHIFT = RANGE(-10, 10, 1, v => SIGNED(v, 2)).map(v => [v, v + ' %']);
+const AMB_FREQ = ['DC', '50Hz', '60Hz', ...Array.from({ length: 10 }, (_, i) => `${i + 1}KHz`)].map(v => [v, v]);
+const SPO2_CMD = /^(SAT|PERF|TRANS|AMB[MSF]|RESP[MS]|SPO2U?TYPE)=/;   // for the SpO2 module: sent again with @ if the simulator doesn't know them plain
+
+/* The ProSim 8's whole command list, for the "Add a command" picker on a Custom commands step and for the checks.
+   [group, label, command, ...parameters]; a parameter is { label, opts: [[value, label]] } or { label, min, max, step, fmt }.
+   Left out on purpose: reset, pairing, pressure source, leak and relief tests, zeroing (the bench blocks them), and the questions (QMODE, QBAT, SN, ...). */
+const N_ = (label, min, max, fmt, step = 1) => ({ label, min, max, step, fmt });
+const S_ = (label, opts) => ({ label, opts: opts.map(o => Array.isArray(o) ? o : [String(o), String(o)]) });
+const P3 = (v) => pad(v, 3);
+const CH_ = S_('Channel', [['1', '1'], ['2', '2']]);
+const ARRSET = (p) => ARR.filter(o => o[0].startsWith(p + '=')).map(o => [o[0].slice(p.length + 1), o[1]]);
+const PS_CATALOGUE = [
+  ['ECG', 'Run the ECG wave', 'ECGRUN', S_('On or off', ON_OFF)],
+  ['ECG', 'Normal sinus rhythm, adult', 'NSRA', N_('Rate (bpm)', 10, 360, P3)],
+  ['ECG', 'Normal sinus rhythm, paediatric', 'NSRP', N_('Rate (bpm)', 10, 360, P3)],
+  ['ECG', 'Normal sinus axis', 'NSRAX', S_('Axis', ECG_AXIS)],
+  ['ECG', 'ST deviation (adult)', 'STDEV', S_('Deviation', ST_DEV)],
+  ['ECG', 'ECG amplitude', 'ECGAMPL', S_('Amplitude (mV)', ECG_AMPL)],
+  ['ECG artifact', 'Artifact type', 'EART', S_('Artifact', ECG_ARTIFACT)],
+  ['ECG artifact', 'Artifact size', 'EARTSZ', S_('Size', ECG_ART_SIZE)],
+  ['ECG artifact', 'Artifact lead', 'EARTLD', S_('Lead', ECG_ART_LEAD)],
+  ['Rhythm', 'Supraventricular arrhythmia', 'SPVWAVE', S_('Rhythm', ARRSET('SPVWAVE'))],
+  ['Rhythm', 'Premature beats', 'PREWAVE', S_('Rhythm', ARRSET('PREWAVE'))],
+  ['Rhythm', 'Ventricular arrhythmia', 'VNTWAVE', S_('Rhythm', ARRSET('VNTWAVE'))],
+  ['Rhythm', 'Conduction block', 'CNDWAVE', S_('Block', ARRSET('CNDWAVE'))],
+  ['Rhythm', 'ACLS rhythm', 'ACLSWAVE', S_('Rhythm', ARRSET('ACLSWAVE'))],
+  ['Rhythm', 'Atrial fibrillation', 'AFIB', S_('Granularity', ['COARSE', 'FINE'])],
+  ['Rhythm', 'Atrial fibrillation 2 (less random)', 'AFIB2', S_('Granularity', ['COARSE', 'FINE'])],
+  ['Rhythm', 'Ventricular fibrillation', 'VFIB', S_('Granularity', ['COARSE', 'FINE'])],
+  ['Rhythm', 'Ventricular fibrillation 1 (same as VFIB)', 'VFIB1', S_('Granularity', ['COARSE', 'FINE'])],
+  ['Rhythm', 'Ventricular fibrillation 2 (50% faster)', 'VFIB2', S_('Granularity', ['COARSE', 'FINE'])],
+  ['Rhythm', 'Monomorphic VT', 'MONOVTACH', N_('Rate (bpm)', 120, 300, P3)],
+  ['Rhythm', 'Polymorphic VT', 'POLYVTACH', S_('Type', [1, 2, 3, 4, 5])],
+  ['Rhythm', 'Hartwell atrial fibrillation, slow', 'EHAFIBS'], ['Rhythm', 'Hartwell atrial fibrillation, fast', 'EHAFIBF'],
+  ...[43, 50, 60, 75, 100, 150].map(r => ['Rhythm', `Hartwell atrial flutter ${r} bpm`, `EHAFL${r}`]),
+  ['Paced', 'Pacer waveform', 'TVPWAVE', S_('Waveform', PACED)],
+  ['Paced', 'Pacer polarity', 'TVPPOL', S_('Chamber', [['A', 'Atrium'], ['V', 'Ventricle']]), S_('Polarity', PACE_POL)],
+  ['Paced', 'Pacer amplitude', 'TVPAMPL', S_('Chamber', [['A', 'Atrium'], ['V', 'Ventricle']]), S_('Amplitude (mV)', PACE_AMPL)],
+  ['Paced', 'Pacer width', 'TVPWID', S_('Chamber', [['A', 'Atrium'], ['V', 'Ventricle']]), S_('Width', PACE_WIDTH)],
+  ['Performance', 'Pulse', 'PULSE', S_('Rate (bpm)', [30, 60, 80])],
+  ['Performance', 'Square wave', 'SQUARE', S_('Frequency (Hz)', ['0.125', '2.0', '2.5'])],
+  ['Performance', 'Triangle wave', 'TRI', S_('Frequency (Hz)', ['0.125', '2.0', '2.5'])],
+  ['Performance', 'Sine wave', 'SINE', S_('Frequency (Hz)', [0.05, 0.5, 1, 2, 5, 10, 25, 30, 40, 50, 60, 100, 150])],
+  ['Performance', 'R-wave detection', 'RDET', N_('Width (ms)', 8, 200, P3), S_('Rate (bpm)', DET_RATES)],
+  ['Performance', 'QRS detection', 'QRS', N_('Width (ms)', 8, 200, P3), S_('Rate (bpm)', DET_RATES)],
+  ['Performance', 'Tall T-wave rejection', 'TALLT', S_('T wave height', TALLT)],
+  ['Respiration', 'Run respiration', 'RESPRUN', S_('On or off', ON_OFF)],
+  ['Respiration', 'Respiration wave', 'RESPWAVE', S_('Wave', RESP_WAVE)],
+  ['Respiration', 'Respiration rate', 'RESPRATE', N_('Rate (brpm)', 10, 150, P3)],
+  ['Respiration', 'Inspiration : expiration ratio', 'RESPRATIO', S_('Ratio', [1, 2, 3, 4, 5])],
+  ['Respiration', 'Respiration amplitude', 'RESPAMPL', N_('Amplitude (Ω)', 0, 5, (v) => DP(v, 2, 4), 0.05)],
+  ['Respiration', 'Baseline impedance', 'RESPBASE', S_('Baseline', RESP_BASE)],
+  ['Respiration', 'Respiration lead', 'RESPLEAD', S_('Lead', [['LA', 'LA'], ['LL', 'LL']])],
+  ['Respiration', 'Apnoea', 'RESPAPNEA', S_('On or off', ON_OFF)],
+  ['IBP', 'Static pressure', 'IBPS', CH_, N_('Pressure (mmHg)', -10, 300, (v) => SIGNED(v, 3))],
+  ['IBP', 'Dynamic wave', 'IBPW', CH_, S_('Wave', IBP_WAVES)],
+  ['IBP', 'Dynamic pressure', 'IBPP', CH_, N_('Systolic (mmHg)', 0, 300, P3), N_('Diastolic (mmHg)', 0, 300, P3)],
+  ['IBP', 'Artifact, percent (arterial, radial, LV)', 'IBPARTP', CH_, S_('Artifact (%)', IBP_ARTIFACT)],
+  ['IBP', 'Artifact, mmHg (LA, RV, PA, wedge, CVP)', 'IBPARTM', CH_, S_('Artifact (mmHg)', IBP_ARTIFACT)],
+  ['IBP', 'Circuit sensitivity', 'IBPSNS', CH_, S_('Sensitivity', IBP_SENS)],
+  ['Temperature', 'Temperature', 'TEMP', S_('Temperature (°C)', TEMPS)],
+  ['Cardiac output', 'Baseline temperature', 'COBASE', S_('°C', [36, 37, 38])],
+  ['Cardiac output', 'Injectate temperature', 'COINJ', S_('°C', [['00', '0'], ['24', '24']])],
+  ['Cardiac output', 'Cardiac output wave', 'COWAVE', S_('Wave', CO_WAVES)],
+  ['Cardiac output', 'Run the wave', 'CORUN', S_('On or off', ON_OFF)],
+  ['NIBP', 'Run the NIBP simulation', 'NIBPRUN', S_('On or off', ON_OFF)],
+  ['NIBP', 'Dynamic pressure', 'NIBPP', N_('Systolic (mmHg)', 0, 400, P3), N_('Diastolic (mmHg)', 0, 400, P3)],
+  ['NIBP', 'Volume', 'NIBPV', S_('Volume', NIBP_VOL)],
+  ['NIBP', 'Envelope shift', 'NIBPES', S_('Shift', NIBP_SHIFT)],
+  ['SpO2', 'Saturation', 'SAT', N_('Saturation (%)', 0, 100, P3)],
+  ['SpO2', 'Perfusion', 'PERF', N_('Perfusion (%)', 0.01, 20, (v) => DP(v, 2, 5), 0.01)],
+  ['SpO2', 'Transmission', 'TRANS', N_('Transmission (ppm)', 0.01, 300, (v) => DP(v, 2, 6), 0.01)],
+  ['SpO2', 'Probe type (built in)', 'SPO2TYPE', S_('Probe', PROBES)],
+  ['SpO2', 'Probe type (loaded by the user)', 'SPO2UTYPE', N_('Index (0 to 19)', 0, 19, (v) => pad(v, 2))],
+  ['SpO2', 'Ambient light', 'AMBM', S_('On or off', [['ON', 'On'], ['OFF', 'Off']])],
+  ['SpO2', 'Ambient light size', 'AMBS', S_('Size', [['0.2', '0.2 (indoor)'], ['2.0', '2.0 (sunlight)']])],
+  ['SpO2', 'Ambient light frequency', 'AMBF', S_('Frequency', AMB_FREQ)],
+  ['SpO2', 'SpO2 respiration', 'RESPM', S_('On or off', [['ON', 'On'], ['OFF', 'Off']])],
+  ['SpO2', 'SpO2 respiration size', 'RESPS', S_('Size (%)', [0, 1, 2, 3, 4, 5])],
+].map(([group, label, cmd, ...params]) => ({ group, label, cmd, params }));
+/** The command line a catalogue entry makes from the values chosen (one string per parameter). */
+function psCatalogueLine(entry, values) {
+  if (!entry.params.length) return entry.cmd;
+  return `${entry.cmd}=${entry.params.map((p, i) => p.opts ? String(values[i] ?? p.opts[0][0]) : p.fmt(values[i] === '' || values[i] == null ? p.min : values[i])).join(',')}`;
+}
+/** The "Add a command" picker. `id` keeps two on one page apart. */
+function psBuilderHtml(id, pick = 0, values = []) {
+  const groups = [...new Set(PS_CATALOGUE.map(e => e.group))];
+  const e = PS_CATALOGUE[pick] || PS_CATALOGUE[0];
+  return `<div class="psb" data-psb="${id}">
+    <label class="lbl" for="${id}_cmd">Add a command</label>
+    <select class="select" id="${id}_cmd" data-psb-cmd>${groups.map(g => `<optgroup label="${esc(g)}">${PS_CATALOGUE.map((x, i) => x.group === g ? `<option value="${i}" ${i === pick ? 'selected' : ''}>${esc(x.label)} (${esc(x.cmd)})</option>` : '').join('')}</optgroup>`).join('')}</select>
+    <div class="row psb-params">${e.params.map((p, k) => p.opts
+      ? `<label class="psb-p">${esc(p.label)}<select class="select" data-psb-val="${k}">${p.opts.map(([v, l]) => `<option value="${esc(v)}" ${String(values[k] ?? p.opts[0][0]) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`
+      : `<label class="psb-p">${esc(p.label)}<input class="input num" type="number" data-psb-val="${k}" min="${p.min}" max="${p.max}" step="${p.step}" value="${esc(values[k] ?? p.min)}"></label>`).join('')}
+      <button type="button" class="btn secondary sm" data-psb-add>${icon('plus')}Add</button></div>
+    <code class="mono hint" data-psb-line>${esc(psCatalogueLine(e, values))}</code>
+    <span class="hint">Every setting the ProSim 8 accepts. Add as many lines as you like; they are sent in order.</span></div>`;
+}
+/** Wires one picker (and any others inside `root`): choosing a command shows its parameters; Add calls onAdd(line). */
+function bindPsBuilder(root, onAdd) {
+  root.addEventListener('change', (e) => {
+    const box = e.target.closest('[data-psb]'); if (!box) return;
+    if (e.target.hasAttribute('data-psb-cmd')) { box.outerHTML = psBuilderHtml(box.dataset.psb, +e.target.value); return; }
+    const entry = PS_CATALOGUE[+$('[data-psb-cmd]', box).value]; const vals = $$('[data-psb-val]', box).map(x => x.value);
+    $('[data-psb-line]', box).textContent = psCatalogueLine(entry, vals);
+  });
+  root.addEventListener('input', (e) => {
+    const box = e.target.closest('[data-psb]'); if (!box || !e.target.hasAttribute('data-psb-val') || e.target.tagName === 'SELECT') return;
+    const entry = PS_CATALOGUE[+$('[data-psb-cmd]', box).value]; $('[data-psb-line]', box).textContent = psCatalogueLine(entry, $$('[data-psb-val]', box).map(x => x.value));
+  });
+  root.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-psb-add]'); if (!b) return; const box = b.closest('[data-psb]');
+    const entry = PS_CATALOGUE[+$('[data-psb-cmd]', box).value]; onAdd(psCatalogueLine(entry, $$('[data-psb-val]', box).map(x => x.value)));
+  });
+}
+/** <option>s for a list; a third item in an option names its group. */
+function optionsHtml(options, v) {
+  const one = ([ov, ol]) => `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`;
+  if (!options.some(o => o[2])) return options.map(one).join('');
+  const out = []; const seen = new Map();
+  for (const o of options) { const g = o[2] || ''; if (!seen.has(g)) { seen.set(g, []); out.push(seen.get(g)); seen.get(g).label = g; } seen.get(g).push(o); }
+  return out.map(list => list.label ? `<optgroup label="${esc(list.label)}">${list.map(one).join('')}</optgroup>` : list.map(one).join('')).join('');
+}
 
 /* field kinds: num, text, textarea, select, items, conds, leads, apclass, toggle, monitor */
 const TYPES = {
@@ -1401,52 +1572,79 @@ const TYPES = {
     summary: (s, tpl) => `${tpl ? apSummary(tpl) : 'Applied parts'} · ${s.params.pols.map(p => p === 'REV' ? 'reversed' : 'normal').join(', ')}` },
 
   /* ---------- ProSim 8 ---------- */
-  ps_nsr: { group: 'ps', label: 'ECG normal sinus', icon: 'heart', desc: 'Adult or paediatric NSR',
-    defaults: () => ({ who: 'A', rate: 60, ampl: '1.00', monitor: monitorCheck('Heart rate on monitor', 'bpm', 59, 61) }), instructions: 'Connect the ECG leads to the ProSim 8.',
-    fields: [{ key: 'who', kind: 'select', label: 'Patient', options: [['A', 'Adult'], ['P', 'Paediatric']] }, { key: 'rate', kind: 'num', label: 'Heart rate (bpm)', min: 10, max: 360 }, { key: 'ampl', kind: 'select', label: 'Amplitude (mV)', options: ECG_AMPL.map(v => [v, v]) }, { key: 'monitor', kind: 'monitor' }],
-    cmds: p => [`${p.who === 'P' ? 'NSRP' : 'NSRA'}=${pad(p.rate, 3)}`, ...(p.who === 'P' ? [] : [`ECGAMPL=${p.ampl}`]), 'ECGRUN=TRUE'],
-    summary: s => `${s.params.who === 'P' ? 'Paediatric' : 'Adult'} ${s.params.rate} bpm, ${s.params.ampl} mV` },
+  ps_nsr: { group: 'ps', label: 'ECG normal sinus', icon: 'heart', desc: 'Adult or paediatric NSR, axis, ST, artifact',
+    defaults: () => ({ who: 'A', rate: 60, ampl: '1.00', axis: '', stdev: '', art: '', artsz: '', artld: '', monitor: monitorCheck('Heart rate on monitor', 'bpm', 59, 61) }), instructions: 'Connect the ECG leads to the ProSim 8.',
+    fields: [{ key: 'who', kind: 'select', label: 'Patient', options: [['A', 'Adult'], ['P', 'Paediatric']] }, { key: 'rate', kind: 'num', label: 'Heart rate (bpm)', min: 10, max: 360 }, { key: 'ampl', kind: 'select', label: 'Amplitude (mV)', options: ECG_AMPL.map(v => [v, v]) },
+      { key: 'axis', kind: 'select', label: 'Axis', options: withLeave(ECG_AXIS) }, { key: 'stdev', kind: 'select', label: 'ST deviation (adult only)', options: withLeave(ST_DEV) },
+      { key: 'art', kind: 'select', label: 'Artifact', options: withLeave(ECG_ARTIFACT), hint: 'The simulator keeps an artifact until it is changed: choose Off to clear one.' }, { key: 'artsz', kind: 'select', label: 'Artifact size', options: withLeave(ECG_ART_SIZE) }, { key: 'artld', kind: 'select', label: 'Artifact lead', options: withLeave(ECG_ART_LEAD) },
+      { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [`${p.who === 'P' ? 'NSRP' : 'NSRA'}=${pad(p.rate, 3)}`, ...(p.who === 'P' ? [] : [`ECGAMPL=${p.ampl}`]), ...(p.axis ? [`NSRAX=${p.axis}`] : []), ...(p.who !== 'P' && p.stdev ? [`STDEV=${p.stdev}`] : []), ...(p.art ? [`EART=${p.art}`] : []), ...(p.artsz ? [`EARTSZ=${p.artsz}`] : []), ...(p.artld ? [`EARTLD=${p.artld}`] : []), 'ECGRUN=TRUE'],
+    summary: s => `${s.params.who === 'P' ? 'Paediatric' : 'Adult'} ${s.params.rate} bpm, ${s.params.ampl} mV${s.params.axis ? ', ' + optLabel(ECG_AXIS, s.params.axis).toLowerCase() + ' axis' : ''}${s.params.art && s.params.art !== 'OFF' ? ', ' + optLabel(ECG_ARTIFACT, s.params.art).toLowerCase() + ' artifact' : ''}` },
   ps_perf: { group: 'ps', label: 'ECG performance wave', icon: 'wave', desc: 'Square, triangle, sine, pulse',
     defaults: () => ({ wave: 'SQUARE=2.0', monitor: { enabled: false, label: 'Reading on monitor', unit: '', lo: '', hi: '' } }), instructions: '',
     fields: [{ key: 'wave', kind: 'select', label: 'Waveform', options: PERF }, { key: 'monitor', kind: 'monitor' }],
     cmds: p => [p.wave, 'ECGRUN=TRUE'], summary: s => optLabel(PERF, s.params.wave) },
+  ps_det: { group: 'ps', label: 'ECG detection test', icon: 'wave', desc: 'R-wave, QRS detection, tall T rejection',
+    defaults: () => ({ mode: 'RDET', width: 100, rate: '60', pct: '050', monitor: { enabled: false, label: 'Reading on monitor', unit: '', lo: '', hi: '' } }), instructions: '',
+    fields: [{ key: 'mode', kind: 'select', label: 'Test', options: [['RDET', 'R-wave detection'], ['QRS', 'QRS detection'], ['TALLT', 'Tall T-wave rejection']] }, { key: 'width', kind: 'num', label: 'Width (ms), for R-wave and QRS', min: 8, max: 200 }, { key: 'rate', kind: 'select', label: 'Rate (bpm), for R-wave and QRS', options: DET_RATES.map(r => [String(r), String(r)]) }, { key: 'pct', kind: 'select', label: 'T wave height, for tall T rejection', options: TALLT }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [p.mode === 'TALLT' ? `TALLT=${p.pct}` : `${p.mode}=${pad(p.width, 3)},${p.rate}`, 'ECGRUN=TRUE'],
+    summary: s => s.params.mode === 'TALLT' ? `Tall T rejection, ${+s.params.pct} %` : `${s.params.mode === 'QRS' ? 'QRS' : 'R-wave'} detection, ${s.params.width} ms at ${s.params.rate} bpm` },
   ps_paced: { group: 'ps', label: 'ECG paced', icon: 'heart', desc: 'Transvenous pacer waveforms',
-    defaults: () => ({ wave: 'ASY', ampl: '', monitor: { enabled: false, label: 'Pace pulses detected', unit: '', lo: '', hi: '' } }), instructions: 'Turn pacer detection on at the monitor if needed.',
-    fields: [{ key: 'wave', kind: 'select', label: 'Pacer waveform', options: PACED }, { key: 'ampl', kind: 'select', label: 'Ventricular pace amplitude (mV)', options: [['', 'Leave as is'], ...['002', '004', '006', '008', '010', '012', '014', '016', '018', '020', '050', '100', '200', '500', '700'].map(v => [v, String(+v)])] }, { key: 'monitor', kind: 'monitor' }],
-    cmds: p => [...(p.ampl ? [`TVPAMPL=V,${p.ampl}`] : []), `TVPWAVE=${p.wave}`, 'ECGRUN=TRUE'], summary: s => optLabel(PACED, s.params.wave) },
-  ps_arr: { group: 'ps', label: 'ECG arrhythmia', icon: 'heart', desc: 'Arrhythmia and alarm checks',
+    defaults: () => ({ wave: 'ASY', ampl: '', amplA: '', polV: '', polA: '', widV: '', widA: '', monitor: { enabled: false, label: 'Pace pulses detected', unit: '', lo: '', hi: '' } }), instructions: 'Turn pacer detection on at the monitor if needed.',
+    fields: [{ key: 'wave', kind: 'select', label: 'Pacer waveform', options: PACED }, { key: 'ampl', kind: 'select', label: 'Ventricular pace amplitude (mV)', options: withLeave(PACE_AMPL) }, { key: 'amplA', kind: 'select', label: 'Atrial pace amplitude (mV)', options: withLeave(PACE_AMPL) },
+      { key: 'polV', kind: 'select', label: 'Ventricular pace polarity', options: withLeave(PACE_POL) }, { key: 'polA', kind: 'select', label: 'Atrial pace polarity', options: withLeave(PACE_POL) },
+      { key: 'widV', kind: 'select', label: 'Ventricular pace width', options: withLeave(PACE_WIDTH) }, { key: 'widA', kind: 'select', label: 'Atrial pace width', options: withLeave(PACE_WIDTH) }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [...(p.polV ? [`TVPPOL=V,${p.polV}`] : []), ...(p.polA ? [`TVPPOL=A,${p.polA}`] : []), ...(p.ampl ? [`TVPAMPL=V,${p.ampl}`] : []), ...(p.amplA ? [`TVPAMPL=A,${p.amplA}`] : []), ...(p.widV ? [`TVPWID=V,${p.widV}`] : []), ...(p.widA ? [`TVPWID=A,${p.widA}`] : []), `TVPWAVE=${p.wave}`, 'ECGRUN=TRUE'], summary: s => optLabel(PACED, s.params.wave) },
+  ps_arr: { group: 'ps', label: 'ECG arrhythmia', icon: 'heart', desc: 'Every arrhythmia, fibrillation, block and ACLS rhythm',
     defaults: () => ({ wave: 'VNTWAVE=ASYS', monitor: { enabled: false, label: 'Alarm shown', unit: '', lo: '', hi: '' } }), instructions: 'Check the monitor raises the expected alarm.',
     fields: [{ key: 'wave', kind: 'select', label: 'Rhythm', options: ARR }, { key: 'monitor', kind: 'monitor' }],
     cmds: p => [p.wave, 'ECGRUN=TRUE'], summary: s => optLabel(ARR, s.params.wave) },
-  ps_resp: { group: 'ps', label: 'Respiration', icon: 'wind', desc: 'Impedance respiration rate',
-    defaults: () => ({ rate: 20, monitor: monitorCheck('Respiration rate on monitor', 'rpm', 18, 22) }), instructions: '',
-    fields: [{ key: 'rate', kind: 'num', label: 'Rate (brpm)', min: 10, max: 150 }, { key: 'monitor', kind: 'monitor' }],
-    cmds: p => [`RESPRATE=${pad(p.rate, 3)}`, 'RESPRUN=TRUE'], summary: s => `${s.params.rate} brpm` },
-  ps_spo2: { group: 'ps', label: 'SpO2', icon: 'drop', desc: 'Saturation and probe type',
-    defaults: () => ({ sat: 97, probe: 'MINDR', monitor: monitorCheck('SpO2 on monitor', '%', 95, 100) }), instructions: 'Connect the SpO2 sensor to the ProSim 8 finger.',
-    fields: [{ key: 'sat', kind: 'num', label: 'Saturation (%)', min: 0, max: 100 }, { key: 'probe', kind: 'select', label: 'Probe type', options: PROBES }, { key: 'monitor', kind: 'monitor' }],
-    cmds: p => [`SPO2TYPE=${p.probe}`, `SAT=${pad(p.sat, 3)}`], summary: s => `${s.params.sat}%, ${optLabel(PROBES, s.params.probe)}` },
-  ps_nibp: { group: 'ps', label: 'NIBP (dynamic)', icon: 'cuff', desc: 'Simulated blood pressure',
-    defaults: () => ({ sys: 120, dia: 80, monitor: { enabled: false, label: 'Systolic on monitor', unit: 'mmHg', lo: '', hi: '' } }), instructions: 'Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor.',
-    fields: [{ key: 'sys', kind: 'num', label: 'Systolic (mmHg)', min: 0, max: 400 }, { key: 'dia', kind: 'num', label: 'Diastolic (mmHg)', min: 0, max: 400 }, { key: 'monitor', kind: 'monitor' }],
-    cmds: p => [`NIBPP=${pad(p.sys, 3)},${pad(p.dia, 3)}`, 'NIBPRUN=TRUE'], summary: s => `${s.params.sys}/${s.params.dia} mmHg` },
+  ps_resp: { group: 'ps', label: 'Respiration', icon: 'wind', desc: 'Rate, wave, amplitude, baseline, apnoea',
+    defaults: () => ({ rate: 20, wave: '', ratio: '', ampl: '', base: '', lead: '', apnea: '', monitor: monitorCheck('Respiration rate on monitor', 'rpm', 18, 22) }), instructions: '',
+    fields: [{ key: 'rate', kind: 'num', label: 'Rate (brpm)', min: 10, max: 150 }, { key: 'wave', kind: 'select', label: 'Wave', options: withLeave(RESP_WAVE) }, { key: 'ratio', kind: 'select', label: 'Inspiration : expiration ratio', options: withLeave([1, 2, 3, 4, 5]) },
+      { key: 'ampl', kind: 'num', label: 'Amplitude (Ω, 0 to 5)', min: 0, max: 5, hint: 'Empty leaves the simulator as it is.' }, { key: 'base', kind: 'select', label: 'Baseline impedance', options: withLeave(RESP_BASE) }, { key: 'lead', kind: 'select', label: 'Respiration lead', options: withLeave([['LA', 'LA'], ['LL', 'LL']]) },
+      { key: 'apnea', kind: 'select', label: 'Apnoea', options: withLeave(ON_OFF) }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [...(p.wave ? [`RESPWAVE=${p.wave}`] : []), ...(p.ratio ? [`RESPRATIO=${p.ratio}`] : []), ...(p.ampl !== '' && p.ampl != null ? [`RESPAMPL=${DP(Math.min(5, Math.max(0, Math.round(+p.ampl / 0.05) * 0.05)), 2, 4)}`] : []), ...(p.base ? [`RESPBASE=${p.base}`] : []), ...(p.lead ? [`RESPLEAD=${p.lead}`] : []), `RESPRATE=${pad(p.rate, 3)}`, ...(p.apnea ? [`RESPAPNEA=${p.apnea}`] : []), 'RESPRUN=TRUE'],
+    summary: s => `${s.params.rate} brpm${s.params.wave === 'VENT' ? ', ventilated' : ''}${s.params.apnea === 'TRUE' ? ', apnoea' : ''}` },
+  ps_spo2: { group: 'ps', label: 'SpO2', icon: 'drop', desc: 'Saturation, probe type, perfusion, light',
+    defaults: () => ({ sat: 97, probe: 'MINDR', perf: '', trans: '', ambM: '', ambS: '', ambF: '', respM: '', respS: '', monitor: monitorCheck('SpO2 on monitor', '%', 95, 100) }), instructions: 'Connect the SpO2 sensor to the ProSim 8 finger.',
+    fields: [{ key: 'sat', kind: 'num', label: 'Saturation (%)', min: 0, max: 100 }, { key: 'probe', kind: 'select', label: 'Probe type', options: PROBES },
+      { key: 'perf', kind: 'num', label: 'Perfusion (%, 0.01 to 20)', min: 0.01, max: 20, hint: 'Empty leaves the simulator as it is.' }, { key: 'trans', kind: 'num', label: 'Transmission (ppm, 0.01 to 300)', min: 0.01, max: 300, hint: 'Thick finger about 30, medium 60, thin 90, infant foot 98.' },
+      { key: 'ambM', kind: 'select', label: 'Ambient light', options: withLeave([['ON', 'On'], ['OFF', 'Off']]) }, { key: 'ambS', kind: 'select', label: 'Ambient light size', options: withLeave([['0.2', '0.2 (indoor)'], ['2.0', '2.0 (sunlight)']]) }, { key: 'ambF', kind: 'select', label: 'Ambient light frequency', options: withLeave(AMB_FREQ) },
+      { key: 'respM', kind: 'select', label: 'SpO2 respiration', options: withLeave([['ON', 'On'], ['OFF', 'Off']]) }, { key: 'respS', kind: 'select', label: 'SpO2 respiration size (%)', options: withLeave([0, 1, 2, 3, 4, 5]) }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [`SPO2TYPE=${p.probe}`, `SAT=${pad(p.sat, 3)}`, ...(p.perf !== '' && p.perf != null ? [`PERF=${DP(p.perf, 2, 5)}`] : []), ...(p.trans !== '' && p.trans != null ? [`TRANS=${DP(p.trans, 2, 6)}`] : []), ...(p.ambS ? [`AMBS=${p.ambS}`] : []), ...(p.ambF ? [`AMBF=${p.ambF}`] : []), ...(p.ambM ? [`AMBM=${p.ambM}`] : []), ...(p.respS ? [`RESPS=${p.respS}`] : []), ...(p.respM ? [`RESPM=${p.respM}`] : [])],
+    summary: s => `${s.params.sat}%, ${optLabel(PROBES, s.params.probe)}${s.params.perf !== '' && s.params.perf != null ? `, perfusion ${s.params.perf}%` : ''}` },
+  ps_nibp: { group: 'ps', label: 'NIBP (dynamic)', icon: 'cuff', desc: 'Simulated blood pressure, volume, envelope shift',
+    defaults: () => ({ sys: 120, dia: 80, vol: '', shift: '', monitor: { enabled: false, label: 'Systolic on monitor', unit: 'mmHg', lo: '', hi: '' } }), instructions: 'Connect the cuff hose to the ProSim 8 and start an NIBP measurement on the monitor.',
+    fields: [{ key: 'sys', kind: 'num', label: 'Systolic (mmHg)', min: 0, max: 400 }, { key: 'dia', kind: 'num', label: 'Diastolic (mmHg)', min: 0, max: 400 }, { key: 'vol', kind: 'select', label: 'Cuff volume (mL)', options: withLeave(NIBP_VOL) }, { key: 'shift', kind: 'select', label: 'Envelope shift', options: withLeave(NIBP_SHIFT) }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [`NIBPP=${pad(p.sys, 3)},${pad(p.dia, 3)}`, ...(p.vol ? [`NIBPV=${p.vol}`] : []), ...(p.shift ? [`NIBPES=${p.shift}`] : []), 'NIBPRUN=TRUE'], summary: s => `${s.params.sys}/${s.params.dia} mmHg${s.params.vol ? `, ${s.params.vol} mL` : ''}${s.params.shift ? `, shift ${s.params.shift} %` : ''}` },
   ps_temp: { group: 'ps', label: 'Temperature', icon: 'thermo', desc: 'YSI 400 temperature',
     defaults: () => ({ t: '37.0', monitor: monitorCheck('Temperature on monitor', '°C', 36.9, 37.1) }), instructions: '',
     fields: [{ key: 't', kind: 'select', label: 'Temperature (°C)', options: TEMPS.map(v => [v, v]) }, { key: 'monitor', kind: 'monitor' }],
     cmds: p => [`TEMP=${p.t}`], summary: s => `${s.params.t} °C` },
   ps_ibp: { group: 'ps', label: 'IBP (static)', icon: 'gauge', desc: 'Static invasive pressure',
-    defaults: () => ({ ch: '1', p: 200, monitor: monitorCheck('IBP on monitor', 'mmHg', 196, 204) }), instructions: 'Zero the IBP channel on the monitor first.',
-    fields: [{ key: 'ch', kind: 'select', label: 'Channel', options: [['1', '1'], ['2', '2']] }, { key: 'p', kind: 'num', label: 'Pressure (mmHg)', min: -10, max: 300 }, { key: 'monitor', kind: 'monitor' }],
-    cmds: p => [`IBPS=${p.ch},${+p.p < 0 ? '-' : '+'}${pad(p.p, 3)}`], summary: s => `Channel ${s.params.ch}, ${s.params.p} mmHg` },
+    defaults: () => ({ ch: '1', p: 200, sns: '', monitor: monitorCheck('IBP on monitor', 'mmHg', 196, 204) }), instructions: 'Zero the IBP channel on the monitor first.',
+    fields: [{ key: 'ch', kind: 'select', label: 'Channel', options: [['1', '1'], ['2', '2']] }, { key: 'p', kind: 'num', label: 'Pressure (mmHg)', min: -10, max: 300 }, { key: 'sns', kind: 'select', label: 'Circuit sensitivity', options: withLeave(IBP_SENS) }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [...(p.sns ? [`IBPSNS=${p.ch},${p.sns}`] : []), `IBPS=${p.ch},${+p.p < 0 ? '-' : '+'}${pad(p.p, 3)}`], summary: s => `Channel ${s.params.ch}, ${s.params.p} mmHg` },
+  ps_ibpd: { group: 'ps', label: 'IBP (dynamic)', icon: 'gauge', desc: 'Pressure waves: arterial, LV, PA, CVP and more',
+    defaults: () => ({ ch: '1', wave: 'ART', sys: 120, dia: 80, art: '', sns: '', monitor: monitorCheck('IBP on monitor', 'mmHg', '', '') }), instructions: 'Zero the IBP channel on the monitor first.',
+    fields: [{ key: 'ch', kind: 'select', label: 'Channel', options: [['1', '1'], ['2', '2']] }, { key: 'wave', kind: 'select', label: 'Wave', options: IBP_WAVES }, { key: 'sys', kind: 'num', label: 'Systolic (mmHg)', min: 0, max: 300 }, { key: 'dia', kind: 'num', label: 'Diastolic (mmHg)', min: 0, max: 300 },
+      { key: 'art', kind: 'select', label: 'Artifact (% for arterial, radial and LV; mmHg for the others)', options: withLeave(IBP_ARTIFACT) }, { key: 'sns', kind: 'select', label: 'Circuit sensitivity', options: withLeave(IBP_SENS) }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [`IBPW=${p.ch},${p.wave}`, `IBPP=${p.ch},${pad(p.sys, 3)},${pad(p.dia, 3)}`, ...(p.art !== '' && p.art != null ? [`${IBP_PCT_WAVES.includes(p.wave) ? 'IBPARTP' : 'IBPARTM'}=${p.ch},${p.art}`] : []), ...(p.sns ? [`IBPSNS=${p.ch},${p.sns}`] : [])],
+    summary: s => `Channel ${s.params.ch}, ${optLabel(IBP_WAVES, s.params.wave).toLowerCase()}, ${s.params.sys}/${s.params.dia} mmHg` },
+  ps_co: { group: 'ps', label: 'Cardiac output', icon: 'thermo', desc: 'Baseline and injectate temperature, output wave',
+    defaults: () => ({ base: '37', inj: '00', wave: '5', run: true, monitor: monitorCheck('Cardiac output on monitor', 'l/min', '', '') }), instructions: 'Connect the cardiac output cable to the ProSim 8 and start a measurement on the monitor.',
+    fields: [{ key: 'base', kind: 'select', label: 'Baseline temperature (°C)', options: [['36', '36'], ['37', '37'], ['38', '38']] }, { key: 'inj', kind: 'select', label: 'Injectate temperature (°C)', options: [['00', '0'], ['24', '24']] }, { key: 'wave', kind: 'select', label: 'Wave', options: CO_WAVES }, { key: 'run', kind: 'toggle', label: 'Start the wave when sending' }, { key: 'monitor', kind: 'monitor' }],
+    cmds: p => [`COBASE=${p.base}`, `COINJ=${p.inj}`, `COWAVE=${p.wave}`, ...(p.run ? ['CORUN=TRUE'] : [])], summary: s => `${optLabel(CO_WAVES, s.params.wave)}, baseline ${s.params.base} °C, injectate ${+s.params.inj} °C` },
   ps_gauge: { group: 'ps', label: 'Pressure gauge (ProSim)', icon: 'gauge', desc: 'ProSim reads the cuff pressure; sends nothing',
     defaults: () => ({ monitor: monitorCheck('Reading on monitor', 'mmHg', '', '') }),
     instructions: 'Connect the monitor’s NIBP hose to the ProSim 8 pressure port through a T-piece with the cuff and a hand bulb. Put the monitor in its NIBP accuracy (manometer) mode, pump to the pressure shown in the check, and compare.',
     fields: [{ key: 'monitor', kind: 'monitor' }], cmds: () => [], summary: () => 'ProSim pressure, read live (PRESSX)' },
   ps_stop: { group: 'ps', label: 'Stop waveforms', icon: 'square', desc: 'ECG, respiration and NIBP off',
     defaults: () => ({}), instructions: '', fields: [], cmds: () => ['ECGRUN=FALSE', 'RESPRUN=FALSE', 'NIBPRUN=FALSE'], summary: () => 'ECG, respiration and NIBP off' },
-  ps_custom: { group: 'ps', label: 'Custom commands', icon: 'code', desc: 'Any ProSim 8 command',
+  ps_custom: { group: 'ps', label: 'Custom commands', icon: 'code', desc: 'Every ProSim 8 setting, in any order',
     defaults: () => ({ text: '', monitor: { enabled: false, label: 'Reading on monitor', unit: '', lo: '', hi: '' } }), instructions: '',
-    fields: [{ key: 'text', kind: 'textarea', label: 'Commands', hint: 'One per line, for example NSRA=080. Reset, pairing and pressure-source commands are blocked.', mono: true }, { key: 'monitor', kind: 'monitor' }],
+    fields: [{ key: 'text', kind: 'textarea', label: 'Commands', hint: 'One per line, for example NSRA=080. Reset, pairing and pressure-source commands are blocked.', mono: true }, { kind: 'psbuilder' }, { key: 'monitor', kind: 'monitor' }],
     cmds: p => String(p.text || '').split(/\r?\n/).map(l => l.trim().toUpperCase().replace(/\s+/g, '')).filter(Boolean),
     summary: s => TYPES.ps_custom.cmds(s.params).join(' · ') || 'No commands yet' },
 };
@@ -2138,13 +2336,14 @@ const Builder = {
         ${T.cmds ? `<div class="field"><span class="lbl">Sends to the ProSim 8</span><code class="mono hint" id="cmdPreview">${esc(T.cmds(s.params).join('  ·  ') || '—')}</code></div>` : ''}
       </div>`;
   },
-  fieldHtml(s, f) {
-    const v = s.params[f.key]; const id = `p_${f.key}`;
+  fieldHtml(s, f, idp = 'p_') {
+    const v = s.params[f.key]; const id = `${idp}${f.key}`;
     switch (f.kind) {
       case 'num': return `<div class="field"><label for="${id}">${esc(f.label)}</label><input class="input num" type="number" step="any" id="${id}" data-p="${f.key}" value="${esc(v)}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''}>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
       case 'text': return `<div class="field"><label for="${id}">${esc(f.label)}</label><input class="input" id="${id}" data-p="${f.key}" value="${esc(v)}" ${f.small ? 'style="max-width:160px"' : ''}></div>`;
       case 'textarea': return `<div class="field"><label for="${id}">${esc(f.label)}</label><textarea class="textarea ${f.mono ? 'mono' : ''}" id="${id}" data-p="${f.key}">${esc(v)}</textarea>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
-      case 'select': return `<div class="field"><label for="${id}">${esc(f.label)}</label><select class="select" id="${id}" data-p="${f.key}">${f.options.map(([ov, ol]) => `<option value="${esc(ov)}" ${String(ov) === String(v) ? 'selected' : ''}>${esc(ol)}</option>`).join('')}</select></div>`;
+      case 'select': return `<div class="field"><label for="${id}">${esc(f.label)}</label><select class="select" id="${id}" data-p="${f.key}">${optionsHtml(f.options, v)}</select>${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</div>`;
+      case 'psbuilder': return `<div class="field">${psBuilderHtml(idp + 'psb')}</div>`;
       case 'toggle': return `<div class="field"><label class="check"><input type="checkbox" data-p="${f.key}" ${v ? 'checked' : ''}> ${esc(f.label)}</label></div>`;
       case 'multi': return `<div class="field"><span class="lbl">${esc(f.label)}</span><div class="row">${f.options.map(([ov, ol]) => `<label class="check"><input type="checkbox" data-multi="${f.key}" value="${ov}" ${v.includes(ov) ? 'checked' : ''}> ${esc(ol)}</label>`).join('')}</div></div>`;
       case 'items': return `<div class="field"><span class="lbl">${esc(f.label)}</span>${this.itemsEditor(v, 'items')}</div>`;
@@ -2241,6 +2440,7 @@ const Builder = {
       }
       if (b.dataset.delcond != null) { s.params.conds.splice(+b.dataset.delcond, 1); this.changed(); this.renderInspector(); return; }
     });
+    bindPsBuilder(box, (line) => { const s = this.sel; if (!s || !('text' in s.params)) return; s.params.text = (s.params.text ? String(s.params.text).replace(/\s+$/, '') + '\n' : '') + line; this.changed(); this.renderInspector(); });
     // photos
     box.addEventListener('change', (e) => { if (e.target.id === 'photoInput') { this.addPhotos(Array.from(e.target.files)); e.target.value = ''; } });
     box.addEventListener('keydown', (e) => { if (e.target.id === 'photoDrop' && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); $('#photoInput').click(); } });
@@ -3006,8 +3206,9 @@ const Runner = {
         ${this.checksHtml(s, r)}`;
     }
     if (T.group === 'ps') {
-      return `<div class="banner ${r.sent ? 'ok' : 'info'}">${icon(r.sent ? 'check' : 'info')}<div><b>${r.sent ? 'Simulator set:' : 'Simulator setting:'}</b> ${esc(T.summary(s, this.run.template))}<br><span class="mono" style="font-size:12.5px">${esc(T.cmds(p).join('  ·  '))}</span></div></div>
+      return `<div class="banner ${this.psBannerTone(r)}" id="psBanner">${this.psBannerHtml(s, r)}</div>
         <div class="row" style="margin-bottom:12px"><button type="button" class="btn secondary sm" id="psSend" ${Devices.ps ? '' : 'disabled'}>${icon('refresh')}${r.sent ? 'Send again' : 'Send to simulator'}</button></div>
+        ${this.psAdjustHtml(s, r)}
         ${s.hold ? `<div class="timer"><button type="button" class="icon-btn" id="holdPause" aria-label="Pause timer">${icon('pause')}</button><div class="bar"><div id="holdBar"></div></div><span class="t" id="holdT">${s.hold} s</span></div>` : ''}
         ${this.checksHtml(s, r)}`;
     }
@@ -3097,6 +3298,18 @@ const Runner = {
     if (s.type === 'ps_gauge') this.startGauge(s);
     if (T.group === 'ps') {
       $('#psSend')?.addEventListener('click', () => this.sendPs(true));
+      const adj = $('#psAdj');
+      if (adj) {
+        // While settings are being changed the step's timer waits (Send starts it again).
+        const hold = () => { if (!s.hold) return; this.holdPaused = true; const hp = $('#holdPause'); if (hp) { hp.innerHTML = icon('play'); hp.setAttribute('aria-label', 'Resume timer'); } };
+        adj.addEventListener('toggle', () => { r.adjOpen = adj.open; if (adj.open) hold(); });
+        adj.addEventListener('input', (e) => {
+          const el = e.target; if (!el.dataset.p) return; const f = T.fields.find(x => x.key === el.dataset.p); if (!f) return;
+          p[el.dataset.p] = el.type === 'checkbox' ? el.checked : (f.kind === 'num' ? (el.value === '' ? '' : +el.value) : el.value);
+          r.sent = false; r.changed = true; hold(); this.psRefresh(s, r);
+        });
+        bindPsBuilder(adj, (line) => { if (!('text' in p)) return; p.text = (p.text ? String(p.text).replace(/\s+$/, '') + '\n' : '') + line; r.sent = false; r.changed = true; r.adjOpen = true; $('#stageBody').innerHTML = this.bodyHtml(s); this.bindBody(s); this.psRefresh(s, r); });
+      }
       $('#holdPause')?.addEventListener('click', (e) => { this.holdPaused = !this.holdPaused; e.currentTarget.innerHTML = icon(this.holdPaused ? 'play' : 'pause'); e.currentTarget.setAttribute('aria-label', this.holdPaused ? 'Resume timer' : 'Pause timer'); });
       this.bindChecks(s);
     }
@@ -3127,6 +3340,22 @@ const Runner = {
   },
 
   /* ---------- ProSim 8 ---------- */
+  psBannerTone(r) { return r.changed ? 'warn' : r.sent ? 'ok' : 'info'; },
+  psBannerHtml(s, r) {
+    const T = TYPES[s.type];
+    return `${icon(r.changed ? 'alert' : r.sent ? 'check' : 'info')}<div><b>${r.changed ? 'Changed, not sent yet:' : r.sent ? 'Simulator set:' : 'Simulator setting:'}</b> ${esc(T.summary(s, this.run.template))}<br><span class="mono" style="font-size:12.5px">${esc(T.cmds(s.params).join('  ·  '))}</span></div>`;
+  },
+  /** The step's own settings, changeable while testing: for this test only (the run has its own copy of the template). */
+  psAdjustHtml(s, r) {
+    const fs = TYPES[s.type].fields.filter(f => ['select', 'num', 'toggle', 'textarea', 'psbuilder'].includes(f.kind));
+    if (!fs.length) return '';
+    return `<details class="psadj" id="psAdj" ${r.adjOpen ? 'open' : ''}><summary>Change what is sent <span class="muted">(this test only; the template is not changed)</span></summary><div class="psadj-body">${fs.map(f => Builder.fieldHtml.call(Builder, s, f, 'r_')).join('')}</div></details>`;
+  },
+  psRefresh(s, r) {
+    const b = $('#psBanner'); if (b) { b.className = `banner ${this.psBannerTone(r)}`; b.innerHTML = this.psBannerHtml(s, r); }
+    const btn = $('#psSend'); if (btn) btn.innerHTML = `${icon('refresh')}${r.sent ? 'Send again' : 'Send to simulator'}`;
+    this.renderList(); this.autosave();
+  },
   async sendPs(manual) {
     const s = this.step, T = TYPES[s.type], r = this.res(), link = Devices.ps;
     if (!link) { this.startHold(); return; }
@@ -3135,12 +3364,12 @@ const Runner = {
       for (const c of T.cmds(s.params)) {
         try { await link.send(c); }
         catch (e) {
-          if (s.type === 'ps_spo2' && e.code === '01') { await link.send('@' + c); continue; }
+          if ((s.type === 'ps_spo2' || SPO2_CMD.test(c)) && e.code === '01') { await link.send('@' + c); continue; }
           if (/RUN=/.test(c) && /^0[12]$/.test(e.code || '')) { log('in', 'PS8', `${c} not accepted; continuing`); continue; }
           throw e;
         }
       }
-      r.sent = true; if (!stepChecks(s).length && r.status === 'pending') r.status = 'done';
+      r.sent = true; r.changed = false; r.sentCmds = T.cmds(s.params); if (!stepChecks(s).length && r.status === 'pending') r.status = 'done';
       log('in', 'RUN', `ProSim 8 set: ${T.summary(s, this.run.template)}`);
     } catch (e) {
       log('er', 'PS8', e.message);
