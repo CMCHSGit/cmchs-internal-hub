@@ -102,6 +102,9 @@ nav.tabs button:hover{color:var(--text-strong);background:var(--chs-black-05)}
 nav.tabs button[aria-selected="true"]{color:var(--chs-purple);background:var(--chs-purple-20)}
 .devchips{margin-left:auto;display:flex;gap:8px}
 .devchip{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 12px;border:1px solid var(--border-hairline);border-radius:var(--radius-pill);background:#fff;font-size:13.5px;font-weight:600;color:var(--text-body);cursor:pointer}
+.devchip{white-space:nowrap;flex:none}
+.hdr-power{height:36px;min-height:36px;padding:0 14px;border-radius:var(--radius-pill);font-size:13.5px;gap:8px;white-space:nowrap;flex:none}
+.devchips{flex-wrap:nowrap}
 .devchip:hover{border-color:var(--chs-purple-60)}
 main.view{flex:1;width:100%;max-width:1440px;margin:0 auto;padding:24px 20px 48px}
 .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
@@ -428,6 +431,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         <button role="tab" id="tab-log" aria-controls="view-log" aria-selected="false" data-view="log"><svg class="i"><use href="#i-terminal"/></svg>Log</button>
       </nav>
       <div class="devchips">
+        <button class="btn secondary power-btn hdr-power" data-power type="button">Power the device</button>
         <button class="devchip" id="chip-esa" type="button" data-goto="devices"><span class="dot"></span>ESA612</button>
         <button class="devchip" id="chip-ps" type="button" data-goto="devices"><span class="dot"></span>ProSim 8</button>
       </div>
@@ -1100,9 +1104,10 @@ const Devices = {
   async resetBroken() {
     for (const k of ['esa', 'ps']) { const l = this[k]; if (l && !l.sim && (l.state === 'error' || l.stale)) { log('in', l.tag, 'Not answering: disconnecting it before connecting again'); await this.disconnect(k); } }
   },
-  async connect(port, simulated) {
+  /** quiet: a connection attempt nobody asked for (the bench just loaded): nothing pops up, problems go to the log only. */
+  async connect(port, simulated, quiet) {
     await this.resetBroken();
-    if ([this.esa, this.ps].some(l => l && l.port === port)) { toast('That device is already connected.'); return; }
+    if ([this.esa, this.ps].some(l => l && l.port === port)) { if (!quiet) toast('That device is already connected.'); return; }
     if (!simulated) await this.release(port);
     let link = null, ident = null;
     // Try hardware flow control first (what Fluke specifies), then without it: some FTDI cables on Windows don't pass CTS.
@@ -1122,6 +1127,7 @@ const Devices = {
         }
       }
       catch (e) {
+        if (quiet) { log('er', 'USB', `Couldn’t open a serial port: ${e.message}`); return; }
         await dialog({ title: 'Couldn’t open the port', body: `<p>${/already open|busy|access|failed to open|in use/i.test(e.message) ? 'The port is in use. Close Ansur, and any other program or browser tab using this device, then try again. If it still says this, unplug the USB cable for a few seconds.' : esc(e.message)}</p>` });
         return;
       }
@@ -1132,6 +1138,7 @@ const Devices = {
       await link.close();
       await wait(500);
     }
+    if (!ident && quiet) { log('in', 'USB', 'A serial device did not identify itself as an ESA612 or ProSim 8, so it was left alone'); return; }
     if (!ident) {
       const again = await dialog({ title: 'The device didn’t identify itself', tone: 'var(--chs-orange)',
         body: '<p>The port opened, but the device didn’t answer.</p><ul style="padding-left:20px;margin:0 0 8px"><li>Check it’s switched on and showing its home screen, not a menu or test.</li><li>Close Ansur if it’s open.</li><li>Unplug the USB cable for a few seconds and plug it back in.</li></ul><p class="muted">The Log page shows exactly what was received.</p>',
@@ -1140,7 +1147,7 @@ const Devices = {
       return;
     }
     const key = /ESA ?6/i.test(ident) ? 'esa' : 'ps';
-    if (this[key]) { await link.close(); toast(`A ${key === 'esa' ? 'ESA612' : 'ProSim 8'} is already connected.`); return; }
+    if (this[key]) { await link.close(); if (!quiet) toast(`A ${key === 'esa' ? 'ESA612' : 'ProSim 8'} is already connected.`); return; }
     link.tag = key === 'esa' ? 'ESA' : 'PS8'; link.errs = key === 'esa' ? ESA_ERR : PS_ERR; link.ident = ident; link.state = 'connecting'; link.gap = key === 'esa' ? 150 : 30;
     this[key] = link; this.emit();
     try {
@@ -1164,7 +1171,7 @@ const Devices = {
       }
       link.state = 'ready';
       log('in', link.tag, `Ready (flow control ${link.flow === 'hardware' ? 'on' : 'off'})`);
-    } catch (e) { link.state = 'error'; log('er', link.tag, e.message); toast(`${key === 'esa' ? 'ESA612' : 'ProSim 8'}: ${e.message}`, 5000); }
+    } catch (e) { link.state = 'error'; log('er', link.tag, e.message); if (!quiet) toast(`${key === 'esa' ? 'ESA612' : 'ProSim 8'}: ${e.message}`, 5000); }
     this.emit();
   },
   async disconnect(key) {
@@ -1185,10 +1192,10 @@ const Devices = {
     await this.connect(p, false);
   },
   /** Reconnect to any USB device this browser has been allowed to use before, once, when a test that needs one begins. */
-  async autoReconnect() {
+  async autoReconnect(quiet) {
     if (this.esa || this.ps || this.reconnecting || !(await this.knownFree().catch(() => 0))) return;
-    this.reconnecting = true; toast('Connecting the test equipment…');
-    try { await this.reconnect(); } catch (e) { log('er', 'USB', e.message); } finally { this.reconnecting = false; }
+    this.reconnecting = true; if (!quiet) toast('Connecting the test equipment…');
+    try { await this.reconnect(quiet); } catch (e) { log('er', 'USB', e.message); } finally { this.reconnecting = false; }
   },
   /**
    * Have the ESA612 (or ProSim 8) connected, without sending the operator to the Devices page.
@@ -1218,10 +1225,10 @@ const Devices = {
     })();
     return this.ensuring;
   },
-  async reconnect() {
+  async reconnect(quiet) {
     await this.resetBroken();
     const inUse = [this.esa, this.ps].filter(Boolean).map(l => l.port);
-    for (const p of (await navigator.serial.getPorts()).filter(p => !inUse.includes(p))) await this.connect(p, false);
+    for (const p of (await navigator.serial.getPorts()).filter(p => !inUse.includes(p))) await this.connect(p, false, quiet);
   },
   async simulate(messy) { if (!this.esa) await this.connect(simPort('esa', { messy }), true); if (!this.ps) await this.connect(simPort('ps'), true); },
   async knownFree() { if (!('serial' in navigator)) return 0; try { const inUse = [this.esa, this.ps].filter(Boolean).map(l => l.port); return (await navigator.serial.getPorts()).filter(p => !inUse.includes(p)).length; } catch { return 0; } },
@@ -5596,6 +5603,9 @@ const App = {
     if (serialOk) {
       navigator.serial.addEventListener('connect', () => { log('in', 'USB', 'A serial device was plugged in'); this.renderDevices(); });
       navigator.serial.addEventListener('disconnect', (e) => { for (const k of ['esa', 'ps']) if (Devices[k] && Devices[k].port === e.target) Devices.lost(Devices[k], 'unplugged'); });
+      // The ESA612 and ProSim 8 this browser already knows connect by themselves when the bench loads. Quietly: a port that is not a test
+      // device, or one in use by Ansur, is only written to the log. (A test that needs one still asks, as before.)
+      setTimeout(() => Devices.autoReconnect(true), 300);
     }
     window.addEventListener('beforeunload', (e) => {
       try { Devices.esa?.writer?.write(enc.encode('\x1bIDLE\r\nLOCAL\r\n')); } catch {}
