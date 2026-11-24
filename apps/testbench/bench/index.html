@@ -893,7 +893,7 @@ class Link {
   constructor(port, simulated) {
     this.port = port; this.sim = simulated; this.tag = 'USB'; this.buf = ''; this.waiter = null; this.stream = null;
     this.busy = Promise.resolve(); this.errs = {}; this.dec = new TextDecoder(); this.lastRx = 0; this.flow = 'hardware'; this.lastReplyAt = 0; this.gap = 150;
-    this.closed = false; this.stale = false;
+    this.closed = false; this.stale = false; this.autoRemote = false; this.remoteOkAt = 0;
   }
   async open(flow = 'hardware') {
     this.flow = flow;
@@ -950,7 +950,21 @@ class Link {
     if (typeof opts === 'number') opts = { timeout: opts };
     const timeout = opts.timeout || 3000, expect = opts.expect || expectFor(this.tag, cmd), retries = opts.retries ?? 1;
     const run = async () => {
-      let lastErr;
+      let lastErr, regained = false;
+      // The operator left remote control (a key pressed on the front panel to zero the lead or check something): take control again, once,
+      // and repeat the command. REMOTE is refused with error 02 when the device was in remote all along: then the first error was real.
+      const regain = async () => {
+        if (!this.autoRemote || /^@?(REMOTE|LOCAL|IDENT)$/i.test(cmd) || Date.now() - this.remoteOkAt < 3000) return false;
+        try {
+          const since = Date.now() - this.lastReplyAt; if (since < this.gap) await wait(this.gap - since);
+          const w = this.expectLine(expectFor(this.tag, 'REMOTE'), 3000); await this.write('REMOTE\r\n');
+          const line = await w; this.lastReplyAt = Date.now();
+          if (this.error(line)) { this.remoteOkAt = Date.now(); return false; }
+        } catch { return false; }
+        log('in', this.tag, 'The device had gone back to local control: took remote control again');
+        toast(`The ${this.tag === 'ESA' ? 'ESA612' : 'ProSim 8'} had gone back to local control. Connected again.`, 4500);
+        return true;
+      };
       for (let a = 0; a <= retries; a++) {
         if (a > 0) { log('in', this.tag, `No reply to ${cmd}, clearing the line and retrying (${a}/${retries})`); await this.write('\x1b'); await this.drain(250, 1500); }
         else if (this.buf) { log('in', this.tag, `Discarded partial data: "${showCtl(this.buf)}"`); this.buf = ''; }
@@ -964,7 +978,7 @@ class Link {
           const err = this.error(line);
           if (err) { const e = new Error(`${cmd}: ${err.text}`); e.code = err.code; e.reply = line; throw e; }
           return line;
-        } catch (e) { this.quiet = false; lastErr = e; if (!e.timeout) throw e; }
+        } catch (e) { this.quiet = false; lastErr = e; if (!regained && (e.code === '00' || e.code === '02' || (e.timeout && a === retries)) && await regain()) { regained = true; a--; continue; } if (!e.timeout) throw e; }
       }
       if (lastErr && lastErr.timeout) this.stale = true;   // it stopped answering: the next connect resets it (disconnect, then connect)
       throw new Error(`${cmd}: ${lastErr.message}`);
@@ -1007,7 +1021,7 @@ function simPort(kind, opts = {}) {
   // session, a stale "*" waiting, and the first IDENT ignored.
   // opts.stillRemote: an ESA612 still in remote mode from a session that wasn't closed: REMOTE is refused (error 02) until LOCAL.
   let enqueue, line = '', timer = null, mode = 'LOCAL', dropIdent = !!opts.messy, flow = 'hardware', esaRemote = !!opts.stillRemote;
-  const st = { fn: 'MAINS', mains: 'L1-L2', pol: 'OFF', neut: 'C', earth: 'C', ap: '' };
+  const st = { local: false, fn: 'MAINS', mains: 'L1-L2', pol: 'OFF', neut: 'C', earth: 'C', ap: '' };
   let first = true;
   const makeReadable = () => new ReadableStream({ start(c) {
     enqueue = (s) => { try { c.enqueue(enc.encode(s)); } catch {} };
@@ -1032,6 +1046,7 @@ function simPort(kind, opts = {}) {
   };
   const handle = (c) => {
     if (kind === 'esa') {
+      if (st.local && !['IDENT', 'REMOTE', 'LOCAL'].includes(c)) return reply('!02');   // back in local control: nothing but REMOTE is accepted
       if (c === 'IDENT') { if (dropIdent) { dropIdent = false; return; } return reply('ESA612B, v3.01 (SIMULATED)'); }
       if (c === 'SN') return;
       if (c === 'READ') return reply(reading());
@@ -1052,7 +1067,7 @@ function simPort(kind, opts = {}) {
       if (c === 'IDLE') { st.mapPol = null; st.pol = 'OFF'; st.neut = 'C'; st.earth = 'C'; if (opts.apFirst) st.fn = 'NONE'; return reply('*'); }
       if (c.startsWith('INS=')) return reply(['MINS', 'APINS', 'INSB', 'INSD', 'INSE'].includes(st.fn) ? '*' : '!02');
       // Mimics the real one (4/11/2026): REMOTE is refused (error 02) while it is still in remote mode from a session that wasn't closed with LOCAL.
-      if (c === 'REMOTE') { if (esaRemote) return reply('!02'); esaRemote = true; return reply('*'); }
+      if (c === 'REMOTE') { if (esaRemote) return reply('!02'); esaRemote = true; st.local = false; return reply('*'); }
       if (c === 'LOCAL') { esaRemote = false; return reply('*'); }
       if (c === 'ZERO' || /^(STD|MODE|RPTIME)=/.test(c)) return reply('*');
       return reply('!01');
@@ -1077,7 +1092,7 @@ function simPort(kind, opts = {}) {
     }
   } });
   // Like a real port, each open gives fresh streams.
-  return { readable: null, writable: null, async open(o) { flow = o.flowControl; this.readable = makeReadable(); this.writable = makeWritable(); }, async close() { if (timer) clearInterval(timer); timer = null; }, getInfo() { return { usbVendorId: 0x0403, usbProductId: 0x6001 }; } };
+  return { readable: null, writable: null, goLocal() { esaRemote = false; st.local = true; mode = 'LOCAL'; }, async open(o) { flow = o.flowControl; this.readable = makeReadable(); this.writable = makeWritable(); }, async close() { if (timer) clearInterval(timer); timer = null; }, getInfo() { return { usbVendorId: 0x0403, usbProductId: 0x6001 }; } };
 }
 
 /* ----- device manager ----- */
@@ -1169,7 +1184,7 @@ const Devices = {
         try { link.sn = await link.send('SN', { timeout: 2000 }); } catch { link.sn = ''; }
         try { const b = await link.send('QBAT', { timeout: 2000 }); link.bat = isNaN(+b) ? b : `${+b}%`; } catch { link.bat = ''; }
       }
-      link.state = 'ready';
+      link.state = 'ready'; link.autoRemote = true;
       log('in', link.tag, `Ready (flow control ${link.flow === 'hardware' ? 'on' : 'off'})`);
     } catch (e) { link.state = 'error'; log('er', link.tag, e.message); if (!quiet) toast(`${key === 'esa' ? 'ESA612' : 'ProSim 8'}: ${e.message}`, 5000); }
     this.emit();

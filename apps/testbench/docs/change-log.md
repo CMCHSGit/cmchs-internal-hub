@@ -445,3 +445,6 @@ Also synced: "TM80 Central Charger", an engineer's template from the shared fold
 
 ## Masimo Root with Radical-7 template (25/11/2026)
 File `Masimo Root with Radical-7 - Test Bench template.json` (Promed), 18 steps: the Root and its docked Radical-7 as one test and one report (Root is the main device; the Radical-7 goes under "Other devices in this test"). Built from the Masimo Root and Radical-7 templates: the Root's electrical safety sequence and limits (from the Ansur "Root + Rad 7" template), set-ups naming the Root's mains lead, applied parts SpO2 / SedLine / O3 type BF on RA; SpO2 95–100 % as in the Root template (the Radical-7 template allows 94–101). New step "Radical-7 undocked": the Radical-7 template's battery checks plus undock/redock checks (no Ansur source). The Root's battery reading (min 4000 mAh) is the last step.
+
+## Back from the front panel (25/11/2026)
+- A device taken back to local control (a key pressed on the ESA612 or ProSim 8) is taken over again by the next command, without Disconnect and connect. Verified with the built-in simulator only. See esa612-protocol-notes.md.
