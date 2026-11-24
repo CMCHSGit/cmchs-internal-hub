@@ -171,6 +171,19 @@ function dailyBackup() {
   try { activityBackup_(); } catch (err) { console.error('Activity log backup stopped:', err.toString()); }
 }
 
+// A demo tracker stamp for the History sheet, as "24/11/2026, 4:26:00 pm" in NZ time. The tracker's
+// stamps are NZ clock time then +12:00 or +13:00, but until 24 Nov 2026 every one said +12:00, even
+// in daylight saving, so read as a moment they'd come out an hour late: write the clock time as
+// written (the tracker's own stampMs and fmtWhen, apps/equipment/src/model.js, do the same).
+// Anything else (a UTC time) is converted to NZ time.
+function trackerWhen_(ts) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\+1[23]:00$/.exec(String(ts));
+  if (!m) return new Date(ts).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
+  // The same layout, from the clock time alone: no time zone, so no daylight saving to get wrong.
+  const clock = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
+  return new Date(clock).toLocaleString('en-NZ', { timeZone: 'UTC' });
+}
+
 function equipmentBackup_() {
   try {
     // 1. Fetch from Firebase — /data.json (equipment + history + loanMeta,
@@ -199,7 +212,7 @@ function equipmentBackup_() {
       return e[c] || '';
     }))];
     const histRows = [HISTORY_HEADERS,   ...history.map(h => HISTORY_COLS.map(c => {
-      if (c === 'ts' && h[c]) return new Date(h[c]).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
+      if (c === 'ts' && h[c]) return trackerWhen_(h[c]);
       return h[c] || '';
     }))];
 
