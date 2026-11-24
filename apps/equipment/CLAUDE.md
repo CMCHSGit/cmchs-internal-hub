@@ -54,8 +54,11 @@ side": **stale**. The tracker has run on Firestore since the cutover and the old
 
 Keys and formats: a loan is keyed by its `BatchID` (`batch_<ms>`; `testbatch_<ms>` in test mode); loans from before
 BatchIDs by `loandoc_` + the encoded `customer|||endDate` (`legacyLoanDocKey`, `metaKey`). Stored dates in loan
-records are DD/MM/YYYY (`oldDate`); timestamps are NZ clock time marked `+12:00` all year (`nzNow`). Keep both as they
-are: the proxy, the backup and the project tracker read them.
+records are DD/MM/YYYY (`oldDate`). Timestamps are NZ clock time with NZ's offset then (`nzNow`: `+13:00` in daylight
+saving, `+12:00` otherwise); until 24 Nov 2026 every one was marked `+12:00`, so summer ones from before then are an hour
+out if read as a moment. Read them with `stampMs` / `fmtWhen` (they take an NZ stamp's clock time as written), never
+`new Date(ts)`. Keep the clock time first: stamps are sorted (`orderBy('ts')`) and compared with days as text. Keep both
+formats: the proxy, the backup and the project tracker read them.
 
 ## Who else reads or writes this data
 

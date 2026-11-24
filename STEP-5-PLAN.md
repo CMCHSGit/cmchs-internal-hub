@@ -254,7 +254,8 @@ demo feed, `apps/projects/src/feed.js`), `backend/apps-script/proxy/Code.js`
 Keys to know: a loan is keyed by its `BatchID` (`batch_<ms>`, `testbatch_…`
 in test mode); loans from before BatchIDs by `loandoc_` + the encoded
 `customer|||endDate`. Stored text uses DD/MM/YYYY (`oldDate` in `model.js`);
-timestamps are NZ clock time marked `+12:00` all year (`nzNow`).
+timestamps are NZ clock time marked `+12:00` all year (`nzNow`; since 24 Nov 2026 with the real offset,
+`+13:00` in daylight saving: `apps/equipment/CLAUDE.md`).
 
 ## 5A Roles in place of the admin password; the team into `users`
 

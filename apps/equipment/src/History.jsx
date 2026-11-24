@@ -8,17 +8,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { Alert, Badge, Loading } from '../../../shared/ui/index.jsx'
 import LoanForm from './LoanForm.jsx'
 import { AdminDialog } from './Items.jsx'
-import { AUDIT_LABELS, auditTone, filterAudit, filterHistory, fmtDate } from './model.js'
+import { AUDIT_LABELS, auditTone, filterAudit, filterHistory, fmtDate, fmtWhen } from './model.js'
 
 const ACTIONS = [['', 'Everything'], ['Loan', 'Loaned out'], ['Return', 'Returned'], ['Count', 'Counted'], ['Transfer', 'Transferred'], ['Converted', 'Converted'], ['Edited', 'Edited']]
 const TONE = { Loan: 'orange', Return: 'green', Count: 'green', Transfer: 'purple' }
 const PAGE = 200
-const when = (ts) => {
-  if (!ts) return ''
-  const d = new Date(ts)
-  if (Number.isNaN(d.getTime())) return String(ts)
-  return d.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
-}
+// "24 Nov 2026, 16:26": NZ stamps at the clock time written (old ones say +12:00 even in daylight saving).
+const when = (ts) => fmtWhen(ts, { year: true })
 
 export default function History({ s, params, setParams }) {
   const tab = params.tab === 'audit' ? 'audit' : 'devices'

@@ -10,7 +10,7 @@ import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
 import LoanActions from './LoanActions.jsx'
 import { AccessoryList } from './Accessories.jsx'
 import { AdminDialog } from './Items.jsx'
-import { auditTone, AUDIT_LABELS, clashesFor, dateRange, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, startsSoon } from './model.js'
+import { auditTone, AUDIT_LABELS, clashesFor, dateRange, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, stampMs, startsSoon } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -138,12 +138,12 @@ function LoanCard({ g, s, audit = [], all, go, open, onToggle, onDone, start, on
   const updates = useMemo(() => loanUpdates(audit, g), [audit, g])
   const seenKey = 'loanSeen_' + (g.batchId || encodeURIComponent(g.loanTo || ''))
   const [seen, setSeen] = useState(() => { try { return localStorage.getItem(seenKey) || '' } catch { return '' } })
-  // Compared as moments; what's kept is the newest entry's own time (the old +12:00 stamps run an hour ahead in summer, so "now" could be earlier).
-  const unseen = updates.length > 0 && (!seen || Date.parse(updates[0].ts) > Date.parse(seen))
+  // Compared as moments (stampMs: old stamps say +12:00 even in daylight saving); what's kept is the later of the newest entry's own time and now.
+  const unseen = updates.length > 0 && (!seen || stampMs(updates[0].ts) > stampMs(seen))
   const [showUpdates, setShowUpdates] = useState(false)
   const openUpdates = () => {
     setShowUpdates(true)
-    const at = [String(updates[0]?.ts || ''), new Date().toISOString()].sort((a, b) => Date.parse(b) - Date.parse(a))[0]
+    const at = [String(updates[0]?.ts || ''), new Date().toISOString()].sort((a, b) => (stampMs(b) || 0) - (stampMs(a) || 0))[0]
     setSeen(at); try { localStorage.setItem(seenKey, at) } catch { /* private mode */ }
   }
   return (

@@ -31,7 +31,7 @@ test('testing and dispatch: offered for upcoming loans, and a started one in its
 test('withReadiness sets the field and when, and clears both', () => {
   assert.deepEqual(withReadiness({ dispatched: true }, 'tested', true, 'X'), { dispatched: true, tested: true, testedAt: 'X' })
   assert.deepEqual(withReadiness({ tested: true, testedAt: 'X' }, 'tested', false), { tested: false, testedAt: '' })
-  assert.match(nzNow(new Date('2026-10-16T00:00:00Z')), /^2026-10-16T13:00:00\+12:00$/) // NZDT wall clock, marked +12:00 as the old one
+  assert.equal(nzNow(new Date('2026-10-16T00:00:00Z')), '2026-10-16T13:00:00+13:00') // NZDT: clock time and its real offset (nz-time.test.mjs)
 })
 
 test('extend: not for long-term loans; the new date after the old; only this loan’s devices change', () => {
