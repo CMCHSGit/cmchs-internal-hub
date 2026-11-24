@@ -33,6 +33,17 @@
     "visible": true
   },
   {
+    "id": "codes",
+    "name": "QR codes and barcodes",
+    "short": "QR & barcodes",
+    "description": "Make a QR code or barcode from any text and save it as a picture. Made in your browser, nothing is sent anywhere",
+    "link": "/codes/",
+    "category": "Everyday",
+    "icon": "qr-code",
+    "opens": "here",
+    "visible": true
+  },
+  {
     "id": "service-orders",
     "name": "Service Orders",
     "short": "Service orders",

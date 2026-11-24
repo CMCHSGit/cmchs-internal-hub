@@ -36,6 +36,7 @@ const TestBenchSection = lazy(() => import('../../testbench/src/section.jsx'))
 const NewEquipmentSection = lazy(() => import('../../testbench/src/newequip/section.jsx'))
 const PdfEditorSection = lazy(() => import('../../pdf-editor/src/section.jsx'))
 const LogReaderSection = lazy(() => import('../../logreader/src/section.jsx'))
+const CodesSection = lazy(() => import('../../codes/src/section.jsx'))
 const EquipmentSection = lazy(() => import('../../equipment/src/section.jsx'))
 const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
 
@@ -189,6 +190,7 @@ export default function App() {
               {section === 'new-equipment' && <NewEquipmentSection />}
               {section === 'pdf-editor' && <PdfEditorSection />}
               {section === 'logreader' && <LogReaderSection />}
+              {section === 'codes' && <CodesSection />}
               {section === 'equipment' && <EquipmentSection />}
               {section === 'schedule' && <ScheduleSection />}
             </Suspense>
