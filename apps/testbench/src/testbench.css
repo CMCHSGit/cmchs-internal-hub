@@ -164,3 +164,5 @@
   .tb-mac-input { font-size: 14px; letter-spacing: 0; padding-inline: 10px; }
   .tb-mac-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
+.tb-mac-for { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 10px 12px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-left: 4px solid var(--chs-purple); border-radius: var(--radius-md); }
+.tb-mac-for .tb-mac-mono { font-size: 15px; color: var(--text-strong); }

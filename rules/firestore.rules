@@ -731,6 +731,31 @@ service cloud.firestore {
         && d.editedBy == myBenchEmail() && d.editedAt == request.time;
     }
 
+    // A device's Device ID and MAC addresses as read on a phone (the Test Bench's MAC reader tab, opened from a
+    // QR code on the unit's row on the Customers tab) and shown on that row. One document per unit, keyed by the
+    // customer and the serial, so reading a unit again replaces its reading. The Bench's teams read, save,
+    // replace and remove them; the customer and serial never change on a replace; nobody saves one under
+    // another person's email. Addresses only, in the shapes the asset lists use (Device ID with dashes, MACs with colons).
+    match /deviceReadings/{id} {
+      allow read: if canBench();
+      allow create: if canBench() && isReading();
+      allow update: if canBench() && isReading()
+        && request.resource.data.customerId == resource.data.customerId && request.resource.data.serial == resource.data.serial;
+      allow delete: if canBench();
+    }
+    function isReading() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['customerId', 'serial', 'deviceId', 'lanMac', 'wlanMac', 'by', 'at'])
+        && d.keys().hasAll(['customerId', 'serial', 'by', 'at'])
+        && d.keys().hasAny(['deviceId', 'lanMac', 'wlanMac'])
+        && d.customerId is string && d.customerId.size() > 0 && d.customerId.size() <= 40
+        && d.serial is string && d.serial.size() > 0 && d.serial.size() <= 100
+        && (!('deviceId' in d) || (d.deviceId is string && d.deviceId.matches('^([0-9A-F]{2}-){7}[0-9A-F]{2}$')))
+        && (!('lanMac' in d) || (d.lanMac is string && d.lanMac.matches('^([0-9A-F]{2}:){5}[0-9A-F]{2}$')))
+        && (!('wlanMac' in d) || (d.wlanMac is string && d.wlanMac.matches('^([0-9A-F]{2}:){5}[0-9A-F]{2}$')))
+        && d.by == myBenchEmail() && d.at == request.time;
+    }
+
     // The demo tracker (internal.chsnz.co.nz/equipment/), from step 5 of
     // INTEGRATION-PLAN.md (STEP-5-PLAN.md 5B): its data moved here from the
     // chs-equipment Realtime Database, one document per item and per loan.

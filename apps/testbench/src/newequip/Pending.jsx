@@ -8,6 +8,7 @@ import { logActivity } from '../../../../shared/activity.js'
 import { CHOICE_KEYS, FIELDS, choicesFor, clashes, editClashes, changedFields, fillFromModel, cleanPending, missingSite, testLink, toCsv, toHtml, toTsv, sheetsToRemember } from './pending.js'
 import { sendToSimpro } from './toSimpro.js'
 import { useTestLink } from './open-device.js'
+import ReadingCell from './ReadingCell.jsx'
 import { addPending, editPending, removePending, watchPending } from './pending-firebase.js'
 
 const PLACEHOLDER = { installed: 'd/mm/yyyy', manufactured: 'e.g. 3/2026', warranty: 'd/mm/yyyy', site: 'Simpro site ID' }
@@ -36,7 +37,7 @@ function copyBoth(text, html) {
 
 const saveBlob = (name, blob) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000) }
 
-export default function Pending({ customer, units, sheets: loaded, canSimpro }) {
+export default function Pending({ customer, units, sheets: loaded, canSimpro, readings }) {
   const [rows, setRows] = useState(null)
   const { onClick: openTest } = useTestLink()
   const [error, setError] = useState('')
@@ -103,13 +104,14 @@ export default function Pending({ customer, units, sheets: loaded, canSimpro }) 
         <>
           <div className="ne-table-wrap">
             <table className="ne-table">
-              <thead><tr><th scope="col">Serial number</th><th scope="col">Device</th><th scope="col">Site</th><th scope="col">Ward</th><th scope="col"><span className="ne-sr">Actions</span></th></tr></thead>
+              <thead><tr><th scope="col">Serial number</th><th scope="col">Device</th><th scope="col">Site</th><th scope="col">Ward</th><th scope="col">Device ID / MAC</th><th scope="col"><span className="ne-sr">Actions</span></th></tr></thead>
               <tbody>
                 {list.map((r) => (
                   <tr key={r.id}>
                     <td className="ne-mono">{r.serial}</td>
                     <td>{[r.model || r.description, r.type && r.model ? r.type : ''].filter(Boolean).join(' · ') || '–'}</td>
                     <td>{r.site || '–'}</td><td>{r.ward || '–'}</td>
+                    <td><ReadingCell reading={readings?.get(r.serial.trim().toUpperCase())} customer={customer} u={r} /></td>
                     <td className="ne-actions">
                       <Button variant="ghost" size="sm" aria-label={`Copy ${r.serial} for the workbook`} title="Copy this row to paste into the asset list" iconLeft={<ClipboardCopy size={14} aria-hidden="true" />} onClick={() => copy(r)}>Copy</Button>
                       <Button variant="ghost" size="sm" aria-label={`Edit ${r.serial}`} iconLeft={<Pencil size={14} aria-hidden="true" />} onClick={() => setAdding({ start: { ...r }, original: r })}>Edit</Button>

@@ -92,3 +92,29 @@ test('a test report\'s file is put back together from its chunks', () => {
   assert.equal(b.trackerFsReportFile_(nelson, 'rep1'), report)
   assert.equal(b.trackerFsReportFile_(nelson, 'gone'), null)
 })
+
+// The History sheet's times (trackerWhen_). Old tracker stamps say +12:00 even in daylight saving, so a
+// summer one is written by its clock time; the layout stays what the sheet has always had (the old way:
+// the real moment, formatted as NZ time), worked out here rather than written out, as ICU versions differ.
+const when = (() => { const ctx = vm.createContext({}); vm.runInContext(grab('trackerWhen_'), ctx); return ctx.trackerWhen_ })()
+const oldWay = (iso) => new Date(iso).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' })
+
+test('History sheet times: a winter stamp, as before', () => {
+  const noon = oldWay('2026-07-15T00:00:00Z') // 12:00 NZST
+  assert.match(noon, /12:00:00/)
+  assert.equal(when('2026-07-15T12:00:00+12:00'), noon)
+  assert.equal(when('2026-07-15T12:00:00+12:00'), oldWay('2026-07-15T12:00:00+12:00'), 'unchanged from before')
+  assert.equal(when('2026-07-15T00:00:00.000Z'), noon, 'a UTC time, converted')
+})
+
+test('History sheet times: a summer stamp by its clock time, old (+12:00) or new (+13:00)', () => {
+  const real = oldWay('2026-11-24T03:26:05Z') // 4:26:05 pm NZDT
+  assert.match(real, /4:26:05/)
+  assert.equal(when('2026-11-24T16:26:05+12:00'), real, 'an old stamp: not 5:26, an hour late')
+  assert.notEqual(oldWay('2026-11-24T16:26:05+12:00'), real, 'which is what the old way gave')
+  assert.equal(when('2026-11-24T16:26:05+13:00'), real, 'a new stamp')
+  assert.equal(when('2026-11-24T16:26:05.123+12:00'), real, 'milliseconds')
+  assert.equal(when('2026-11-24T16:26+12:00'), oldWay('2026-11-24T03:26:00Z'), 'no seconds')
+  assert.equal(when('2026-11-24T03:26:05Z'), real, 'a UTC time, converted')
+  assert.equal(when(Date.parse('2026-11-24T03:26:05Z')), real, 'a time in ms, converted')
+})

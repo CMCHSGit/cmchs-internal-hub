@@ -112,3 +112,9 @@ export function readRows(result) {
 
 /** All of them as text to paste: "Device ID: 00-0F-…\nWLAN MAC: …". */
 export const rowsAsText = (rows) => rows.map((r) => `${r.label}: ${r.value}`).join('\n')
+
+/** Tidy a typed or pasted Device ID: 000f1404cc5495d4 or 00:0f:14:04:cc:54:95:d4 → '00-0F-14-04-CC-54-95-D4'. '' when it isn't 8 bytes. */
+export function tidyDeviceId(text) {
+  const hex = String(text || '').replace(/[^0-9A-Fa-f]/g, '').toUpperCase()
+  return /^[0-9A-F]{16}$/.test(hex) ? hex.match(/../g).join('-') : ''
+}

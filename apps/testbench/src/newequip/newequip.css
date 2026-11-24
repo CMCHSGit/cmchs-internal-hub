@@ -39,3 +39,14 @@
 .ne-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .ne-h3 { margin: 0; font: var(--type-h4); color: var(--text-strong); }
 .ne-reports { display: flex; flex-direction: column; gap: 8px; padding-top: 6px; border-top: 1px solid var(--border-subtle); }
+
+/* A unit's Device ID and MACs read on a phone (ReadingCell.jsx). */
+.ne-reading { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.ne-reading-vals { display: flex; flex-direction: column; gap: 1px; }
+.ne-reading-vals small { display: inline-block; min-width: 62px; color: var(--text-muted); font: var(--type-caption); }
+.ne-reading-vals .ne-mono { font-size: 12px; }
+.ne-reading-acts { display: flex; flex-wrap: wrap; gap: 2px; }
+.ne-qr { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ne-qr-code { width: 220px; max-width: 100%; line-height: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; background: #fff; }
+.ne-qr-code svg { width: 100%; height: auto; display: block; }
+.ne-qr .ne-actions { justify-content: center; }
