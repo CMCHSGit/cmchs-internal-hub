@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { changeAccessoryList as saveAccessoryList, commit as fsCommit, watchAccessoryList } from './db-firestore.js'
 import {
   activateBookings, applyImport, cleanAccessoryList, cleanAccessorySets, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, reportKeysOf, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories,
+  jobNumber, readinessKey, reportKeysOf, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories, extendedForm,
 } from './model.js'
 
 const Store = createContext(null)
@@ -240,14 +240,42 @@ export function StoreProvider({ children }) {
   }, [touch])
 
   /**
+   * One loan form document changed: fn(the document stored now, or null) gives the new one, worked out on
+   * what is stored at the moment it's saved. On Firestore that is inside the save's transaction, so if
+   * someone else changed it first, fn is run again on theirs (db-firestore.js commit). Giving back what it
+   * was given changes nothing. Resolves with the document as saved.
+   */
+  const changeLoanDoc = useCallback(async (key, fn) => {
+    if (cutover().readOnly) throw new Error('The demo tracker is read-only for a few minutes while its data moves. Try again shortly.')
+    let next = null
+    if (onFirestore()) {
+      await fsCommit((s) => {
+        const now = s.loanDocs?.[key] || null
+        next = fn(now)
+        return next === now ? {} : { loanDocs: { ...s.loanDocs, [key]: next } }
+      })
+    } else {
+      const now = (await read('loanDocs/' + enc(key))).data || null
+      next = fn(now)
+      if (next !== now) await write('loanDocs/' + enc(key), next)
+    }
+    if (next) setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: next } }))
+    return next
+  }, [])
+
+  /**
    * Extend (old: confirmExtendLoan, confirmExtendLoanByKey's booking branch).
-   * A booking's end date is changed on the booking. A loan's devices get the
-   * new date in /data; a form kept under the old key (no BatchID), which has
-   * the end date in it, moves to the new key first, keeping its Simpro job;
-   * and the due-soon reminder already sent for the old date is cleared.
+   * A form kept under the BatchID gets the new end date first (model.js
+   * extendedForm; else its Save would put the old one back on the devices and
+   * the Simpro job), so a failure there stops the Extend before anything else
+   * changes. A booking's end date is changed on the booking. A loan's devices
+   * get the new date in /data; a form kept under the old key (no BatchID),
+   * which has the end date in it, moves to the new key first, keeping its
+   * Simpro job; and the due-soon reminder already sent for the old date is cleared.
    */
   const extendLoan = useCallback(async (g, newDate) => {
     const was = g.endDate // not "oldDate": that's the date function the audit line below needs
+    if (g.batchId) await changeLoanDoc(g.batchId, (now) => extendedForm(now, newDate))
     if (g.kind === 'booking') {
       await write(`upcomingLoans/${enc(g.batchId)}/endDate`, newDate)
       setState((s) => ({ ...s, upcoming: s.upcoming.map((u) => (u.id === g.batchId ? { ...u, endDate: newDate } : u)) }))
@@ -270,7 +298,7 @@ export function StoreProvider({ children }) {
     await audit('loan_extended', `${g.kind === 'booking' ? 'Upcoming loan' : 'Loan'} for ${g.loanTo} extended from ${oldDate(was)} to ${oldDate(newDate)}`,
       { loanTo: g.loanTo, oldDate: was, newDate, items })
     await touch()
-  }, [audit, touch, updateData])
+  }, [audit, changeLoanDoc, touch, updateData])
 
   /** Tells Simpro, through the proxy, with the hub sign-in (old: proxyFetch). Not in test mode or the dev server. */
   const simpro = useCallback(async (body) => {
@@ -570,30 +598,6 @@ export function StoreProvider({ children }) {
     })()
     return { created: true, pending: true }
   }, [audit, simpro])
-
-  /**
-   * One loan form document changed: fn(the document stored now, or null) gives the new one, worked out on
-   * what is stored at the moment it's saved. On Firestore that is inside the save's transaction, so if
-   * someone else changed it first, fn is run again on theirs (db-firestore.js commit). Giving back what it
-   * was given changes nothing. Resolves with the document as saved.
-   */
-  const changeLoanDoc = useCallback(async (key, fn) => {
-    if (cutover().readOnly) throw new Error('The demo tracker is read-only for a few minutes while its data moves. Try again shortly.')
-    let next = null
-    if (onFirestore()) {
-      await fsCommit((s) => {
-        const now = s.loanDocs?.[key] || null
-        next = fn(now)
-        return next === now ? {} : { loanDocs: { ...s.loanDocs, [key]: next } }
-      })
-    } else {
-      const now = (await read('loanDocs/' + enc(key))).data || null
-      next = fn(now)
-      if (next !== now) await write('loanDocs/' + enc(key), next)
-    }
-    if (next) setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: next } }))
-    return next
-  }, [])
 
   /**
    * The loan form saved (old: saveLoanDocChanges): the whole form document,

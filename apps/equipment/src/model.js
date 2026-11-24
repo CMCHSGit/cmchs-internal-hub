@@ -626,6 +626,19 @@ export const extendEquipment = (equipment, g, newDate) => {
 /** Where a loan's form is kept for a given end date: its BatchID, else the old key, which has the end date in it. */
 export const loanDocKey = (g, endDate = g.endDate) => g.batchId || legacyKeys(g.loanTo, endDate)[0]
 
+/**
+ * A loan's stored form after Extend: the new end date (YYYY-MM-DD, as formDoc keeps it). The form shows its own
+ * end date over the loan's (formFromDoc), and its Save puts that date on the devices, the booking and the Simpro
+ * job, so a form left with the old date would undo the Extend. No form, a long-term one (no end date) or one
+ * already on that date: given back as it is, so nothing is saved (store.jsx changeLoanDoc).
+ * (Until 25-Nov-2026 only a form kept under the old key, which moves to the new date, got it; one under a BatchID didn't.)
+ */
+export function extendedForm(doc, newDate) {
+  const to = toISO(newDate || '')
+  if (!doc || doc.longTerm || !to || toISO(doc.endDate || '') === to) return doc
+  return { ...doc, endDate: to }
+}
+
 /* ── Return, and the bookings it can start (old: confirmBatchReturn,
    activateUpcomingLoans / _tryActivateUpcomingLoan) ── */
 
