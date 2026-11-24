@@ -155,7 +155,8 @@ How (17 Oct, from a map of the old tracker's 15,900 lines):
   record per item), not by new screens.
 - **Kept as they are for now**: the admin password (plain text in `/config`,
   checked in the browser; step 5's roles replace it), EmailJS for loan emails,
-  Simpro calls through the proxy, `nzNow()`'s fixed +12:00 timestamps.
+  Simpro calls through the proxy, `nzNow()`'s fixed +12:00 timestamps (fixed on 24 Nov 2026: they now carry
+  +13:00 in daylight saving, and old ones are read by their clock time; `apps/equipment/CLAUDE.md`).
 
 - [x] Data layer (pass, reads, ETag save and merge, live updates), dev stand-in,
       17 Oct (`apps/equipment/src/db.js`, `store.jsx`, the rules in `model.js`, tested)

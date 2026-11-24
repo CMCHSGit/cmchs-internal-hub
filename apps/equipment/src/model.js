@@ -413,19 +413,22 @@ export function readinessOf(g, { loanMeta = {}, today = nzDate() } = {}) {
   }
 }
 
+/** An NZ stamp (nzNow): clock time, then +12:00 or +13:00. Old ones say +12:00 all year, so the clock time is what's right. */
+const NZ_STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?\+1[23]:00$/
+
 /**
- * "15 Oct, 17:40" (old: _fmtReadinessTs). The old tracker's own timestamps
- * are NZ clock time marked +12:00 all year (nzNow), so in daylight saving,
- * read as a moment, they come out an hour late (the old one shows them so).
- * Those show the clock time as written; anything else is converted to NZ time.
+ * "15 Oct, 17:40", or "15 Oct 2026, 17:40" with year (old: _fmtReadinessTs). NZ stamps
+ * show their clock time as written: the old ones are marked +12:00 even in daylight
+ * saving, so read as a moment they'd come out an hour late. Anything else (a UTC time)
+ * is converted to NZ time.
  */
-export function fmtWhen(ts) {
+export function fmtWhen(ts, { year = false } = {}) {
   if (!ts || ts === true) return ''
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?\+12:00$/.exec(String(ts))
-  if (m) return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}, ${m[4]}:${m[5]}`
+  const m = NZ_STAMP.exec(String(ts))
+  if (m) return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}${year ? ' ' + m[1] : ''}, ${m[4]}:${m[5]}`
   const d = new Date(ts)
   if (Number.isNaN(d.getTime())) return String(ts).slice(0, 10)
-  return d.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+  return d.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', ...(year ? { year: 'numeric' } : {}), hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 /** The Simpro job on a loan's form: "Job #209677", "(Closed)" once closed, or pending while it's made. */
@@ -538,8 +541,38 @@ export function actionCount(ov, me) {
 /* ── Changes (the loan actions). The old tracker's ways of recording them,
    kept so both trackers read each other's changes. ── */
 
-/** A timestamp as the old tracker writes them: NZ wall-clock time marked +12:00 all year (old: nzNow, kept for now). */
-export const nzNow = (d = new Date()) => d.toLocaleString('sv-SE', { timeZone: 'Pacific/Auckland' }).replace(' ', 'T') + '+12:00'
+/**
+ * A timestamp: NZ wall-clock time with NZ's offset at that moment, "2026-11-24T16:26:00+13:00" in
+ * daylight saving, "+12:00" otherwise. The old tracker's nzNow (and this one until 24 Nov 2026)
+ * marked every one +12:00, so read stamps with stampMs or fmtWhen, never new Date(). The clock
+ * time comes first, as before, so stamps still sort, and compare with a day, as text.
+ */
+export const nzNow = (d = new Date()) => {
+  const wall = d.toLocaleString('sv-SE', { timeZone: 'Pacific/Auckland' }).replace(' ', 'T')
+  const min = Math.round((Date.parse(wall + 'Z') - d.getTime()) / 60000)
+  return wall + (min < 0 ? '-' : '+') + String(Math.floor(Math.abs(min) / 60)).padStart(2, '0') + ':' + String(Math.abs(min) % 60).padStart(2, '0')
+}
+
+/** A stamp for an NZ clock time ("2026-11-24T16:26", seconds optional), with the offset NZ had then: the readiness dialog's picked date and time. */
+export function nzStampAt(wall) {
+  const w = /T\d{2}:\d{2}$/.test(wall) ? wall + ':00' : wall
+  for (const off of ['+13:00', '+12:00']) {
+    const t = Date.parse(w + off)
+    if (!Number.isNaN(t) && nzNow(new Date(t)) === w + off) return w + off
+  }
+  return w + '+12:00' // the hour that daylight saving skips
+}
+
+/**
+ * When a stamp happened, in ms (NaN for none). An NZ stamp (+12:00 or +13:00) is read by its clock
+ * time, since old ones say +12:00 even in daylight saving; anything else (a UTC time) as it is.
+ */
+export function stampMs(ts) {
+  if (typeof ts === 'number') return ts
+  const m = NZ_STAMP.exec(String(ts || ''))
+  if (!m) return ts ? Date.parse(ts) : NaN
+  return Date.parse(nzStampAt(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] || '00'}`))
+}
 
 /** A new record id, as the old tracker's uid(): starts with the time, so ids sort by when. */
 export const newId = () => 'id_' + Date.now() + '_' + Math.random().toString(36).slice(2)
@@ -1696,7 +1729,7 @@ export function loanUpdates(audit = [], g) {
 
 /** "just now", "5m ago", "3h ago", "2d ago" (old: _relativeTime). */
 export function relTime(ts, now = Date.now()) {
-  const t = new Date(ts).getTime()
+  const t = stampMs(ts)
   if (!ts || Number.isNaN(t)) return ''
   const mins = Math.floor((now - t) / 60000)
   return mins < 1 ? 'just now' : mins < 60 ? mins + 'm ago' : mins < 1440 ? Math.floor(mins / 60) + 'h ago' : Math.floor(mins / 1440) + 'd ago'

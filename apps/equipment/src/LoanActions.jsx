@@ -13,7 +13,7 @@ import LoanForm from './LoanForm.jsx'
 import TestReports from './TestReports.jsx'
 import { AccessoryEditor, AccessoryNotesHint } from './Accessories.jsx'
 import { useNarrow } from './useNarrow.js'
-import { addedText, canExtend, cleanAccessories, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanLabel, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
+import { addedText, canExtend, cleanAccessories, decodeQueue, demoTypeOptions, formItems, jobNumber, linkTarget, jobOf, loanLabel, matchLoan, transferTargets, loanDocKey, editProblem, extendProblem, fmtDate, fmtWhen, nzNow, nzStampAt, readinessButtons, readinessKey, returnToActiveProblem, suggestedReturnDate } from './model.js'
 
 const LABEL = { tested: 'tested', dispatched: 'dispatched', noTestRequired: 'no test required' }
 
@@ -202,7 +202,7 @@ function WhenDialog({ g, field, busy, error, onClose, onSave }) {
   const now = nzNow()
   const [date, setDate] = useState(now.slice(0, 10))
   const [time, setTime] = useState(now.slice(11, 16))
-  const submit = (e) => { e.preventDefault(); onSave(date ? `${date}T${time || '00:00'}:00+12:00` : nzNow()) }
+  const submit = (e) => { e.preventDefault(); onSave(date ? nzStampAt(`${date}T${time || '00:00'}`) : nzNow()) }
   return (
     <Dialog title={field === 'tested' ? 'Mark as tested' : 'Mark as dispatched'} description={g.loanTo} onClose={onClose} width={420}>
       <form onSubmit={submit} className="eq-form">

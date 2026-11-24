@@ -10,7 +10,7 @@ import ManageAccessories from './ManageAccessories.jsx'
 import { setCutover } from './db.js'
 import { TRACKER_ROLES, removeMember, setMemberRole } from '../../admin/src/tracker.js'
 import {
-  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, toCsv, unitsOfModel,
+  EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, stampMs, toCsv, unitsOfModel,
 } from './model.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
@@ -279,7 +279,7 @@ function Data({ s, onDone }) {
     setBusy('Making the spreadsheet…'); setError('')
     try {
       const XLSX = await lib('xlsx')
-      const when = (ts) => (ts ? new Date(ts).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
+      const when = (ts) => (ts ? new Date(stampMs(ts)).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
       const ws = XLSX.utils.aoa_to_sheet([EXPORT_COLUMNS.map(([, h]) => h), ...(s.equipment || []).map((e) => EXPORT_COLUMNS.map(([k]) => e[k] || ''))])
       ws['!cols'] = EXPORT_COLUMNS.map(() => ({ wch: 18 }))
       const ws2 = XLSX.utils.aoa_to_sheet([HISTORY_COLUMNS.map(([, h]) => h), ...(s.history || []).map((h) => HISTORY_COLUMNS.map(([k]) => (k === 'ts' ? when(h.ts) : h[k] || '')))])
