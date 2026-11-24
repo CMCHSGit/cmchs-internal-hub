@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { changeAccessoryList as saveAccessoryList, commit as fsCommit, watchAccessoryList } from './db-firestore.js'
 import {
   activateBookings, applyImport, cleanAccessoryList, cleanAccessorySets, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories, extendedForm,
+  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems, formOverStored, mergeAccessories, extendedForm, extendsBooking, extendedBookings,
 } from './model.js'
 
 const Store = createContext(null)
@@ -267,7 +267,9 @@ export function StoreProvider({ children }) {
    * A form kept under the BatchID gets the new end date first (model.js
    * extendedForm; else its Save would put the old one back on the devices and
    * the Simpro job), so a failure there stops the Extend before anything else
-   * changes. A booking's end date is changed on the booking. A loan's devices
+   * changes. A booking's end date is changed on the booking, and so is that of
+   * the booking a loan keeps under its BatchID for devices still waiting for it
+   * (model.js extendsBooking; else they start with the old date). A loan's devices
    * get the new date in /data; a form kept under the old key (no BatchID),
    * which has the end date in it, moves to the new key first, keeping its
    * Simpro job; and the due-soon reminder already sent for the old date is cleared.
@@ -275,10 +277,12 @@ export function StoreProvider({ children }) {
   const extendLoan = useCallback(async (g, newDate) => {
     const was = g.endDate // not "oldDate": that's the date function the audit line below needs
     if (g.batchId) await changeLoanDoc(g.batchId, (now) => extendedForm(now, newDate))
-    if (g.kind === 'booking') {
+    if (extendsBooking(g)) {
+      // On Firestore a booking gone meanwhile (its devices all started) isn't made again: one with no items isn't kept (db-paths.js).
       await write(`upcomingLoans/${enc(g.batchId)}/endDate`, newDate)
-      setState((s) => ({ ...s, upcoming: s.upcoming.map((u) => (u.id === g.batchId ? { ...u, endDate: newDate } : u)) }))
-    } else {
+      setState((s) => ({ ...s, upcoming: extendedBookings(s.upcoming, g, newDate) }))
+    }
+    if (g.kind !== 'booking') {
       const from = loanDocKey(g, was), to = loanDocKey(g, newDate)
       if (from !== to) {
         try {
