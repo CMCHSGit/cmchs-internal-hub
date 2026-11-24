@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { canExtend, extendEquipment, extendProblem, loanDocKey, nzNow, readinessButtons, withReadiness } from '../src/model.js'
+import { canExtend, extendEquipment, extendedForm, extendProblem, formDoc, formFromDoc, loanDocKey, nzNow, readinessButtons, withReadiness } from '../src/model.js'
 
 const today = '2026-10-16'
 const loan = (o) => ({ kind: 'loan', key: 'b1', batchId: 'b1', loanTo: 'Waikato', startDate: '2026-10-12', endDate: '2026-10-30', items: [{ id: 'a', CHSAssetNo: '1' }], pending: [], longTerm: false, ...o })
@@ -48,6 +48,31 @@ test('extend: not for long-term loans; the new date after the old; only this loa
 test('a loan form’s key: the BatchID, else the old key with the end date in it', () => {
   assert.equal(loanDocKey(loan()), 'b1')
   assert.equal(loanDocKey(loan({ batchId: '' }), '2026-11-02'), 'loandoc_Waikato%7C%7C%7C2026-11-02')
+})
+
+test('extend: a loan form under its BatchID gets the new end date, so a later Save doesn’t put the old one back', () => {
+  const doc = { loanTo: 'Waikato', startDate: '2026-10-12', endDate: '2026-10-30', simproJobId: 4321, notesCell: 'n', savedRows: [['1', 'M', 'D', 'S', '']] }
+  const next = extendedForm(doc, '2026-11-02')
+  assert.deepEqual(next, { ...doc, endDate: '2026-11-02' }) // everything else kept, Simpro job included
+  assert.equal(doc.endDate, '2026-10-30') // not changed in place
+  assert.equal(extendedForm({ ...doc, endDate: '30/10/2026' }, '2026-11-02').endDate, '2026-11-02') // an old DD/MM/YYYY one too
+
+  // Nothing to save: no form, a long-term one, one already on that date (as YYYY-MM-DD or DD/MM/YYYY), no date.
+  assert.equal(extendedForm(null, '2026-11-02'), null)
+  const lt = { ...doc, longTerm: true, endDate: '' }
+  assert.equal(extendedForm(lt, '2026-11-02'), lt)
+  const done = { ...doc, endDate: '2026-11-02' }
+  assert.equal(extendedForm(done, '2026-11-02'), done)
+  const oldStyle = { ...doc, endDate: '02/11/2026' }
+  assert.equal(extendedForm(oldStyle, '2026-11-02'), oldStyle)
+  assert.equal(extendedForm(doc, ''), doc)
+
+  // What the form then shows, and what its Save then puts on the devices and the Simpro job: the new date.
+  const info = { loanTo: 'Waikato', startDate: '2026-10-12', endDate: '2026-11-02' } // the loan's own details, after Extend
+  assert.equal(formFromDoc(doc, info).endDate, '2026-10-30') // before this fix: the old date
+  const shown = formFromDoc(next, info)
+  assert.equal(shown.endDate, '2026-11-02')
+  assert.equal(formDoc({ ...shown, items: [] }, next, info).endDate, '2026-11-02')
 })
 
 test('fmtWhen shows the old tracker’s +12:00 timestamps at the clock time written, others in NZ time', async () => {
