@@ -31,3 +31,16 @@ test('a device typed into the table that is not on the loan is pointed out; free
   assert.deepEqual(formAssetsNotOnLoan(rows, items, equipment), ['100177', '100403'])
   assert.deepEqual(formAssetsNotOnLoan(form().rows, items, equipment), [])
 })
+
+test('a device taken off the loan (or off the devices it waits for) is warned about on the form until its row goes', async () => {
+  const { formAssetsNotOnLoan, rowsWithout } = await import('../src/model.js')
+  const equipment = [{ CHSAssetNo: '100148', Model: 'ePM 12M' }, { CHSAssetNo: '100089', Model: 'N1' }]
+  const items = [equipment[1]] // 100148 came off the waiting list; its row stayed
+  const rows = [['100148', 'ePM 12M', 'ePM 12M', 'AC9-1', ''], ['100089', 'N1', 'N1', 'AA3-1', ''], ['', 'Rollstand', 'Rollstand', '', '']]
+  const warned = formAssetsNotOnLoan(rows, items, equipment)
+  assert.deepEqual(warned, ['100148'])
+  // "Take it off the form" (and store.jsx's takeOffForm): only that row goes; typed rows stay.
+  const after = rowsWithout(rows, warned)
+  assert.deepEqual(after.map((r) => r[0] || r[1]), ['100089', 'Rollstand'])
+  assert.deepEqual(formAssetsNotOnLoan(after, items, equipment), [])
+})

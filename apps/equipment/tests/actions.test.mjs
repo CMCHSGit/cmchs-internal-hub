@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { canExtend, extendEquipment, extendedForm, extendProblem, formDoc, formFromDoc, loanDocKey, nzNow, readinessButtons, withReadiness } from '../src/model.js'
+import { activateBookings, canExtend, extendEquipment, extendedBookings, extendedForm, extendProblem, extendsBooking, formDoc, formFromDoc, loanDocKey, loanSections, nzNow, readinessButtons, withReadiness } from '../src/model.js'
 
 const today = '2026-10-16'
 const loan = (o) => ({ kind: 'loan', key: 'b1', batchId: 'b1', loanTo: 'Waikato', startDate: '2026-10-12', endDate: '2026-10-30', items: [{ id: 'a', CHSAssetNo: '1' }], pending: [], longTerm: false, ...o })
@@ -73,6 +73,40 @@ test('extend: a loan form under its BatchID gets the new end date, so a later Sa
   const shown = formFromDoc(next, info)
   assert.equal(shown.endDate, '2026-11-02')
   assert.equal(formDoc({ ...shown, items: [] }, next, info).endDate, '2026-11-02')
+})
+
+test('extend: a loan’s booking for devices still waiting for it gets the new end date, so they start with it', () => {
+  // Waikato's loan b1 is out with one device; the other it booked (2) is still out on Hamilton's loan.
+  const equipment = [
+    { id: 'a', CHSAssetNo: '1', OnLoanTo: 'Waikato', Location: 'ICU', LoanStartDate: '2026-10-12', LoanEndDate: '2026-10-30', Returned: 'No', BatchID: 'b1' },
+    { id: 'b', CHSAssetNo: '2', OnLoanTo: 'Hamilton', Location: 'ED', LoanStartDate: '2026-10-01', LoanEndDate: '2026-10-20', Returned: 'No', BatchID: 'b2' },
+  ]
+  const upcoming = [
+    { id: 'b1', loanTo: 'Waikato', location: 'ICU', startDate: '2026-10-12', endDate: '2026-10-30', items: [{ id: 'b', CHSAssetNo: '2' }] },
+    { id: 'b9', loanTo: 'Taranaki', location: 'ICU', startDate: '2026-12-01', endDate: '2026-12-10', items: [{ id: 'c', CHSAssetNo: '3' }] },
+  ]
+  const g = loanSections({ equipment, upcoming, today }).needsReassign.find((x) => x.batchId === 'b1')
+  assert.deepEqual(g.pending.map((i) => i.CHSAssetNo), ['2'])
+  assert.equal(extendsBooking(g), true)
+
+  const after = extendedBookings(upcoming, g, '2026-11-06')
+  assert.deepEqual(after.map((u) => u.endDate), ['2026-11-06', '2026-12-10']) // only this loan's booking
+  assert.equal(upcoming[0].endDate, '2026-10-30') // not changed in place
+
+  // Hamilton's device comes back; the waiting one starts on Waikato's loan with the extended date, as its other device has.
+  const back = [equipment[0], { ...equipment[1], OnLoanTo: '', Location: '', LoanStartDate: '', LoanEndDate: '', Returned: 'Yes', BatchID: '' }]
+  const started = (bookings) => activateBookings(back, [], bookings, { today: '2026-10-21' }).equipment.find((e) => e.id === 'b')
+  assert.equal(started(upcoming).LoanEndDate, '2026-10-30') // before this fix: the old date
+  assert.deepEqual([started(after).LoanEndDate, started(after).BatchID], ['2026-11-06', 'b1'])
+
+  // A booking with no devices out yet: its own end date, as before. A loan with nothing waiting, a long-term one, or one
+  // from before BatchIDs: no booking changed, and the list comes back as it was.
+  assert.equal(extendsBooking(loan({ kind: 'booking', items: [], pending: [{ id: 'b' }] })), true)
+  assert.equal(extendsBooking(loan()), false)
+  assert.equal(extendsBooking(loan({ longTerm: true, pending: [{ id: 'b' }] })), false)
+  assert.equal(extendsBooking(loan({ batchId: '', pending: [{ id: 'b' }] })), false)
+  assert.equal(extendedBookings(upcoming, loan(), '2026-11-06'), upcoming)
+  assert.equal(extendedBookings(upcoming, loan({ batchId: 'gone', pending: [{ id: 'b' }] }), '2026-11-06'), upcoming) // its booking already gone
 })
 
 test('fmtWhen shows the old tracker’s +12:00 timestamps at the clock time written, others in NZ time', async () => {
