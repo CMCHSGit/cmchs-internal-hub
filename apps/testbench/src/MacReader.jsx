@@ -7,7 +7,7 @@
    the one thing that can't be told from the photo: a value that was put right (O for 0) says "Check",
    and a LAN MAC that doesn't follow the Device ID (the asset lists' rule) says so. */
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Copy, ImagePlus, RotateCcw } from 'lucide-react'
+import { Camera, Copy, ImagePlus, RotateCcw, Send } from 'lucide-react'
 import { Alert, Badge, Button, Spinner, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { closeOcr, readPhoto, toCanvas } from './ocr.js'
 import { readRows, readScreenText, rowsAsText } from './macRead.js'
@@ -25,8 +25,11 @@ async function copyText(text, field) {
   } catch { return false }
 }
 
-export default function MacReader() {
+/** `target` (from a unit's phone link, newequip/readings.js) says which unit a reading is for; with `onSend` the result goes to the PC. */
+export default function MacReader({ target = null, onSend = null }) {
   const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  const [sent, setSent] = useState('') // '' | 'sending' | 'sent' | 'queued'
+  const [sendError, setSendError] = useState('')
   const [camera, setCamera] = useState(phone) // a phone (a touch screen) starts with the camera on
   const [stage, setStage] = useState('start') // start | reading | done
   const [percent, setPercent] = useState(0)
@@ -73,7 +76,16 @@ export default function MacReader() {
     } catch { setError('That photo couldn’t be opened.') }
   }
 
-  const again = () => { setRows([]); setRaw(''); setPicture(''); setStage('start'); setError(''); setCamera(phone) }
+  const again = () => { setRows([]); setRaw(''); setPicture(''); setStage('start'); setError(''); setSent(''); setSendError(''); setCamera(phone) }
+  async function send() {
+    setSent('sending'); setSendError('')
+    try {
+      const got = await onSend(Object.fromEntries(rows.map((r) => [r.key, r.value])))
+      setSent(got?.queued ? 'queued' : 'sent')
+    } catch (e) { setSent(''); setSendError(e?.message || 'It couldn’t be sent.') }
+  }
+  // What goes to the PC: the Device ID and the two MACs, as shown (and corrected) in the fields.
+  const toSend = rows.length > 0 && onSend && target
   const edit = (key, value) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, value, fixed: false } : r)))
   async function copy(r) {
     showToast((await copyText(r.value, fields.current[r.key])) ? `${r.label} copied` : 'Couldn’t copy: press and hold the value instead')
@@ -81,6 +93,13 @@ export default function MacReader() {
 
   return (
     <div className="tb-mac">
+      {target && (
+        <div className="tb-mac-for" role="note">
+          <span className="tb-mac-note">Reading for</span>
+          <strong className="tb-mac-mono">{target.serial}</strong>
+          <span>{[target.model, target.asset && `asset ${target.asset}`, target.customerName].filter(Boolean).join(' · ')}</span>
+        </div>
+      )}
       {stage === 'start' && (
         <>
           <p className="tb-mac-note">Photograph a device’s network screen or label: the Device ID and MAC addresses on it come back as text to copy. Keep to those lines, and out of the photo anything about a patient.</p>
@@ -131,8 +150,14 @@ export default function MacReader() {
           {lanMatches === false && <Alert tone="warning" title="LAN MAC doesn’t follow the Device ID">The LAN MAC should be the Device ID without its 4th and 5th bytes. One of them was probably misread: compare each character with the screen.</Alert>}
           {lanMatches === true && <p className="tb-mac-note">The LAN MAC matches the Device ID.</p>}
           {rows.some((r) => r.fixed) && <p className="tb-mac-note">“Check” marks a value where a look-alike character (O for 0, l for 1) was put right. Look at it against the screen. B and 8, D and 0 can look alike too, so check those on any read.</p>}
+          {sendError && <Alert tone="critical" title="Not sent">{sendError}</Alert>}
+          {sent === 'sent' && <Alert tone="success" title="Sent to the PC">It shows on {target.serial}’s row in the Customers tab.</Alert>}
+          {sent === 'queued' && <Alert tone="warning" title="Waiting to send">There’s no connection right now. It goes to the PC by itself when this phone is online again: keep this page open until then.</Alert>}
           <details className="tb-mac-raw"><summary>What was read</summary><pre>{raw || '(nothing)'}</pre></details>
-          <div><Button variant="secondary" iconLeft={<RotateCcw size={16} />} onClick={again}>Read another</Button></div>
+          <div className="tb-mac-actions">
+            {toSend && sent !== 'sent' && sent !== 'queued' && <Button iconLeft={<Send size={16} />} disabled={sent === 'sending'} onClick={send}>{sent === 'sending' ? 'Sending…' : 'Send to the PC'}</Button>}
+            <Button variant="secondary" iconLeft={<RotateCcw size={16} />} onClick={again}>Read another</Button>
+          </div>
         </>
       )}
       <Toast message={toast} />
