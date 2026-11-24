@@ -10,7 +10,7 @@ const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8
 const files = readdirSync(dir).filter((f) => f.endsWith('.json') && !f.startsWith('_'))
 
 test('there are templates for the monitors, modules, vital signs monitors and BeneHeart defibrillators', () => {
-  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'Microstream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle', 'Vetal 3', 'ePM12']) {
+  for (const want of ['R700', 'TM80', 'PM-60', 'VS8', 'VS-600', 'Exergen', 'BeneHeart D1', 'BeneHeart C', 'Sidestream CO2', 'Microstream CO2', 'AG + O2', 'NMT+', 'NMT, BIS', 'rSO2', 'C.O.', 'CCO-SvO2', 'CO2 + O2', 'EEG', 'IBP', 'PiCCO', 'BatteryFeed 20', 'Masimo Rad-97', 'Masimo Radical-7', 'Masimo Root', 'Masimo Root with Radical-7', 'Masimo Rad-G', 'N1 with N1 TDS and N1 Handle', 'Vetal 3', 'ePM12']) {
     assert.ok(files.some((f) => f.includes(want)), `a template for ${want}`)
   }
 })
@@ -108,4 +108,16 @@ test('the Sidestream and Microstream CO2 modules have the electrical safety sequ
     assert.match(t.steps.find((s) => s.type === 'esa_mains').instructions, /Fit the (sidestream|microstream) CO2 module in a monitor/, n)
     assert.ok(t.dut.includes('Testing company') && t.dut.includes('Testing engineer'), n)
   }
+})
+
+test('the Masimo Root with Radical-7 set: the Root’s electrical safety and limits, then the Radical-7 undocked, one report for both', () => {
+  const read = (n) => JSON.parse(readFileSync(new URL(files.find((f) => f.startsWith(n + ' - ')), dir), 'utf8')).template
+  const set = read('Masimo Root with Radical-7'), root = read('Masimo Root Patient Monitoring Platform')
+  const lim = (t) => t.steps.filter((s) => s.type !== 'check' || s.params.readings).map((s) => [s.type, s.params.target, s.params.hi, s.params.lo, s.params.conds, s.params.readings])
+  assert.deepEqual(lim(set), lim(root), 'the same limits as the Root template')
+  assert.deepEqual(set.appliedParts.map((g) => [g.apclass, g.leads.join()]), [['BF', 'RA']])
+  assert.match(set.desc, /Other devices in this test/)
+  assert.deepEqual(set.steps.slice(-2).map((s) => s.title), ['Radical-7 undocked', 'Root battery'])
+  assert.equal(new Set(set.steps.map((s) => s.id)).size, set.steps.length, 'step ids are unique')
+  assert.ok(!JSON.stringify(set.steps).includes('the device’s mains lead'), 'every set-up names the Root')
 })
