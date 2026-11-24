@@ -10,7 +10,7 @@
   "dependencies": {
     "@tesseract.js-data/eng": "1.0.0",
     "firebase": "^10.12.0",
-    "lucide-react": "^1.70.0",
+    "lucide-react": "^1.77.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tesseract.js": "7.0.0"
