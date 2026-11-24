@@ -11,10 +11,10 @@
 
    `npm run dev` without a .env has no Firestore: the same calls then work on a
    copy kept in this browser, started from db-local.js's made-up data. */
-import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, setDoc, writeBatch } from 'firebase/firestore'
+import { collection, collectionGroup, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, setDoc, writeBatch } from 'firebase/firestore'
 import { db as firestore } from '../../schedule/src/firebase.js'
 import * as devDb from './db-local.js'
-import { CHUNKS_PER_WRITE, COLLECTIONS, SETTINGS_DOC, chunksOf, diffDocs, fromDocs, same, toDocs, writesProblem } from './fs-shape.js'
+import { CHUNKS_PER_WRITE, COLLECTIONS, SETTINGS_DOC, chunksOf, diffDocs, fromDocs, reportsByLoan, same, toDocs, writesProblem } from './fs-shape.js'
 import { nzDate } from './model.js'
 
 const local = import.meta.env?.DEV && !firestore
@@ -212,6 +212,17 @@ export async function listReports(key) {
   const all = local ? [...(localReports.get(key) || new Map()).entries()].map(([id, r]) => ({ id, ...r.meta }))
     : (await getDocs(reportsOf(key))).docs.map((d) => ({ id: d.id, ...d.data() }))
   return all.sort((a, b) => String(b.uploadedAt || '').localeCompare(String(a.uploadedAt || '')))
+}
+
+/**
+ * Every loan's reports' details, by loan ({ key: { id: details } }, as the old database's
+ * testReports): one query over every loan's reports, their details only, never the files. Says which
+ * loans have reports (store.jsx: the Test reports button's mark). The nightly backup reads them the same way.
+ */
+export async function allReports() {
+  if (local) return reportsByLoan([...localReports].flatMap(([key, m]) => [...m].map(([id, r]) => ({ path: `loans/${key}/reports/${id}`, data: r.meta }))))
+  const snap = await getDocs(collectionGroup(firestore, 'reports'))
+  return reportsByLoan(snap.docs.map((d) => ({ path: d.ref.path, data: d.data() })))
 }
 
 /**

@@ -11,7 +11,7 @@
 // the old tracker kept behind its admin password.
 import { readFileSync } from 'node:fs'
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing'
-import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore'
+import { collection, collectionGroup, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore'
 
 const env = await initializeTestEnvironment({
   projectId: 'rules-test',
@@ -121,6 +121,10 @@ await check('Sam uploads an 8 MB report in several writes', true, async () => {
   }
 })
 await check('Kiri downloads a report (reads its chunks)', true, () => getDocs(collection(as('kiri'), 'loans/batch_1/reports/rep1/chunks')))
+await check('Sam sees which loans have test reports (every loan\'s reports in one query)', true, () => getDocs(collectionGroup(as('sam'), 'reports')))
+await check('a placeholder account (not signed in yet) lists every loan\'s reports', false, () => getDocs(collectionGroup(as('placeholder'), 'reports')))
+await check('someone signed out lists every loan\'s reports', false, () => getDocs(collectionGroup(anon, 'reports')))
+await check('Sam writes a report outside a loan', false, () => setDoc(doc(as('sam'), 'reports/x'), report()))
 await check('Kiri deletes a report and its chunks', true, () => batch(as('kiri'), (b, db) => {
   b.delete(doc(db, 'loans/batch_1/reports/rep1/chunks/0')); b.delete(doc(db, 'loans/batch_1/reports/rep1/chunks/1')); b.delete(doc(db, 'loans/batch_1/reports/rep1'))
 }))

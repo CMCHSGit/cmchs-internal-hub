@@ -40,7 +40,8 @@ side": **stale**. The tracker has run on Firestore since the cutover and the old
 
 - **Firestore, the staff schedule's project** (since 4 Nov 2026; `settings/equipmentCutover.source = 'firestore'`):
   `equipment`, `retiredEquipment`, `loans/{batchId}` (meta + form + booking, with `status`, `waitingFor`, `assetNos`…;
-  test reports in `loans/{id}/reports/{id}/chunks/{n}`, ~900 KB chunks), `equipmentHistory`, `equipmentAudit`,
+  test reports in `loans/{id}/reports/{id}/chunks/{n}`, ~900 KB chunks; which loans have any is one collection-group
+  query over every `reports`, `allReports`, needing the rule `{path=**}/reports`), `equipmentHistory`, `equipmentAudit`,
   `equipmentKits`, `settings/equipment` (`simproConfig`, demo types), `tileLocations` (written only by Tile sync),
   `equipmentReminders` (the proxy's), `settings/equipmentAccessories` (the accessory list: its own document because copies of the
   tracker from before it rewrite `settings/equipment` whole on every change; **never add a field there that older copies don't know**). Rules: the tracker block in `rules/firestore.rules`, tested by

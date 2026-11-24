@@ -792,6 +792,14 @@ service cloud.firestore {
         }
       }
     }
+    // Which loans have test reports (a loan card's Test reports button is marked): one query over
+    // every loan's reports, their details only (db-firestore.js allReports), as the old tracker read
+    // its testReports. A rule for such a query matches a "reports" collection under any document,
+    // so it gives listing only, to staff, as the reports themselves are; another tool's data must
+    // not be kept in a collection called "reports".
+    match /{path=**}/reports/{rid} {
+      allow list: if isStaff();
+    }
     match /equipmentHistory/{id} {
       allow read: if isStaff();
       allow create: if isStaff() && request.resource.data.action is string && request.resource.data.ts is string;

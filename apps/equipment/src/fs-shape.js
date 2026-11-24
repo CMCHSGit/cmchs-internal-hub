@@ -209,3 +209,20 @@ export function writesProblem(writes, before) {
 export const CHUNK = 900000
 export const CHUNKS_PER_WRITE = 4
 export const chunksOf = (dataUrl) => { const out = []; for (let i = 0; i < dataUrl.length; i += CHUNK) out.push(dataUrl.slice(i, i + CHUNK)); return out.length ? out : [''] }
+
+/**
+ * Every loan's reports' details, laid out as the old database's testReports ({ key: { reportId: details } },
+ * without the chunk count), from the documents of one query over every "reports" collection
+ * ([{ path: 'loans/<key>/reports/<id>', data }]). Another tool's "reports" are left out.
+ */
+export function reportsByLoan(docs) {
+  const out = {}
+  for (const { path, data } of docs) {
+    const m = /^loans\/([^/]+)\/reports\/([^/]+)$/.exec(path)
+    if (!m) continue
+    const meta = { ...data }
+    delete meta.chunks
+    ;(out[m[1]] ||= {})[m[2]] = meta
+  }
+  return out
+}
