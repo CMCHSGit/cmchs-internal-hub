@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
+import { OCR_BASE, OCR_FILES } from '../../shared/ocr-assets.js'
 
 /**
  * Two older looks are kept to their own part of the one app until they are
@@ -83,6 +84,24 @@ function serveBench() {
   }
 }
 
+/** `npm run dev` only: the text recognition's files at /ocr/<version>/ (scripts/build.mjs copies them there in the real site). */
+function serveOcr() {
+  const root = fileURLToPath(new URL('../../node_modules', import.meta.url))
+  return {
+    name: 'serve-ocr-files',
+    configureServer(server) {
+      server.middlewares.use(OCR_BASE, (req, res, next) => {
+        const name = decodeURIComponent((req.url || '').split('?')[0]).replace(/^\/+/, '')
+        const hit = OCR_FILES.find(([n]) => n === name)
+        const file = hit && join(root, hit[1])
+        if (!file || !existsSync(file)) return next()
+        res.setHeader('Content-Type', name.endsWith('.js') ? 'text/javascript' : 'application/octet-stream')
+        createReadStream(file).pipe(res)
+      })
+    },
+  }
+}
+
 // The hub is served at "/". Two entries:
 //  - index.html: the hub itself, and the shell the moved tools open inside
 //  - src/gate.js: the sign-in check that plain pages (the /service tools)
@@ -91,7 +110,7 @@ export default defineConfig({
   base: '/',
   // One .env at the repo root for every app
   envDir: fileURLToPath(new URL('../..', import.meta.url)),
-  plugins: [react(), serveBench()],
+  plugins: [react(), serveBench(), serveOcr()],
   css: { postcss: { plugins: [scopeHubCss()] } },
   build: {
     // dist/.vite/manifest.json: scripts/build.mjs reads it to precache only
