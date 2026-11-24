@@ -1526,6 +1526,41 @@ export function listedAccessory(line, list = []) {
   return cleanAccessoryList(list).find((a) => accessoryKey(a) === k) || null
 }
 
+// The group an accessory's name puts it in (the first that fits), for one going on the list by itself.
+const GROUP_WORDS = [
+  ['NIBP', /\b(nibp|cuffs?|bladderless)\b/i],
+  ['IBP', /\b(ibp|transducers?|invasive pressure)\b/i],
+  ['SpO2', /\b(spo2|sp02|oximetry|masimo|nellcor)\b/i],
+  ['ECG', /\b(ecg|ekg|\d+-?leads?|lead ?wires?|leadwires?|electrodes?)\b/i],
+  ['Temp', /\b(temp|temperature)\b/i],
+  ['CO2', /\b(co2|etco2|capno\w*|sampling lines?|water ?traps?)\b/i],
+]
+/** A group for an accessory from its name (NIBP, IBP, SpO2, ECG, Temp, CO2), spelt as the list spells it; '' if none fits. */
+export function accessoryGroupFor(name, list = []) {
+  const hit = GROUP_WORDS.find(([, re]) => re.test(String(name || '')))
+  if (!hit) return ''
+  return cleanAccessoryList(list).map((a) => a.group).find((g) => g && g.toLowerCase() === hit[0].toLowerCase()) || hit[0]
+}
+
+/**
+ * Accessories typed on a loan or a set (not chosen from the list), as items to put on the list so the picker
+ * offers them next time. A line needs a name (a code alone says too little). One already on the list (by
+ * code, else by name) isn't new, and nor is one in `before` (what was saved last time: someone may have taken
+ * it off the list since, on purpose). Its group is guessed from its name. [{ code, name, group, models: [] }]
+ */
+export function newListItems(lines, list = [], before = []) {
+  const known = new Set([...cleanAccessoryList(list), ...cleanAccessories(before).map(cleanAccessoryItem).filter(Boolean)].map(accessoryKey))
+  const out = new Map()
+  for (const l of cleanAccessories(lines)) {
+    const a = cleanAccessoryItem({ code: l.code, name: l.name })
+    if (!a?.name) continue
+    const k = accessoryKey(a)
+    if (known.has(k) || out.has(k)) continue
+    out.set(k, { ...a, group: accessoryGroupFor(a.name, list) })
+  }
+  return [...out.values()]
+}
+
 /**
  * "As last time": the accessories on the newest loan whose devices include this model, for one button that
  * adds them all. null if no loan with that model had any. { loanTo, startDate, accessories }

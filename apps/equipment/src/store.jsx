@@ -20,7 +20,7 @@ import { cutover, isLocal, loadCutover, onFirestore, read, watch, watchCutover, 
 import { changeAccessoryList as saveAccessoryList, commit as fsCommit, watchAccessoryList } from './db-firestore.js'
 import {
   activateBookings, applyImport, cleanAccessoryList, cleanAccessorySets, importRetiredRows, kitFromNewAssets, planAddAssets, teamFrom, countEquipment, itemProblem, oldDate, restoreRetired, retireEquipment, saveItemEquipment, deleteLoanEquipment, existingLoanMatch, formChanges, formDoc, formRows, loanFormHtml, planAddItems, planNewLoan, planTransfer, rowsWithAdded, rowsWithout, DEMO_TYPES, editBooking, editEquipment, extendEquipment, fmtDate, legacyLoanDocKey, loanAM, loanDocKey, memberFor, metaKey, newBatchId, newId, nzDate, nzNow,
-  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories,
+  jobNumber, readinessKey, returnEquipment, returnFollowUps, toISO, withReadiness, queuedFormEmail, formEmailSent, cleanAccessories, newListItems,
 } from './model.js'
 
 const Store = createContext(null)
@@ -167,6 +167,27 @@ export function StoreProvider({ children }) {
     try { await write('auditLog/' + enc(entry.id), entry) } catch (e) { console.warn('[equipment] audit entry not saved', e) }
     logActivity(user, summary, { app: 'equipment' }) // the hub's own log (shared/activity.js), alongside the tracker's
   }, [operator, user])
+
+  /**
+   * Accessories typed on a loan (not chosen from the list) put on the list, so the picker offers them next
+   * time (model.js newListItems: named ones the list hasn't got that weren't on the loan before this save,
+   * `before`). One audit line, in counts. Never stops the save it follows: a failure is only logged.
+   */
+  const listTypedAccessories = useCallback(async (lines, before, where) => {
+    if (!newListItems(lines, latest.current.accessoryList, before).length) return 0
+    let added = 0, items = null
+    try {
+      await saveAccessoryList((d) => {
+        const now = cleanAccessoryList(d?.items), fresh = newListItems(lines, now, before)
+        added = fresh.length
+        items = cleanAccessoryList([...now, ...fresh])
+        return { ...(d || {}), items, updatedAt: nzNow(), by: operator }
+      })
+    } catch (e) { console.warn('[equipment] accessory list not updated', e); return 0 }
+    setState((s) => ({ ...s, accessoryList: items }))
+    if (added) await audit('accessory_list', `Accessory list: ${added} added from ${where}`, { added, from: 'loan' })
+    return added
+  }, [audit, operator])
 
   /** activateBookings' changes, saved to /upcomingLoans and shown. */
   const applyBookingChanges = useCallback(async (changes) => {
@@ -565,6 +586,8 @@ export function StoreProvider({ children }) {
     setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [key]: doc } }))
     // One line in the audit and activity logs saying what changed, in words (never the notes themselves).
     if (changed.length) await audit('loan_form_saved', `Loan form for ${doc.loanTo || 'a loan'} saved: ${changed.join(', ')} changed`, { loanTo: doc.loanTo || '', batchId: key, changed })
+    // Accessories typed on it (not chosen from the list) go on the list too.
+    if (doc.accessories) await listTypedAccessories(doc.accessories, stored?.accessories, `the loan form for ${doc.loanTo || 'a loan'}`)
     const mine = (e) => e && (form.items || []).some((i) => i.id === e.id || i.CHSAssetNo === e.CHSAssetNo) && (!e.BatchID || e.BatchID === key)
     const set = {
       ...(form.loanTo ? { OnLoanTo: form.loanTo } : {}), ...(form.location ? { Location: form.location } : {}),
@@ -588,7 +611,7 @@ export function StoreProvider({ children }) {
     }
     await touch()
     return { doc, job }
-  }, [audit, patchMeta, submitJob, touch, updateData])
+  }, [audit, listTypedAccessories, patchMeta, submitJob, touch, updateData])
 
   /**
    * The loan form emailed to the account manager (old: sendLoanDocEmail and
@@ -656,6 +679,7 @@ export function StoreProvider({ children }) {
     const accessories = cleanAccessories(f.accessories)
     if (accessories.length) doc.accessories = accessories
     try { await write('loanDocs/' + enc(batchId), doc); setState((s) => ({ ...s, loanDocs: { ...s.loanDocs, [batchId]: doc } })) } catch (e) { console.warn('[equipment] loan form not saved', e) }
+    if (doc.accessories) await listTypedAccessories(doc.accessories, [], `the new loan for ${doc.loanTo}`) // typed ones go on the list too
     // Its form email, queued until the loan form sends it, so the proxy sends it if the browser never does (queuedFormEmail).
     if (!testMode && !isLocal && f.email) {
       const queued = queuedFormEmail({ loanTo: doc.loanTo, location: doc.location, startDate: doc.startDate, endDate: doc.endDate, accountManager: doc.accountManager,
@@ -685,7 +709,7 @@ export function StoreProvider({ children }) {
     }
     await touch()
     return { batchId, loaned: plan.loaned, booked: plan.booked, skipped: plan.skipped, reclaimed: plan.reclaimed, doc }
-  }, [addDemoType, audit, operator, patchMeta, saveBookings, simpro, touch, updateData])
+  }, [addDemoType, audit, listTypedAccessories, operator, patchMeta, saveBookings, simpro, touch, updateData])
 
   /**
    * Add items (old: _doAddItemsToLoan, _doAddItemsToUpcoming). To a booking:
@@ -943,13 +967,14 @@ export function StoreProvider({ children }) {
     const key = g.kind === 'booking' ? g.batchId : loanDocKey(g)
     if (!key) throw new Error('This loan has no loan form to keep its accessories on.')
     const acc = cleanAccessories(list)
-    const was = cleanAccessories(latest.current.loanDocs?.[key]?.accessories).length
+    const before = cleanAccessories(latest.current.loanDocs?.[key]?.accessories), was = before.length
     await write('loanDocs/' + enc(key) + '/accessories', acc.length ? acc : null, acc.length ? {} : { method: 'DELETE' })
     setState((s) => { const d = { ...(s.loanDocs[key] || {}) }; if (acc.length) d.accessories = acc; else delete d.accessories; return { ...s, loanDocs: { ...s.loanDocs, [key]: d } } })
     await audit('loan_accessories', `Accessories for ${g.loanTo} changed: ${acc.length} line${acc.length === 1 ? '' : 's'} (was ${was})`, { loanTo: g.loanTo, batchId: key, lines: acc.length, was })
+    await listTypedAccessories(acc, before, `the loan for ${g.loanTo}`) // typed ones go on the list too
     await touch()
     return acc
-  }, [audit, touch])
+  }, [audit, listTypedAccessories, touch])
 
   /**
    * Several assets added at once, and a kit made from them if asked (old: the Add Assets form, maSaveAll).

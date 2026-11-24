@@ -92,3 +92,31 @@ test('sets: read from a sheet with Set and Qty columns; codes alone keep the lis
   assert.deepEqual(setSize(ed), { lines: 2, pieces: 6 })
   assert.deepEqual(cleanAccessorySets([{ name: ' ', lines: [] }, { name: 'B', lines: [{ code: 'Q', qty: 0 }] }]).map((s) => [s.name, s.lines[0].qty]), [['B', 1]])
 })
+
+test('accessories typed on a loan go on the list: named, not there already, not on the loan before; group from the name', async () => {
+  const { newListItems, accessoryGroupFor } = await import('../src/model.js')
+  const list = [cuff, { code: 'CHS4050', name: 'Masimo RD SET DCI, Adult Reuseable Finger Sensor', group: 'SpO2', models: [] }]
+  const lines = [
+    { code: '0010-30-12257', name: 'NIBP cuff, adult, reusable', qty: 2 }, // on the list
+    { code: '040-000983-00', name: 'CM1303  Bladderless NIBP cuff, Adult reusable, 25 - 35cm', qty: 2 }, // new
+    { code: '040-000983-00', name: '', qty: 1 }, // the same again
+    { code: '115-0001', name: '', qty: 1 }, // a code alone: left for someone to name
+    { code: '', name: 'TM80 battery charger', qty: 1 }, // a name alone: fine
+    { code: '0010-30-99999', name: 'Old cable', qty: 1 }, // was on the loan before (maybe taken off the list on purpose)
+  ]
+  assert.deepEqual(newListItems(lines, list, [{ code: '0010 30 99999', name: 'Old cable', qty: 1 }]), [
+    { code: '040-000983-00', name: 'CM1303 Bladderless NIBP cuff, Adult reusable, 25 - 35cm', group: 'NIBP', models: [] },
+    { code: '', name: 'TM80 battery charger', group: '', models: [] },
+  ])
+  assert.deepEqual(newListItems(lines.slice(0, 1), list), [], 'nothing new, nothing to add')
+  // Groups as the list spells them; the first that fits.
+  assert.equal(accessoryGroupFor('Masimo RD SET SpO2 Trunk Cable'), 'SpO2')
+  assert.equal(accessoryGroupFor('Masimo sensor', [{ code: 'X', name: 'x', group: 'SPO2' }]), 'SPO2')
+  assert.equal(accessoryGroupFor('Y-type IBP adapter'), 'IBP')
+  assert.equal(accessoryGroupFor('NIBP Tubing, Adu/Ped/Infant/Neo'), 'NIBP')
+  assert.equal(accessoryGroupFor('5-Lead, Adu/Ped, Clip, 36in'), 'ECG')
+  assert.equal(accessoryGroupFor('ECG trunk cable - 3 lead Ped/Neo'), 'ECG')
+  assert.equal(accessoryGroupFor('Temp extension cable for disposable probes'), 'Temp')
+  assert.equal(accessoryGroupFor('Microstream CO2 sampling line'), 'CO2')
+  assert.equal(accessoryGroupFor('Rollstand'), '')
+})

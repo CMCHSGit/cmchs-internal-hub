@@ -6,7 +6,8 @@
                     Accessories, s.accessoryList; model.js accessoryChoices): those that fit the loan's
                     monitors first, then by group; typing narrows it. Picking one adds its code and name; a
                     line from the list shows them as text, so nobody retypes them. Something not on the list
-                    can still be added as typed (and then edited). Quantities with − and +; "As the last ePM
+                    can still be added as typed (and then edited); saved with a name, it goes on the list too
+                    (store.jsx listTypedAccessories), so it's there to choose next time. Quantities with − and +; "As the last ePM
                     12M loan" adds that loan's list; a set (Manage › Accessories, e.g. "ED monitoring") adds all
                     its accessories with their quantities in one tap.
    AccessoryList    the list on a loan card, read only.
@@ -94,7 +95,7 @@ export function AccessoryEditor({ value = [], onChange, s, models = [], notKey =
                     <>
                       <td><input className="input eq-mono" value={a.code} onChange={(e) => setRow(i, { code: e.target.value })} aria-label={`Code, line ${i + 1}`} /></td>
                       <td><input className="input" value={a.name} onChange={(e) => setRow(i, { name: e.target.value })} aria-label={`Accessory, line ${i + 1}`} />
-                        {list.length > 0 && <span className="eq-small">Not on the accessory list</span>}</td>
+                        <span className="eq-small">{String(a.name || '').trim() ? 'New: it goes on the accessory list when this is saved' : 'New: give it a name and it goes on the accessory list'}</span></td>
                     </>
                   )}
                   <td className="eq-acc-qty">
@@ -146,7 +147,7 @@ export function AccessoryEditor({ value = [], onChange, s, models = [], notKey =
             })}
             {total > SHOW_MAX && <p className="eq-note eq-acc-menu-note">{total - SHOW_MAX} more: type to narrow the list.</p>}
             {!total && <p className="eq-note eq-acc-menu-note">{list.length ? 'Nothing on the list matches.' : 'There’s no accessory list yet: it’s kept in Manage, Accessories.'}</p>}
-            {q.trim() && <button type="button" className="eq-acc-opt eq-acc-other" onClick={addTyped}>Not on the list: add “{q.trim()}” as typed</button>}
+            {q.trim() && <button type="button" className="eq-acc-opt eq-acc-other" onClick={addTyped}>Not on the list: add “{q.trim()}” (it goes on the list too)</button>}
           </div>
         )}
       </div>
