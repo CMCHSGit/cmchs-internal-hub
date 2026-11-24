@@ -19,6 +19,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, write
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { injectManifest } from 'workbox-build'
+import { OCR_BASE, OCR_FILES, OCR_VERSION } from '../shared/ocr-assets.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -76,6 +77,18 @@ for (const app of APPS) {
     writeFileSync(join(to, 'index.json'), JSON.stringify(index))
     console.log(`  apps/testbench/templates -> /bench-app/templates (${index.templates.length} templates)`)
   }
+}
+
+// The text recognition's own files (Demo > Scan > Read a screen), published beside the app at /ocr/<version>/
+// (shared/ocr-assets.js) so they come from this site, not a CDN. About 12 MB, so never precached (the worker's
+// list below is fixed): a phone fetches them the first time someone reads a screen, and the browser keeps them.
+{
+  const installed = JSON.parse(readFileSync(join(ROOT, 'node_modules/tesseract.js/package.json'), 'utf8')).version
+  if (installed !== OCR_VERSION) throw new Error(`tesseract.js ${installed} is installed but shared/ocr-assets.js says ${OCR_VERSION}: change OCR_VERSION (a new address, so phones don't keep the old files).`)
+  const to = join(DIST, OCR_BASE.replace(/^\/|\/$/g, ''))
+  mkdirSync(to, { recursive: true })
+  for (const [name, from] of OCR_FILES) cpSync(join(ROOT, 'node_modules', from), join(to, name))
+  console.log(`  tesseract.js -> ${OCR_BASE} (${OCR_FILES.length} files)`)
 }
 
 // The site has one service worker, at scope "/", so its precache list has to be
