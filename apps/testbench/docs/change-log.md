@@ -436,3 +436,9 @@ The CHS Ansur template "Side Stream CO2 module AS-NZS 3551 PVT" (records for a S
 - **Mindray Sidestream CO2 Module**: edited in SharePoint in place; Testing company added to the device details.
 - **Mindray Microstream CO2 Module** (new, Modules): the same, with the Microstream leak test from the CHS CO2+O2 module Ansur template (bend the sample line; flow under 10 ml/min and a CO2 purging error), since CHS tested the Microstream module on the Sidestream Ansur template; accuracy 6.0 ±0.3 % with the calibration gas.
 Also synced: "TM80 Central Charger", an engineer's template from the shared folder.
+
+## ProSim 8: every setting, changeable while testing (25/11/2026)
+- The simulator steps now offer every option in Fluke's ProSim 8 Communications Interface (rev 3.17): all rhythms (grouped), detection tests, both pacer chambers, ECG axis / ST / artifact, respiration wave, ratio, amplitude, baseline and apnoea, SpO2 perfusion, transmission, ambient light and probe types, NIBP volume and envelope shift, dynamic IBP, cardiac output. New steps: ECG detection test, IBP (dynamic), Cardiac output. A new setting left on "Leave as is" sends nothing, so existing templates send what they always did (a test checks every shipped template).
+- While testing, each simulator step has **Change what is sent** (this test only; the template is not changed). Changing a setting pauses the step's timer and marks the step "Changed, not sent yet" until Send.
+- A Custom commands step has an **Add a command** picker with every ProSim 8 command and its allowed values.
+- Not verified on the real ProSim 8: see the "Every setting" paragraph in esa612-protocol-notes.md.
