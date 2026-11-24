@@ -3,13 +3,14 @@
    up to date here. Import a spreadsheet (Code, Name, Group, Fits; any other column, such as a price, is left
    out), add, change or remove one, and export it to edit and import again. Sets ("ED monitoring": these
    accessories, these many of each) are made here too, or imported from a sheet with Set and Qty columns
-   (a workbook's first sheet, and a sheet called Sets); a loan's picker adds a set in one tap. Every change
-   is one audit line, in counts. The rules are model.js's accessoryListFromRows, mergeAccessoryList,
+   (a workbook's first sheet, and a sheet called Sets); a loan's picker adds a set in one tap. An accessory
+   typed on a loan or into a set (not chosen from the list) goes on the list by itself when that's saved
+   (model.js newListItems; store.jsx listTypedAccessories). Every change is one audit line, in counts. The rules are model.js's accessoryListFromRows, mergeAccessoryList,
    mergeAccessorySets and cleanAccessoryList. */
 import { useMemo, useRef, useState } from 'react'
 import { Alert, Button, Dialog, useConfirm } from '../../../shared/ui/index.jsx'
 import { AccessoryEditor } from './Accessories.jsx'
-import { accessoryKey, accessoryListFromRows, cleanAccessories, cleanAccessoryItem, fmtDate, mergeAccessoryList, mergeAccessorySets, setLines, setSize } from './model.js'
+import { accessoryKey, accessoryListFromRows, cleanAccessories, cleanAccessoryItem, fmtDate, mergeAccessoryList, mergeAccessorySets, newListItems, setLines, setSize } from './model.js'
 
 const HEADINGS = ['Code', 'Name', 'Group', 'Fits']
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`
@@ -170,10 +171,14 @@ export default function ManageAccessories({ s, onDone, lib }) {
       {editingSet && <EditSet s={s} set={editingSet} sets={sets} busy={busy} onClose={() => setEditingSet(null)}
         onSave={async (next) => {
           const was = (editingSet.name || '').toLowerCase()
-          await run('Saving…', () => s.changeAccessoryDoc((now) => ({ sets: [...now.sets.filter((x) => x.name.toLowerCase() !== was && x.name.toLowerCase() !== next.name.toLowerCase()), next] }),
-            ['accessory_list', editingSet.id ? 'Accessory set changed' : 'Accessory set added', { set: 1, lines: next.lines.length }]))
+          // Accessories typed into the set (not chosen from the list) go on the list too, in the same save.
+          const typed = newListItems(next.lines, list, editingSet.lines).length
+          await run('Saving…', () => s.changeAccessoryDoc((now) => ({
+            sets: [...now.sets.filter((x) => x.name.toLowerCase() !== was && x.name.toLowerCase() !== next.name.toLowerCase()), next],
+            items: [...now.items, ...newListItems(next.lines, now.items, editingSet.lines)],
+          }), ['accessory_list', (editingSet.id ? 'Accessory set changed' : 'Accessory set added') + (typed ? `; ${plural(typed, 'accessory', 'accessories')} added to the list` : ''), { set: 1, lines: next.lines.length, added: typed }]))
           setEditingSet(null)
-          onDone(editingSet.id ? 'Set saved.' : 'Set added.')
+          onDone((editingSet.id ? 'Set saved' : 'Set added') + (typed ? `, and ${plural(typed, 'new accessory', 'new accessories')} put on the list.` : '.'))
         }} />}
       {incoming && <ImportPreview list={list} sets={sets} incoming={incoming} busy={busy} onImport={importIt} onClose={() => setIncoming(null)} />}
       {confirmDialog}
