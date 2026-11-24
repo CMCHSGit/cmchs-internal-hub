@@ -215,9 +215,11 @@ function ImportPreview({ list, sets = [], incoming, busy, onImport, onClose }) {
   const add = mergeAccessoryList(list, incoming.items)
   const rep = mergeAccessoryList(list, incoming.items, { replace: true })
   const nSets = (incoming.sets || []).length
-  const used = Object.entries(incoming.columns).filter(([, h]) => h).map(([f, h]) => `${{ code: 'Code', name: 'Name', group: 'Group', models: 'Fits' }[f]} from “${h}”`)
+  const COLUMN = { code: 'Code', name: 'Name', group: 'Group', models: 'Fits', set: 'Set', qty: 'Qty' }
+  const used = Object.entries(incoming.columns).filter(([f, h]) => h && COLUMN[f]).map(([f, h]) => `${COLUMN[f]} from “${h}”`)
+  const what = plural(incoming.items.length, 'accessory', 'accessories')
   return (
-    <Dialog title={`Import ${plural(incoming.items.length, 'accessory', 'accessories')}`} description={incoming.fileName} onClose={onClose} width={680}>
+    <Dialog title={nSets ? `Import ${plural(nSets, 'set')} (${what})` : `Import ${what}`} description={incoming.fileName} onClose={onClose} width={680}>
       <div className="eq-form">
         <p className="eq-note">Read {used.join(', ')}.{incoming.skipped ? ` ${plural(incoming.skipped, 'row')} with no code or name left out.` : ''}</p>
         <div className="eq-acclist-wrap">
