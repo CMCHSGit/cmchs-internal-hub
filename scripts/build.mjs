@@ -79,7 +79,7 @@ for (const app of APPS) {
   }
 }
 
-// The text recognition's own files (Demo > Scan > Read a screen), published beside the app at /ocr/<version>/
+// The text recognition's own files (Test Bench > MAC reader), published beside the app at /ocr/<version>/
 // (shared/ocr-assets.js) so they come from this site, not a CDN. About 12 MB, so never precached (the worker's
 // list below is fixed): a phone fetches them the first time someone reads a screen, and the browser keeps them.
 {

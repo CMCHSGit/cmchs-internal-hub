@@ -29,6 +29,16 @@ recorded/pending assets, hand-off to Simpro Asset Sync). It was the New equipmen
 `/testbench/?tab=customers` (11 Nov 2026). It is being built to replace the bench + Asset Sync + Ansur report builder eventually;
 until it does everything, those keep working as they are. Its own map and rules: `src/newequip/CLAUDE.md`.
 
+And the **MAC reader tab** (25 Nov 2026; `?tab=mac`): `src/MacReader.jsx` (camera or a photo, results as editable fields with Copy / Copy all),
+`src/macRead.js` (pure, tested: picks the Device ID, WLAN MAC and LAN MAC out of the text, puts right O/0 and I/l/1 and `;` for `:`,
+checks the LAN MAC against the Device ID by the asset lists' rule: Device ID without bytes 4 and 5) and `src/ocr.js` (tesseract.js in a
+worker, **in the browser: nothing is uploaded**, loaded on first use). It reads nothing into the bench or a record and logs nothing
+(not yet: sending a result to a device, an asset list or Simpro). The reader's files (worker, three LSTM cores, small English data) are
+served from `/ocr/<version>/` (`shared/ocr-assets.js`): `scripts/build.mjs` copies them from `node_modules`, `apps/hub/vite.config.js`
+serves them in dev; **never precached, never a CDN** (tesseract.js defaults to jsDelivr). Upgrading tesseract.js = change `OCR_VERSION`
+(the build stops if it doesn't match). B/8 and D/0 can't be told apart in a photo: that is why the values are editable. The camera
+stops when the tab is left; the bench behind it stays loaded.
+
 ## Where data lives
 
 - **Per laptop:** IndexedDB `chs-test-bench` (templates, runs, kv folder handles; **schema bumps must keep `onblocked`/`onversionchange`**),

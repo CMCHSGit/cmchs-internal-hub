@@ -9,18 +9,15 @@
                 where it is if it's out on loan; the count so far above.
      Stocktake  every scan is counted and returned straight away, for going
                 along a shelf. For hub admins (the old one asked for the admin password).
-     Read a screen  not a scan of an asset: a photo of a device's network screen, read for its
-                Device ID and MACs to copy (ScreenReader.jsx). Changes no data.
    New loans are made in New loan. */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Camera } from 'lucide-react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import Scanner from './Scanner.jsx'
-import ScreenReader from './ScreenReader.jsx'
 import { assetNoFromScan, countCategory, findAsset, fmtDate, isLoanLongTerm, isOut, statusOf } from './model.js'
 import { Status } from './BrowseEquipment.jsx'
 
-const MODES = [['return', 'Return'], ['count', 'Count'], ['stocktake', 'Stocktake'], ['lookup', 'Look up'], ['screen', 'Read a screen']]
+const MODES = [['return', 'Return'], ['count', 'Count'], ['stocktake', 'Stocktake'], ['lookup', 'Look up']]
 
 export default function Scan({ s, params, setParams, go, onDone }) {
   const mode = MODES.some(([m]) => m === params.mode) ? params.mode : 'return'
@@ -92,17 +89,11 @@ export default function Scan({ s, params, setParams, go, onDone }) {
   // A stocktake is for hub admins (step 5A: the role, in place of the old admin password).
   const locked = mode === 'stocktake' && !s.isAdmin
 
-  const modeNav = (
-    <nav className="eq-filters" aria-label="What scanning does">
-      {MODES.map(([m, label]) => <button key={m} type="button" className={`tag${mode === m ? ' tag-selected' : ''}`} aria-pressed={mode === m} onClick={() => switchMode(m)}>{label}</button>)}
-    </nav>
-  )
-  // Read a screen has no asset numbers and changes no data: its own small page (ScreenReader.jsx)
-  if (mode === 'screen') return <div className="eq-scan">{modeNav}<ScreenReader phone={phone} /></div>
-
   return (
     <div className="eq-scan">
-      {modeNav}
+      <nav className="eq-filters" aria-label="What scanning does">
+        {MODES.map(([m, label]) => <button key={m} type="button" className={`tag${mode === m ? ' tag-selected' : ''}`} aria-pressed={mode === m} onClick={() => switchMode(m)}>{label}</button>)}
+      </nav>
       <p className="eq-note">
         {mode === 'return' ? 'Scan what’s come back, then return them together.'
           : mode === 'count' ? 'Scan an item to count it.'

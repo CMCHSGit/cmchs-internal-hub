@@ -22,6 +22,7 @@ import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, ma
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import Customers from './newequip/Customers.jsx'
+import MacReader from './MacReader.jsx'
 import { saveOrder, watchOrders } from './orders-firebase.js'
 import { jobClosesOrder, jobNumber, summaryLine } from './orders.js'
 import { splitSerials } from './bench-tests.js'
@@ -82,7 +83,7 @@ function TestBench() {
   // Saved reports is not a tab or a pane any more: the bench's Previous tests table (with the customer and a tick on each test) is the list, and a bar under the
   // bench (this file's Reports in its barOnly form) downloads, prints or attaches the ticked tests. An old ?tab=reports link, Asset Sync's Reports to add and an
   // order's review open that table limited to their devices, all ticked.
-  const [tab, setTab] = useState(new URLSearchParams(location.search).get('tab') === 'customers' ? 'customers' : 'bench') // 'bench' | 'orders' | 'customers'
+  const [tab, setTab] = useState(() => { const t = new URLSearchParams(location.search).get('tab'); return t === 'customers' || t === 'mac' ? t : 'bench' }) // 'bench' | 'orders' | 'customers' | 'mac'
   const [benchState, setBenchState] = useState({ testing: false, view: 'run' }) // from the bench: a test is being run, or Templates / Devices / Log is open: the bar gives way then
   const [ticked, setTicked] = useState(() => new Set()) // the tests ticked in the bench's table, by start time
   const [benchReady, setBenchReady] = useState(false)
@@ -476,6 +477,7 @@ function TestBench() {
           {orders.some((o) => o.status !== 'closed') && <Badge tone="purple">{orders.filter((o) => o.status !== 'closed').length} open</Badge>}
         </button>
         <button type="button" role="tab" aria-selected={tab === 'customers'} className={tab === 'customers' ? 'is-on' : ''} onClick={() => setTab('customers')}>Customers</button>
+        <button type="button" role="tab" aria-selected={tab === 'mac'} className={tab === 'mac' ? 'is-on' : ''} onClick={() => setTab('mac')}>MAC reader</button>
         {/* What needs attention for the tests under the bench (it was on the Saved reports tab). */}
         <span className="tb-tabstat">
           {unsent > 0 && <Badge tone="purple">{unsent} not sent</Badge>}
@@ -519,6 +521,11 @@ function TestBench() {
           orders={orders} ordersError={ordersError} tests={testsList} who={who.current} user={user} online={online} sim={sim}
           onReview={(order, p) => { setOnlySerials(p.devices.flatMap((d) => splitSerials(d.serial))); setStartJob(order.number ? { id: order.number, label: order.jobLabel || `#${order.number}` } : null); setTab('bench'); toBench({ type: 'chs-bench:home' }) }}
         />
+      )}
+      {tab === 'mac' && (
+        <div className="tb-reports">
+          <MacReader />
+        </div>
       )}
       {tab === 'customers' && (
         <div className="tb-reports">

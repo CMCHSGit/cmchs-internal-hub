@@ -1,4 +1,4 @@
-/* Read a screen (Scan > Read a screen): point the camera at a device's network screen (a Mindray's
+/* The MAC reader (the Test Bench's MAC reader tab): point the camera at a device's network screen (a Mindray's
    Maintenance > Device Location, or a label) and get its Device ID and MAC addresses as text to copy.
 
    The camera (or a photo) is read by the browser's own text recognition (ocr.js, tesseract.js in a
@@ -25,8 +25,9 @@ async function copyText(text, field) {
   } catch { return false }
 }
 
-export default function ScreenReader({ phone }) {
-  const [camera, setCamera] = useState(phone) // the live camera, as the other Scan modes start on a phone
+export default function MacReader() {
+  const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+  const [camera, setCamera] = useState(phone) // a phone (a touch screen) starts with the camera on
   const [stage, setStage] = useState('start') // start | reading | done
   const [percent, setPercent] = useState(0)
   const [rows, setRows] = useState([]) // [{ key, label, value, fixed }] (the value can be edited)
@@ -79,15 +80,15 @@ export default function ScreenReader({ phone }) {
   }
 
   return (
-    <div className="eq-read">
+    <div className="tb-mac">
       {stage === 'start' && (
         <>
-          <p className="eq-note">Photograph a device’s network screen or label: the Device ID and MAC addresses on it come back as text to copy. Keep to those lines, and out of the photo anything about a patient.</p>
+          <p className="tb-mac-note">Photograph a device’s network screen or label: the Device ID and MAC addresses on it come back as text to copy. Keep to those lines, and out of the photo anything about a patient.</p>
           {error && <Alert tone="critical" title="Not read">{error}</Alert>}
           {camera
             ? <ScreenCamera onCapture={read} onClose={() => setCamera(false)} />
             : (
-              <div className="eq-actions-row">
+              <div className="tb-mac-actions">
                 <Button iconLeft={<Camera size={16} />} onClick={() => setCamera(true)}>Open the camera</Button>
                 <label className="btn btn-secondary">
                   <ImagePlus size={16} aria-hidden="true" /> Take or choose a photo
@@ -99,25 +100,25 @@ export default function ScreenReader({ phone }) {
       )}
 
       {stage === 'reading' && (
-        <div className="eq-read-busy" role="status">
+        <div className="tb-mac-busy" role="status">
           <Spinner size={22} />
           <span>Reading the photo on this {phone ? 'phone' : 'device'}…{percent > 0 ? ` ${percent}%` : ''}</span>
-          {slowNote && <span className="eq-note">The first read loads the reader (about 7 MB) and takes longer. Nothing leaves this {phone ? 'phone' : 'device'}.</span>}
+          {slowNote && <span className="tb-mac-note">The first read loads the reader (about 7 MB) and takes longer. Nothing leaves this {phone ? 'phone' : 'device'}.</span>}
         </div>
       )}
 
       {stage === 'done' && (
         <>
-          <div className="eq-read-result">
-            {picture && <img className="eq-read-photo" src={picture} alt="The photo that was read" />}
+          <div className="tb-mac-result">
+            {picture && <img className="tb-mac-photo" src={picture} alt="The photo that was read" />}
             {rows.length === 0
               ? <Alert tone="warning" title="No Device ID or MAC found">Try again closer, with the screen filling the picture and no glare across the lines. You can also choose a photo you took with the camera app.</Alert>
               : (
-                <div className="eq-read-rows">
+                <div className="tb-mac-rows">
                   {rows.map((r) => (
-                    <div key={r.key} className="eq-read-row">
-                      <label className="field eq-grow"><span className="field-label">{r.label}{r.fixed && <Badge tone="orange" className="eq-read-check">Check</Badge>}</span>
-                        <input ref={(el) => { fields.current[r.key] = el }} className="input eq-mono eq-read-input" value={r.value} onChange={(e) => edit(r.key, e.target.value)}
+                    <div key={r.key} className="tb-mac-row">
+                      <label className="field tb-mac-grow"><span className="field-label">{r.label}{r.fixed && <Badge tone="orange" className="tb-mac-check">Check</Badge>}</span>
+                        <input ref={(el) => { fields.current[r.key] = el }} className="input tb-mac-mono tb-mac-input" value={r.value} onChange={(e) => edit(r.key, e.target.value)}
                           autoCapitalize="characters" autoCorrect="off" spellCheck={false} />
                       </label>
                       <Button variant="secondary" iconLeft={<Copy size={16} />} onClick={() => copy(r)} aria-label={`Copy ${r.label}`}>Copy</Button>
@@ -128,9 +129,9 @@ export default function ScreenReader({ phone }) {
               )}
           </div>
           {lanMatches === false && <Alert tone="warning" title="LAN MAC doesn’t follow the Device ID">The LAN MAC should be the Device ID without its 4th and 5th bytes. One of them was probably misread: compare each character with the screen.</Alert>}
-          {lanMatches === true && <p className="eq-note">The LAN MAC matches the Device ID.</p>}
-          {rows.some((r) => r.fixed) && <p className="eq-note">“Check” marks a value where a look-alike character (O for 0, l for 1) was put right. Look at it against the screen. B and 8, D and 0 can look alike too, so check those on any read.</p>}
-          <details className="eq-read-raw"><summary>What was read</summary><pre>{raw || '(nothing)'}</pre></details>
+          {lanMatches === true && <p className="tb-mac-note">The LAN MAC matches the Device ID.</p>}
+          {rows.some((r) => r.fixed) && <p className="tb-mac-note">“Check” marks a value where a look-alike character (O for 0, l for 1) was put right. Look at it against the screen. B and 8, D and 0 can look alike too, so check those on any read.</p>}
+          <details className="tb-mac-raw"><summary>What was read</summary><pre>{raw || '(nothing)'}</pre></details>
           <div><Button variant="secondary" iconLeft={<RotateCcw size={16} />} onClick={again}>Read another</Button></div>
         </>
       )}
@@ -169,9 +170,9 @@ function ScreenCamera({ onCapture, onClose }) {
 
   if (error) {
     return (
-      <div className="eq-scanner">
-        <p className="eq-note eq-problem">{error}</p>
-        <div className="eq-actions-row">
+      <div className="tb-mac-camera">
+        <p className="tb-mac-note tb-mac-problem">{error}</p>
+        <div className="tb-mac-actions">
           <label className="btn btn-primary"><ImagePlus size={16} aria-hidden="true" /> Take or choose a photo
             <input type="file" accept="image/*" capture="environment" hidden onChange={(ev) => { const f = ev.target.files?.[0]; ev.target.value = ''; if (f) createImageBitmap(f).then((b) => onCapture(toCanvas(b))).catch(() => setError('That photo couldn’t be opened.')) }} />
           </label>
@@ -181,9 +182,9 @@ function ScreenCamera({ onCapture, onClose }) {
     )
   }
   return (
-    <div className="eq-scanner">
-      <video ref={video} className="eq-scanner-video eq-read-video" playsInline muted aria-label="Camera" />
-      <div className="eq-actions-row">
+    <div className="tb-mac-camera">
+      <video ref={video} className="tb-mac-video" playsInline muted aria-label="Camera" />
+      <div className="tb-mac-actions">
         <Button disabled={!ready} iconLeft={<Camera size={16} />} onClick={() => onCapture(toCanvas(video.current))}>Take the picture</Button>
         <Button variant="secondary" onClick={onClose}>Stop the camera</Button>
       </div>

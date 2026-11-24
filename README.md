@@ -77,9 +77,9 @@ One device registration covers every tool. Demo reminders go to the phones turne
 
 **Staff schedule settings** (locations and the Excel import) are the schedule's own screen (`apps/schedule/src/pages/Settings.jsx`) at `/settings/schedule`, behind the same admin role and password. `/schedule/settings` and old `/admin/#locations` and `#excel` links forward there. **The Activity log** is its own page, Settings → Admin → Activity log (`/settings/activity`, `apps/settings/src/ActivityLog.jsx`), because it is the whole hub's log, not the schedule's; the old `#activity` links (`/settings/schedule#activity`, `/schedule/settings#activity`, `/admin/#activity`) forward there.
 
-### Read a screen (Demo → Scan)
+### MAC reader (Test Bench → MAC reader)
 
-Photograph a device's network screen (a Mindray's Maintenance → Device Location) and its Device ID and MAC addresses come back as text to copy. The photo is read **in the browser** (tesseract.js in a worker): nothing is uploaded and nothing is kept. The first read downloads the reader, about 7 MB, from this site (`/ocr/<version>/`; `scripts/build.mjs` copies it from `node_modules`, it is never precached and never loaded from a CDN); after that the browser keeps it. Each value is an editable field, because B/8 and D/0 can't be told apart from a photo; "Check" marks one where a look-alike was put right, and a LAN MAC that doesn't follow the Device ID (the asset lists' rule) is flagged. Details: `apps/equipment/CLAUDE.md`.
+The Test Bench's **MAC reader** tab: photograph a device's network screen (a Mindray's Maintenance → Device Location) and its Device ID and MAC addresses come back as text to copy. The photo is read **in the browser** (tesseract.js in a worker): nothing is uploaded and nothing is kept. The first read downloads the reader, about 7 MB, from this site (`/ocr/<version>/`; `scripts/build.mjs` copies it from `node_modules`, it is never precached and never loaded from a CDN); after that the browser keeps it. Each value is an editable field, because B/8 and D/0 can't be told apart from a photo; "Check" marks one where a look-alike was put right, and a LAN MAC that doesn't follow the Device ID (the asset lists' rule) is flagged. Details: `apps/testbench/CLAUDE.md`.
 
 ### /demo/ forwards to /equipment/
 

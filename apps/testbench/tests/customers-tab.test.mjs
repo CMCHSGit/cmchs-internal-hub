@@ -18,7 +18,7 @@ test('a test link becomes the device the bench is handed', () => {
 test('the Test Bench has a Customers tab, which the old New equipment address opens', () => {
   const section = read('../src/section.jsx')
   assert.ok(section.includes("import Customers from './newequip/Customers.jsx'"))
-  assert.ok(section.includes("get('tab') === 'customers' ? 'customers'") && section.includes("tab === 'customers' && ("))
+  assert.ok(section.includes("get('tab')") && section.includes("t === 'customers'") && section.includes("tab === 'customers' && ("))
   assert.ok(section.includes('chs-bench:open-device') && section.includes('onOpenDevice='), 'a test link opens the bench in this page, so a test in progress is kept')
   const old = read('../src/newequip/section.jsx')
   assert.ok(old.includes("'/testbench/?tab=customers'") && old.includes('location.replace(CUSTOMERS_URL)'), '/new-equipment/ now only sends people there')
