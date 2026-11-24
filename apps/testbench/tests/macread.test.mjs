@@ -86,3 +86,13 @@ test('tidyMac makes typed and pasted addresses one shape', () => {
   assert.equal(tidyMac('00:0F:14:54:95'), '')
   assert.equal(tidyMac(null), '')
 })
+
+test('the Test Bench has a MAC reader tab (?tab=mac), and the Demo tracker no longer has one', async () => {
+  const { readFileSync } = await import('node:fs')
+  const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const section = read('../src/section.jsx')
+  assert.ok(section.includes("import MacReader from './MacReader.jsx'") && section.includes("t === 'customers' || t === 'mac'") && section.includes("tab === 'mac' && ("))
+  assert.ok(!read('../../equipment/src/Scan.jsx').includes('Read a screen'), 'it is in the Test Bench, not the Demo tracker')
+  // nothing is sent anywhere: the reader's files come from this site, never a CDN
+  assert.ok(!/https?:\/\//.test(read('../src/ocr.js').replace(/\/\*[\s\S]*?\*\//g, '')), 'ocr.js names no outside address')
+})

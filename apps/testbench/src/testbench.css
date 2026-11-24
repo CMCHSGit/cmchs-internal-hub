@@ -139,3 +139,28 @@
 /* The Customers tab (newequip/Customers.jsx) sits in the same scrolling area as Saved reports. */
 .tb-reports > .ne-host { width: 100%; padding: 0; }
 .tb-reports .ne-title { font: var(--type-h3); }
+
+/* The MAC reader tab (MacReader.jsx): a photo of a device's network screen read for its Device ID and MACs. */
+.tb-mac { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.tb-mac-note { margin: 0; font: var(--type-body-sm); color: var(--text-muted); }
+.tb-mac-problem { color: var(--status-critical); }
+.tb-mac-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.tb-mac-camera { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.tb-mac-video { width: 100%; max-width: 640px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-md); background: #000; }
+.tb-mac label.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: center; cursor: pointer; }
+.tb-mac-busy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 14px 16px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+.tb-mac-busy .tb-mac-note { flex-basis: 100%; }
+.tb-mac-result { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 16px; }
+.tb-mac-photo { width: 200px; max-width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); }
+.tb-mac-rows { flex: 1 1 320px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.tb-mac-row { display: flex; align-items: flex-end; gap: 8px; width: 100%; }
+.tb-mac-grow { flex: 1; }
+.tb-mac-mono, .tb-mac-input { font-family: var(--font-mono); }
+.tb-mac-input { font-size: 17px; letter-spacing: 0.02em; }
+.tb-mac-check { margin-left: 6px; vertical-align: middle; }
+.tb-mac-raw summary { cursor: pointer; font: var(--type-body-sm); color: var(--text-muted); }
+.tb-mac-raw pre { margin: 6px 0 0; padding: 10px; max-height: 240px; overflow: auto; white-space: pre-wrap; font: 12px/1.4 var(--font-mono); background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
+@media (max-width: 480px) {
+  .tb-mac-input { font-size: 14px; letter-spacing: 0; padding-inline: 10px; }
+  .tb-mac-actions { display: grid; grid-template-columns: 1fr 1fr; }
+}
