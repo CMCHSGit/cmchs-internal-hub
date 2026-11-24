@@ -50,7 +50,9 @@ stops when the tab is left; the bench behind it stays loaded.
 - **SharePoint `CHS Test Bench` folder** (folder picker, once per laptop): `Templates` is the **master for templates**; `Results` for
   saved files. `templates/` in this repo is a copy for Firefox / no-picker browsers: after a template change in SharePoint run
   `node apps/testbench/tools/sync-templates.mjs`, commit, push. Generators in `tools/make-*-templates.mjs` write into `templates/`;
-  those files must then be copied into SharePoint to be used.
+  those files must then be copied into SharePoint to be used. **A new template:** `tools/new-template.mjs` (blank starter or `--from` a copy),
+  then `tools/check-templates.mjs` until clean (it reads what the bench allows from `bench/index.html`, so a new step type or lead there is
+  picked up; `LEGACY` in `tools/template-lib.mjs` and in `tests/templates.test.mjs` must stay the same list).
 - **Simpro:** only through the Apps Script proxy (`shared/proxy.js`); the key never reaches the page.
 
 **No job to attach to?** The bar has a **No job yet? Create one…** button beside the job picker (`src/jobDraft.js`): it only pre-fills that tool's new-job form and leaves a way back; nothing is created from the Test Bench (see `apps/simprojobs/README.md`).

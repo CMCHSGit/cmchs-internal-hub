@@ -208,6 +208,8 @@ Simulator options for `simPort('esa', opts)`: `messy`, `peOpen`, `mapNoAp`, `map
 
 ### Template conventions (follow these for new templates)
 
+Start with `node apps/testbench/tools/new-template.mjs --name "…" --kind class1|class2|applied` (or `--from "<template>"`) and finish with `node apps/testbench/tools/check-templates.mjs`; the checker enforces most of what follows (ids, one ESA block, applied parts, limits) and warns about `TODO` and text that looks like an NHI number.
+
 **Inputs, in order of usefulness**
 1. CHS Ansur `.mtt`
 2. A completed `.mtr` for that model
