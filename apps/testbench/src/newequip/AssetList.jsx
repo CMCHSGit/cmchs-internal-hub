@@ -12,6 +12,9 @@ import { benchByUnit, duplicateSerials, filterUnits, readAssetList, reportsByUni
 import { testLink } from './pending.js'
 import { useTestLink } from './open-device.js'
 import Pending, { rememberSheets } from './Pending.jsx'
+import ReadingCell from './ReadingCell.jsx'
+import { readingsBySerial } from './readings.js'
+import { watchReadings } from './readings-firebase.js'
 import { sendToSimpro } from './toSimpro.js'
 import { fetchWorkbook, GraphError } from './graph.js'
 import { forgetGraphToken, graphToken } from './graph-auth.js'
@@ -30,6 +33,7 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
   const [all, setAll] = useState(false)
   const [tests, setTests] = useState({ list: [], ok: null }) // shared bench tests; ok null = not heard yet
   const [groups, setGroups] = useState([])
+  const [readings, setReadings] = useState(() => new Map()) // each unit's Device ID and MACs as read on a phone (readings.js), by serial
   const [remembered, setRemembered] = useState(null) // the file chosen for this customer last time (a handle), this PC only
   const [graphFailed, setGraphFailed] = useState(false)
   const file = useRef(null)
@@ -48,6 +52,12 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
     if (!user) return undefined
     return watchTests((list) => setTests({ list, ok: true }), () => setTests({ list: [], ok: false }))
   }, [user])
+  // Sent from a phone's MAC reader (readings.js): shown on the unit's row as they arrive. Until the database rules for them are published this stays empty.
+  useEffect(() => {
+    setReadings(new Map())
+    if (!user || !customer?.id) return undefined
+    return watchReadings(customer.id, (list) => setReadings(readingsBySerial(list)), () => setReadings(new Map()))
+  }, [user, customer?.id])
   useEffect(() => {
     let live = true
     try { idbReports().all().then((r) => { if (live) setGroups(groupReports(r)) }).catch(() => {}) } catch { /* storage blocked: no saved reports to show */ }
@@ -120,7 +130,7 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
 
   return (
     <>
-    <Pending customer={customer} units={units} sheets={book?.sheets || []} canSimpro={canSimpro} />
+    <Pending customer={customer} units={units} sheets={book?.sheets || []} canSimpro={canSimpro} readings={readings} />
     <section className="card ne-card" aria-label="Asset list">
       <div className="ne-row">
         <div className="ne-grow">
@@ -166,11 +176,11 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
             <table className="ne-table">
               <thead><tr>
                 <th scope="col">Serial number</th><th scope="col">Device</th><th scope="col">CHS asset no.</th><th scope="col">Ward</th>
-                {book.sheets.length > 1 && <th scope="col">Sheet</th>}<th scope="col">Bench test</th><th scope="col">Report on this PC</th><th scope="col"><span className="ne-sr">Test</span></th>
+                {book.sheets.length > 1 && <th scope="col">Sheet</th>}<th scope="col">Bench test</th><th scope="col">Report on this PC</th><th scope="col">Device ID / MAC</th><th scope="col"><span className="ne-sr">Test</span></th>
               </tr></thead>
               <tbody>
-                {shownRows.map((u, i) => <Row key={`${u.sheet}-${u.row}-${i}`} customerName={customer.name} u={u} b={bench.get(u.key)} r={reports.get(u.key)} benchOk={tests.ok} sheets={book.sheets.length > 1} />)}
-                {rows.length === 0 && <tr><td colSpan={8} className="ne-none-row">No unit matches that search.</td></tr>}
+                {shownRows.map((u, i) => <Row key={`${u.sheet}-${u.row}-${i}`} customer={customer} reading={readings.get(u.key)} customerName={customer.name} u={u} b={bench.get(u.key)} r={reports.get(u.key)} benchOk={tests.ok} sheets={book.sheets.length > 1} />)}
+                {rows.length === 0 && <tr><td colSpan={9} className="ne-none-row">No unit matches that search.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -202,7 +212,7 @@ export default function AssetList({ customer, listHref, user, canSimpro }) {
 
 const Tile = ({ n, label }) => <div className="ne-tile"><strong>{n}</strong><span>{label}</span></div>
 
-function Row({ u, b, r, benchOk, sheets, customerName }) {
+function Row({ u, b, r, benchOk, sheets, customerName, customer, reading }) {
   const { onClick: openTest } = useTestLink()
   const bench = b
     ? <Badge tone={b.overall === 'pass' ? 'green' : b.overall === 'fail' ? 'red' : 'orange'}>{b.overall === 'pass' ? 'Pass' : b.overall === 'fail' ? 'Fail' : 'Incomplete'}{nz(b.finished) ? ` ${nz(b.finished)}` : ''}</Badge>
@@ -219,6 +229,7 @@ function Row({ u, b, r, benchOk, sheets, customerName }) {
       {sheets && <td>{u.sheet}</td>}
       <td>{bench}</td>
       <td>{report}</td>
+      <td><ReadingCell reading={reading} customer={customer} u={u} /></td>
       <td className="ne-actions"><a className="btn btn-sm btn-ghost" href={testLink(u, customerName)} onClick={openTest(testLink(u, customerName))}><FlaskConical size={14} aria-hidden="true" /> {b ? 'Test again' : 'Test this device'}</a></td>
     </tr>
   )
