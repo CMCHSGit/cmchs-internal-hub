@@ -451,3 +451,6 @@ File `Masimo Root with Radical-7 - Test Bench template.json` (Promed), 18 steps:
 
 ## Add a device to a set after testing (25/11/2026)
 **Edit details** (Device details) always has **+ Another device in this test**, so a device not entered at the start (a dock, a handle, a docked Radical-7) can be added during or after the test; it goes on the summary, report, results file and the shared serial field like one entered at the start.
+
+## Device details on an old test are saved (25/11/2026)
+**Edit details** on a test's summary page (a finished or stopped test, or one opened from Previous tests) now saves the change on the PC and shares a finished test again, so a device added after testing stays on it and its serial joins the shared line. Before, the change was only on screen. An imported results file or Ansur record is still only changed on screen. Reports already saved keep the old details: save the report again.
