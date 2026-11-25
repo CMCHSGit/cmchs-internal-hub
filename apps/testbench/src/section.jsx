@@ -502,7 +502,7 @@ function TestBench() {
           <iframe ref={frame} className="tb-frame" src={BENCH_URL} title="CHS Test Bench" allow="serial; clipboard-write; fullscreen" />
           {tab === 'bench' && justSaved.length > 0 && (
             <div className="tb-saved" role="status">
-              <span>Saved: <strong>{justSaved[justSaved.length - 1]}</strong>{justSaved.length > 1 ? ` and ${justSaved.length - 1} more` : ''}. It is in Previous tests: tick it to download or attach it.</span>
+              <span>Saved: <strong>{justSaved[justSaved.length - 1]}</strong>{justSaved.length > 1 ? ` and ${justSaved.length - 1} more` : ''}. It is in Previous tests: tick it to download or attach it (it is ticked for you while its summary is open).</span>
               <Button variant="ghost" size="sm" onClick={() => setJustSaved([])}>Dismiss</Button>
             </div>
           )}
