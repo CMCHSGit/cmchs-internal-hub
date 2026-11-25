@@ -3046,7 +3046,7 @@ const Runner = {
         return { dut: Object.fromEntries($$('input[data-k]', el).map(i => [i.dataset.k, i.value.trim()])), devices };
       }, focus: 'input', enterNext: true });
     if (!res || !res.value) return;
-    const before = this.dutText(); run.dut = res.data.dut;
+    const before = this.dutText(), nameBefore = ReportPdf.fileName(run); run.dut = res.data.dut;
     const kept = otherDevices({ devices: res.data.devices }); if (kept.length || run.devices) run.devices = kept;
     $('#runDut').textContent = this.dutText();
     if ($('#runSummary').hidden) this.autosave();
@@ -3058,6 +3058,12 @@ const Runner = {
       if (!run.imported) { DB.put('runs', this.storedRun(run)).catch(() => {}); Records.renderList(); SharedTests.share(run); }
     }
     if (before !== this.dutText()) log('in', 'RUN', `Device details changed: ${this.dutText()}`);
+    // Its files are already in Saved reports and their name changed (a device added, a serial or model corrected): save them again under
+    // the new name. The hub drops the old-named copies of the same test itself (saveReport, by testedAt and kind).
+    if ((run.autoSaved || run.reportSaved) && window.parent !== window && ReportPdf.fileName(run) !== nameBefore) {
+      log('in', 'RUN', `File name changed: ${nameBefore} -> ${ReportPdf.fileName(run)}; saving the report again`);
+      await saveReportFiles(run, 'save'); return;
+    }
     toast('Details updated');
   },
   /** Change what is connected to the ESA612 posts, mid-test. */
@@ -4725,6 +4731,10 @@ async function saveReportFiles(run, mode = 'download', change = false) {
         try { const to = /\.pdf$/i.test(name) ? await dir.getDirectoryHandle('PDF reports', { create: true }) : dir; const w = await (await to.getFileHandle(name, { create: true })).createWritable(); await w.write(blob); await w.close(); }   // the PDFs in a folder of their own
         catch (e) { log('er', 'RUN', `${name} couldn’t be written to ${dir.name} (${e.name || 'Error'}: ${e.message}); downloaded instead`); download(name, blob); fell++; }   // e.g. the browser's security check on the file
       } else download(name, blob);
+    }
+    if (keep && !run.reportSaved) {   // remembered, so a later change of name (Edit details) saves them again under it
+      run.reportSaved = new Date().toISOString();
+      if (!run.imported && (run.finished || run.stopped)) DB.put('runs', Runner.storedRun(run)).catch(() => {});
     }
     const names = files.map((f) => f[0]).join(' and ');
     log('in', 'RUN', keep ? `Saved to Saved reports: ${names}` : `${dir ? 'Saved' : 'Downloaded'} ${names}${dir ? ` to ${dir.name}` : ''}`);

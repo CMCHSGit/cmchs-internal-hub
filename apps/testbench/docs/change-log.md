@@ -454,3 +454,6 @@ File `Masimo Root with Radical-7 - Test Bench template.json` (Promed), 18 steps:
 
 ## Device details on an old test are saved (25/11/2026)
 **Edit details** on a test's summary page (a finished or stopped test, or one opened from Previous tests) now saves the change on the PC and shares a finished test again, so a device added after testing stays on it and its serial joins the shared line. Before, the change was only on screen. An imported results file or Ansur record is still only changed on screen. Reports already saved keep the old details: save the report again.
+
+## Saved reports renamed when a device is added after testing (25/11/2026)
+When **Edit details** changes the file name of a test whose report is already in Saved reports (saved automatically or with Save), the PDF and Ansur record are saved again under the new name, e.g. "2000240705, 1000353956 - Root 25.11.2026.pdf", and the hub drops the old-named copies (same test, same kind). A replaced copy forgets which Simpro job it was sent to, so send it again if it had been. A test saved before this change has no record of being saved: press Save once after editing. Files already downloaded or written to the Results folder keep their names.
