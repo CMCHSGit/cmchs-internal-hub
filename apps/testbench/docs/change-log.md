@@ -448,3 +448,6 @@ File `Masimo Root with Radical-7 - Test Bench template.json` (Promed), 18 steps:
 
 ## Back from the front panel (25/11/2026)
 - A device taken back to local control (a key pressed on the ESA612 or ProSim 8) is taken over again by the next command, without Disconnect and connect. Verified with the built-in simulator only. See esa612-protocol-notes.md.
+
+## Add a device to a set after testing (25/11/2026)
+**Edit details** (Device details) always has **+ Another device in this test**, so a device not entered at the start (a dock, a handle, a docked Radical-7) can be added during or after the test; it goes on the summary, report, results file and the shared serial field like one entered at the start.

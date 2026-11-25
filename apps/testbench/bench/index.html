@@ -3029,11 +3029,19 @@ const Runner = {
     const devs = otherDevices(run);
     const devBox = (d, j) => ['serial', 'model', 'asset'].map(f => `<div class="field"><label for="ex${j}${f}">${f === 'serial' ? `Device ${j + 2} serial number` : f === 'model' ? 'Model' : 'Asset #'}</label><input class="input" id="ex${j}${f}" data-dj="${j}" data-df="${f}" value="${esc(d[f])}"${f === 'model' ? ' list="modelOptions" autocomplete="off"' : ''}></div>`).join('');
     const res = await dialog({ title: 'Device details', body: `<div class="grid2" style="margin-top:4px">${keys.map((k, i) => `<div class="field"><label for="ed${i}">${esc(k)}</label><input class="input" id="ed${i}" data-k="${esc(k)}" value="${esc(run.dut[k] || '')}"${/^model$/i.test(k.trim()) ? ' list="modelOptions" autocomplete="off"' : ''}></div>`).join('')}</div>
-        ${devs.length ? `<div class="xd-head" style="margin-top:14px">Other devices in this test</div><div class="grid3" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px">${devs.map(devBox).join('')}</div><p class="hint" style="margin:6px 0 0">Clear a device’s boxes to take it off this test.</p>` : ''}
+        <div class="xd-head" style="margin-top:14px"${devs.length ? '' : ' hidden'}>Other devices in this test</div><div class="grid3 exDevs" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px">${devs.map(devBox).join('')}</div>
+        <p class="hint exClear" style="margin:6px 0 0"${devs.length ? '' : ' hidden'}>Clear a device’s boxes to take it off this test.</p>
+        <button type="button" class="btn secondary sm exAdd" style="margin-top:8px">${icon('plus')} Another device in this test</button>
         <p class="hint" style="margin-top:10px">Changes apply to this test’s summary, report and results file.</p>`,
       buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Save details', value: true }],
+      // A device can be added after testing too (a dock or handle tested with the main device but not entered at the start).
+      onOpen: (ov) => $('.exAdd', ov).addEventListener('click', () => {
+        const box = $('.exDevs', ov), j = $$('input[data-df="serial"]', box).length;
+        box.insertAdjacentHTML('beforeend', devBox({ serial: '', model: '', asset: '' }, j));
+        $('.xd-head', ov).hidden = false; $('.exClear', ov).hidden = false; $(`#ex${j}serial`, ov).focus();
+      }),
       collect: (el) => {
-        const devices = devs.map(() => ({}));
+        const devices = $$('input[data-df="serial"]', el).map(() => ({}));
         $$('input[data-dj]', el).forEach(i => { devices[+i.dataset.dj][i.dataset.df] = i.value.trim(); });
         return { dut: Object.fromEntries($$('input[data-k]', el).map(i => [i.dataset.k, i.value.trim()])), devices };
       }, focus: 'input', enterNext: true });
