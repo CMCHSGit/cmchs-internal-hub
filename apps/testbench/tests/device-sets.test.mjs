@@ -232,3 +232,15 @@ test('details changed on a test’s summary (an old test too) are kept on this P
   assert.match(body, /if \(\$\('#runSummary'\)\.hidden\) this\.autosave\(\);\s*else \{/)
   assert.match(body, /if \(!run\.imported\) \{ DB\.put\('runs', this\.storedRun\(run\)\)\.catch\(\(\) => \{\}\); Records\.renderList\(\); SharedTests\.share\(run\); \}/)
 })
+
+test('a device added after the report was saved: the report is saved again under the new name, and the hub keeps only that copy', async () => {
+  const s = html.indexOf('async editDetails()'), body = html.slice(s, html.indexOf('async editAppliedParts()', s))
+  assert.match(body, /nameBefore = ReportPdf\.fileName\(run\)/)
+  assert.match(body, /if \(\(run\.autoSaved \|\| run\.reportSaved\) && window\.parent !== window && ReportPdf\.fileName\(run\) !== nameBefore\) \{[\s\S]*?await saveReportFiles\(run, 'save'\)/)
+  assert.match(html, /if \(keep && !run\.reportSaved\) \{/, 'a Save to Saved reports is remembered on the test')
+  const { memoryReports, saveReport } = await import('../src/reports.js')
+  const store = memoryReports(), meta = { serial: 'R-1', testedAt: '2026-11-25T01:00:00.000Z' }, buffer = new ArrayBuffer(1)
+  for (const n of ['R-1 - Root 25.11.2026.pdf', 'R-1 - Root 25.11.2026.mtr']) await saveReport(store, { name: n, buffer, meta })
+  for (const n of ['R-1, R-2 - Root 25.11.2026.pdf', 'R-1, R-2 - Root 25.11.2026.mtr']) await saveReport(store, { name: n, buffer, meta: { ...meta, serial: 'R-1 + R-2' } })
+  assert.deepEqual((await store.all()).map((r) => r.name).sort(), ['R-1, R-2 - Root 25.11.2026.mtr', 'R-1, R-2 - Root 25.11.2026.pdf'])
+})

@@ -244,7 +244,7 @@ list yet, and see which units have been tested.
 - **Other devices in this test** (start screen, under the device's details): a set tested together, such as a monitor with its dock
   and handle, gets **one report**. **+ Another device in this test** adds a line (serial number, model, asset #); each is looked up in
   the asset list by itself (Found / Not found, with **Add to the asset list…** inside the hub). They are kept on the test (`run.devices`),
-  listed as Device 2, 3… in the report header and the Ansur record, editable under **Device details** (where **+ Another device in this test** adds one during or after the test; on an old test opened from Previous tests the change is saved on the PC and the finished test is shared again with every serial), and kept for a rerun; **Next
+  listed as Device 2, 3… in the report header and the Ansur record, editable under **Device details** (where **+ Another device in this test** adds one during or after the test; on an old test opened from Previous tests the change is saved on the PC and the finished test is shared again with every serial; if its report is already in Saved reports and the file name changes, it is saved again under the new name and the old-named copy goes), and kept for a rerun; **Next
   device** keeps their models with the numbers blank. Shared, every serial number goes in the one `serial` field joined by " + "
   (the main device first), so New equipment counts the test for each device and Saved reports finds the report by any of them.
   The files are named with every serial, comma separated: "AA3F46248926, AA3D58264234 - N1 Handle 10.11.2026.pdf".
