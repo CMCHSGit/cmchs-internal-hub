@@ -217,3 +217,12 @@ test('an Ansur import is reviewed: clean name, CHS details, AS/NZS 3551 limits c
   assert.match(html, /reviewed = await ansurReview\(conv, f\.name\); if \(!reviewed\) return;/)
   assert.match(html, /if \(reviewed && reviewed\.save\) await Shared\.save\(t\);/)
 })
+
+test('a device can be added to the set after testing, from Edit details', () => {
+  const s = html.indexOf('async editDetails()'), body = html.slice(s, html.indexOf('async editAppliedParts()', s))
+  assert.ok(s > 0)
+  assert.match(body, /Another device in this test/, 'the dialog always offers to add one, even with none at the start')
+  assert.match(body, /onOpen: \(ov\) => \$\('\.exAdd', ov\)/)
+  assert.match(body, /const devices = \$\$\('input\[data-df="serial"\]', el\)\.map/, 'added rows are collected, not only the ones there at the start')
+  assert.doesNotMatch(body, /\$\{devs\.length \? `<div class="xd-head"/, 'the section is not left out when there were none')
+})
