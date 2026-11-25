@@ -1,0 +1,255 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray BeneFusion SP3 Vet Syringe Pump",
+  "desc": "Mindray BeneFusion SP3 veterinary syringe pump. Class I, internally powered, IP34, type CF defibrillation-proof applied part (syringe) (ops manual H-046-022431-00 v2.0 A.1.1, p. A-1; 2.1, p. 2-1). Service manual H-046-022456-00 v1.0 chapter 3 tests enclosure, earth and patient leakage through an applied-part connection tooling, so a CF applied part “Syringe” on RA, patient leakage and mains on applied parts were added (Ansur had none). From the CHS Ansur template “0000 Benefusion SP3 Vet EST+PVT AS-NZS 3551 DD.MM.YYYY.mtt”. Electrical safety to AS/NZS 3551:2012+A2. Changed from Ansur: earth leakage NC 5000, ON 10000 µA (B11.6) (Ansur: NC 500, ON 1000 µA); enclosure leakage NC 100, ON 500, OE 500, RNC 100, RON 500, ROE 500 µA (Ansur: no limits); protective earth resistance ≤ 0.2 Ω added (Ansur had none). Changed from Ansur: power-on and running tests rewritten from service manual 3.3 and 3.5, the power-on item moved out of the visual check, calibrations are due-only and N/A otherwise, maintenance passwords removed. Kept as in Ansur, differs from the manual (for Jonathan to confirm): earth leakage 5000/10000 µA (service manual 3.6.2: 500/1000 µA); no PE test in the manual. Volume limits (10 and 20 mL at 100 mL/h 5 mL; 50 mL at 500 mL/h 25 mL) and the 400–650 mmHg occlusion limit at 400 mL/h match service manual 3.4.1 and 3.4.2; the occlusion level is not stated there (ops A.5 default 525 mmHg, tolerance ±125 mmHg).",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual Inspection",
+    "instructions": "Service manual 3.2 (page 3-3).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The enclosure is clean, without scratches, assembled firmly, and there is no abnormal noise when the pump is shaken",
+      "The display, keys, power cord and accessories have no obvious damage",
+      "The external connecting cables are not frayed, and the connectors are firm with no loose or bent pins",
+      "The labels and data plate are complete, correct and legible",
+      "The standard configuration is complete and the power socket is installed firmly"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "power-on-tests",
+    "type": "check",
+    "title": "Power-on Tests",
+    "instructions": "Service manual 3.3 and 3.5 (pages 3-3 and 3-9).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Press the power switch: the System Self-Test screen is displayed",
+      "The speaker sounds first, then the buzzer sounds two di-di beeps",
+      "The alarm lamp changes from red to yellow, then goes out",
+      "Battery: disconnect the AC supply briefly; the pump keeps running on the battery",
+      "The LED gives normal prompts for battery charging and discharging"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "protective-earth-resistance",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "insulation-mains-to-non-earth-accessible",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure (the service manual wraps metal foil on the housing and connects the applied part to RA).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      },
+      {
+       "c": "RNC",
+       "hi": 100
+      },
+      {
+       "c": "RON",
+       "hi": 500
+      },
+      {
+       "c": "ROE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leakage",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "patient-leakage",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Connect the applied part to the RA post: the syringe, through the applied-part connection tooling or metal foil wrapped round a filled syringe barrel (service manual: SUM end of the tooling to RA). Connect the pump’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "mains-on-applied-parts",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Connect the applied part to the RA post: the syringe, through the applied-part connection tooling or metal foil wrapped round a filled syringe barrel (service manual: SUM end of the tooling to RA). Connect the pump’s mains lead to the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "running-test",
+    "type": "check",
+    "title": "Running Test",
+    "instructions": "Service manual 3.5 (pages 3-8 and 3-9). Install a syringe and use test water.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Each key operates normally in line with the instructions for use, and no abnormal operation makes the pump crash",
+      "Sound and light alarms at every level are normal, the volume control works and the alarm mute works",
+      "After an alarm is triggered, the operation and the alarm are recorded in the history",
+      "Install the syringe, set the infusion parameters and press Start: the running icon, rate, accumulated volume and pressure are normal"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "performance-test",
+    "type": "check",
+    "title": "Performance Test",
+    "instructions": "Service manual 3.4 (pages 3-4 to 3-8). Calibration is due on first installation, with a new syringe brand, after repair, or if the flow or pressure is doubtful (3.1.3, p. 3-2). The user and factory maintenance passwords are in the service manual.\nVolume performance test (3.4.1, p. 3-5): after accuracy calibration, fill the syringe with clean water, set the rate and preset volume below, start into a clean empty container and stop when the Complete alarm sounds and the red LED flashes. Weigh the water on a balance with 0.1 g accuracy. 1 g of water = 1 mL.\nOcclusion pressure test (3.4.2, pp. 3-6/3-7): fill the syringe and an extension tube with water, connect to a pressure analyser (Fluke) in blocking test mode, set 400 mL/h and start. When the Blocking alarm sounds (red LED flashes, speaker alarms), read the maximum pressure, then cancel the alarm. If it fails, run the pressure calibration (300 mmHg and 900 mmHg) and test again. The manual does not state the occlusion level or syringe; the ops manual default level is 525 mmHg.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Accuracy calibration (service manual 3.4.1; 5, 10, 20, 30 and 50 mL standard syringes): Calibration Completed. N/A if not due",
+      "Pressure calibration (3.4.2): Calibration Completed. N/A if not due",
+      "Sensor calibration (3.4.3; standard specimens 13.5 mm and 32 mm): Calibration Completed, and the displayed outer diameter is close to the 32 mm specimen. N/A if not due"
+     ],
+     "readings": [
+      {
+       "label": "Volume performance: 10 mL syringe, 100 mL/h, preset volume 5 mL: water received 4.90–5.10 g",
+       "unit": "g",
+       "lo": 4.9,
+       "hi": 5.1
+      },
+      {
+       "label": "Volume performance: 20 mL syringe, 100 mL/h, preset volume 5 mL: water received 4.90–5.10 g",
+       "unit": "g",
+       "lo": 4.9,
+       "hi": 5.1
+      },
+      {
+       "label": "Volume performance: 50 mL syringe, 500 mL/h, preset volume 25 mL: water received 24.50–25.50 g",
+       "unit": "g",
+       "lo": 24.5,
+       "hi": 25.5
+      },
+      {
+       "label": "Occlusion pressure: peak pressure at the Blocking alarm, 400 mL/h (525 mmHg level): 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      }
+     ]
+    }
+   }
+  ],
+  "category": "Infusion pumps",
+  "manufacturer": "Mindray",
+  "appliedParts": [
+   {
+    "id": "cfsyr0apbf01",
+    "name": "Syringe",
+    "apclass": "CF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "models": []
+ }
+}

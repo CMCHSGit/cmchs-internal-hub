@@ -1,0 +1,118 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray TE Air Ultrasound",
+  "desc": "Converted from the CHS Ansur template “0000 - 000000000000 Te Air EST dd.mm.yyyy.mtt” (file name). Electrical safety to AS/NZS 3551:2012+A2. The ESA612 steps are put in the usual order (they were patient leakage first in Ansur). Not checked against a manufacturer manual (the Mindray Animal manuals folder has none for this model): the checks and the applied part type are as in the Ansur template, for Jonathan to confirm against the device label and the service manual.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "name": "Probe",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "checklist",
+    "type": "check",
+    "title": "Checklist",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Check Shipment Complete",
+      "Check Probe Charges on Cable and in Capsule if Purchased (charge to 100%)",
+      "Connect Probe and Upgrade Firmware",
+      "Perform Self Test",
+      "Check Basic Functionality",
+      "Check All Scan Modes",
+      "Activate and Check Additional Options if Purchased",
+      "Record Details"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "insulation-mains-to-protective-earth",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "patient-leakage",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      }
+     ]
+    }
+   }
+  ],
+  "category": "Ultrasound",
+  "manufacturer": "Mindray",
+  "models": []
+ }
+}

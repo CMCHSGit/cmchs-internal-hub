@@ -145,7 +145,7 @@ test('the template for a device model: one clear match, else none (the bench the
   assert.equal(best('BeneHeart D1 Pro'), 'Mindray BeneHeart D1 Defibrillator')
   assert.equal(best('BeneVision N12'), 'Patient Monitor and OR Modules')
   assert.equal(best('V500'), 'Patient Monitor and OR Modules')
-  assert.equal(best('PM-60'), 'Mindray BeneVision PM-60 Patient Monitor')
+  assert.equal(best('PM-60'), null, 'PM-60 fits the BeneVision PM-60 and the PM-60 Vet charger equally well: the bench offers the search')
   assert.equal(best('VS-600'), 'Mindray VS-600 / VS-900 Vital Signs Monitor')
   assert.equal(best('Nonexistent X99'), null, 'a model with a number that no template lists')
   assert.equal(best(''), null)

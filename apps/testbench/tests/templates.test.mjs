@@ -17,7 +17,7 @@ test('there are templates for the monitors, modules, vital signs monitors and Be
 
 // Templates from the CHS Ansur library or made earlier (not by the generators here): checked for structure only. Their limits still
 // follow the old Ansur template (e.g. earth leakage 500/1000 µA, see change-log.md); the bench gives every step a fresh id on loading.
-const LEGACY = ['Medical power supply', 'A7 Anaesthetic', 'A9 Anaesthetic', 'D30-D60', 'Patient Monitor and OR Modules', 'Patient monitor.json']   // the last: an engineer's own template (earth leakage 500/1000 µA)
+const LEGACY = ['Medical power supply', 'A7 Anaesthetic', 'A9 Anaesthetic', 'D30-D60', 'Patient Monitor and OR Modules', 'Patient monitor.json', 'In-service test']   // 'Patient monitor.json': an engineer's own template (earth leakage 500/1000 µA); 'In-service test': AS/NZS 3760, not 3551, so its limits differ
 for (const f of files) {
   const legacy = LEGACY.some((l) => f.includes(l))
   test(`template ${f} is ready for the bench${legacy ? ' (older template: structure only)' : ''}`, () => {

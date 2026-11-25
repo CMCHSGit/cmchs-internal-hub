@@ -1,0 +1,186 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray PM-60 Vet Charger",
+  "desc": "Mindray PM-60 Vet handheld pulse oximeter on its charger stand, tested as Class II with a type BF SpO2 applied part (PM-60 service manual V2.0 April 2010 p. 1-3; PM-60Vet operator’s manual 2023-02 p. 1-5 and Appendix A; the charger stand’s own class is not stated). From the CHS Ansur template “0000 PM-60 Vet Charger AS-NZS 3551 EST and PVT 11.07.2025.mtt” (“AS/NZS 3551 - CL2”). Electrical safety to AS/NZS 3551:2012+A2: insulation mains to accessible parts over 1 MΩ, enclosure 100/500/500 µA, patient leakage BF 100/500 µA, mains on applied parts BF 5000 µA; no protective earth tests (Class II). Changed from Ansur: applied part is one type BF SpO2 sensor on RA (the draft had a type CF group with five ECG posts, which this device does not have); ESA steps put in order (enclosure before patient leakage); SpO2 healthy-finger limit 95–100 % (Ansur stored 94 to 101 although its text says 95–100 %); pulse limit 77–83 bpm (Ansur 79–81, manual 80 ±3); the SpO2 and pulse steps merged and the manual’s simulator test (SpO2 96 ±2 %, PR 80 ±3 bpm) added; “Pluse” typo fixed; the monitor-style battery wording replaced by the charger and battery checks from the manuals. Kept as in Ansur, differs from the manual (for Jonathan to confirm): enclosure single fault 500 µA against 300 µA in the service manual 3.5.1; patient leakage BF 100/500 µA against 10/50 µA in the service manual 3.5.2; no mains to applied parts insulation test, which the manuals do not cover.",
+  "category": "Vet patient monitors",
+  "manufacturer": "Mindray",
+  "models": [],
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "ap1",
+    "name": "SpO2",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual inspection, power-on and charging",
+    "instructions": "Inspect the pulse oximeter, charger stand, SpO2 sensor and cable. Power-on test (service manual 3.3): fit the batteries and press the Power button.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, display screen, buttons, charger stand and SpO2 sensor and cable have no obvious signs of damage.",
+      "The external connecting cables are not frayed and the connector pins are not loose or bent.",
+      "The external connectors are not loose and their pins are not bent.",
+      "The safety labels and data plate are clearly legible.",
+      "Power-on test: the alarm lamp flashes then goes out, the pulse oximeter beeps, shows the start-up screen and then the main screen.",
+      "Charger test: with the oximeter in the charger stand and the AC mains connected, the power lamp is green if the lithium-ion battery is full, otherwise yellow while charging and green when fully charged."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "insulation-mains-to-non-earth-accessible",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Put the PM-60 Vet in its charger stand and plug the charger stand into the ESA612 equipment outlet. Wrap foil around the oximeter and the charger stand and clip the red test lead to it. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Put the PM-60 Vet in its charger stand and plug the charger stand into the ESA612 equipment outlet. Clip the red test lead to foil wrapped around the oximeter and the charger stand.\nNote: only a representative sample of conductive non-earthed exposed parts need to be tested.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "patient-leakage",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Connect the SpO2 sensor (wrapped in foil, or its cable connector pins linked) to the ESA612 RA post. Put the PM-60 Vet in its charger stand and plug the charger stand into the ESA612 equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "mains-on-applied-parts",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Keep the SpO2 sensor connected to the ESA612 RA post and the charger stand in the equipment outlet.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "spo2-performance-test",
+    "type": "check",
+    "title": "SpO2 and pulse performance",
+    "instructions": "Connect the SpO2 sensor. Finger test: apply the sensor to the finger of a healthy person. Simulator test (service manual 3.4.1): connect the sensor to the SpO2 simulator, select the make and model of the SpO2 module under test, and set SpO2 96 % and PR 80 bpm. A simulator only shows the oximeter works; it cannot verify accuracy.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "A Pleth wave and PR value are displayed on the healthy finger.",
+      "The SpO2 and pulse alarms work correctly."
+     ],
+     "readings": [
+      {
+       "label": "Displayed SpO2 on a healthy finger (95–100 %)",
+       "unit": "%",
+       "lo": 95,
+       "hi": 100
+      },
+      {
+       "label": "Displayed SpO2 with the simulator at 96 % (96 ±2)",
+       "unit": "%",
+       "lo": 94,
+       "hi": 98
+      },
+      {
+       "label": "Displayed pulse rate with the simulator at 80 bpm (80 ±3)",
+       "unit": "bpm",
+       "lo": 77,
+       "hi": 83
+      }
+     ]
+    }
+   },
+   {
+    "id": "battery-test",
+    "type": "check",
+    "title": "Battery test",
+    "instructions": "Operator’s manual 8.5: charge the lithium-ion battery for over 2 hours in the charger stand, then disconnect the AC mains and let the oximeter run on the battery until it shuts off.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The pulse oximeter operates correctly from battery power when removed from the charger stand and the AC mains.",
+      "The operating time of the battery meets the product specification (lithium-ion 24 h, alkaline 36 h, with SpO2 monitored continuously, audio off and backlight at minimum, at 25 °C)."
+     ],
+     "readings": []
+    }
+   }
+  ]
+ }
+}
