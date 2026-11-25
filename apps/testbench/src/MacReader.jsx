@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Camera, Copy, ImagePlus, RotateCcw } from 'lucide-react'
 import { Alert, Badge, Button, Spinner, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { closeOcr, readPhoto, toCanvas } from './ocr.js'
-import { readRows, readScreenText, rowsAsText } from './macRead.js'
+import { readRows, readScreenText, rowsAsValues } from './macRead.js'
 import { copyText } from './clipboard.js'
 
 /** `onSend(values)` (macInbox-firebase.js sendToPc) sends every read to the person's own MAC reader on the PC by itself, and again when they correct a field. */
@@ -138,7 +138,7 @@ export default function MacReader({ onSend = null }) {
                       <Button variant="secondary" iconLeft={<Copy size={16} />} onClick={() => copy(r)} aria-label={`Copy ${r.label}`}>Copy</Button>
                     </div>
                   ))}
-                  {rows.length > 1 && <Button variant="secondary" iconLeft={<Copy size={16} />} onClick={async () => showToast((await copyText(rowsAsText(rows))) ? 'All copied' : 'Couldn’t copy')}>Copy all</Button>}
+                  {rows.length > 1 && <Button variant="secondary" iconLeft={<Copy size={16} />} onClick={async () => showToast((await copyText(rowsAsValues(rows))) ? 'All copied' : 'Couldn’t copy')}>Copy all</Button>}
                 </div>
               )}
           </div>

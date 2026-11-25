@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { lanFromDeviceId, readRows, readScreenText, rowsAsText, tidyMac } from '../src/macRead.js'
+import { lanFromDeviceId, readRows, readScreenText, rowsAsValues, tidyMac } from '../src/macRead.js'
 
 // What the text recognition really gave for a photo of a Mindray Maintenance > Device Location screen
 // (patient fields blank): noise around the lines that matter.
@@ -27,10 +27,14 @@ test('the Device ID, WLAN MAC and LAN MAC are found in a real photo\'s text', ()
   assert.equal(r.lanMatchesDeviceId, true)
 })
 
-test('rows come in screen order and paste as labelled lines', () => {
+test('rows come in screen order and paste as the values only, one to a line, with no labels', () => {
   const rows = readRows(readScreenText(PHOTO))
   assert.deepEqual(rows.map((x) => x.label), ['Device ID', 'WLAN MAC', 'LAN MAC'])
-  assert.equal(rowsAsText(rows), 'Device ID: 00-0F-14-04-CC-54-95-D4\nWLAN MAC: 08:9B:27:69:71:BA\nLAN MAC: 00:0F:14:54:95:D4')
+  assert.equal(rowsAsValues(rows), '00:0F:14:54:95:D4\t08:9B:27:69:71:BA\t00-0F-14-04-CC-54-95-D4', 'LAN MAC, WLAN MAC, Device ID, tab-separated for Excel')
+  // the screen with no WLAN MAC: an empty cell, so Device ID still lands in its own column
+  assert.equal(rowsAsValues(readRows(readScreenText('Device ID 00-0F-14-04-CC-54-95-D4\nLAN MAC 00:0F:14:54:95:D4'))), '00:0F:14:54:95:D4\t\t00-0F-14-04-CC-54-95-D4')
+  // an unlabelled MAC goes after the three
+  assert.equal(rowsAsValues(readRows(readScreenText('08:9B:27:69:71:BA'))), '\t\t\t08:9B:27:69:71:BA')
 })
 
 test('look-alikes and separators are put right, and the value is marked to check', () => {

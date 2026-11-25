@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 import { cleanReading, inboxRows, lanOf, readerLink } from '../src/macInbox.js'
-import { rowsAsText, tidyDeviceId } from '../src/macRead.js'
+import { rowsAsValues, tidyDeviceId } from '../src/macRead.js'
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
@@ -37,7 +37,12 @@ test('the LAN MAC shown is the one read, else the one the Device ID gives (the a
 test('the inbox shows Device ID, WLAN MAC, LAN MAC in screen order, and says when the LAN MAC came from the Device ID', () => {
   const rows = inboxRows({ deviceId: '00-0F-14-04-CC-54-95-D4', wlanMac: '08:9B:27:69:71:BA', lanMac: '' })
   assert.deepEqual(rows.map((r) => [r.label, r.value, !!r.derived]), [['Device ID', '00-0F-14-04-CC-54-95-D4', false], ['WLAN MAC', '08:9B:27:69:71:BA', false], ['LAN MAC', '00:0F:14:54:95:D4', true]])
-  assert.equal(rowsAsText(rows), 'Device ID: 00-0F-14-04-CC-54-95-D4\nWLAN MAC: 08:9B:27:69:71:BA\nLAN MAC: 00:0F:14:54:95:D4')
+  assert.equal(rowsAsValues(rows), '00:0F:14:54:95:D4\t08:9B:27:69:71:BA\t00-0F-14-04-CC-54-95-D4', 'Copy all: the values only, no labels, tab-separated for Excel: LAN MAC, WLAN MAC, Device ID')
+  // no WLAN MAC: its cell is empty, so Device ID still lands in the third column
+  assert.equal(rowsAsValues(inboxRows({ deviceId: '00-0F-14-04-CC-54-95-D4', lanMac: '00:0F:14:54:95:D4' })), '00:0F:14:54:95:D4\t\t00-0F-14-04-CC-54-95-D4')
+  assert.equal(rowsAsValues(inboxRows({ deviceId: '00-0F-14-04-CC-54-95-D4' })), '00:0F:14:54:95:D4\t\t00-0F-14-04-CC-54-95-D4', 'the LAN MAC from the Device ID is copied too')
+  assert.equal(rowsAsValues(inboxRows({ wlanMac: '08:9B:27:69:71:BA' })), '\t08:9B:27:69:71:BA\t')
+  assert.ok(!/[A-Za-z ]{5,}:/.test(rowsAsValues(rows)), 'no labels')
   assert.equal(inboxRows({ lanMac: '00:0F:14:54:95:D4' })[0].derived, false)
   assert.deepEqual(inboxRows(null), [])
   assert.deepEqual(inboxRows({ deviceId: '', lanMac: '', wlanMac: '' }), [])

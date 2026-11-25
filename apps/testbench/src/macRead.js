@@ -110,8 +110,15 @@ export function readRows(result) {
   return rows
 }
 
-/** All of them as text to paste: "Device ID: 00-0F-…\nWLAN MAC: …". */
-export const rowsAsText = (rows) => rows.map((r) => `${r.label}: ${r.value}`).join('\n')
+/** All of them to paste into Excel as one row: just the values, no labels, tab-separated so each lands in its own column, in the order of the sheet's
+    columns: LAN MAC, WLAN MAC, Device ID ("00:0F:14:54:95:D4\t08:9B:27:69:71:BA\t00-0F-14-04-CC-54-95-D4"). One that isn't there (often the WLAN MAC)
+    leaves its cell empty, so the others still land in their own columns; an unlabelled MAC goes in the cells after them. */
+const SHEET_ORDER = ['lanMac', 'wlanMac', 'deviceId']
+export const rowsAsValues = (rows) => {
+  const by = Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  const extra = rows.filter((r) => !SHEET_ORDER.includes(r.key)).map((r) => r.value)
+  return [...SHEET_ORDER.map((k) => by[k] || ''), ...extra].join('\t')
+}
 
 /** Tidy a typed or pasted Device ID: 000f1404cc5495d4 or 00:0f:14:04:cc:54:95:d4 → '00-0F-14-04-CC-54-95-D4'. '' when it isn't 8 bytes. */
 export function tidyDeviceId(text) {
