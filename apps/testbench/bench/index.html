@@ -524,6 +524,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
           <button class="btn secondary" id="sumDownload" type="button" title="Downloads the PDF report and the Ansur record (.mtr) into a folder you choose."><svg class="i"><use href="#i-download"/></svg>Download</button>
           <button class="btn quiet sm" id="sumFolder" type="button" title="Download into a different folder from last time">Other folder…</button>
           <button class="btn quiet" id="sumPrint" type="button"><svg class="i"><use href="#i-printer"/></svg>Print</button>
+          <button class="btn quiet" id="sumBooklet" type="button" title="Two pages to each side of a landscape sheet, in booklet order: print on both sides, flipping on the short edge, then fold"><svg class="i"><use href="#i-printer"/></svg>Print as booklet</button>
         </div>
       </div>
       <div class="card pad">
@@ -3752,7 +3753,7 @@ const Runner = {
     log('in', 'RUN', `Finished: ${run.overall.toUpperCase()}`);
     SharedTests.share(run);
     $('#runActive').hidden = true; $('#runSummary').hidden = false;
-    this.renderSummary(); window.scrollTo({ top: 0 }); Records.renderList();
+    this.renderSummary(); window.scrollTo({ top: 0 }); Records.tickOnly(run);
     if (!stopped && run.overall === 'pass') this.autoSave(run);   // not awaited either
     if (!stopped && !Power.on) this.chargeAfterTests();   // not awaited: the summary is already showing
   },
@@ -3770,7 +3771,7 @@ const Runner = {
     this.run = run; run.results = run.results || {};
     for (const s of run.template.steps) if (!run.results[s.id]) run.results[s.id] = { status: 'pending', rows: [] };
     App.show('run'); $('#runSetup').hidden = true; $('#runActive').hidden = true; $('#runSummary').hidden = false;
-    this.renderSummary(); window.scrollTo({ top: 0 });
+    this.renderSummary(); window.scrollTo({ top: 0 }); Records.tickOnly(run);
   },
   /** Mark every step that wasn't done as skipped, so it's left out and the test can pass. */
   skipRest() {
@@ -3900,6 +3901,18 @@ const Runner = {
       // The whole test, so it can be reopened in the Test Bench later (photos left out to keep the file small).
       run: clone({ ...run, template: { ...run.template, steps: run.template.steps.map(st => ({ ...st, images: [] })) } }) };
     void sn; return Results.save(outName(run, 'json'), () => new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+  },
+  /** The report (the same PDF as Download) laid out as a booklet and sent to the print dialog. */
+  async printBooklet() {
+    const run = this.run; if (!run) return;
+    const btn = $('#sumBooklet'); if (btn) btn.disabled = true;
+    try {
+      run.overall = overallOf(run);
+      const how = await printPdfBlob(new Blob([await bookletPdfBytes(await ReportPdf.build(run))], { type: 'application/pdf' }));
+      log('in', 'RUN', 'Booklet sent to print');
+      toast(how === 'tab' ? 'The booklet opened in a new tab: print from there, on both sides, flipping on the short edge, then fold.' : 'Booklet sent to the print dialog: choose landscape, print on both sides flipping on the short edge, then fold the sheets in half.', 9000);
+    } catch (e) { log('er', 'RUN', 'The booklet failed: ' + e.message); dialog({ title: 'Couldn’t make the booklet', body: `<p>${esc(e.message)}</p><p class="muted">Use Print instead.</p>` }); }
+    if (btn) btn.disabled = false;
   },
   printReport() {
     const run = this.run; const d = new Date(run.finished); run.overall = overallOf(run);
@@ -4251,6 +4264,14 @@ const Records = {
   ticked: new Set(), status: {}, only: null, tickAll: false,   // inside the hub: the tests ticked (by start time), what the hub says was sent, and the asset list's devices the list is limited to
   /** Tells the hub which tests are ticked, so its bar under the bench (download, print, attach to a Simpro job) works on them. */
   postTicks() { if (window.parent !== window) window.parent.postMessage({ type: 'chs-bench:ticked', keys: [...this.ticked] }, location.origin); },
+  /** The test on the summary page is the one ticked (and only that one), so the hub's bar at the right works on it as soon as its report is saved. */
+  async tickOnly(run) {
+    const k = String((run && run.started) || '');
+    if (!k || run.inProgress) { await this.renderList(); return; }
+    this.ticked = new Set([k]);
+    await this.renderList();   // takes the tick off a test the table doesn't show
+    this.postTicks();
+  },
   async list() { try { return ((await DB.all('runs')) || []).sort((a, b) => String(b.finished || b.saved || b.started).localeCompare(String(a.finished || a.saved || a.started))); } catch { return []; } },
   async renderList() {
     const box = $('#prevList'); if (!box) return;
@@ -5072,6 +5093,51 @@ async function ansurReview(conv, fileName) {
   return { template: ansurApplyReview(t, r.data, issues, sugg, fileName), save: r.data.save };
 }
 
+/* ======================= booklet printing (the same layout as the hub's src/print.js: tests/print.test.mjs keeps them equal) ======================= */
+/** Booklet order for n pages (padded to a multiple of 4 with blanks, shown as -1): each sheet side is [left, right]. */
+function bookletOrder(n) {
+  const total = Math.max(4, Math.ceil(n / 4) * 4), at = (i) => (i < n ? i : -1), sides = [];
+  for (let s = 0; s < total / 4; s++) {
+    sides.push([at(total - 1 - 2 * s), at(2 * s)]);
+    sides.push([at(2 * s + 1), at(total - 2 - 2 * s)]);
+  }
+  return sides;
+}
+/** The PDF's pages two to each side of a landscape sheet of the same paper (A4 reports: two A5 halves on A4), in booklet order. */
+async function bookletPdfBytes(bytes) {
+  const { PDFDocument } = PDFLib;
+  const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  const pages = src.getPages(), out = await PDFDocument.create();
+  const { width: pw, height: ph } = pages[0].getSize();
+  const W = Math.max(pw, ph), H = Math.min(pw, ph), half = W / 2;
+  const embedded = [];
+  for (const pg of pages) { try { embedded.push(await out.embedPage(pg)); } catch { embedded.push(null); } }   // a page with nothing on it can't be embedded: left blank
+  for (const [left, right] of bookletOrder(pages.length)) {
+    const sheet = out.addPage([W, H]);
+    for (const [i, x] of [[left, 0], [right, half]]) {
+      const e = i < 0 ? null : embedded[i]; if (!e) continue;
+      const s = Math.min(half / e.width, H / e.height);
+      sheet.drawPage(e, { x: x + (half - e.width * s) / 2, y: (H - e.height * s) / 2, width: e.width * s, height: e.height * s });
+    }
+  }
+  return out.save();
+}
+/** The browser's print dialog for a PDF, from a hidden frame; where the browser won't print from a frame, the PDF opens in a new tab. Resolves 'dialog' or 'tab'. */
+function printPdfBlob(blob) {
+  const url = URL.createObjectURL(blob), frame = document.createElement('iframe');
+  frame.title = 'Report to print';
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none';
+  return new Promise((resolve) => {
+    frame.onload = () => setTimeout(() => {
+      try { frame.contentWindow.focus(); frame.contentWindow.print(); resolve('dialog'); }
+      catch { window.open(url, '_blank'); resolve('tab'); }
+      setTimeout(() => { frame.remove(); URL.revokeObjectURL(url); }, 10 * 60 * 1000);   // kept a while: the print dialog reads the frame until it is closed
+    }, 250);
+    frame.src = url;
+    document.body.appendChild(frame);
+  });
+}
+
 /* ======================= PDF report (built in the page with pdf-lib, no print dialog) ======================= */
 const ReportPdf = {
   /** "FS6-47000856 - A7 27.10.2026.pdf": serial number and model with today's date. */
@@ -5686,6 +5752,7 @@ const App = {
     });
     Devices.onChange(() => { if (!Devices.esa) Power.lost(); else Power.render(); });
     $('#sumPrint').addEventListener('click', () => Runner.printReport());
+    $('#sumBooklet').addEventListener('click', () => Runner.printBooklet());
     $('#sumKinds').value = Prefs.get('saveKinds') || 'both'; $('#sumKinds').addEventListener('change', (e) => Prefs.set('saveKinds', e.target.value));
     $('#sumSave').addEventListener('click', () => saveReportFiles(null, 'save'));
     $('#sumDownload').addEventListener('click', () => saveReportFiles(null, 'download'));

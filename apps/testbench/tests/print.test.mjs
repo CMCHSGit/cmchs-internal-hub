@@ -32,6 +32,27 @@ test('Saved reports has a Print button for the ticked tests’ reports, and logs
   assert.match(src, /logActivity\(null, `Printed \$\{list\.length\} test report/)
 })
 
+test('the bench page’s finished-test screen has Print as booklet, laid out exactly as the hub’s', async () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /id="sumPrint"[^\n]*Print<\/button>\s*<button[^>]*id="sumBooklet"[^\n]*Print as booklet<\/button>/)
+  assert.match(html, /\$\('#sumBooklet'\)\.addEventListener\('click', \(\) => Runner\.printBooklet\(\)\)/)
+  // the bench's own copy of the layout, run here against the real pdf-lib
+  const grab = (re) => { const m = html.match(re); assert.ok(m, String(re)); return m[0] }
+  const code = [grab(/function bookletOrder\(n\) \{[\s\S]*?\n\}\r?\n/), grab(/async function bookletPdfBytes\(bytes\) \{[\s\S]*?\n\}\r?\n/)].join('\n')
+  const bench = new Function('PDFLib', `${code}\nreturn { bookletOrder, bookletPdfBytes }`)({ PDFDocument })
+  for (let n = 1; n <= 13; n++) assert.deepEqual(JSON.parse(JSON.stringify(bench.bookletOrder(n))), bookletOrder(n), `${n} pages`)
+  const out = await PDFDocument.load(await bench.bookletPdfBytes(await pdf(5)))
+  assert.equal(out.getPageCount(), 4)
+  assert.ok(out.getPage(0).getSize().width > out.getPage(0).getSize().height, 'landscape')
+})
+
+test('the test on the summary page is ticked for the hub’s bar when it finishes or is opened', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /async tickOnly\(run\) \{[\s\S]*?this\.ticked = new Set\(\[k\]\);[\s\S]*?this\.postTicks\(\);/)
+  assert.match(html, /\$\('#runActive'\)\.hidden = true; \$\('#runSummary'\)\.hidden = false;\s*\n\s*this\.renderSummary\(\); window\.scrollTo\(\{ top: 0 \}\); Records\.tickOnly\(run\);\s*\n\s*if \(!stopped/)
+  assert.match(html, /\$\('#runSummary'\)\.hidden = false;\s*\n\s*this\.renderSummary\(\); window\.scrollTo\(\{ top: 0 \}\); Records\.tickOnly\(run\);\s*\n\s*\},/)
+})
+
 test('a booklet: pages in fold order, two to a landscape sheet side, blanks at the end', async () => {
   assert.deepEqual(bookletOrder(4), [[3, 0], [1, 2]])
   assert.deepEqual(bookletOrder(5), [[-1, 0], [1, -1], [-1, 2], [3, 4]], '5 pages: 8 slots, three blanks')
