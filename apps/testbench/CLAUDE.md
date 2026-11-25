@@ -3,7 +3,7 @@
 Claude loads this file when working under `apps/testbench/`. It is the short map; the detail lives in:
 
 - `README.md` (repo root), section **CHS Test Bench** — every user-facing feature, how it behaves today.
-- `docs/bench-notes.md` — code map of the bench page, data formats, template conventions, **17 mistakes that already happened**.
+- `docs/bench-notes.md` — code map of the bench page, data formats, template conventions, **19 mistakes that already happened**.
 - `docs/esa612-protocol-notes.md` — what the real ESA612 and ProSim accept and refuse. **Read it before touching the serial driver.**
 - `docs/change-log.md` — the 2 Nov 2026 features and where each Mindray template's limits came from.
 

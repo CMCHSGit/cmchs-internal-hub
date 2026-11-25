@@ -4591,10 +4591,17 @@ function buildMtr(run) {
       `${ind(lvl + 2)}<Type>${kind === 'pf' ? 'Checklist' : 'Numerical List'}</Type>`, `${ind(lvl + 2)}<Name>${x(name)}</Name>`,
       `${ind(lvl + 2)}<Procedure Format="1">`, `${ind(lvl + 3)}<![CDATA[${mtrRtf(proc)}]]>`, `${ind(lvl + 2)}</Procedure>`, `${ind(lvl + 1)}</Info>`,
       `${ind(lvl + 1)}<Filter>`, `${ind(lvl + 2)}<IncludeInReport/>`, `${ind(lvl + 1)}</Filter>`, `${ind(lvl + 1)}<ExpectedResult>`);
-    const lim = kind === 'num' ? items.map((it, k) => ({ it, k })).filter(({ it }) => has(it.lo) || has(it.hi)) : [];
+    // Every reading of a numerical list gets a <Limit>, as Ansur writes them: one with no limit holds only its unit (or is empty).
+    // A numerical list with no <Limit> at all (Mains voltage) froze Ansur 3.1.4's test guide on the Next that reached it (25/11/2026).
+    const lim = kind === 'num' ? items.map((it, k) => ({ it, k })) : [];
     if (lim.length) {
       L.push(`${ind(lvl + 2)}<Standard AlphaName="Ansur" CompleteName="User defined">`);
       for (const { it, k } of lim) {
+        if (!has(it.lo) && !has(it.hi)) {
+          if (unit(it.unit)) L.push(`${ind(lvl + 3)}<Limit Key="S${k + 1}">`, `${ind(lvl + 4)}<Unit>${x(unit(it.unit))}</Unit>`, `${ind(lvl + 3)}</Limit>`);
+          else L.push(`${ind(lvl + 3)}<Limit Key="S${k + 1}"/>`);
+          continue;
+        }
         L.push(`${ind(lvl + 3)}<Limit Key="S${k + 1}">`, `${ind(lvl + 4)}<Unit>${x(unit(it.unit))}</Unit>`);
         if (has(it.hi)) L.push(`${ind(lvl + 4)}<Value Type="High">${num(it.hi)}</Value>`);
         if (has(it.lo)) L.push(`${ind(lvl + 4)}<Value Type="Low">${num(it.lo)}</Value>`);

@@ -145,7 +145,8 @@ T = { id, name, desc, updated, dut: ['Serial number','Manufacturer','Model','Cus
 **Ansur export**
 - `.mtr` uses only the built-in AVPI plug-in, in cp1252 with CRLF line endings.
 - `DIdCS` = signed CRC-32 of the file without the DIdCS line, with whitespace trimmed.
-- **Not yet opened in real Ansur.**
+- Every numerical list has a `<Limit Key="Sn">` for each reading, as Ansur writes them: a reading with no limit gets one holding only its `<Unit>` (or `<Limit Key="Sn"/>` with no unit). Never an empty `<Standard …/>` on a numerical list (mistake 19).
+- **Checked in Ansur 3.1.4 on 25/11/2026** (Vetal 3 and Rad-97 records): opens, shows Test Passed and the device details, report and Export to PDF are complete, and with the limits fix the test guide steps through to the end.
 
 ## 6. Hardware rules: never break these
 
@@ -186,7 +187,6 @@ The full detail is in `docs/esa612-protocol-notes.md`. In short:
   - the `!21` skip fix
   - `EQCURR` (Power the device)
   - INSB/INSD/INSE FN mapping
-  - `.mtr` export opening in Ansur
   - the folder picker and permission persistence on SharePoint
   - saving to Results
   - Reload template and autosave on Jonathan's PC
@@ -296,12 +296,13 @@ Give steps stable ids in template files. Autosave, Reload template and resume al
 16. **Fake folder handles in tests can't be stored in IndexedDB** (DataCloneError). Real handles can. `Results.cached` keeps the folder in memory as well.
 17. **Dialogs with 4 buttons clipped the footer.** It now wraps; keep dialogs to 4 buttons or fewer.
 18. **Redrawing a button while it can be pressed loses the click.** `Power.render()` rebuilt the power button (icon and all) on every ESA612 current reading, about five a second, so a press that began on the icon was dropped and the outlet was hard to switch off. Update only the text (`.pw-label`). And never drop a click silently: `Runner.stillRunning()` says why Next, Back, Skip or a step change has to wait, and logs it.
+19. **A numerical list with no `<Limit>` at all froze Ansur.** `buildMtr` wrote readings without limits (Mains voltage, in every template) as `<Standard …/>` with no limits. Ansur 3.1.4 opened, printed and exported those records fine, but its test guide (Test → Start Test) spun at 100% CPU on the Next that reached that step, and stayed "Not Responding". Ansur's own records never do this: each reading gets a `<Limit>`, unit only when there is no limit. Found 25/11/2026 by stepping real records in Ansur; the same file with unit-only limits stepped through to the end. Test: `tests/mtr-export.test.mjs`. Lesson: a well-formed file with a correct checksum is not proof Ansur can use it; step through the test guide too.
 
 ## 11. Open items and backlog
 
 **Hardware and Ansur checks**
 - Hardware verification of everything in section 7.
-- Run Ansur on the exported `.mtr` and confirm it opens.
+- `.mtr` files saved before the limits fix (25/11/2026) still freeze Ansur's test guide at Mains voltage; viewing, printing and Export to PDF work. Re-download them from Previous tests where the test is still there, or repair them (add the unit-only limits, recompute `DIdCS`).
 
 **Decisions waiting on Jonathan**
 - BF patient leakage single-fault limit: 500 µA (standard) vs 100 µA (A9 Ansur record).
