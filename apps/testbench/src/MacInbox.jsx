@@ -8,7 +8,7 @@ import { qrSvg } from '../../qr/src/qr.js'
 import { copyText } from './clipboard.js'
 import { inboxRows, readerLink } from './macInbox.js'
 import { clearInbox, watchInbox } from './macInbox-firebase.js'
-import { rowsAsText } from './macRead.js'
+import { rowsAsValues } from './macRead.js'
 
 const when = (ms) => (ms ? new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(new Date(ms)) : '')
 
@@ -63,7 +63,7 @@ export function MacInboxView({ reading, error = '', onRemove }) {
             ))}
           </div>
           <div className="tb-mac-actions">
-            <Button iconLeft={<Copy size={15} aria-hidden="true" />} onClick={() => copy(rowsAsText(rows), 'All')}>Copy all</Button>
+            <Button iconLeft={<Copy size={15} aria-hidden="true" />} onClick={() => copy(rowsAsValues(rows), 'All')}>Copy all</Button>
             <Button variant="ghost" iconLeft={<Trash2 size={15} aria-hidden="true" />} onClick={remove}>Remove</Button>
             {reading?.at ? <span className="tb-mac-note">Read {when(reading.at)}</span> : null}
           </div>

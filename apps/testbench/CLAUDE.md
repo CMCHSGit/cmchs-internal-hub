@@ -35,7 +35,7 @@ checks the LAN MAC against the Device ID by the asset lists' rule: Device ID wit
 worker, **in the browser: nothing is uploaded**, loaded on first use). It reads nothing into the bench or a record. **Phone to PC:** with a sign-in, every read is sent by itself to the signed-in person's own inbox
 (`src/macInbox.js` pure + tested, `macInbox-firebase.js`, Firestore `macInbox/{uid}`: ONE document per person, each scan replaces the last) and the
 same tab on their PC shows it live at the top (`src/MacInbox.jsx`: Copy, Copy all, Remove, and a QR code to open the tab on the phone). It stays until they
-remove it or scan another. No customer, serial or unit is attached to a read; logs "Sent a MAC reading to the PC" (no values). Rules: `macInbox` in
+remove it or scan another. **Copy all** puts just the values on the clipboard, no labels, tab-separated so they paste into one Excel row in the sheet's column order: LAN MAC, WLAN MAC (an empty cell when there isn't one, so Device ID stays in its column), Device ID (`rowsAsValues` in `macRead.js`). No customer, serial or unit is attached to a read; logs "Sent a MAC reading to the PC" (no values). Rules: `macInbox` in
 `rules/firestore.rules` (own document, Bench teams only, addresses in the asset lists' shapes), tests `rules/tests/macinbox-rules.test.mjs`.
 **Not built:** putting a reading into an asset list, the bench's report or Simpro. The reader's files (worker, three LSTM cores, small English data) are
 served from `/ocr/<version>/` (`shared/ocr-assets.js`): `scripts/build.mjs` copies them from `node_modules`, `apps/hub/vite.config.js`
