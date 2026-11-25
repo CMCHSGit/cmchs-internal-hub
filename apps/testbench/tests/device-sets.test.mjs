@@ -226,3 +226,9 @@ test('a device can be added to the set after testing, from Edit details', () => 
   assert.match(body, /const devices = \$\$\('input\[data-df="serial"\]', el\)\.map/, 'added rows are collected, not only the ones there at the start')
   assert.doesNotMatch(body, /\$\{devs\.length \? `<div class="xd-head"/, 'the section is not left out when there were none')
 })
+
+test('details changed on a test’s summary (an old test too) are kept on this PC and the finished test is shared again', () => {
+  const s = html.indexOf('async editDetails()'), body = html.slice(s, html.indexOf('async editAppliedParts()', s))
+  assert.match(body, /if \(\$\('#runSummary'\)\.hidden\) this\.autosave\(\);\s*else \{/)
+  assert.match(body, /if \(!run\.imported\) \{ DB\.put\('runs', this\.storedRun\(run\)\)\.catch\(\(\) => \{\}\); Records\.renderList\(\); SharedTests\.share\(run\); \}/)
+})

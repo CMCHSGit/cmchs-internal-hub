@@ -3048,7 +3048,15 @@ const Runner = {
     if (!res || !res.value) return;
     const before = this.dutText(); run.dut = res.data.dut;
     const kept = otherDevices({ devices: res.data.devices }); if (kept.length || run.devices) run.devices = kept;
-    $('#runDut').textContent = this.dutText(); if (!$('#runSummary').hidden) this.renderSummary(); else this.autosave();
+    $('#runDut').textContent = this.dutText();
+    if ($('#runSummary').hidden) this.autosave();
+    else {
+      this.renderSummary();
+      // A test on its summary (finished, stopped, or opened from Previous tests): keep the change on this PC, and send a finished one
+      // up again (share() skips the rest), so a device added after testing stays on the test and its serial joins the shared line.
+      // An imported test is only on screen, as before.
+      if (!run.imported) { DB.put('runs', this.storedRun(run)).catch(() => {}); Records.renderList(); SharedTests.share(run); }
+    }
     if (before !== this.dutText()) log('in', 'RUN', `Device details changed: ${this.dutText()}`);
     toast('Details updated');
   },
