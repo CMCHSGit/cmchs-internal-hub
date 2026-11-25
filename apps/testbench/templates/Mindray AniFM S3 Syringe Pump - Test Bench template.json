@@ -1,0 +1,282 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray AniFM S3 Syringe Pump",
+  "desc": "Mindray AniFM S3 veterinary syringe pump (Class I, internal battery), called “AniFM SP3” in the Ansur file. From the CHS Ansur template “0000 -AniFM SP3 000000000 Vet EST+PVT AS-NZS 3551 DD.MM.YYYY.mtt” (file name), checked against the AniFM S3 Service Manual H-046-00316A-00 v1.0 (ch. 6.1, 6.3 and 4.4) and the S3 Operator’s Manual H-046-00314A-00 (2025-04, App. A). Changed from Ansur: renamed from “AniFM SP3” to “AniFM S3”: the only AniFM syringe pump manual is the S3, the Ansur syringe sizes, test volumes and 525 mmHg / 50 mL/h pressure rows follow the S3 tables (not the BeneFusion SP3 Vet manual, which has its own template), so it is treated as the S3; for Jonathan to confirm that CHS has no different pump labelled SP3. Electrical safety to AS/NZS 3551:2012+A2. Changed from Ansur: earth leakage NC 5000, ON 10000 µA (B11.6; Ansur 500 / 1000 µA). Changed from Ansur: protective earth resistance 0.2 Ω added (the S3 is Class I and the manual has a ground resistance test). Changed from Ansur: accuracy readings are now delivered volume in mL at ±1.8 % of the VTBI (S3 Table 6-1; Ansur used grams at ±2 % or ±1 %), with the 2 mL syringe added and the volumes of the 3, 5 and 10 mL rows corrected (Ansur had them shifted by one row). Changed from Ansur: occlusion pressure rows now at 50 mL/h as in the S3 table (Table 6-2), 2 mL row added; the empty size check, identification, push-pull box, Wi-Fi, date and time and label checks added; the calibration steps now follow the S3 manual (300 / 900 mmHg, Standard 1 and 2 sensor calibration), not the SP3 Vet manual Ansur copied; passwords left out of the text (they are in the service manual); ESA612 tests moved after the power-on test. Kept as in Ansur, differs from the manual (for Jonathan to confirm): no patient leakage or mains-on-applied-part test and no applied part group, because the service manual says the applied part (syringe or infusion set) is non-metallic with no electrical connection, although the operator’s manual and data sheet class the pump as Type CF. Kept as in Ansur, differs from the manual (for Jonathan to confirm): earth leakage keeps the AS/NZS 3551 limits; the service manual (electrical safety test and test report form) gives a much tighter manufacturer limit of not more than 347 µA in normal condition and 694 µA in single fault (zero line open), measured with an AC+DC leakage test to IEC 60601-1.",
+  "category": "Infusion pumps",
+  "manufacturer": "Mindray",
+  "models": [],
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [],
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Service Manual 6.3.2 (p.66) and 4.4 (p.35–36).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The parts of the pump are complete, without physical damage (enclosure, LCD, buttons), and nothing rattles when the pump is shaken",
+      "Power interface: no rust, foreign matter or trace of burning",
+      "The power cord is not damaged and plugs in tightly",
+      "The fastening clamp is complete, without cracks, and holds the pump firmly on the infusion stand",
+      "Data interfaces (multifunction connector, USB): undamaged, no drug residue, and the USB protection cap is present",
+      "The safety label and nameplate are clear and undamaged"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "power-on-tests",
+    "type": "check",
+    "title": "Power-on and battery test",
+    "instructions": "Service Manual 6.3.2 (p.66–67).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Connected to AC power, the AC power indicator and the battery indicator light up",
+      "At power-on the speaker gives two beeps (Di-Di) and the buzzer gives three beeps (Di-Di-Di)",
+      "During power-on the red and yellow alarm indicators flash in sequence",
+      "After power-on the LCD is normal and the Install Syringe wizard screen is displayed",
+      "There is no alarm during the power-on operation",
+      "On AC power (with the battery fitted) the pump works normally",
+      "With the AC cord removed the pump keeps working and shows Battery in Use; then reconnect the cord"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "protective-earth-resistance",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet. Clip the red test lead to the equipotential terminal or an exposed earthed metal part of the pump. Limit 0.2 Ω (AS/NZS 3551 B8.6; the service manual also says less than 0.2 Ω).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "insulation-mains-to-non-earth-accessible",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet and switch the pump on. Don’t touch the pump during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet. Clip the red test lead to metal foil wrapped around the (plastic) enclosure, or to an exposed unearthed metal part. Limits 100 / 500 / 500 µA (AS/NZS 3551 B10.5).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leakage",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet. The pump will be switched on and off between conditions. Limits 5000 µA normal, 10000 µA neutral open (AS/NZS 3551 B11.6).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "functional-tests",
+    "type": "check",
+    "title": "Functionality test",
+    "instructions": "Service Manual 6.3.3 (p.67–68) and 4.4 (p.36–37). Use syringes, extension tubes and tertiary test water or saline.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "System date and time agree with the local time",
+      "Each button rebounds normally and the pump responds",
+      "After a syringe of a given brand and size is installed, that brand and size appear in the list of brands",
+      "Push-pull box: with the pump on, hold the handle and move the push-pull box left and right: it moves smoothly (opening the fastening clamp sends it to its farthest position)",
+      "Normal infusion: install the syringe, set the parameters per the operator’s manual and press Start: the pump runs normally and the running icon, rate, total and pressure values are displayed correctly",
+      "Trigger a high-priority and a low-priority alarm: the audible and visual alarms at both levels are normal; the volume control and the alarm mute work",
+      "Occlusion alarm: run at 100 mL/h and block the line by hand: an occlusion alarm sounds within 5 minutes",
+      "Touchscreen: the LCD is not blurred or garbled and the touchscreen responds normally during the checks above",
+      "Wi-Fi (if fitted): connect the pump to a Wi-Fi hotspot: the connection succeeds"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "calibration",
+    "type": "check",
+    "title": "Calibration to the customer’s syringes (only if needed)",
+    "instructions": "Needed for an added syringe brand, a brand that fails the accuracy or pressure test, or when the syringe size is misidentified (Service Manual 6.1–6.2, p.52–62). Otherwise mark all items N/A. If the brand was calibrated before, the values can be entered or imported instead; then only run the performance test.\nAccuracy calibration: Menu > Manufacturer Maintenance > System Calibration > Accuracy Calibration (service password, see the service manual); select the actual syringe size (a syringe labelled 60 mL is a nominal 50 mL). Pull the empty syringe to its full-range mark (the circled value), open the fastening clamp, wait for the push-pull box to reach its farthest position, install the syringe, close the clamp, then start and wait for completion.\nPressure calibration: fill the syringe with grade III water, connect the extension tube and a pressure gauge (real-time mode, zeroed) or analyser through a three-way tap, with no bubbles. Menu > Manufacturer Maintenance > System Calibration > Pressure Calibration, select the syringe. At about 300 mmHg press Stop and enter the stable value; at about 900 mmHg do the same; confirm with the tick. In the pressure test screen relieve the pressure and zero, start, on the occlusion alarm choose AlarmReset, enter the gauge reading and choose Success, or Fail to recalibrate.\nSensor calibration (only when the empty size is inaccurate or the syringe size is misidentified): Standard 1 (smaller diameter towards the push-pull box), then Standard 2; Start each and wait for the success message.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Accuracy calibration to the customer’s syringes done (N/A if not needed)",
+      "Pressure calibration to the customer’s syringes done (N/A if not needed)",
+      "Sensor calibration (Standard 1 and Standard 2) done (N/A if not needed)"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "performance-test",
+    "type": "check",
+    "title": "Performance test",
+    "instructions": "Service Manual 6.3.1 (p.62–66) and 4.4 (p.37–38). Test the syringe sizes the customer uses and mark the other readings N/A.\nAccuracy test: draw pure water slowly into a new syringe, remove bubbles, connect the extension tube and make sure the piston is on the full-size line. Install it on the pump and put the end of the tube against the wall of a beaker on the balance (tare it). Set the rate and VTBI from the readings below and start the timer as the infusion starts. When it finishes, check the timed duration equals the time the pump calculated, release any drop on the tube end into the beaker, weigh and enter the water delivered (1 g of water = 1 mL).\nOcclusion pressure test: connect the extension tube to a pressure gauge in peak mode (or an infusion analyser) at the same height as the pump. Set the occlusion pressure to 525 mmHg and run at 50 mL/h unblocked, then close the three-way tap (or trigger the analyser). When the occlusion alarm sounds, enter the peak pressure (not the real-time value). If a reading is out, repeat the pressure calibration.\nEmpty size check: use a syringe that passed the accuracy test, draw enough water, push the piston to the start position, set the rate without a VTBI, and start. The empty alarm should come at about the time shown, with the piston at the bottom and no visible gap or water left.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "20 mL syringe, piston at 10 mL, 1200 mL/h: the empty alarm comes at about 0.5 min with the piston at the bottom, no gap or water left (N/A if not tested)",
+      "30 mL syringe, piston at 15 mL, 1500 mL/h: the empty alarm comes at about 0.6 min with the piston at the bottom, no gap or water left (N/A if not tested)",
+      "50 mL syringe, piston at 25 mL, 2300 mL/h: the empty alarm comes at about 0.65 min with the piston at the bottom, no gap or water left (N/A if not tested)"
+     ],
+     "readings": [
+      {
+       "label": "Accuracy, 2 mL syringe: 40 mL/h, VTBI 2 mL, 3 min: delivered volume 1.964–2.036 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 1.964,
+       "hi": 2.036
+      },
+      {
+       "label": "Accuracy, 3 mL syringe: 60 mL/h, VTBI 3 mL, 3 min: delivered volume 2.946–3.054 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 2.946,
+       "hi": 3.054
+      },
+      {
+       "label": "Accuracy, 5 mL syringe: 100 mL/h, VTBI 5 mL, 3 min: delivered volume 4.91–5.09 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 4.91,
+       "hi": 5.09
+      },
+      {
+       "label": "Accuracy, 10 mL syringe: 200 mL/h, VTBI 10 mL, 3 min: delivered volume 9.82–10.18 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 9.82,
+       "hi": 10.18
+      },
+      {
+       "label": "Accuracy, 20 mL syringe: 200 mL/h, VTBI 10 mL, 3 min: delivered volume 9.82–10.18 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 9.82,
+       "hi": 10.18
+      },
+      {
+       "label": "Accuracy, 30 mL syringe: 200 mL/h, VTBI 10 mL, 3 min: delivered volume 9.82–10.18 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 9.82,
+       "hi": 10.18
+      },
+      {
+       "label": "Accuracy, 50/60 mL syringe: 600 mL/h, VTBI 30 mL, 3 min: delivered volume 29.46–30.54 mL (±1.8 %)",
+       "unit": "mL",
+       "lo": 29.46,
+       "hi": 30.54
+      },
+      {
+       "label": "Occlusion pressure, 2 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      },
+      {
+       "label": "Occlusion pressure, 3 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      },
+      {
+       "label": "Occlusion pressure, 5 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      },
+      {
+       "label": "Occlusion pressure, 10 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      },
+      {
+       "label": "Occlusion pressure, 20 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      },
+      {
+       "label": "Occlusion pressure, 30 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      },
+      {
+       "label": "Occlusion pressure, 50/60 mL syringe: 50 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

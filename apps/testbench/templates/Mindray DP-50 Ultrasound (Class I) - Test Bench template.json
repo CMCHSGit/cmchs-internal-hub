@@ -1,0 +1,301 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray DP-50 Ultrasound (Class I)",
+  "desc": "Mindray DP-50 ultrasound (Class I equipment on mains with an optional internal battery; probes type BF). Converted from the CHS Ansur template “0000-DP50 AS-NZS 3551 CL1 EST and PVT DD.MM.YYYY.mtt” (file name; the template inside it is named “Z60 AS-NZS 3551 CL1 EST and PVT”, so it was copied between models) and checked against the DP-50/DP-50T/DP-50 PT/DP-50 Vet service manual V17.0 (2021-11), ch. 4, 9 and Appendix A, and the DP-50/DP-50T operator manual V2.0 (1.1, 1.3, 2.4, 2.6). Electrical safety to AS/NZS 3551:2012+A2. Changed from Ansur: applied parts are type BF (Ansur: B), so mains on applied parts is now measured (5000 µA); the operator manual (1.1, 1.3) and the service manual (A-11, A-14) give BF. Changed from Ansur: earth leakage NC 5000, ON 10000 µA (B11.6); Ansur and the service manual (A-8) both have NC 500, ON 1000 µA (IEC 60601-1; UL 60601-1 normal condition 300 µA) (for Jonathan to confirm). Changed from Ansur: enclosure leakage NC 100, ON 500, OE 500 µA (Ansur: NC 500, ON 100, OE 500, two values swapped); the service manual has no enclosure leakage test. Changed from Ansur: the ESA612 steps follow the usual order (enclosure before earth leakage). Kept as in Ansur, differs from the manual (for Jonathan to confirm): the mains to protective earth insulation test and the open-earth enclosure condition stay; the service manual (Appendix A) has no insulation test. The manual’s note (A-6) says the protective earth test is not needed when a power adapter is used; the DP-50 has a mains inlet and an equipotential terminal (operator manual 2.6.2), so the test stays. The manual asks for earth resistance, earth leakage and patient leakage every 2 years (Table 9-3, p.9-2); CHS keeps the full EST at every service. Changed from Ansur: the ten-line checklist was replaced by visual, power-on, control panel and display, image mode, peripheral, phantom and battery steps taken from the service manual (4.2 to 4.5, 9.3, 9.4); “check unit runs on battery” is now the battery check. The service manual gives no numeric battery limit. The phantom limits depend on the probe model (Appendix C, C-1) and are not copied: each result is compared with the manual’s figure for that probe. 1 repeated step left out (“Protective earth resistance” twice in the Ansur file; the fuller copy kept).",
+  "category": "Ultrasound",
+  "manufacturer": "Mindray",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "ap-probes",
+    "name": "Probes",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "physical-checks",
+    "type": "check",
+    "title": "Visual and mechanical inspection",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Power cord and plug: plug pins not bent, broken or discoloured; plug body and strain relief undamaged; cord not wrinkled, cracked or deteriorated; connection at the unit firm and the cord retaining clamp holds; plug not warm after use.",
+      "Enclosure and accessories: no cracks or other damage, no fluid residue, no loose or missing parts (knobs, keys, terminals), no unusual noises (rattle) or smells; no taped notes pointing to faults.",
+      "Labels: the main unit label, the integrated warning labels, the slope and high-voltage caution label and the “don’t stress” label are present and legible.",
+      "Probes: probe head not cracked or swollen; cable not deteriorated or peeling; connector pins not bent, damaged or missing.",
+      "Handle: no cracks and no looseness when lifted or pulled by hand.",
+      "Control panel (keyboard): unfold and rotate it; the whole keyboard is normal and the rotation axis is free of looseness.",
+      "Monitor: not leaning; tilted by hand to about 30° from vertical it moves without abnormal sound, and turned left and right it has no obvious looseness; display holds the position it is set to."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "power-on-checks",
+    "type": "check",
+    "title": "Power-on and system status",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Switch on and shut down: the system starts and shuts down in the normal time, with no abnormal noise or error message; the fan runs without abnormal noise as soon as the system is on.",
+      "System information: the product configuration, options and software version are correct and match the unit; unit details recorded.",
+      "The monitor brightness and contrast presets, and the displayed date and time, are correct.",
+      "The log has been checked with the user for anything abnormal."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "protective-earth-resistance",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the unit’s mains lead to the ESA612 equipment outlet. Clip the red test lead to the equipotential terminal on the power supply panel or to an exposed earthed metal part, such as a rear-panel screw.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "insulation-mains-to-protective-earth",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the unit’s mains lead to the ESA612 equipment outlet and switch the unit on. Don’t touch the unit during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the unit’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leakage",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the unit’s mains lead to the ESA612 equipment outlet. The unit will be switched on and off between conditions.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "patient-leakage",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Connect a probe to the unit and clip the ESA612 applied-part lead (RA) to the probe head wrapped in aluminium foil. Repeat for each probe type in use; all probes are type BF.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "mains-on-applied-parts",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Probes are type BF: mains on applied parts must stay at or below 5000 µA. Mains voltage is applied to the probe lead during this test: do not touch the probe or the lead.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "control-panel-display",
+    "type": "check",
+    "title": "Control panel and display",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Control panel: every key and knob works, checked from left to right and top to bottom.",
+      "Keyboard test: every control key registers.",
+      "Trackball: turns easily and smoothly, the cursor responds quickly and moves in the same direction as the ball (try it in Freeze and in Measure).",
+      "Monitor brightness and contrast: Fn with the brightness keys raises and lowers the brightness, Fn with the contrast keys raises and lowers the contrast; [Cold] and [Warm] under Setup > System Preset > General change the colour temperature.",
+      "Dead pixels on the monitor test screen (log in as Service, Setup > Maintenance > Monitor Test): no bright or flashing spots; at most 3 pairs of adjoining dark spots and none in the image area; no run of three or more dark spots; at most 7 dark spots and at most 2 in the image area; faulty pixels at least 5 mm apart. Count them in the readings below."
+     ],
+     "readings": [
+      {
+       "label": "Bright spots and flashing spots on the monitor, total (max 0)",
+       "unit": "spots",
+       "lo": 0,
+       "hi": 0
+      },
+      {
+       "label": "Dark spots on the monitor, total (max 7)",
+       "unit": "spots",
+       "lo": 0,
+       "hi": 7
+      },
+      {
+       "label": "Dark spots inside the image area of the monitor (max 2)",
+       "unit": "spots",
+       "lo": 0,
+       "hi": 2
+      },
+      {
+       "label": "Pairs of adjoining dark spots on the monitor (max 3, none in the image area)",
+       "unit": "pairs",
+       "lo": 0,
+       "hi": 3
+      }
+     ]
+    }
+   },
+   {
+    "id": "functional-checks",
+    "type": "check",
+    "title": "Image modes, measurements and probes",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "B mode: the B key enters B mode; turning the gain knob clockwise raises the gain and anticlockwise lowers it (range 0 to 100); the depth knob changes the image depth (the available depths depend on the probe); Zoom magnifies up to ×10 and the trackball moves the magnified image; the eight TGC sliders brighten the matching depth band to the right and darken it to the left; the focus position knob moves the focus marker; B then the dual key shows two windows with the right image active, and four presses show four windows with one active.",
+      "M mode: the M key shows B+M with a sampling line the trackball moves; pressing M again shows the M-mode image; gain, depth and M speed adjust in real time.",
+      "Cine review: Freeze (with Status after Freeze set to Cine) enters manual review and the trackball steps through frames; Auto Play plays the cine; Set First Frame and Set End Frame limit the replay; the Cine key stops it and Freeze again returns to scanning.",
+      "Basic measurements: Measure and Caliper enter the measurement modes; one or two measurement items give a result below the image in real time; Esc or the same key leaves the measurement.",
+      "Image management: Save stores a single-frame image to the animal database and shows the saving icon; Review opens and exits; iVision plays the demo files and exits; iStation shows the saved images and can back up, restore and send them (DICOM or network storage).",
+      "Additional modes fitted (service manual 4.4 covers B and M only; no service manual procedure for any other mode): each mode starts, shows its image or spectrum, and its gain adjusts in real time.",
+      "Scanning each probe: a clean image with no dropouts, vertical bands or artefacts across the whole probe face."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "peripherals-checks",
+    "type": "check",
+    "title": "Peripherals and I/O ports",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Footswitch (if fitted): the right key freezes and unfreezes the image, the middle key prints in colour and the left key in black and white (or as set in Key Config).",
+      "Video printer and graph/text printer (if fitted): the print key prints an image or report free of defects or degradation (repeat on the other video output port).",
+      "DVD-R/W (if fitted): ejects smoothly, reads and writes without abnormal noise.",
+      "DICOM (if fitted): the unit connects and sends images to the DICOM server with the shortcut key.",
+      "Video, network and USB ports: an external VGA display shows the same picture as the monitor, stable and without colour cast, jitter or flicker; the network connects and communicates; a USB drive stores and reads."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "performance-test",
+    "type": "check",
+    "title": "Performance test (phantom)",
+    "instructions": "Phantom KS107BD (Appendix B). Probe head on the acoustic window with gel or water, no gap and no pressing; display brightness and contrast at the clinical (default) setting; dark room. The manual's limits are per probe model (Appendix C, page C-1) and are not copied here: compare each result with the figure for the probe model in use and mark pass or fail; write the measured values in the comments. The manual says this test is for reference, not a preventive-maintenance requirement.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Transverse resolution (4.5.2.1): focus on the transverse targets and set gain, dynamic range and TGC so only the target line shows (convex probe: targets near the midline; linear probe: steer off); record the smallest separation clearly resolved at each depth and compare with the limit for the probe.",
+      "Axial resolution (4.5.2.1): focus on the longitudinal targets, same settings; record the smallest separation clearly resolved at each depth and compare with the limit for the probe.",
+      "Maximum detection depth (4.5.2.2): maximum display depth for the probe, focus at the deepest point, AP at its largest, raise gain, contrast and TGC without halos or defocusing; record the depth of the deepest clearly imaged target and compare with the limit for the probe.",
+      "Longitudinal geometric accuracy (4.5.2.3): caliper on the top edge of the target, 20 mm segments along the longitudinal targets; work out the error of the reading that deviates most from 20 mm and compare with the limit for the probe.",
+      "Transverse geometric accuracy (4.5.2.3): caliper on the transverse targets in 20 mm segments (convex probe: all targets in one image); work out the error of the reading that deviates most from 20 mm and compare with the limit for the probe.",
+      "Blind area (4.5.2.4): reduce the depth, focus at the shallowest point, lower AP and gain until the background noise is just visible; record the depth of the shallowest clearly imaged target and compare with the limit for the probe."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "battery-check",
+    "type": "check",
+    "title": "Battery check",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Battery (if fitted): with the unit connected to mains and switched on, the battery charges normally (capacity rises or is at 100 %).",
+      "Disconnect the mains supply: the system keeps working normally on battery."
+     ],
+     "readings": []
+    }
+   }
+  ],
+  "models": []
+ }
+}

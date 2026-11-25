@@ -12,7 +12,7 @@ const BENCH = new URL('../bench/index.html', import.meta.url)
 export const TEMPLATES_DIR = new URL('../templates/', import.meta.url)
 
 /** Keep in step with LEGACY in tests/templates.test.mjs. */
-export const LEGACY = ['Medical power supply', 'A7 Anaesthetic', 'A9 Anaesthetic', 'D30-D60', 'Patient Monitor and OR Modules', 'Patient monitor.json']
+export const LEGACY = ['Medical power supply', 'A7 Anaesthetic', 'A9 Anaesthetic', 'D30-D60', 'Patient Monitor and OR Modules', 'Patient monitor.json', 'In-service test']
 export const isLegacy = (file) => LEGACY.some((l) => String(file).includes(l))
 
 export const TEMPLATE_FILE_SUFFIX = ' - Test Bench template.json'

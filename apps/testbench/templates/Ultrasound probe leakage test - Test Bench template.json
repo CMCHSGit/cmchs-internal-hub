@@ -1,0 +1,66 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Ultrasound probe leakage test",
+  "desc": "Converted from the CHS Ansur template “US Probe Test.mtt” (file name). Electrical safety to AS/NZS 3551:2012+A2. The two identical applied part groups in the Ansur template are one group. Not checked against a manufacturer manual (the Mindray Animal manuals folder has none for this model): the checks and the applied part type are as in the Ansur template, for Jonathan to confirm against the device label and the service manual.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "ap1",
+    "name": "US Probe",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "patient-leakage",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      },
+      {
+       "c": "RNC"
+      },
+      {
+       "c": "RON"
+      },
+      {
+       "c": "ROE"
+      }
+     ]
+    }
+   }
+  ],
+  "category": "Ultrasound",
+  "models": []
+ }
+}

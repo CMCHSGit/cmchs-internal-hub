@@ -1,0 +1,84 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Vocera BX000-8 Charger",
+  "desc": "Converted from the CHS Ansur template “0000 SN - BX000-8 Charger, Visual + EST dd.mm.yyyy.mtt” (file name). Electrical safety to AS/NZS 3551:2012+A2. Not checked against a manufacturer manual (the Mindray Animal manuals folder has none for this model): the checks and the applied part type are as in the Ansur template, for Jonathan to confirm against the device label and the service manual.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "steps": [
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "insulation-mains-to-protective-earth",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      },
+      {
+       "c": "RNC",
+       "hi": 100
+      },
+      {
+       "c": "RON",
+       "hi": 500
+      },
+      {
+       "c": "ROE",
+       "hi": 500
+      }
+     ]
+    }
+   }
+  ],
+  "category": "Chargers",
+  "manufacturer": "Vocera",
+  "models": []
+ }
+}

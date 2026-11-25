@@ -1,0 +1,216 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray AniFM I3 Infusion Pump",
+  "desc": "Mindray AniFM I3 veterinary infusion pump (Class I, internal battery). From the CHS Ansur template “0000 -AniFM I3 0000000000  EST+PVT AS-NZS 3551 DD.MM.YYYY.mtt” (file name), checked against the I3 Service Manual H-046-00312A-00 v1.0 (ch. 6.1, 6.3 and 4.4) and the I3 Operator’s Manual H-046-00313A-00 (App. A). Electrical safety to AS/NZS 3551:2012+A2. Changed from Ansur: earth leakage NC 5000, ON 10000 µA (B11.6; Ansur 500 / 1000 µA). Changed from Ansur: accuracy readings are the delivered volume in mL (19–21 and 57–63 mL, the manual’s ±5 %; Ansur gave an error of −5 to +5 %). Changed from Ansur: occlusion pressure is in mmHg, 400–650 (Ansur kPa 53–87 is the same range: 400–650 mmHg is 53.3–86.7 kPa). Changed from Ansur: the push-pull box item removed (syringe pump wording, the I3 has none); beep wording corrected (speaker two, buzzer three); the occlusion alarm limit of 5 minutes, pressure block, drop sensor, Wi-Fi and label checks added; the pressure calibration path and the 51 ± 5 cm height of the accuracy calibration corrected to the I3 manual (Ansur copied the I1 steps and said at least 51 cm); ESA612 tests moved after the power-on test; service passwords left out of the text (they are in the service manual). Kept as in Ansur, differs from the manual (for Jonathan to confirm): no patient leakage or mains-on-applied-part test and no applied part group, because the service manual says the applied part (syringe or infusion set) is non-metallic with no electrical connection, although the operator’s manual and data sheet class the pump as Type CF. Kept as in Ansur, differs from the manual (for Jonathan to confirm): earth leakage keeps the AS/NZS 3551 limits; the service manual (electrical safety test and test report form) gives a much tighter manufacturer limit of not more than 347 µA in normal condition and 694 µA in single fault (zero line open), measured with an AC+DC leakage test to IEC 60601-1.",
+  "category": "Infusion pumps",
+  "manufacturer": "Mindray",
+  "models": [],
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [],
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Service Manual 6.3.2 (p.68) and 4.4 (p.37–38).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The parts of the pump are complete, without physical damage (enclosure, LCD, buttons), and nothing rattles when the pump is shaken",
+      "Power interface: no rust, foreign matter or trace of burning",
+      "The power cord is not damaged and plugs in tightly",
+      "Drop sensor (if fitted): complete without cracks, springs back when pressed, cable undamaged and plugged in tightly",
+      "The fastening clamp is complete, without cracks, and holds the pump firmly on the infusion stand",
+      "Data interfaces (multifunction connector, USB): undamaged, no drug residue, and the USB protection cap is present",
+      "The safety label and nameplate are clear and undamaged"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "power-on-tests",
+    "type": "check",
+    "title": "Power-on and battery test",
+    "instructions": "Service Manual 6.3.2 (p.68–69).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Connected to AC power, the AC power indicator and the battery indicator light up",
+      "At power-on the speaker gives two beeps (Di-Di) and the buzzer gives three beeps (Di-Di-Di)",
+      "During power-on the red and yellow alarm indicators flash in sequence",
+      "The Guide to Load the Infusion Set screen is displayed",
+      "Press the Open button: the door opens automatically; when closed it locks automatically",
+      "There is no alarm during the power-on operation",
+      "On AC power (with the battery fitted) the pump works normally",
+      "With the AC cord removed the pump keeps working and shows Battery in Use; then reconnect the cord"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "protective-earth-resistance",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet. Clip the red test lead to the equipotential terminal or an exposed earthed metal part of the pump. Limit 0.2 Ω (AS/NZS 3551 B8.6; the service manual also says less than 0.2 Ω).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "insulation-mains-to-non-earth-accessible",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet and switch the pump on. Don’t touch the pump during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet. Clip the red test lead to metal foil wrapped around the (plastic) enclosure, or to an exposed unearthed metal part. Limits 100 / 500 / 500 µA (AS/NZS 3551 B10.5).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leakage",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the pump’s mains lead to the ESA612 equipment outlet. The pump will be switched on and off between conditions. Limits 5000 µA normal, 10000 µA neutral open (AS/NZS 3551 B11.6).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "functionality-test",
+    "type": "check",
+    "title": "Functionality test",
+    "instructions": "Service Manual 6.3.3 (p.69–70) and 4.4 (p.39–41). Use an infusion set, tertiary test water or saline.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "System date and time agree with the local time",
+      "Each button rebounds normally and the pump responds",
+      "Door pressure blocks (2 for ultrasonic, 2 for pressure): each spring returns to position when pressed",
+      "After an infusion set is loaded, its brand appears in the list of brands",
+      "Anti-free-flow: load a water-filled set but do not start: no fluid comes out of the end of the set",
+      "Normal infusion: load the set, set the parameters and press Start: the pump runs without obvious jitter or abnormal noise, and the running icon, rate, volume and pressure values are displayed correctly",
+      "Audible and visual alarms at all levels work; the volume control and the alarm mute work",
+      "Occlusion alarm: run at 100 mL/h and block the lower end of the set by hand: a downstream occlusion alarm sounds within 5 minutes",
+      "Bubble alarm: run at 100 mL/h and turn the drip chamber to make a bubble of about 1–2 cm: a high-priority bubble alarm sounds and the pump stops",
+      "Touchscreen: the LCD is not blurred or garbled and the touchscreen responds normally during the checks above",
+      "Drop sensor (if fitted): start an infusion with the sensor on the drip chamber, then remove it: the pump stops within 2 minutes, the alarm sounds, the indicator flashes red and Empty is shown on the LCD",
+      "Wi-Fi (if fitted): connect the pump to a Wi-Fi hotspot: the connection succeeds"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "calibration",
+    "type": "check",
+    "title": "Calibration to the customer’s infusion set (only if needed)",
+    "instructions": "Needed for an added brand, or a brand that fails the accuracy or pressure test (Service Manual 6.1.2–6.1.3, p.53–61). Otherwise mark both items N/A. Use the infusion set, saline or grade III water, a balance and an approved pressure gauge or analyser.\nAccuracy calibration: Menu > User Maintenance > (maintenance password, see the service manual) > System Calibration > Accuracy Calibration, select the brand. Remove bubbles by gravity and fit the set. Set the bag’s maximum liquid level and the pump’s geometric centre so the height between them is 51 ± 5 cm. Purge any bubbles, weigh the empty beaker, run step 1, weigh and enter the weight, run step 2, weigh and enter it, then confirm with the tick. In the accuracy test screen move the pumped section of the tube as prompted, enter the volume from each step and choose Success, or Fail to recalibrate.\nPressure calibration: set the gauge up on a three-way tap, purge and zero it (real-time mode). Menu > Manufacturer Maintenance > System Calibration > Pressure Calibration (service password), select the set. At 150 mmHg press Stop and enter the stable gauge value; at 500 mmHg do the same; confirm with the tick. In the pressure test screen relieve the pressure and zero, reconnect, start, on the occlusion alarm choose AlarmReset, enter the gauge reading, then choose Success, or Fail to recalibrate.\nThe accuracy and pressure values for the Knight Benedict set are in the CHS notes in the I3 manuals folder.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Accuracy calibration to the customer’s infusion set done (N/A if not needed)",
+      "Pressure calibration to the customer’s infusion set done (N/A if not needed)"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "performance-test",
+    "type": "check",
+    "title": "Performance test",
+    "instructions": "Service Manual 6.3.1 (p.65–67) and 4.4 (p.41).\nAccuracy test: use the same platform as the accuracy calibration, open the door and use a different section of the tube. Weigh the empty beaker, put the end of the set against the wall of the beaker, set the rate and VTBI, and start the timer as the infusion starts. When it finishes, check the timed duration equals the time the pump calculated, release any drop on the needle into the beaker, weigh and enter the water delivered (1 g of water = 1 mL). Acceptance is ±5 %. If it fails, repeat the accuracy calibration.\nOcclusion pressure test: connect the set to a pressure gauge in peak mode (or an infusion analyser) at the same height as the pump and purge by gravity. Set the occlusion pressure to 525 mmHg, run at 100 mL/h unblocked, then close the three-way tap (or trigger the analyser). When the occlusion alarm sounds, enter the peak pressure. If a reading is out, repeat the pressure calibration.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [],
+     "readings": [
+      {
+       "label": "Accuracy: 200 mL/h, VTBI 20 mL, 6 min: delivered volume 19–21 mL (±5 %)",
+       "unit": "mL",
+       "lo": 19,
+       "hi": 21
+      },
+      {
+       "label": "Accuracy: 1200 mL/h, VTBI 60 mL, 3 min: delivered volume 57–63 mL (±5 %)",
+       "unit": "mL",
+       "lo": 57,
+       "hi": 63
+      },
+      {
+       "label": "Occlusion pressure: 100 mL/h, set 525 mmHg: peak pressure at the alarm 400–650 mmHg",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      }
+     ]
+    }
+   }
+  ]
+ }
+}

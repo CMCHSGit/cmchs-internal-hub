@@ -1,0 +1,637 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray Veta 5 Vet Anaesthesia Machine",
+  "desc": "Mindray Veta 5 / Veta 5Plus veterinary anaesthesia machine. Class I with an internal battery, one type BF applied part (masks and breathing tubes), per the Veta 5 operator manual 6.0 A.1. From the CHS Ansur template “0000, SN-Veta5 AS-NZS 3551 EST and PVT DD.MM.YYYY.mtt”, the Veta 3, Veta 5 service manual H-046-022531-00 (CE) 4.0 ch. 3 and 7, the Veta 3 & 5 PMV checklist, the Veta 5 service procedure and the V60 vaporiser accuracy test. Electrical safety to AS/NZS 3551:2012+A2. Changed from Ansur: protective earth resistance ≤ 0.2 Ω (Ansur: no limit); earth leakage NC 5000, ON 10000 µA (B11.6) (Ansur: NC 500, ON 1000 µA); one BF applied part group (breathing tubes and mask, on RA) added with patient leakage, mains on applied parts and the other four insulation tests (Ansur had no applied part and only the mains to protective earth insulation test); oxygen and air flowmeter 0.4 L/min readings 0.3–0.5 L/min (Ansur: 0.36–0.44); ACGO off reading 1.8–2.2 L/min and 3 L bag fill 12–18 s (Ansur attached the 12–18 limit to the ACGO off reading); units added to every reading, typos fixed, near-duplicate visual items merged. Added from the manual: automatic and manual leak tests, PM kit parts, bellows, one-way valve, APL blocking key, VCV and PCV tests (3.5.3, 7.8), blower test, sensor zero, flow and pressure sensor accuracy, touchscreen, CO2 pump rate, weigher, ventilator and fresh gas alarms, vaporiser accuracy (V60 test; corrections −0.10 at 1 %, −0.20 at 2–4 %, −0.30 at 5 %; the Ansur 4 % correction was −0.30). Kept as in Ansur, differs from the manual (for Jonathan to confirm): protective earth 0.2 Ω and earth leakage 5000/10000 µA, where the manual gives 0.1 Ω and 500/1000 µA (7.16.1); applied part type BF and the insulation tests with their limits follow AS/NZS 3551, the manual gives no insulation figures. The service menu code is not written into the template.",
+  "category": "Vet anaesthesia",
+  "manufacturer": "Mindray",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "appliedParts": [
+   {
+    "id": "ap-breathing-tubes-mask",
+    "name": "Breathing tubes and mask",
+    "apclass": "BF",
+    "leads": [
+     "RA"
+    ]
+   }
+  ],
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Appearance check (service manual 3.3) plus the CHS checks. Do not use the machine if the breathing system is damaged or leaking.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, display screen, buttons, knob, power cord, hoses and accessories have no obvious signs of damage.",
+      "The external cables are not frayed, and the connectors are not loose or have bent pins.",
+      "The safety labels and data plate are clearly legible.",
+      "The AC power cable is not damaged.",
+      "The breathing circuit and CO2 absorber canister are connected correctly, and the soda lime colour is normal.",
+      "The vaporiser holds an appropriate amount of agent.",
+      "The AGSS transfer hose is not damaged and any water in it has been emptied.",
+      "The bellows and bellows housing are installed correctly."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "system-check-and-pm-kit",
+    "type": "check",
+    "title": "System check and PM kit",
+    "instructions": "Power-on and leak tests (service manual 7.1, 7.2): connect the oxygen supply, switch on and follow the screen. The leak tests need the Y-piece and flowmeters closed, the auto/manual switch set as prompted, and the O2 flush used to fill the bellows or bag.\n\nPM kit (3.4.1): basic kit 115-075329-00; advanced kit 115-00595A-00 (contents in Advanced PM kit for Veta5.pdf). Mindray gives the schedule as minimum intervals at about 2000 h of use a year (3.4 note, p.3-2); CHS fits the kit every 2000 h or 2 years. When replacing the soda lime O-ring, wear gloves and a mask and tip the granules into a container first. Clean the APL valve as in 3.4.2 with 75 % ethanol on gauze and set its MIN position as shown in the manual.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Power-on self-test: beep at start-up, animal loading screen, then the system check screen; no self-test failure screen.",
+      "Automatic circuit leak test, compliance test and manual circuit leak test (guided on screen, Y-piece and flowmeters closed) all pass.",
+      "Ventilator run time recorded (Service > Info > Run Time > Ventilator Run Time); PM kit replaced if 2000 h or 2 years has been reached.",
+      "Software bundle version recorded (Service > System Info > SW Versions > Bundle Version); not updated unless Mindray advises.",
+      "PM kit: airway pressure gauge O-ring (082-000711-00) replaced.",
+      "PM kit: soda lime tank support bracket O-ring (M6M-010051---) replaced.",
+      "PM kit: HEPA filter (045-001333-01) replaced.",
+      "PM kit: air inlet dust screen (045-001298-01) replaced.",
+      "PM kit: dust screen (048-009925-00) replaced.",
+      "Advanced PM kit parts (115-00595A-00) replaced when the advanced kit is used.",
+      "APL valve checked and cleaned (75 % ethanol), MIN position reset.",
+      "Inspiratory and expiratory valve covers are free of moisture (wipe with a clean swab if damp); unit and trolley wiped down."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Set up for the electrical safety tests:\n1. Plug the ESA612 into the mains supply.\n2. Connect the machine’s power cord to the ESA612 equipment outlet and switch the machine on (AC power, not battery).\n3. Connect the applied parts (breathing tubes and mask) to the ESA612 RA post. They are tested as one type BF applied part; use Change applied parts on the patient leakage step if this machine is different.\nThen start the auto sequence. It pauses only when the red test lead has to be moved.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "protective-earth-resistance",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part, such as a rear-panel screw or the equipotential terminal.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "insulation-mains-to-protective-earth",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "insulation-applied-parts-to-protective-earth",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to protective earth",
+    "instructions": "Recorded only; no limit is set for this measurement.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "APINS",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "insulation-mains-to-applied-parts",
+    "type": "esa_ins",
+    "title": "Insulation: mains to applied parts",
+    "instructions": "Must be at least 1 MΩ (AS/NZS 3551 B9.3).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_AP",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "insulation-applied-parts-to-non-earth-part",
+    "type": "esa_ins",
+    "title": "Insulation: applied parts to non-earth accessible part",
+    "instructions": "Clip the red test lead to a conductive, non-earthed accessible part of the machine. Recorded only. If there is no such part, skip the two non-earth steps.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "AP_NE",
+     "volts": "HIGH",
+     "lo": ""
+    }
+   },
+   {
+    "id": "insulation-mains-to-non-earth-part",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible part",
+    "instructions": "Keep the red test lead on the non-earthed accessible part.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Keep the red test lead on a conductive non-earthed accessible part. Only a representative sample of such parts needs to be tested.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leakage",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Limits: 5000 µA normal, 10000 µA neutral open (AS/NZS 3551:2012+A2 B11.6).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "patient-leakage",
+    "type": "esa_pat",
+    "title": "Patient leakage",
+    "instructions": "Applied parts (breathing tubes and mask) on RA as one type BF group.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "conds": [
+      {
+       "c": "NC"
+      },
+      {
+       "c": "ON"
+      },
+      {
+       "c": "OE"
+      }
+     ]
+    }
+   },
+   {
+    "id": "mains-on-applied-parts",
+    "type": "esa_map",
+    "title": "Mains on applied parts",
+    "instructions": "Applied parts (breathing tubes and mask) on RA as one type BF group.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "mode": "together",
+     "pols": [
+      "NORM"
+     ]
+    }
+   },
+   {
+    "id": "gas-supply-and-flowmeters",
+    "type": "check",
+    "title": "Gas supply and flowmeters",
+    "instructions": "Gas supply (7.3) and flowmeter test (7.4.2, Veta 5): connect the oxygen and air supplies. The flowmeter test uses the machine’s own fresh gas flow reading: switch on, in standby open the main menu, enter service mode and open the VCM data monitor (Fresh Gas Flow), then set each needle valve until the flowmeter reads 0.4, 2 and 4 L/min and enter the value shown on screen. Close the needle valve before connecting a supply.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Oxygen needle valve fully open: the float is at the top of the flowmeter. Oxygen supply then disconnected: the gauge falls to zero and the float falls to the bottom.",
+      "Air needle valve fully open: the float is at the top of the flowmeter. Air supply then disconnected: the gauge falls to zero and the float falls to the bottom."
+     ],
+     "readings": [
+      {
+       "label": "Oxygen supply pressure gauge",
+       "unit": "kPa",
+       "lo": 280,
+       "hi": 600
+      },
+      {
+       "label": "Air supply pressure gauge",
+       "unit": "kPa",
+       "lo": 280,
+       "hi": 600
+      },
+      {
+       "label": "Oxygen flowmeter at 0.4 L/min: Fresh Gas Flow on screen",
+       "unit": "L/min",
+       "lo": 0.3,
+       "hi": 0.5
+      },
+      {
+       "label": "Oxygen flowmeter at 2 L/min: Fresh Gas Flow on screen",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      },
+      {
+       "label": "Oxygen flowmeter at 4 L/min: Fresh Gas Flow on screen",
+       "unit": "L/min",
+       "lo": 3.6,
+       "hi": 4.4
+      },
+      {
+       "label": "Air flowmeter at 0.4 L/min: Fresh Gas Flow on screen",
+       "unit": "L/min",
+       "lo": 0.3,
+       "hi": 0.5
+      },
+      {
+       "label": "Air flowmeter at 2 L/min: Fresh Gas Flow on screen",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      },
+      {
+       "label": "Air flowmeter at 4 L/min: Fresh Gas Flow on screen",
+       "unit": "L/min",
+       "lo": 3.6,
+       "hi": 4.4
+      }
+     ]
+    }
+   },
+   {
+    "id": "vaporizer",
+    "type": "check",
+    "title": "Vaporiser",
+    "instructions": "Back pressure and leak tests (service manual 7.5): the agent comes out of the fresh gas outlet during the back pressure test, so scavenge it. Turn the needle valve fully clockwise before use. Do not test between OFF and the first graduation above 0.\n\nBack pressure (7.5.1): manual mode, APL at MIN, Y-piece connected to the leak test port and the other two ends to the inspiratory and expiratory ports. Set oxygen to 4 L/min and turn the vaporiser through 0–1 %; the flow must not fall by more than 1 L/min (otherwise try a known good vaporiser and repeat).\n\nLeak (7.5.2): manual mode, manual bag fitted, vaporiser at 1 % or more (no agent inside), APL at 30 cmH2O, flush to 15–25 cmH2O (about 20), release and watch the gauge for 15 s. Turn the vaporiser off afterwards.\n\nVaporiser accuracy (V60 accuracy test; CHS Veta service procedure). The vaporiser should have stood for 2 h or more at 22 ±2 °C and 25–85 % humidity, with the agent level between MIN and halfway to MAX. Connect a large-bore hose to the ACGO outlet, switch ACGO on, and take the sample from it with a T-piece to the Fluke VT900A anaesthetic gas module or other AG monitor (waste line to scavenging). Set fresh gas to 3 L/min and let the AG reading settle at each setting. With oxygen as carrier subtract the correction in the label from the AG reading and enter the result; at altitude also multiply by local pressure ÷ 101.3 kPa. A corrected reading outside the range means the vaporiser needs calibration or service (do not use it).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [],
+     "readings": [
+      {
+       "label": "Back pressure: fall in oxygen flow from 4 L/min while the vaporiser is turned from 0 to 1 %",
+       "unit": "L/min",
+       "lo": "",
+       "hi": 1
+      },
+      {
+       "label": "Leak test: fall in airway pressure over 15 s from 20 cmH2O",
+       "unit": "cmH2O",
+       "lo": "",
+       "hi": 10
+      },
+      {
+       "label": "Vaporiser set to 1 %: Fluke AG reading after the O2 correction of −0.10 vol.%",
+       "unit": "vol.%",
+       "lo": 0.8,
+       "hi": 1.2
+      },
+      {
+       "label": "Vaporiser set to 2 %: Fluke AG reading after the O2 correction of −0.20 vol.%",
+       "unit": "vol.%",
+       "lo": 1.6,
+       "hi": 2.4
+      },
+      {
+       "label": "Vaporiser set to 3 %: Fluke AG reading after the O2 correction of −0.20 vol.%",
+       "unit": "vol.%",
+       "lo": 2.4,
+       "hi": 3.6
+      },
+      {
+       "label": "Vaporiser set to 4 %: Fluke AG reading after the O2 correction of −0.20 vol.%",
+       "unit": "vol.%",
+       "lo": 3.2,
+       "hi": 4.8
+      },
+      {
+       "label": "Vaporiser set to 5 %: Fluke AG reading after the O2 correction of −0.30 vol.%",
+       "unit": "vol.%",
+       "lo": 4,
+       "hi": 6
+      }
+     ]
+    }
+   },
+   {
+    "id": "o2-flush-and-acgo",
+    "type": "check",
+    "title": "O2 flush and ACGO",
+    "instructions": "ACGO test (7.6.1): oxygen connected, expiratory end and manual bag connector blocked, manual mode. With ACGO off set the oxygen flowmeter to 2 L/min and read the flow at the inspiratory end with the VT900 (gas O2, STPD20, flow monitoring). Then switch ACGO on and read it at the expiratory end. Enter the VT900 readings.\n\nO2 flush (7.6.2): 280 kPa oxygen supply, manual mode, standby, leak test plug in the patient port, empty 3 L or 1 L bag on the bag connector, ACGO closed, APL at 50 cmH2O. Hold the O2 flush and time the gauge rising to 40 cmH2O; repeat more than twice, emptying the bag each time.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "ACGO on: the screen shows a message that ACGO is open.",
+      "O2 flush (APL 50 cmH2O): the airway pressure gauge rises to 40 cmH2O in 12–18 s with a 3 L bag, or in 4–6 s with a 1 L bag (use the bag you have)."
+     ],
+     "readings": [
+      {
+       "label": "ACGO off, flowmeter at 2 L/min: VT900 flow at the inspiratory end",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      },
+      {
+       "label": "ACGO on, flowmeter at 2 L/min: VT900 flow at the expiratory end",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      }
+     ]
+    }
+   },
+   {
+    "id": "breathing-circuit",
+    "type": "check",
+    "title": "Breathing circuit",
+    "instructions": "One-way valve test (7.7.1): auto/manual switch to manual, manual bag fitted, breathing tube on a test lung. Squeezing the bag opens the inspiratory valve and closes the expiratory valve; releasing it does the opposite. Do not leave a leak test plug in the circuit.\n\nAPL valve (7.7.2): manual mode, manual bag fitted, Y-piece on the leak test port. Set the APL knob to 70 cmH2O and fresh gas to 3 L/min and read the gauge. Then APL at MIN with oxygen at 3 L/min. Hold the APL blocking key and note the rise over the original reading, release it, close the oxygen flowmeter and check the gauge.\n\nBellows (7.7.3): standby, auto position, oxygen knob closed, Y-piece plugged, fill the bellows to the top with the O2 flush, then watch for 1 min. If a bellows drops it leaks: reinstall it.\n\nManual ventilation (7.8.3): APL at 25 cmH2O, flush to fill the bag, oxygen 1 L/min, squeeze the bag every 3 s.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "One-way valves: squeezing the bag opens the inspiratory valve and closes the expiratory valve; releasing it does the reverse.",
+      "APL blocking key released and the oxygen flowmeter closed: the gauge does not fall below 0 cmH2O.",
+      "Large bellows (if fitted): drop no more than 300 mL in 1 min with the Y-piece plugged.",
+      "Small bellows (if fitted): drop no more than 100 mL in 1 min with the Y-piece plugged.",
+      "Manual ventilation: the test lung inflates and deflates, and the screen shows the pressure waveform, airway pressure and breath rate."
+     ],
+     "readings": [
+      {
+       "label": "APL at 70 cmH2O, fresh gas 3 L/min: airway pressure gauge",
+       "unit": "cmH2O",
+       "lo": 59.5,
+       "hi": 80.5
+      },
+      {
+       "label": "APL at MIN, oxygen 3 L/min: airway pressure gauge",
+       "unit": "cmH2O",
+       "lo": 0,
+       "hi": 5
+      },
+      {
+       "label": "APL blocking key held: rise in the gauge over the original reading",
+       "unit": "cmH2O",
+       "lo": 20,
+       "hi": 40
+      }
+     ]
+    }
+   },
+   {
+    "id": "ventilation",
+    "type": "check",
+    "title": "Ventilation performance",
+    "instructions": "VCV test (3.5.3.1): oxygen on, 2 L bag on the Y-piece as the test lung, large (1500 mL) bellows, auto position, VCV, fresh gas 0.5 L/min, O2 flush to fill the bellows and bag. Set the MV, PEAK, Vt and RR high alarm limits to maximum and the low limits to minimum or off. Set Vt 300, 600, 900 and 1200 mL at 15 bpm and, once stable, enter the displayed tidal volume and note the displayed peak pressure and the peak on the airway pressure gauge. For 1200 mL set the animal weight to 90 kg and the pressure limit to the highest value. The bellows must reach the top of its housing each breath, and its minimum drop should be about the set Vt.\n\nVT900 checks (7.8.1, 7.8.2): test lung on the Y-piece, VT900 between the lung and Y-piece, oxygen 0.5 L/min, auto position. VCV: Vt 50 mL, rate 20, I:E 1:2, PEEP OFF, trigger Auto, BTPS tidal volume monitoring; compare after about 1 min. PCV: inspiratory pressure 15 cmH2O, rate 10, I:E 1:2, PEEP OFF, airway pressure monitoring.\n\nPCV test (3.5.3.2): PCV is on premium models only; skip it if the machine has no PCV. Same setup with fresh gas 0.5 L/min; set (10 cmH2O, 15 bpm, PEEP off), (15, 12, 5) and (20, 10, 8).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "VCV (all four settings): the displayed peak pressure is within 2 cmH2O of the peak on the airway pressure gauge, the bellows reaches the top each breath, the waveforms are normal and no technical alarm occurs.",
+      "VCV with VT900 (Vt 50 mL, rate 20, I:E 1:2, PEEP off): the screen shows pressure waveform, airway pressure, PEEP, tidal volume, rate and minute volume, and the displayed Vt is within 15 mL of the VT900 after about 1 min.",
+      "PCV (three settings): the peak pressure is within 2 cmH2O of the maximum on the airway pressure gauge and the displayed PEEP is within 2 cmH2O of the minimum on the gauge; the bellows reaches the top each breath. Mark N/A if the machine has no PCV.",
+      "PCV with VT900 (15 cmH2O, rate 10): the displayed peak pressure is within 3 cmH2O of the VT900 after about 1 min. Mark N/A if the machine has no PCV."
+     ],
+     "readings": [
+      {
+       "label": "VCV Vt set to 300 mL at 15 bpm: displayed tidal volume",
+       "unit": "mL",
+       "lo": 270,
+       "hi": 330
+      },
+      {
+       "label": "VCV Vt set to 600 mL at 15 bpm: displayed tidal volume",
+       "unit": "mL",
+       "lo": 540,
+       "hi": 660
+      },
+      {
+       "label": "VCV Vt set to 900 mL at 15 bpm: displayed tidal volume",
+       "unit": "mL",
+       "lo": 810,
+       "hi": 990
+      },
+      {
+       "label": "VCV Vt set to 1200 mL at 15 bpm: displayed tidal volume",
+       "unit": "mL",
+       "lo": 1080,
+       "hi": 1320
+      },
+      {
+       "label": "PCV inspiratory pressure set to 10 cmH2O (15 bpm, PEEP off): displayed peak pressure",
+       "unit": "cmH2O",
+       "lo": 8,
+       "hi": 12
+      },
+      {
+       "label": "PCV inspiratory pressure set to 15 cmH2O (12 bpm, PEEP 5): displayed peak pressure",
+       "unit": "cmH2O",
+       "lo": 13,
+       "hi": 17
+      },
+      {
+       "label": "PCV inspiratory pressure set to 20 cmH2O (10 bpm, PEEP 8): displayed peak pressure",
+       "unit": "cmH2O",
+       "lo": 18,
+       "hi": 22
+      }
+     ]
+    }
+   },
+   {
+    "id": "blower-and-sensors",
+    "type": "check",
+    "title": "Blower and sensors",
+    "instructions": "Sensor zero check (7.15.1): standby, service mode, Calibration > Zero Sensors. The second column is the current zero point. If a zero is out of range and the actual value on the Data Monitors screen is above 1, zero again; if it is out of range with an actual value below 1, replace the main monitoring board (or the differential pressure flow sensor or its interface board for fresh gas flow).\n\nBlower test (7.9): auto position, bellows removed and bellows housing refitted, expiratory port blocked so drive gas leaves by the inspiratory port. In service mode open the valve test screen and set the blower speed to 10000, 30000 and 50000 rpm (0 first), allowing ±10 %. Then block the inspiratory port and set the blower pressure to 50, 20 and 10 cmH2O (±5 cmH2O), then 70 cmH2O (not below 50). The blower temperature must stay below 80 °C. (CHS procedure: block the patient end at the blocking port on the side and read the PAW gauge.)\n\nFlow sensor accuracy (7.15.2): air supply, VT900 on the ACGO (gas air, STPD20, flow monitoring, zeroed first), ACGO on. Set the flowmeter to 0.5, 2 and 4 L/min and compare Fresh Gas Flow in service mode with the VT900 (not with the flowmeter).\n\nPressure sensor accuracy (7.15.3): block the inspiratory port, set low-pressure monitoring on the VT900, and in the valve test screen set the blower pressure to 10, 20 and 50 cmH2O. CHS shortcut: use the hose joiner and gas line on the inspiratory side and connect the gas line to the VT900 low pressure + port after zeroing. If a deviation is out of tolerance do the pressure sensor calibration (8.3).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Blower set to 0 rpm: the blower is stopped.",
+      "Flow sensor accuracy at 0.5, 2 and 4 L/min: Fresh Gas Flow in service mode and the VT900 reading differ by no more than 0.1 L/min or 10 %, whichever is greater.",
+      "Pressure sensor accuracy at blower pressure 10, 20 and 50 cmH2O: the actual airway pressure and the actual blower outlet pressure each differ from the VT900 low-pressure reading by no more than 3 cmH2O or 8 %, whichever is greater."
+     ],
+     "readings": [
+      {
+       "label": "Zero point: PAW sensor",
+       "unit": "AD counts",
+       "lo": 1213,
+       "hi": 1573
+      },
+      {
+       "label": "Zero point: AA weight (weigher fitted)",
+       "unit": "AD counts",
+       "lo": 0,
+       "hi": 1449
+      },
+      {
+       "label": "Zero point: Fresh Gas Flow",
+       "unit": "AD counts",
+       "lo": -44,
+       "hi": 44
+      },
+      {
+       "label": "Zero point: Turbine Tail Pressure",
+       "unit": "AD counts",
+       "lo": 1213,
+       "hi": 1573
+      },
+      {
+       "label": "Blower set to 10000 rpm: actual speed",
+       "unit": "rpm",
+       "lo": 9000,
+       "hi": 11000
+      },
+      {
+       "label": "Blower set to 30000 rpm: actual speed",
+       "unit": "rpm",
+       "lo": 27000,
+       "hi": 33000
+      },
+      {
+       "label": "Blower set to 50000 rpm: actual speed",
+       "unit": "rpm",
+       "lo": 45000,
+       "hi": 55000
+      },
+      {
+       "label": "Blower temperature during the speed and pressure tests (must stay below 80 °C)",
+       "unit": "°C",
+       "lo": "",
+       "hi": 80
+      },
+      {
+       "label": "Blower pressure set to 10 cmH2O: actual blower outlet pressure",
+       "unit": "cmH2O",
+       "lo": 5,
+       "hi": 15
+      },
+      {
+       "label": "Blower pressure set to 20 cmH2O: actual blower outlet pressure",
+       "unit": "cmH2O",
+       "lo": 15,
+       "hi": 25
+      },
+      {
+       "label": "Blower pressure set to 50 cmH2O: actual blower outlet pressure",
+       "unit": "cmH2O",
+       "lo": 45,
+       "hi": 55
+      },
+      {
+       "label": "Blower pressure set to 70 cmH2O: actual blower outlet pressure",
+       "unit": "cmH2O",
+       "lo": 50,
+       "hi": ""
+      }
+     ]
+    }
+   },
+   {
+    "id": "options-and-screen",
+    "type": "check",
+    "title": "Touchscreen, CO2 module, weigher and AGSS",
+    "instructions": "Touchscreen (7.11): after the system check tap Standby; the screen shows no black screen, flicker or odd pixel colours. Set Key Click Volume to maximum, close the menu and touch the four corners and the centre: each gives a key click, the upper left corner shows the timer, the lower left corner the weight change option, and the centre the ventilation mode. Repeat after leaving ventilation to standby.\n\nCO2 module (7.10): any ventilation mode, service mode, view the pump rate. Fit a small watertrap, then a large one. Mark N/A if there is no CO2 module.\n\nWeigher (3.5.7, 7.12): mark N/A if no weigher is fitted. Put a 500 g weight on the weigher and read AA Weight on the VCM data monitor. For the canister prompt, zero a new filter canister, set the replacement reminder to 500 g and place a 1000 g weight.\n\nActive AGSS (7.13): fit the AGSS and start the disposal system. If the float is out of range adjust the flow control knob (anticlockwise raises the flow), or check the filter screen and the hospital disposal system. Do not block the pressure compensation port. Mark N/A for a passive AGSS.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Touchscreen and control panel: the display is normal, touching the four corners and the centre gives a key click, and the timer, weight change and ventilation mode screens open as above.",
+      "Control knob and button work (rotate, press) and the screen responds to touch.",
+      "CO2 pump rate with a small watertrap is 90 ±15 mL/min (75–105 mL/min).",
+      "CO2 pump rate with a large watertrap is 120 ±18 mL/min (102–138 mL/min).",
+      "Weigher: a 500 g weight reads 490–510 g for AA Weight.",
+      "Weigher: with a 1000 g weight the “Replace Anesthesia Gas Filter Canister” prompt appears and clears when the weight is removed.",
+      "Active AGSS: the float is between the MIN and MAX lines."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "alarm-tests",
+    "type": "check",
+    "title": "Alarm tests",
+    "instructions": "Fresh gas alarm (7.14.1): oxygen or air connected, flowmeters closed, any ventilation mode. Ventilator alarms (7.14.2): system check passed, breathing circuit and manual bag fitted, test lung on the Y-piece, oxygen 0.5 L/min, auto position, VCV with Vt 50 mL, rate 20, I:E 1:2, PEEP off, trigger Auto, start ventilation. Water trap and sampling tube fitted for the CO2 alarm.\n\nPower failure (7.14.3): switch on, disconnect the AC power, then reconnect it. The battery charging indicator is off when the battery is full.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Fresh gas alarm: with flowmeters closed in ventilation “No Fresh Gas” appears and clears when a flowmeter is opened; in standby “Fresh Gas Is On” appears with flow and clears when the flowmeter is closed.",
+      "Paw high: PEAK high limit set 5–8 cmH2O below the displayed peak gives “Paw Too High” and the audible alarm; setting the high limit to 65 cmH2O clears it.",
+      "Paw low: PEAK low limit set to 50 cmH2O gives “Paw Too Low” and the audible alarm; setting it to 1 cmH2O clears it.",
+      "Minute volume: MV low limit at maximum gives “MV Too Low” and the audible alarm, cleared at minimum; MV high limit at minimum gives “MV Too High” and the audible alarm, cleared at maximum.",
+      "Apnoea: manual mode, APL at 15 cmH2O, one full bag breath, then no breaths for at least 20 s gives the “Apnea” alarm; squeezing the bag clears it.",
+      "Continuous airway pressure: fresh gas off, manual mode, APL at 30 cmH2O, O2 flush held about 15 s gives “Continuous Airway Pressure”; APL back to MIN clears it.",
+      "CO2 alarm (if a CO2 module is fitted): EtCO2 high limit set below the measured value gives “EtCO2 Too High”, and low limit set above it gives “EtCO2 Too Low”. Mark N/A if not fitted.",
+      "Power failure: AC power removed gives off AC power and battery charging indicators, an alarm tone and “Battery in Use”.",
+      "Power failure: AC power restored gives an alarm tone, AC power and battery charging indicators on, and “Battery in Use” gone."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "final-checks",
+    "type": "check",
+    "title": "After EST: final checks and handover",
+    "instructions": "After the electrical safety tests and external cleaning, restart the machine and repeat the leak tests (CHS Veta 5 Service Procedure).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "After EST and cleaning, the machine restarts and passes the automatic and manual circuit leak tests again.",
+      "The customer has been told of any issues found (PMV checklist) and any parts or faults noted for follow-up."
+     ],
+     "readings": []
+    }
+   }
+  ],
+  "models": []
+ }
+}

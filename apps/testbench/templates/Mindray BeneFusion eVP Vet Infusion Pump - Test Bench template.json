@@ -1,0 +1,205 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray BeneFusion eVP Vet Infusion Pump",
+  "desc": "Mindray BeneFusion eVP veterinary infusion pump. Class I, internally powered, IP33; the applied part is the infusion set, marked defibrillation-proof type CF but non-metallic with no electrical connection, so there are no applied-part leakage tests (service manual H-046-021902-00 v2.0 Appendix A; ops manual H-046-021877-00 v5.0 A.1 and 2.2). From the CHS Ansur template “0000 -Benefusion eVP 0000000000  EST+PVT AS-NZS 3551 DD.MM.YYYY.mtt”. Electrical safety to AS/NZS 3551:2012+A2. Changed from Ansur: earth leakage NC 5000, ON 10000 µA (B11.6) (Ansur: NC 500, ON 1000 µA). Changed from Ansur: accuracy readings are the delivered volume in mL, 19–21 and 57–63 (the same ±5 % as the manual’s report form, 5-7). Changed from Ansur: occlusion pressure is 400–650 mmHg at the 525 mmHg level (service manual 3.5.2 and 5-7; Ansur 53–87 KPa, the same range rounded). Changed from Ansur: the occlusion alarm check covers upstream and downstream within 5 minutes (Ansur downstream only); power-on sounds corrected; visual, door, clip, drop sensor and clip-control checks added from 5.5 and 5.6.1; calibrations are only needed if a test fails; duplicate touchscreen and LCD items merged; maintenance passwords removed. Kept as in Ansur, differs from the manual (for Jonathan to confirm): earth leakage 5000/10000 µA (the manual’s report form lists 347 µA normal and 694 µA single fault, which are values for its ESA620 set-up, not AS/NZS 3551 limits). Kept as in Ansur (for Jonathan to confirm): insulation is mains to non-earthed accessible part only, with no mains to PE.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual Inspection",
+    "instructions": "Service manual 5.5.1 and the maintenance test report (pages 5-2 and 5-5).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The parts of the machine are complete, without physical damage, and the enclosure, LCD and buttons have no obvious damage",
+      "There is no abnormal noise when the machine is shaken",
+      "The power interface has no rust, no foreign matter and no trace of ablation",
+      "The power cord is not damaged, and the plug connects tightly to the pump",
+      "The drop sensor (if fitted) is complete without cracks, rebounds when pressed, and its cable is undamaged and connects tightly to the pump",
+      "The fastening clamp is complete without cracks, and the pump can be fixed independently on the infusion stand",
+      "The multi-function connector and USB interface are undamaged and free of drug residue, and the USB protection cap is present",
+      "The safety label and nameplate are clear and undamaged"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "power-on-tests",
+    "type": "check",
+    "title": "Power-on Tests",
+    "instructions": "Service manual 5.5.2 and 5.5.3 (pages 5-2 and 5-3).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Connected to AC power: the AC power indicator and the battery indicator are on",
+      "At power-on the speaker and the buzzer both sound (service manual 5.5.2: speaker two beeps, buzzer three beeps) and can be heard",
+      "During power-on the red and yellow alarm lamps flash in sequence",
+      "After power-on the Guide to Load the Infusion Set screen is displayed",
+      "Press the Open button: the door opens automatically; after it is closed, the door locks automatically",
+      "There is no alarm during the power-on test operation",
+      "Battery: remove the AC power cord; the pump keeps working normally and shows Battery in Use. Reconnect the power cord"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "protective-earth-resistance",
+    "type": "esa_pe",
+    "title": "Protective earth resistance",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an exposed earthed metal part (such as the pole clamp or a metal screw), or the equipotential point if fitted.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "hi": 0.2
+    }
+   },
+   {
+    "id": "insulation-mains-to-non-earth-accessible",
+    "type": "esa_ins",
+    "title": "Insulation: mains to non-earth accessible conductive part",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MAINS_NE",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. Clip the red test lead to an unearthed part of the enclosure.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 100
+      },
+      {
+       "c": "ON",
+       "hi": 500
+      },
+      {
+       "c": "OE",
+       "hi": 500
+      }
+     ]
+    }
+   },
+   {
+    "id": "earth-leakage",
+    "type": "esa_earthl",
+    "title": "Earth leakage",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet. The device will be switched on and off between conditions.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 5000
+      },
+      {
+       "c": "ON",
+       "hi": 10000
+      }
+     ]
+    }
+   },
+   {
+    "id": "functionality-test",
+    "type": "check",
+    "title": "Functionality Test",
+    "instructions": "Service manual 5.6.1 (pages 5-3 and 5-4). Use an infusion set and test water or saline. Items from anti-free flow to the bubble alarm need a set loaded.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The system date and time are consistent with the local real time",
+      "Each button rebounds normally and the pump gives the corresponding response",
+      "The four door pressure blocks (two ultrasonic, two pressure) spring back naturally to position",
+      "After the infusion set is loaded, its brand appears in the list of brands",
+      "Auto clip: with the door open and no set installed the clip is open; after the set is installed normally the clip closes automatically",
+      "Anti-free flow: with a water-filled set installed normally and the pump not started, no fluid flows out of the end of the set",
+      "Normal infusion: load the set, set the parameters and press Start. The pump starts and runs without obvious jitter or abnormal noise, and the running icon, rate, volume and pressure are displayed correctly",
+      "Occlusion alarm: run at 100 mL/h and occlude the upper end, then the lower end, of the set. The pump gives an upstream and a downstream occlusion alarm within 5 minutes",
+      "Bubble alarm: run at 100 mL/h and make a bubble of about 1–2 cm in the set (turn the drip chamber). The pump gives a high-priority bubble alarm and stops",
+      "Alarms at every level are audible and visible, the volume control works and the alarm mute works (no counterpart in the service manual)",
+      "Touchscreen: the LCD is not blurred or garbled, and the touchscreen responds normally throughout the checks above",
+      "Drop sensor (if fitted): remove the sensor from the drip chamber during infusion. The pump stops within 2 minutes, sounds an alarm, the alarm lamp flashes red and Empty is shown",
+      "Wi-Fi (if fitted): the pump connects to a Wi-Fi hotspot",
+      "Clip control (special-tube pumps only, otherwise N/A): with the door open and the set installed (clip and tube), no fluid flows out of the end of the set until the door is closed"
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "performance-test",
+    "type": "check",
+    "title": "Performance Test",
+    "instructions": "Service manual 3.4 and 3.5 (pages 3-3 to 3-12; accuracy and occlusion pressure are due every two years and after a repair). Use the customer's infusion set, test water, an electronic balance and a beaker.\nAccuracy test: set the fluid bag so its maximum level is 51 ± 5 cm above the geometric centre of the pump, with no air in the set. Weigh the beaker empty, run the VTBI at the rate below, weigh again (1 g of water = 1 mL) and enter the volume delivered. Check the pump's own timer against your own timing.\nOcclusion pressure test: purge the set, connect it through a three-way tap to a peak-reading pressure gauge or infusion analyser (zero it first), level with the pump. Set 100 mL/h and the 525 mmHg occlusion level and start. When flow is stable, occlude with the tap and read the peak pressure when the occlusion alarm sounds.\nIf either test fails, calibrate the pump to the set (service manual 3.4.1 accuracy; 3.4.2 pressure at 150 and 500 mmHg; Menu > Manufacturer Maintenance > System Calibration; the maintenance passwords are in the service manual) and repeat the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Accuracy calibration (only if the accuracy test failed): completed successfully, then the accuracy test repeated and passed. N/A if not needed",
+      "Pressure calibration (only if the occlusion pressure test failed): completed successfully, then the pressure test repeated and passed. N/A if not needed"
+     ],
+     "readings": [
+      {
+       "label": "Accuracy: volume delivered with VTBI 20 mL at 200 mL/h (6 min), 19–21 mL (±5 %)",
+       "unit": "mL",
+       "lo": 19,
+       "hi": 21
+      },
+      {
+       "label": "Accuracy: volume delivered with VTBI 60 mL at 1200 mL/h (3 min), 57–63 mL (±5 %)",
+       "unit": "mL",
+       "lo": 57,
+       "hi": 63
+      },
+      {
+       "label": "Occlusion pressure: peak pressure at the alarm, 525 mmHg level at 100 mL/h, 400–650 mmHg (53–87 kPa)",
+       "unit": "mmHg",
+       "lo": 400,
+       "hi": 650
+      }
+     ]
+    }
+   }
+  ],
+  "category": "Infusion pumps",
+  "manufacturer": "Mindray",
+  "models": []
+ }
+}

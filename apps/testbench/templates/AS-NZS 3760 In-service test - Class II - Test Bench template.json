@@ -1,0 +1,71 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "AS/NZS 3760 In-service test - Class II",
+  "desc": "In-service test of non-medical electrical equipment to AS/NZS 3760, not AS/NZS 3551: the limits are those of the CHS Ansur template “AS NZS 3760 - CL2.mtt”, kept as they were (the standard itself is not in the manuals folder, so they are unverified: for Jonathan to confirm). Steps and wording as in Ansur.",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "steps": [
+   {
+    "id": "mains-voltage",
+    "type": "esa_mains",
+    "title": "Mains voltage",
+    "instructions": "Plug the ESA612 into the mains supply you are testing from.",
+    "images": [],
+    "hold": 0,
+    "params": {}
+   },
+   {
+    "id": "insulation-mains-to-protective-earth",
+    "type": "esa_ins",
+    "title": "Insulation: mains to protective earth",
+    "instructions": "Connect the device’s mains lead to the ESA612 equipment outlet and switch the device on. Don’t touch the device during the test.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "target": "MINS",
+     "volts": "HIGH",
+     "lo": 1
+    }
+   },
+   {
+    "id": "enclosure-leakage",
+    "type": "esa_encl",
+    "title": "Enclosure leakage",
+    "instructions": "Measure leakage from an exposed metal part to earth. If no exposed metal parts then shroud in tinfoil and measure leakage from shroud.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "conds": [
+      {
+       "c": "NC",
+       "hi": 1000
+      },
+      {
+       "c": "ON",
+       "hi": 1000
+      },
+      {
+       "c": "OE",
+       "hi": 1000
+      }
+     ]
+    }
+   }
+  ],
+  "category": "Electrical equipment",
+  "models": []
+ }
+}

@@ -1,0 +1,292 @@
+{
+ "format": "chs-test-bench-template",
+ "version": 1,
+ "template": {
+  "name": "Mindray Veta 3 Vet Anaesthesia Machine",
+  "desc": "Mindray Veta 3 veterinary anaesthesia machine (pneumatic, manual ventilation only). It has no mains supply, battery, screen or ventilator, so there is no electrical safety test; applied parts (masks and breathing tubes) are marked type BF in the operator manual 2.0 A.2, but nothing electrical is connected to them. From the CHS Ansur template “0000, SN-Veta3 AS-NZS 3551 EST and PVT DD.MM.YYYY Template.mtt” (which was copied from a powered machine), the Veta 3, Veta 5 service manual H-046-022531-00 (CE) 4.0 (Veta 3 variants in 2.3.9, 3.4, 3.6, 7.2, 7.4) and the V60 vaporiser accuracy test. Changed from Ansur: ESA612 steps (protective earth, insulation, earth leakage, enclosure leakage; Ansur limits PE none, earth leakage 500/1000 µA, enclosure 500/100/500 µA) removed because the Veta 3 has no mains connection (for Jonathan to confirm: use the Veta 5 template if the unit has been upgraded or has a powered accessory); power-on, auto leak, bellows, power failure, basic ventilation (VS mode) and ventilator alarm items removed (no ventilator or screen); manual leak test now the gauge test (drop ≤ 10 cmH2O in 15 s) and the 2.3.9 self-test; pipeline supply 280–600 kPa; flowmeter 0.3–0.5, 1.8–2.2, 3.6–4.4 L/min against a VT900 at the ACGO; APL valve 59.5–80.5 cmH2O at 70, ≤ 5 cmH2O at MIN, blocking key +30 ±10 cmH2O (Ansur: no numbers; the Veta 3 operator manual says ≤ 10 at MIN, the service manual 5); ACGO and O2 flush tests, back pressure and leak tests added; vaporiser correction at 4 % now −0.20 (Ansur −0.30) and at 5 % −0.30 (the V60 table has a gap at 4–5 %, to confirm); units added to every reading, typos fixed. The System and Service menu codes in the Ansur instructions are not carried over (a Veta 3 has no menus).",
+  "category": "Vet anaesthesia",
+  "manufacturer": "Mindray",
+  "dut": [
+   "Serial number",
+   "Manufacturer",
+   "Model",
+   "Customer",
+   "Location",
+   "CHS asset #",
+   "Customer asset #",
+   "Testing company",
+   "Testing engineer"
+  ],
+  "esaAuto": true,
+  "esaHalt": true,
+  "steps": [
+   {
+    "id": "visual-inspection",
+    "type": "check",
+    "title": "Visual inspection",
+    "instructions": "Appearance check (service manual 3.3). The Veta 3 is a pneumatic machine with manual ventilation only: it has no mains lead, battery, screen or ventilator, so the AS/NZS 3551 electrical safety tests do not apply. If this unit has been upgraded to a Veta 5 (ventilator and screen fitted) use the Veta 5 template instead. Do not use the machine if the breathing system is damaged or leaking.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "The case, knobs, gauges, hoses and accessories have no obvious signs of damage; the casters are not loose and the brakes hold.",
+      "The external connectors are not loose or damaged and the gas supply hoses are in good condition.",
+      "The safety labels and data plate are clearly legible.",
+      "The breathing circuit and CO2 absorber canister are connected correctly, and the soda lime colour is normal.",
+      "The vaporiser holds an appropriate amount of agent.",
+      "The AGSS transfer hose is not damaged and any water in it has been emptied.",
+      "Confirmed: no mains lead, battery or electronics are fitted (pneumatic machine), so no electrical safety test is required."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "pm-kit-and-cleaning",
+    "type": "check",
+    "title": "PM kit and cleaning",
+    "instructions": "PM kit (service manual 3.2, 3.4.1): basic kit 115-077057-00; advanced kit 115-00594A-00 (contents in the Mindray Advanced PM kit list, not in the service manual). Pull out the airway pressure gauge to replace its O-ring. For the soda lime tank remove the tank, pinch the snap hook at the bottom of the support bracket, pull the bracket downwards and replace the O-ring (wear gloves and a mask and tip the granules into a container first). Clean the APL valve as in 3.4.2 (75 % ethanol on gauze; do not touch the valve port face or the APL seal afterwards; reset the MIN position as shown in the manual).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "PM kit: airway pressure gauge O-ring (082-000711-00) replaced.",
+      "PM kit: soda lime tank support bracket O-ring (M6M-010051---) replaced.",
+      "Advanced PM kit parts (115-00594A-00) replaced when the advanced kit is used.",
+      "APL valve checked and cleaned, MIN position reset.",
+      "Inspiratory and expiratory valve covers are free of moisture (wipe with a clean swab if damp); unit and trolley wiped down."
+     ],
+     "readings": []
+    }
+   },
+   {
+    "id": "leak-tests",
+    "type": "check",
+    "title": "Leak tests",
+    "instructions": "Post-installation self-test (2.3.9, used after maintenance by 3.6): fit the manual bag and a corrugated hose from the inspiratory to the expiratory port. Set the APL valve to 70 cmH2O, hold the O2 flush until the gauge reads 30 cmH2O, press the bag until the gauge reads 40 cmH2O, release and repeat six times. After release the gauge must not read below 25 cmH2O. Then set the APL valve to MIN: the bag collapses and the gauge reads below 5 cmH2O.\n\nBreathing system leak test (7.2.2, Veta 3): oxygen connected, manual bag fitted, Y-piece and flowmeters closed, APL at 30 cmH2O. Hold the O2 flush until the gauge is between 15 and 25 cmH2O, release it and watch the gauge for 15 s.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Breathing system leak test: the O2 flush brings the gauge to 15–25 cmH2O."
+     ],
+     "readings": [
+      {
+       "label": "Self-test: airway pressure gauge after the bag is released (APL 70 cmH2O)",
+       "unit": "cmH2O",
+       "lo": 25,
+       "hi": ""
+      },
+      {
+       "label": "Self-test: airway pressure gauge with the APL valve at MIN",
+       "unit": "cmH2O",
+       "lo": "",
+       "hi": 5
+      },
+      {
+       "label": "Breathing system leak test: fall in airway pressure over 15 s from 20 cmH2O",
+       "unit": "cmH2O",
+       "lo": "",
+       "hi": 10
+      }
+     ]
+    }
+   },
+   {
+    "id": "gas-supply-and-flowmeters",
+    "type": "check",
+    "title": "Gas supply and flowmeters",
+    "instructions": "Gas supply (7.3): connect the oxygen and air supplies and read the supply gauges. Flowmeter test (7.4.2, Veta 3): oxygen connected, VT900 on the ACGO (gas O2 or air, STPD20, flow monitoring, zeroed), ACGO switch on. Set the needle valve until the flowmeter reads 0.4, 2 and 4 L/min and enter the VT900 reading. The permitted deviation from the flowmeter reading is 0.1 L/min or 10 %, whichever is greater. Mark the air readings N/A only if the machine has no air flowmeter; otherwise do both gases.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Oxygen needle valve fully open: the float is at the top of the flowmeter. Oxygen supply then disconnected: the gauge falls to zero and the float falls to the bottom.",
+      "Air needle valve fully open: the float is at the top of the flowmeter. Air supply then disconnected: the gauge falls to zero and the float falls to the bottom."
+     ],
+     "readings": [
+      {
+       "label": "Oxygen supply pressure gauge",
+       "unit": "kPa",
+       "lo": 280,
+       "hi": 600
+      },
+      {
+       "label": "Air supply pressure gauge",
+       "unit": "kPa",
+       "lo": 280,
+       "hi": 600
+      },
+      {
+       "label": "Oxygen flowmeter at 0.4 L/min: VT900 flow at the ACGO",
+       "unit": "L/min",
+       "lo": 0.3,
+       "hi": 0.5
+      },
+      {
+       "label": "Oxygen flowmeter at 2 L/min: VT900 flow at the ACGO",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      },
+      {
+       "label": "Oxygen flowmeter at 4 L/min: VT900 flow at the ACGO",
+       "unit": "L/min",
+       "lo": 3.6,
+       "hi": 4.4
+      },
+      {
+       "label": "Air flowmeter at 0.4 L/min: VT900 flow at the ACGO",
+       "unit": "L/min",
+       "lo": 0.3,
+       "hi": 0.5
+      },
+      {
+       "label": "Air flowmeter at 2 L/min: VT900 flow at the ACGO",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      },
+      {
+       "label": "Air flowmeter at 4 L/min: VT900 flow at the ACGO",
+       "unit": "L/min",
+       "lo": 3.6,
+       "hi": 4.4
+      }
+     ]
+    }
+   },
+   {
+    "id": "vaporizer",
+    "type": "check",
+    "title": "Vaporiser",
+    "instructions": "Back pressure and leak tests (service manual 7.5): the agent comes out of the fresh gas outlet during the back pressure test, so scavenge it. Turn the needle valve fully clockwise before use. Do not test between OFF and the first graduation above 0.\n\nBack pressure (7.5.1): APL at MIN, Y-piece connected to the leak test port and the other two ends to the inspiratory and expiratory ports. Set oxygen to 4 L/min and turn the vaporiser through 0–1 %; the flow must not fall by more than 1 L/min (otherwise try a known good vaporiser and repeat).\n\nLeak (7.5.2): manual bag fitted, vaporiser at 1 % or more (no agent inside), APL at 30 cmH2O, flush to 15–25 cmH2O (about 20), release and watch the gauge for 15 s. Turn the vaporiser off afterwards.\n\nVaporiser accuracy (V60 accuracy test; CHS Veta service procedure). The vaporiser should have stood for 2 h or more at 22 ±2 °C and 25–85 % humidity, with the agent level between MIN and halfway to MAX. Connect a large-bore hose to the ACGO outlet, switch ACGO on, and take the sample from it with a T-piece to the Fluke VT900A anaesthetic gas module or other AG monitor (waste line to scavenging). Set fresh gas to 3 L/min and let the AG reading settle at each setting. With oxygen as carrier subtract the correction in the label from the AG reading and enter the result; at altitude also multiply by local pressure ÷ 101.3 kPa. A corrected reading outside the range means the vaporiser needs calibration or service (do not use it).",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [],
+     "readings": [
+      {
+       "label": "Back pressure: fall in oxygen flow from 4 L/min while the vaporiser is turned from 0 to 1 %",
+       "unit": "L/min",
+       "lo": "",
+       "hi": 1
+      },
+      {
+       "label": "Leak test: fall in airway pressure over 15 s from 20 cmH2O",
+       "unit": "cmH2O",
+       "lo": "",
+       "hi": 10
+      },
+      {
+       "label": "Vaporiser set to 1 %: Fluke AG reading after the O2 correction of −0.10 vol.%",
+       "unit": "vol.%",
+       "lo": 0.8,
+       "hi": 1.2
+      },
+      {
+       "label": "Vaporiser set to 2 %: Fluke AG reading after the O2 correction of −0.20 vol.%",
+       "unit": "vol.%",
+       "lo": 1.6,
+       "hi": 2.4
+      },
+      {
+       "label": "Vaporiser set to 3 %: Fluke AG reading after the O2 correction of −0.20 vol.%",
+       "unit": "vol.%",
+       "lo": 2.4,
+       "hi": 3.6
+      },
+      {
+       "label": "Vaporiser set to 4 %: Fluke AG reading after the O2 correction of −0.20 vol.%",
+       "unit": "vol.%",
+       "lo": 3.2,
+       "hi": 4.8
+      },
+      {
+       "label": "Vaporiser set to 5 %: Fluke AG reading after the O2 correction of −0.30 vol.%",
+       "unit": "vol.%",
+       "lo": 4,
+       "hi": 6
+      }
+     ]
+    }
+   },
+   {
+    "id": "o2-flush-and-acgo",
+    "type": "check",
+    "title": "O2 flush and ACGO",
+    "instructions": "ACGO test (7.6.1): oxygen connected, expiratory end and manual bag connector blocked. With ACGO off set the oxygen flowmeter to 2 L/min and read the flow at the inspiratory end with the VT900 (gas O2, STPD20, flow monitoring). Then switch ACGO on and read it at the expiratory end. Enter the VT900 readings.\n\nO2 flush (7.6.2): 280 kPa oxygen supply, leak test plug in the patient port, empty 3 L or 1 L bag on the bag connector, ACGO closed, APL at 50 cmH2O. Hold the O2 flush and time the gauge rising to 40 cmH2O; repeat more than twice, emptying the bag each time.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "O2 flush (APL 50 cmH2O): the airway pressure gauge rises to 40 cmH2O in 12–18 s with a 3 L bag, or in 4–6 s with a 1 L bag (use the bag you have)."
+     ],
+     "readings": [
+      {
+       "label": "ACGO off, flowmeter at 2 L/min: VT900 flow at the inspiratory end",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      },
+      {
+       "label": "ACGO on, flowmeter at 2 L/min: VT900 flow at the expiratory end",
+       "unit": "L/min",
+       "lo": 1.8,
+       "hi": 2.2
+      }
+     ]
+    }
+   },
+   {
+    "id": "breathing-circuit",
+    "type": "check",
+    "title": "Breathing circuit and manual ventilation",
+    "instructions": "One-way valve test (7.7.1): manual bag fitted, breathing tube on a test lung. Squeezing the bag opens the inspiratory valve and closes the expiratory valve; releasing it does the opposite. Do not leave a leak test plug in the circuit.\n\nAPL valve (7.7.2): manual bag fitted, Y-piece on the leak test port. Set the APL knob to 70 cmH2O and fresh gas to 3 L/min and read the gauge. Then APL at MIN with oxygen at 3 L/min. Hold the APL blocking key and note the rise over the original reading, release it, close the oxygen flowmeter and check the gauge.\n\nManual ventilation (7.8.3): APL at 25 cmH2O, flush to fill the bag, oxygen 1 L/min, squeeze the bag every 3 s.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "One-way valves: squeezing the bag opens the inspiratory valve and closes the expiratory valve; releasing it does the reverse.",
+      "APL blocking key released and the oxygen flowmeter closed: the gauge does not fall below 0 cmH2O.",
+      "Manual ventilation (APL 25 cmH2O, oxygen 1 L/min, bag squeezed every 3 s): the test lung inflates and deflates."
+     ],
+     "readings": [
+      {
+       "label": "APL at 70 cmH2O, fresh gas 3 L/min: airway pressure gauge",
+       "unit": "cmH2O",
+       "lo": 59.5,
+       "hi": 80.5
+      },
+      {
+       "label": "APL at MIN, oxygen 3 L/min: airway pressure gauge",
+       "unit": "cmH2O",
+       "lo": 0,
+       "hi": 5
+      },
+      {
+       "label": "APL blocking key held: rise in the gauge over the original reading",
+       "unit": "cmH2O",
+       "lo": 20,
+       "hi": 40
+      }
+     ]
+    }
+   },
+   {
+    "id": "agss",
+    "type": "check",
+    "title": "Active AGSS",
+    "instructions": "Active AGSS (7.13): fit the AGSS and start the disposal system. If the float is out of range adjust the flow control knob (anticlockwise raises the flow), or check the filter screen and the hospital disposal system. Do not block the pressure compensation port. Mark N/A for a passive AGSS.",
+    "images": [],
+    "hold": 0,
+    "params": {
+     "items": [
+      "Active AGSS: the float is between the MIN and MAX lines."
+     ],
+     "readings": []
+    }
+   }
+  ],
+  "models": []
+ }
+}
