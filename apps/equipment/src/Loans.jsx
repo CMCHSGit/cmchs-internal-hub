@@ -7,10 +7,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge, Dialog, Toast, useToast } from '../../../shared/ui/index.jsx'
+import { save } from './download.js'
 import LoanActions from './LoanActions.jsx'
 import { AccessoryList } from './Accessories.jsx'
 import { AdminDialog } from './Items.jsx'
-import { auditTone, AUDIT_LABELS, clashesFor, dateRange, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, readinessOf, reassignGroups, reassignParams, relTime, stampMs, startsSoon } from './model.js'
+import { auditTone, AUDIT_LABELS, clashesFor, dateRange, daysBetween, filterLoans, fmtDate, fmtWhen, heldUpBy, jobOf, loanSections, loanUpdates, OVERDUE_COLUMNS, overdueRows, toCsv, readinessOf, reassignGroups, reassignParams, relTime, stampMs, startsSoon } from './model.js'
 
 // The old tab's sorts, in its order, Most recent loan first by default; Order added kept as well.
 const SORTS = [['manager', 'Account manager'], ['recent', 'Most recent loan'], ['alpha', 'Customer A–Z'], ['expiry', 'Expiry (soonest)'], ['start', 'Loan date'], ['added', 'Order added']]
@@ -54,6 +55,9 @@ export default function Loans({ s, params, setParams, go }) {
   const devices = active.reduce((n, g) => n + g.items.length, 0)
   const upcomingCount = s.upcoming.filter((u) => s.testMode || !String(u.id || '').startsWith('testbatch_')).length +
     sections.upcoming.filter((g) => g.kind === 'scheduled').length
+  // The overdue demos as a CSV (BOM first, so Excel reads macrons): one row per device, with its account manager.
+  const overdue = useMemo(() => overdueRows(sections, { today: s.today, team: s.managers }), [sections, s.today, s.managers])
+  const exportOverdue = () => save(new Blob(['\uFEFF' + toCsv(overdue, OVERDUE_COLUMNS)], { type: 'text/csv;charset=utf-8' }), `chs-overdue-demos-${s.today}.csv`)
   const set = (k, v) => setParams({ ...params, open: undefined, at: undefined, [k]: v || undefined })
 
   return (
@@ -79,6 +83,7 @@ export default function Loans({ s, params, setParams, go }) {
         <div className="eq-chips">
           {mine && <button type="button" className={`tag${f.am === mine ? ' tag-selected' : ''}`} aria-pressed={f.am === mine} onClick={() => set('am', f.am === mine ? '' : mine)}>My loans</button>}
           <button type="button" className={`tag${f.overdueOnly ? ' tag-selected' : ''}`} aria-pressed={f.overdueOnly} onClick={() => set('overdue', f.overdueOnly ? '' : '1')}>Overdue only</button>
+          {overdue.length > 0 && <button type="button" className="tag" onClick={exportOverdue} title="Every device on an overdue loan, with its account manager, as a CSV">Export overdue ({overdue.length})</button>}
           <button type="button" className={`tag eq-filter-toggle${pickers ? ' tag-selected' : ''}`} aria-expanded={pickers} onClick={() => setPickers((x) => !x)}>Filters</button>
         </div>
       </div>

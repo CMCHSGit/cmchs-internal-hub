@@ -2022,6 +2022,28 @@ export const RETIRED_COLUMNS = [['CHSAssetNo', 'CHS Asset No.'], ['Model', 'Mode
   ['RetiredDate', 'Retired Date'], ['RetiredReason', 'Reason'], ['RetiredNotes', 'Retired Notes'], ['Notes', 'Notes'], ['MfgDate', 'Manufacture Date'], ['PurchaseDate', 'Purchase Date'],
   ['USPrice', 'US$ Price'], ['ShelfLocation', 'Shelf Location'], ['TileNo', 'Tile No.'], ['DeviceID', 'Device ID'], ['LanMAC', 'LAN MAC'], ['WlanMAC', 'WLAN MAC'], ['OldCHS', 'Old CHS #'], ['TileType', 'Tile Type']]
 
+/**
+ * The overdue demos as a list for chasing: one row per device on a started loan that is past its end date (a long-term
+ * loan has none), with its account manager and, from the team, their email. Account manager by name (those with none
+ * last), then the longest overdue first, then customer and asset number.
+ */
+export const OVERDUE_COLUMNS = [['am', 'Account manager'], ['amEmail', 'Account manager email'], ['loanTo', 'On loan to'], ['location', 'Location'], ['contact', 'Contact number'],
+  ['CHSAssetNo', 'CHS Asset No.'], ['Model', 'Model'], ['Description', 'Description'], ['SerialNo', 'Serial Number'], ['start', 'Loan start'], ['end', 'Due back'], ['daysOver', 'Days overdue']]
+export function overdueRows(sections, { today = nzDate(), team = [] } = {}) {
+  const emailOf = (name) => (team.find((m) => (m.name || '').trim().toLowerCase() === String(name || '').trim().toLowerCase())?.email) || ''
+  const rows = []
+  for (const g of [...(sections.needsReassign || []), ...(sections.current || [])]) {
+    if (!g.overdue) continue
+    for (const e of g.items) {
+      rows.push({ am: g.am || '', amEmail: emailOf(g.am), loanTo: g.loanTo, location: g.location, contact: g.doc?.contactNumber || '',
+        CHSAssetNo: e.CHSAssetNo || '', Model: e.Model || '', Description: e.Description || '', SerialNo: e.SerialNo || '',
+        start: fmtDate(g.startDate), end: fmtDate(g.endDate), daysOver: daysBetween(g.endDate, today), _end: g.endDate })
+    }
+  }
+  const byNo = (a, b) => String(a.CHSAssetNo).localeCompare(String(b.CHSAssetNo), undefined, { numeric: true })
+  return rows.sort((a, b) => (!a.am - !b.am) || a.am.localeCompare(b.am) || b.daysOver - a.daysOver || a.loanTo.localeCompare(b.loanTo) || byNo(a, b))
+}
+
 /** Rows as CSV, every cell quoted (old: exportCSV). */
 export function toCsv(rows, columns) {
   const cell = (v) => '"' + String(v ?? '').replace(/"/g, '""') + '"'
