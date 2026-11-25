@@ -415,6 +415,14 @@ fitted); network, battery and production test. `IBPP` (dynamic pressure) is from
 - Stop test says "Stopping the measurement…" if the ESA612 takes more than a few seconds to finish, instead of looking dead.
 - After marking a reading N/A the cursor no longer goes back into that empty box.
 
+## Ansur records froze Ansur's test guide (25/11/2026)
+- The `.mtr` the bench saves opened in Ansur 3.1.4 and printed fine, but stepping through it (Test → Start Test, then Next) froze Ansur
+  ("Not Responding") at Mains voltage: a list of readings with no limits was written with no limit entries at all, which Ansur never does.
+- Every reading in a numerical list now gets a limit entry as Ansur writes them; a reading with no limit carries only its unit. No limits
+  were added or changed. Checked by stepping a Vetal 3 record through to the end in Ansur.
+- Records saved before this still freeze in the test guide (viewing, printing and Export to PDF are fine): download them again from
+  Previous tests, or repair them.
+
 ## Zero the earth lead from a failed result (19/11/2026)
 When protective earth resistance fails in the auto sequence and the lead wasn't zeroed (the default), the failure box has a **Zero lead and re-test** button: it asks for the red lead on the ESA612 null post, zeroes it (`IDLE`, `ERES`, `ZERO`, as the "Zero the test lead" setting does) and measures again. The ESA612 stays in remote mode. The setting itself is unchanged (off by default).
 
