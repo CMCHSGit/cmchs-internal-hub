@@ -7,29 +7,19 @@
    the one thing that can't be told from the photo: a value that was put right (O for 0) says "Check",
    and a LAN MAC that doesn't follow the Device ID (the asset lists' rule) says so. */
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Copy, ImagePlus, RotateCcw, Send } from 'lucide-react'
+import { Camera, Copy, ImagePlus, RotateCcw } from 'lucide-react'
 import { Alert, Badge, Button, Spinner, Toast, useToast } from '../../../shared/ui/index.jsx'
 import { closeOcr, readPhoto, toCanvas } from './ocr.js'
 import { readRows, readScreenText, rowsAsText } from './macRead.js'
+import { copyText } from './clipboard.js'
 
-/** Copy text; true when it worked. Falls back to the old way where the clipboard API isn't offered. */
-async function copyText(text, field) {
-  try { await navigator.clipboard.writeText(text); return true } catch { /* try the old way */ }
-  try {
-    const box = field || Object.assign(document.createElement('textarea'), { value: text })
-    if (!field) document.body.appendChild(box)
-    box.select()
-    const ok = document.execCommand('copy')
-    if (!field) box.remove()
-    return ok
-  } catch { return false }
-}
-
-/** `target` (from a unit's phone link, newequip/readings.js) says which unit a reading is for; with `onSend` the result goes to the PC. */
-export default function MacReader({ target = null, onSend = null }) {
+/** `onSend(values)` (macInbox-firebase.js sendToPc) sends every read to the person's own MAC reader on the PC by itself, and again when they correct a field. */
+export default function MacReader({ onSend = null }) {
   const phone = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-  const [sent, setSent] = useState('') // '' | 'sending' | 'sent' | 'queued'
+  const [sent, setSent] = useState('') // '' | 'sending' | 'sent' | 'queued' | 'failed'
   const [sendError, setSendError] = useState('')
+  const edited = useRef(false) // a field was corrected by hand since the last send
+  const latest = useRef(0) // the newest send: an older one finishing late says nothing
   const [camera, setCamera] = useState(phone) // a phone (a touch screen) starts with the camera on
   const [stage, setStage] = useState('start') // start | reading | done
   const [percent, setPercent] = useState(0)
@@ -46,18 +36,33 @@ export default function MacReader({ target = null, onSend = null }) {
   useEffect(() => () => { closeOcr(); clearTimeout(slow.current) }, [])
   useEffect(() => () => { if (picture) URL.revokeObjectURL(picture) }, [picture])
 
+  /** Sends what the fields show (or `found`, a read just made) to the PC. */
+  async function push(rs) {
+    if (!onSend || !rs.length) return
+    const id = ++latest.current
+    const values = Object.fromEntries(rs.map((r) => [r.key, r.value]))
+    if (!values.lanMac && !values.wlanMac && values.other0) values.lanMac = values.other0 // one MAC with no label: the LAN one
+    setSent('sending'); setSendError(''); edited.current = false
+    try {
+      const got = await onSend(values)
+      if (id === latest.current) setSent(got?.queued ? 'queued' : 'sent')
+    } catch (e) { if (id === latest.current) { setSent('failed'); setSendError(e?.message || 'It couldn’t be sent.') } }
+  }
+
   async function read(canvas) {
-    setCamera(false); setError(''); setStage('reading'); setPercent(0); setSlowNote(false)
+    setCamera(false); setError(''); setStage('reading'); setPercent(0); setSlowNote(false); setSent(''); setSendError('')
     clearTimeout(slow.current)
     slow.current = setTimeout(() => setSlowNote(true), 6000)
     canvas.toBlob((b) => b && setPicture(URL.createObjectURL(b)), 'image/jpeg', 0.7)
     try {
       const text = await readPhoto(canvas, { onProgress: (p) => setPercent(Math.round(p * 100)), enough: (t) => readRows(readScreenText(t)).length > 0 })
       const result = readScreenText(text)
+      const found = readRows(result)
       setRaw(text)
-      setRows(readRows(result))
+      setRows(found)
       setLanMatches(result.lanMatchesDeviceId)
       setStage('done')
+      push(found) // each scan goes to the PC at once; the last one stays there
     } catch (e) {
       setError(navigator.onLine === false
         ? 'The first read needs a connection, to load the reader (about 7 MB). Connect, then try again.'
@@ -77,32 +82,22 @@ export default function MacReader({ target = null, onSend = null }) {
   }
 
   const again = () => { setRows([]); setRaw(''); setPicture(''); setStage('start'); setError(''); setSent(''); setSendError(''); setCamera(phone) }
-  async function send() {
-    setSent('sending'); setSendError('')
-    try {
-      const got = await onSend(Object.fromEntries(rows.map((r) => [r.key, r.value])))
-      setSent(got?.queued ? 'queued' : 'sent')
-    } catch (e) { setSent(''); setSendError(e?.message || 'It couldn’t be sent.') }
-  }
-  // What goes to the PC: the Device ID and the two MACs, as shown (and corrected) in the fields.
-  const toSend = rows.length > 0 && onSend && target
-  const edit = (key, value) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, value, fixed: false } : r)))
+  const edit = (key, value) => { edited.current = true; setRows((rs) => rs.map((r) => (r.key === key ? { ...r, value, fixed: false } : r))) }
+  // A value corrected by hand (a B that was an 8) goes again, a moment after the last key, so the PC has the corrected one.
+  useEffect(() => {
+    if (!edited.current || stage !== 'done') return undefined
+    const t = setTimeout(() => push(rows), 900)
+    return () => clearTimeout(t)
+  }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
   async function copy(r) {
     showToast((await copyText(r.value, fields.current[r.key])) ? `${r.label} copied` : 'Couldn’t copy: press and hold the value instead')
   }
 
   return (
     <div className="tb-mac">
-      {target && (
-        <div className="tb-mac-for" role="note">
-          <span className="tb-mac-note">Reading for</span>
-          <strong className="tb-mac-mono">{target.serial}</strong>
-          <span>{[target.model, target.asset && `asset ${target.asset}`, target.customerName].filter(Boolean).join(' · ')}</span>
-        </div>
-      )}
       {stage === 'start' && (
         <>
-          <p className="tb-mac-note">Photograph a device’s network screen or label: the Device ID and MAC addresses on it come back as text to copy. Keep to those lines, and out of the photo anything about a patient.</p>
+          <p className="tb-mac-note">Photograph a device’s network screen or label: the Device ID and MAC addresses on it come back as text to copy{onSend ? ', and are sent to your MAC reader on the PC by themselves (open the Test Bench’s MAC reader tab there)' : ''}. Keep to those lines, and out of the photo anything about a patient.</p>
           {error && <Alert tone="critical" title="Not read">{error}</Alert>}
           {camera
             ? <ScreenCamera onCapture={read} onClose={() => setCamera(false)} />
@@ -150,14 +145,14 @@ export default function MacReader({ target = null, onSend = null }) {
           {lanMatches === false && <Alert tone="warning" title="LAN MAC doesn’t follow the Device ID">The LAN MAC should be the Device ID without its 4th and 5th bytes. One of them was probably misread: compare each character with the screen.</Alert>}
           {lanMatches === true && <p className="tb-mac-note">The LAN MAC matches the Device ID.</p>}
           {rows.some((r) => r.fixed) && <p className="tb-mac-note">“Check” marks a value where a look-alike character (O for 0, l for 1) was put right. Look at it against the screen. B and 8, D and 0 can look alike too, so check those on any read.</p>}
-          {sendError && <Alert tone="critical" title="Not sent">{sendError}</Alert>}
-          {sent === 'sent' && <Alert tone="success" title="Sent to the PC">It shows on {target.serial}’s row in the Customers tab.</Alert>}
-          {sent === 'queued' && <Alert tone="warning" title="Waiting to send">There’s no connection right now. It goes to the PC by itself when this phone is online again: keep this page open until then.</Alert>}
+          {sent === 'sending' && <p className="tb-mac-note" role="status">Sending to your PC…</p>}
+          {sent === 'sent' && <Alert tone="success" title="Sent to your PC">It’s in your MAC reader tab there, and stays until you remove it or read another.</Alert>}
+          {sent === 'queued' && <Alert tone="warning" title="Waiting to send">There’s no connection right now. It goes to your PC by itself when this {phone ? 'phone' : 'device'} is online again: keep this page open until then.</Alert>}
+          {sent === 'failed' && (
+            <Alert tone="critical" title="Not sent to your PC" action={<Button size="sm" variant="secondary" onClick={() => push(rows)}>Try again</Button>}>{sendError}</Alert>
+          )}
           <details className="tb-mac-raw"><summary>What was read</summary><pre>{raw || '(nothing)'}</pre></details>
-          <div className="tb-mac-actions">
-            {toSend && sent !== 'sent' && sent !== 'queued' && <Button iconLeft={<Send size={16} />} disabled={sent === 'sending'} onClick={send}>{sent === 'sending' ? 'Sending…' : 'Send to the PC'}</Button>}
-            <Button variant="secondary" iconLeft={<RotateCcw size={16} />} onClick={again}>Read another</Button>
-          </div>
+          <div><Button variant="secondary" iconLeft={<RotateCcw size={16} />} onClick={again}>Read another</Button></div>
         </>
       )}
       <Toast message={toast} />

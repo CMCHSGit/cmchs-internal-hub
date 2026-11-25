@@ -35,13 +35,6 @@ links to them under "Until this page does it all". Add steps here one at a time;
    Sync. Nothing changes in Simpro until someone presses **Apply** there.
 5. **Test reports** — zip of the PDFs saved on this PC for the list's units, and **Attach to a Simpro job…** (opens the bench's Saved
    reports with those serials). Saving straight into the reports folder is **not built**: it needs Graph write access, which comes later.
-6. **Device ID / MAC from a phone** (`ReadingCell.jsx`, `readings.js`, `readings-firebase.js`): each row (the asset list's and the pending rows')
-   has **Read on phone**: a QR code (drawn in the browser, `apps/qr/src/qr.js`) that opens `/testbench/?tab=mac&cust=…&serial=…` on a phone. The phone's
-   **MAC reader** tab (`../MacReader.jsx`, `../macRead.js`, `../ocr.js`: the photo is read in the browser, nothing uploaded) knows which unit it is for
-   and **Send to the PC** saves one document per unit (Firestore `deviceReadings`, id = customer + serial, so reading again replaces it; written like
-   `addPendingQueued`, so a phone with no signal sends it when it is back online). The row shows Device ID, LAN MAC (the Device ID without its 4th and 5th
-   bytes when only that was read, `lanOf`) and WLAN MAC, with Copy. **Not built yet:** these values going into **Copy rows for the workbook** / the .csv (it
-   needs the pending row's fields and the `pendingAssets` rules to grow Device ID columns), onto the bench's report, or into Simpro.
 
 ## Map
 
@@ -70,10 +63,6 @@ Shared with the bench section: `../reports.js`, `../zip.js`, `../bench-tests-fir
   published on 9 Nov 2026 (`rules/README.md`); a later change to them needs publishing again, and the page says so when one is refused. Rules tests: `rules/tests/pending-rules.test.mjs` (emulator, needs Java). Publishing = paste the
   whole file into the Firebase console; ask first. If you add a field to `FIELDS`, change `isPendingAsset`'s key list too, and say it
   needs publishing.
-- **Firestore `deviceReadings`** (`{ customerId, serial, deviceId?, lanMac?, wlanMac?, by, at }`; the Bench's teams read/save/replace/remove; Device ID with dashes,
-  MACs with colons, upper case, checked by the rules; `by` must be your own email; a replace can't change customer or serial). Rules: `isReading` in
-  `rules/firestore.rules`, tests `rules/tests/readings-rules.test.mjs` (emulator, needs Java). **Added 25 Nov 2026 and NOT YET PUBLISHED**: until the whole
-  rules file is pasted into the Firebase console the rows show no readings and the phone says it couldn't send (a plain message, not a crash).
 - **This PC**: localStorage `newEquip.customer`; IndexedDB `chs-newequip-files` (file handles), `chs-newequip-handoff` (the one hand-off);
   the bench's `chs-bench-reports` (read here); localStorage `testbench.pendingCustomer` (file name → customer, used by the bench side).
 - **Customer workbooks** in OneDrive/SharePoint: read only, never written, never copied anywhere but memory.

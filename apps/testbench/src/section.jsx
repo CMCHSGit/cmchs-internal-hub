@@ -23,8 +23,8 @@ import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import Customers from './newequip/Customers.jsx'
 import MacReader from './MacReader.jsx'
-import { targetFromSearch } from './newequip/readings.js'
-import { saveReading } from './newequip/readings-firebase.js'
+import MacInbox from './MacInbox.jsx'
+import { sendToPc } from './macInbox-firebase.js'
 import { saveOrder, watchOrders } from './orders-firebase.js'
 import { jobClosesOrder, jobNumber, summaryLine } from './orders.js'
 import { splitSerials } from './bench-tests.js'
@@ -86,13 +86,12 @@ function TestBench() {
   // bench (this file's Reports in its barOnly form) downloads, prints or attaches the ticked tests. An old ?tab=reports link, Asset Sync's Reports to add and an
   // order's review open that table limited to their devices, all ticked.
   const [tab, setTab] = useState(() => { const t = new URLSearchParams(location.search).get('tab'); return t === 'customers' || t === 'mac' ? t : 'bench' }) // 'bench' | 'orders' | 'customers' | 'mac'
-  // The MAC reader opened from a unit's QR code on the Customers tab (newequip/readings.js phoneLink): which unit the reading is for, and where it goes.
-  const macTarget = useMemo(() => targetFromSearch(location.search), [])
+  // The MAC reader sends each read to this person's own inbox, shown at the top of the same tab on their PC (MacInbox.jsx, macInbox.js).
   const sendReading = useCallback(async (values) => {
-    const got = await saveReading(macTarget.customerId, macTarget.serial, values)
-    logActivity(null, 'Sent a MAC reading from a phone', { app: 'new-equipment' })
+    const got = await sendToPc(values)
+    logActivity(null, 'Sent a MAC reading to the PC', { app: 'testbench' })
     return got
-  }, [macTarget])
+  }, [])
   const [benchState, setBenchState] = useState({ testing: false, view: 'run' }) // from the bench: a test is being run, or Templates / Devices / Log is open: the bar gives way then
   const [ticked, setTicked] = useState(() => new Set()) // the tests ticked in the bench's table, by start time
   const [benchReady, setBenchReady] = useState(false)
@@ -533,7 +532,8 @@ function TestBench() {
       )}
       {tab === 'mac' && (
         <div className="tb-reports">
-          <MacReader target={macTarget} onSend={macTarget && user ? sendReading : null} />
+          <MacInbox user={user} />
+          <MacReader onSend={user ? sendReading : null} />
         </div>
       )}
       {tab === 'customers' && (

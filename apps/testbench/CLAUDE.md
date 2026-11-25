@@ -32,8 +32,12 @@ until it does everything, those keep working as they are. Its own map and rules:
 And the **MAC reader tab** (25 Nov 2026; `?tab=mac`): `src/MacReader.jsx` (camera or a photo, results as editable fields with Copy / Copy all),
 `src/macRead.js` (pure, tested: picks the Device ID, WLAN MAC and LAN MAC out of the text, puts right O/0 and I/l/1 and `;` for `:`,
 checks the LAN MAC against the Device ID by the asset lists' rule: Device ID without bytes 4 and 5) and `src/ocr.js` (tesseract.js in a
-worker, **in the browser: nothing is uploaded**, loaded on first use). Opened plain it reads nothing into the bench or a record and logs nothing;
-opened for a unit it can send (it logs "Sent a MAC reading from a phone", no names: the Customers tab's: opened from a unit's QR code (`?tab=mac&cust=…&serial=…`), the tab's Send to the PC saves it to Firestore `deviceReadings` and the unit's row shows it: see `src/newequip/CLAUDE.md`, item 6; not yet: the report, an asset list's workbook copy, Simpro). The reader's files (worker, three LSTM cores, small English data) are
+worker, **in the browser: nothing is uploaded**, loaded on first use). It reads nothing into the bench or a record. **Phone to PC:** with a sign-in, every read is sent by itself to the signed-in person's own inbox
+(`src/macInbox.js` pure + tested, `macInbox-firebase.js`, Firestore `macInbox/{uid}`: ONE document per person, each scan replaces the last) and the
+same tab on their PC shows it live at the top (`src/MacInbox.jsx`: Copy, Copy all, Remove, and a QR code to open the tab on the phone). It stays until they
+remove it or scan another. No customer, serial or unit is attached to a read; logs "Sent a MAC reading to the PC" (no values). Rules: `macInbox` in
+`rules/firestore.rules` (own document, Bench teams only, addresses in the asset lists' shapes), tests `rules/tests/macinbox-rules.test.mjs`.
+**Not built:** putting a reading into an asset list, the bench's report or Simpro. The reader's files (worker, three LSTM cores, small English data) are
 served from `/ocr/<version>/` (`shared/ocr-assets.js`): `scripts/build.mjs` copies them from `node_modules`, `apps/hub/vite.config.js`
 serves them in dev; **never precached, never a CDN** (tesseract.js defaults to jsDelivr). Upgrading tesseract.js = change `OCR_VERSION`
 (the build stops if it doesn't match). B/8 and D/0 can't be told apart in a photo: that is why the values are editable. The camera
