@@ -70,7 +70,7 @@ export default function LoanActions({ g, s, all = [], go, onDone, start = null, 
   const accCount = cleanAccessories((s.loanDocs?.[docKey] || g.doc)?.accessories).length
   const btn = {
     extend: canExtend(g) && <Button key="extend" size="sm" disabled={busy} onClick={() => setAsking('extend')}>Extend</Button>,
-    return: hasItems && <Button key="return" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>,
+    return: hasItems && <Button key="return" size="sm" variant="secondary" className="eq-return-btn" disabled={busy} onClick={() => setAsking('return')}>Return items</Button>,
     form: <Button key="form" size="sm" iconLeft={<FileText size={14} />} className="eq-loanform-btn" disabled={busy} onClick={() => setAsking('form')}>Loan form</Button>,
     add: <Button key="add" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('add')}>Add items</Button>,
     accessories: docKey && <Button key="accessories" size="sm" variant="secondary" disabled={busy} onClick={() => setAsking('accessories')}>{accCount ? `Accessories (${accCount})` : 'Accessories'}</Button>,

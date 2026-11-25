@@ -267,6 +267,9 @@
 /* A loan with test reports (old: the green Reports button). */
 .eq-has-reports { color: #5b8801; background: var(--chs-green-20); border-color: #5b8801; }
 :root[data-theme="dark"] .eq-has-reports { color: #a6d64a; background: transparent; border-color: currentColor; }
+/* Return items: the loan's green action (white on #5b8801 is 4.7:1, in both themes). */
+.btn.eq-return-btn { background: #5b8801; color: #fff; border-color: #5b8801; }
+.btn.eq-return-btn:hover:not(:disabled), .btn.eq-return-btn:active:not(:disabled) { background: #4a7000; border-color: #4a7000; }
 
 /* Manage, Simpro: a job number typed against a loan with none (old: Existing job # and Link). */
 .eq-job-link { width: 130px; flex: 0 0 auto; }

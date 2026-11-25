@@ -12,6 +12,7 @@ import { TRACKER_ROLES, removeMember, setMemberRole } from '../../admin/src/trac
 import {
   EXPORT_COLUMNS, HISTORY_COLUMNS, RETIRED_COLUMNS, RETIRE_REASONS, filterRetired, fmtDate, importRow, loanSections, loansMissingJobs, newId, roleOf, stampMs, toCsv, unitsOfModel,
 } from './model.js'
+import { save } from './download.js'
 
 // The old tabs' order: Import, Sold / Retired, then Settings (kits, Simpro).
 const PARTS = [['data', 'Import and export'], ['retired', 'Sold / Retired'], ['kits', 'Kits'], ['accessories', 'Accessories'], ['simpro', 'Simpro'], ['team', 'Team'], ['notify', 'Test notifications'], ['test', 'Test mode'], ['source', 'Data source']]
@@ -30,7 +31,6 @@ function lib(name) {
   })
   return loading[name]
 }
-const save = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000) }
 
 export default function Manage({ s, params, setParams, onDone }) {
   const part = PARTS.some(([p]) => p === params.part) ? params.part : 'data'
