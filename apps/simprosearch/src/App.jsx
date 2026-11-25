@@ -12,6 +12,7 @@ import ExportPanel from './ExportPanel.jsx'
 import { SCAN_PAGES, SITE_JOBS, assetJobsByTerm, findAttachedJobs, scanAssets } from './attached.js'
 import { makeBatchGet } from './bulk.js'
 import BulkExport from './BulkExport.jsx'
+import AssetExport from './AssetExport.jsx'
 
 const savedCompany = () => { try { return +(localStorage.getItem(COMPANY_KEY) || DEFAULT_COMPANY) } catch { return DEFAULT_COMPANY } }
 const MAX_ASSETS = 10 // customer assets whose jobs are looked up at once
@@ -194,6 +195,7 @@ export default function SimproSearch() {
             {result && <Results key={result.id} result={result} stage={stage} onOpen={open} call={call} companyId={companyId} onScan={() => find(null, { scan: true })} canScan={groups.includes('assets')} />}
 
             <BulkExport call={call} companyId={companyId} />
+            <AssetExport call={call} companyId={companyId} />
 
             <details className="ds-card ds-check">
               <summary>What can Simpro search?</summary>

@@ -16,6 +16,11 @@ Owner: Jonathan Nasrun. Visible to admins and anyone with Simpro access, the sam
 - "What can Simpro search?" on the page asks Simpro about each field with a common and a made-up word and reports which really
   filter, which ignore the filter and which refuse. Counts only, nothing from a job is shown or kept. It decides whether a saved
   index (phase 1b) is needed.
+- **Export customer assets** (`src/assets.js`, `AssetExport.jsx`): every customer asset (or one asset type; archived ones only if
+  ticked) from the company-wide `/customerAssets/` list, 250 a page and 4 pages a trip, one row each with the fixed columns (asset ID,
+  site, customer, type, archived, serial) then every custom field by name. Customer comes from a `Customer` column Simpro is asked for;
+  if it refuses, the export goes on without it and says so. Excel (every cell text, plus a count by site) or CSV. Stop, or Simpro failing
+  part-way, saves what was read and says so. One activity line with a count. For the Vet master asset list (26 Nov 2026).
 - Not shown yet: attachments and the job log (the relay doesn't allow reading them). A later, small relay change, to be agreed.
 
 ## Later phases (need Jonathan's explicit yes each, and a deploy of the relay)
