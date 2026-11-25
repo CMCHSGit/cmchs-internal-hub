@@ -164,5 +164,17 @@
   .tb-mac-input { font-size: 14px; letter-spacing: 0; padding-inline: 10px; }
   .tb-mac-actions { display: grid; grid-template-columns: 1fr 1fr; }
 }
-.tb-mac-for { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 10px 12px; background: var(--surface-card); border: 1px solid var(--border-subtle); border-left: 4px solid var(--chs-purple); border-radius: var(--radius-md); }
-.tb-mac-for .tb-mac-mono { font-size: 15px; color: var(--text-strong); }
+
+/* The MAC reader's "from your phone" panel (MacInbox.jsx), above the reader on a PC, below it on a phone. */
+.tb-mac-inbox { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; max-width: 760px; }
+.tb-mac-inbox-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 12px; }
+.tb-mac-inbox-title { margin: 0 0 2px; font: var(--type-h3); color: var(--text-strong); }
+.tb-mac-inbox-rows { display: flex; flex-direction: column; gap: 2px; }
+.tb-mac-inbox-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 4px 0; border-top: 1px solid var(--border-subtle); }
+.tb-mac-inbox-row:first-child { border-top: 0; }
+.tb-mac-inbox-label { min-width: 78px; color: var(--text-muted); font: var(--type-body-sm); }
+.tb-mac-inbox-value { font-size: 16px; color: var(--text-strong); user-select: all; }
+.tb-mac-qr { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.tb-mac-qr-code { width: 220px; max-width: 100%; line-height: 0; border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; background: #fff; }
+.tb-mac-qr-code svg { width: 100%; height: auto; display: block; }
+@media (pointer: coarse) { .tb-mac-inbox { order: 2; } }
