@@ -21,7 +21,7 @@ export default function JobPicker({ call, online, user, companies, companyId, on
       setNote(jobs.length ? `${jobs.length} job${jobs.length === 1 ? '' : 's'} found (name, description, notes, site or customer).` : `Nothing matched “${text}” in the name, description${jobs.notesSearched ? ', notes' : ' (Simpro wouldn’t search the notes)'}, site or customer. Check the company, or try the job number.`)
     } catch (e) { setNote(e.message || String(e)) } finally { setBusy(false) }
   }
-  const pick = (j) => { onJob({ id: String(j.ID), label: jobLabel(j), customer: j.Customer?.CompanyName || [j.Customer?.GivenName, j.Customer?.FamilyName].filter(Boolean).join(' ') }); setHits([]); setNote(''); setQ('') }
+  const pick = (j) => { onJob({ id: String(j.ID), label: jobLabel(j), customer: j.Customer?.CompanyName || [j.Customer?.GivenName, j.Customer?.FamilyName].filter(Boolean).join(' '), name: j.Name || '', description: j.Description || '' }); setHits([]); setNote(''); setQ('') }
   const useNumber = () => { onJob({ id: q.trim(), label: `#${q.trim()}` }); setHits([]); setNote(''); setQ('') }
 
   if (job) {

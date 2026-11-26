@@ -239,6 +239,7 @@ list yet, and see which units have been tested.
   sheet) they are listed in red; nothing is typed in or written back here (the bench only reads the workbook; `XlsxLite.write` is kept but
   unused). The customer is the file name, changeable on the bar; the browser remembers the file and **Read again** picks up edits. The mapping
   is `Sheet.colForField` in `apps/testbench/bench/index.html`.
+- **Picking a job fills in the devices** (27 Nov 2026): a test-and-add job is titled by hand ("Test and add assets - 16x VS9", "test and add asset 2X N19 2X N1 4x VS9"), so choosing it on a new order lists the models and quantities it names (`devicesFromTitle` in `src/orders.js`: quantities in front or behind, several models in a title, serial numbers and instructions to staff left out). It is a start to check: rows already typed are kept (with a button to use the title's list instead), and a title that names no device gives no rows. A job picked by number alone (no connection, "Use job #...") has no title to read.
 - **Orders close themselves** when their Simpro job is marked **Complete** (or Archived), in Simpro or from Saved reports → Update the
   job: the hub looks at each open order's job when it opens with Simpro access. **Close order** / **Reopen** still work by hand.
 - **Other devices in this test** (start screen, under the device's details): a set tested together, such as a monitor with its dock

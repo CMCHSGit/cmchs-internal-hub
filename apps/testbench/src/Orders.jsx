@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
-import { expectedText, expectedTotal, jobNumber, orderProblem, progress, rowsToExpected } from './orders.js'
+import { devicesFromTitle, expectedText, expectedTotal, jobNumber, orderProblem, progress, rowsToExpected } from './orders.js'
 import { saveOrder, removeOrder } from './orders-firebase.js'
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -21,6 +21,18 @@ function OrderForm({ start, customers, models, sim, online, user, onCancel, onSa
   const job = o.number ? { id: o.number, label: o.jobLabel || `#${o.number}` } : null
   const set = (patch) => setO((x) => ({ ...x, ...patch }))
   const change = (i, patch) => setRows((rs) => { const n = rs.map((r, k) => (k === i ? { ...r, ...patch } : r)); return n[n.length - 1].model || n[n.length - 1].qty ? [...n, { model: '', qty: '' }] : n })
+  const [fromTitle, setFromTitle] = useState(null)   // what the picked job's title lists: { text, rows }, to fill in or offer
+  const withSpare = (list) => [...list.map((d) => ({ model: d.model, qty: String(d.qty) })), { model: '', qty: '' }]
+  function pickJob(j) {
+    if (!j) { set({ number: '', jobLabel: '' }); setFromTitle(null); return }
+    set({ number: jobNumber(j.id), jobLabel: j.label, customer: o.customer || j.customer || '' })
+    // Test-and-add jobs name their devices in the title ("Test and add assets - 16x VS9"): list them, as a start to check.
+    const listed = devicesFromTitle(j.name).length ? devicesFromTitle(j.name) : devicesFromTitle(j.description)
+    if (!listed.length) { setFromTitle(null); return }
+    const typed = rows.some((r) => r.model || r.qty)
+    if (!typed) setRows(withSpare(listed))
+    setFromTitle({ text: expectedText(Object.fromEntries(listed.map((d) => [d.model, d.qty]))), list: listed, applied: !typed })
+  }
   const remove = (i) => setRows((rs) => (rs.length > 1 ? rs.filter((_, k) => k !== i) : [{ model: '', qty: '' }]))
   async function save() {
     const draft = { ...o, expected }
@@ -34,8 +46,14 @@ function OrderForm({ start, customers, models, sim, online, user, onCancel, onSa
       <h3>{start.id ? 'Edit order' : 'New order'}</h3>
       <div className="field"><label>Simpro job</label>
         <JobPicker call={sim.call} online={online} user={user} companies={sim.companies} companyId={sim.companyId} onCompany={sim.setCompanyId} disabled={!!sim.access}
-          job={job} onJob={(j) => (j ? set({ number: jobNumber(j.id), jobLabel: j.label, customer: o.customer || j.customer || '' }) : set({ number: '', jobLabel: '' }))} />
+          job={job} onJob={pickJob} />
       </div>
+      {job && fromTitle && (
+        <p className="tb-note tb-note-info" role="status">
+          {fromTitle.applied ? 'Listed from the job title' : 'The job title lists'}: {fromTitle.text}. {fromTitle.applied ? 'Check the models and quantities below.' : 'Your own rows were kept.'}
+          {!fromTitle.applied && <> <Button variant="ghost" size="sm" onClick={() => { setRows(withSpare(fromTitle.list)); setFromTitle({ ...fromTitle, applied: true }) }}>Use this list instead</Button></>}
+        </p>
+      )}
       <div className="tb-orderrow">
         <label>Customer<input value={o.customer} list="tbCustomers" onChange={(e) => set({ customer: e.target.value })} placeholder="As entered on the tests, e.g. Waikato" /></label>
         <datalist id="tbCustomers">{customers.map((c) => <option key={c} value={c} />)}</datalist>
