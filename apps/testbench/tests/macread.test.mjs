@@ -98,5 +98,5 @@ test('the Test Bench has a MAC reader tab (?tab=mac), and the Demo tracker no lo
   assert.ok(section.includes("import MacReader from './MacReader.jsx'") && section.includes("t === 'customers' || t === 'mac'") && section.includes("tab === 'mac' && ("))
   assert.ok(!read('../../equipment/src/Scan.jsx').includes('Read a screen'), 'it is in the Test Bench, not the Demo tracker')
   // nothing is sent anywhere: the reader's files come from this site, never a CDN
-  assert.ok(!/https?:\/\//.test(read('../src/ocr.js').replace(/\/\*[\s\S]*?\*\//g, '')), 'ocr.js names no outside address')
+  assert.ok(!/https?:\/\//.test(read('../../../shared/ocr.js').replace(/\/\*[\s\S]*?\*\//g, '')), 'shared/ocr.js names no outside address')
 })
