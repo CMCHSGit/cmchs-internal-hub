@@ -31,7 +31,7 @@ until it does everything, those keep working as they are. Its own map and rules:
 
 And the **MAC reader tab** (25 Nov 2026; `?tab=mac`): `src/MacReader.jsx` (camera or a photo, results as editable fields with Copy / Copy all),
 `src/macRead.js` (pure, tested: picks the Device ID, WLAN MAC and LAN MAC out of the text, puts right O/0 and I/l/1 and `;` for `:`,
-checks the LAN MAC against the Device ID by the asset lists' rule: Device ID without bytes 4 and 5) and `src/ocr.js` (tesseract.js in a
+checks the LAN MAC against the Device ID by the asset lists' rule: Device ID without bytes 4 and 5) and `src/ocr.js` (re-exports `shared/ocr.js`: tesseract.js in a
 worker, **in the browser: nothing is uploaded**, loaded on first use). It reads nothing into the bench or a record. **Phone to PC:** with a sign-in, every read is sent by itself to the signed-in person's own inbox
 (`src/macInbox.js` pure + tested, `macInbox-firebase.js`, Firestore `macInbox/{uid}`: ONE document per person, each scan replaces the last) and the
 same tab on their PC shows it live at the top (`src/MacInbox.jsx`: Copy, Copy all, Remove, and a QR code to open the tab on the phone). It stays until they

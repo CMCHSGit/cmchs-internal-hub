@@ -463,3 +463,32 @@ textarea.eq-autotext { overflow-y: hidden; }
 .eq-acc-view td { color: var(--text-strong); font-size: 13px; font-weight: 400; }
 .eq-acc-view td.eq-mono { font-size: 12px; }
 .eq-acc-view td.eq-acc-qty { font-weight: 600; }
+
+/* Stock removal (Form 39): the form's fields, the scan bar, one card for each item. */
+.eq-stock { display: flex; flex-direction: column; gap: 12px; }
+.eq-stock-intro { margin: 0; max-width: 60ch; }
+.eq-stock-switch { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.eq-stock-switch .input { flex: 1 1 220px; min-width: 0; }
+.eq-stock-head { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 14px 16px; }
+.eq-stock-wide { grid-column: 1 / -1; }
+.eq-stock-scan { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; }
+.eq-stock-qty { display: flex; align-items: center; gap: 8px; }
+.eq-stock-qty .eq-small { margin: 0; }
+.eq-stock-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.eq-stock-photo { flex: 1 1 200px; }
+.eq-stock-busy { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.eq-stock-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.eq-stock-raw { margin-top: 8px; }
+.eq-stock-raw pre { white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.4 var(--font-mono); margin: 4px 0 0; }
+.eq-stock-empty { margin: 0; }
+.eq-stock-items { display: flex; flex-direction: column; gap: 10px; }
+.eq-stock-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 12px; }
+.eq-stock-item.check { border-color: var(--warning-border, #e6c56a); }
+.eq-stock-thumb { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); background: var(--surface-subtle); }
+.eq-stock-nopic { display: grid; place-items: center; color: var(--text-muted); font-size: 13px; }
+.eq-stock-fields { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.eq-stock-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.eq-stock-note { margin: 0; }
+.eq-stock-done { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
+.eq-stock-todo { margin: 0; padding-left: 18px; font-size: 14px; color: var(--text-body); }
+@media (max-width: 519px) { .eq-stock-head { grid-template-columns: minmax(0, 1fr); } .eq-stock-item { grid-template-columns: minmax(0, 1fr) auto; } .eq-stock-thumb { display: none; } }

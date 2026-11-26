@@ -1,4 +1,4 @@
-// Where the text recognition's own files live on this site. The page (apps/equipment/src/ocr.js),
+// Where the text recognition's own files live on this site. The pages (shared/ocr.js: the Test Bench's MAC reader, the demo tracker's Stock removal),
 // the build (scripts/build.mjs copies them into dist/) and `npm run dev` (apps/hub/vite.config.js
 // serves them) all read this one list, so they can't drift apart.
 //
