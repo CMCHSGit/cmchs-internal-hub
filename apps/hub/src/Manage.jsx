@@ -20,7 +20,8 @@ import { loadProjectSuggestions } from './suggest.js'
 import { notifyNews } from './social.js'
 import {
   CATEGORIES, REGIONS, SECTIONS, TONE, buildEmail, canEdit, canPost, categoryOf, deleteAnnouncement, findSimilar, isoToday,
-  MAX_NEWS_PHOTOS, loadNews, loadPhoto, loadPhotos, mondayOf, moveLegacy, newsPhotoFromFile, photoCountOf, postDrafts, saveAnnouncement, shortDate, addDays,
+  MAX_NEWS_PHOTOS, loadNews, loadPhoto, loadPhotos, matchPostedWeek, mondayOf, moveLegacy, newsPhotoFromFile, photoCountOf, postDrafts, postedWeek,
+  saveAnnouncement, shortDate, addDays,
 } from './news.js'
 import {
   STATUSES, URGENCY, deleteRequest, feedbackSummary, isEngineering, loadRequests, respond, sendRequest, statusOf, toggleVote,
@@ -379,12 +380,19 @@ function postLabel(posts, updates, [post, update]) {
   return s[0].toUpperCase() + s.slice(1)
 }
 
+/** "1 item", "3 items". */
+const count = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`
+
 // `email`: one brought in from its Drive folder (news-inbox.js), opened already split; posting from it marks it used.
 function PasteEmail({ ctx, list, email, onDone }) {
   const [paste, setPaste] = useState(() => (email ? { html: email.html || '', text: email.text || '' } : { html: '', text: '' }))
+  // An emailed update belongs to the week it arrived, even if it's opened the Monday after.
+  const [date, setDate] = useState(() => (email?.receivedAtMs ? isoToday(new Date(email.receivedAtMs)) : isoToday()))
+  // That week's team update, if it's already posted (pasted, then brought in again; or sent again with a fix).
+  const posted = useMemo(() => postedWeek(list, mondayOf(date)), [list, date])
   const [drafts, setDrafts] = useState(() => (email ? splitDrafts(email) : null))
-  const [date, setDate] = useState(isoToday())
-  const [notify, setNotify] = useState(true) // one "Team update" push for everything posted
+  // One "Team update" push for everything posted; not again for a week everyone has already been told about.
+  const [notify, setNotify] = useState(() => !posted.length)
   const [busy, setBusy] = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [added, setAdded] = useState([])
@@ -396,14 +404,28 @@ function PasteEmail({ ctx, list, email, onDone }) {
     if (html) { e.preventDefault(); setPaste({ html, text }) }
     else setPaste({ html: '', text })
   }
-  // A repeat of an existing post (a running event) starts unticked, with the option to update that post instead.
-  function splitDrafts(p) {
-    return splitEmail(p, { people: ctx.people }).map(d => {
+  // A repeat of an existing post (a running event) starts unticked, with the option to update that post instead;
+  // so does a bullet of a week that's already posted (matchPostedWeek).
+  function splitDrafts(p, week = posted) {
+    const drafts = splitEmail(p, { people: ctx.people }).map(d => {
       const match = findSimilar(d, list)
       return match ? { ...d, include: false, match } : d
     })
+    return matchPostedWeek(drafts, week).drafts
   }
-  const split = () => setDrafts(splitDrafts(paste))
+  const split = () => { setDrafts(splitDrafts(paste)); setNotify(!posted.length) }
+  // Another week picked: pair the bullets with that week's posts instead.
+  function changeDate(v) {
+    setDate(v)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || mondayOf(v) === mondayOf(date)) return
+    const week = postedWeek(list, mondayOf(v))
+    setDrafts(d => d && matchPostedWeek(d, week).drafts)
+    setNotify(!week.length)
+  }
+  const repeats = (drafts || []).filter(d => d.weekMatch)
+  const reworded = repeats.filter(d => !d.same)
+  const missing = posted.filter(a => !repeats.some(d => d.match?.id === a.id))
+  const updateReworded = () => setDrafts(d => d.map(x => (x.weekMatch && !x.same && canEdit(ctx.me, x.match) ? { ...x, updating: true, include: true } : x)))
   const update = (i, patch) => setDrafts(d => d.map((x, j) => (j === i ? { ...x, ...patch } : x)))
   const remove = i => setDrafts(d => d.filter((_, j) => j !== i))
   const merge = i => setDrafts(d => {
@@ -423,7 +445,8 @@ function PasteEmail({ ctx, list, email, onDone }) {
   async function post() {
     setBusy(true)
     try {
-      const res = fresh.length ? await postDrafts(ctx.me, fresh, { date, weekOf: mondayOf(date), notifyTeam: notify }) : { count: 0 }
+      const orderFrom = posted.length ? Math.max(...posted.map(a => a.order ?? 0)) + 1 : 0
+      const res = fresh.length ? await postDrafts(ctx.me, fresh, { date, weekOf: mondayOf(date), notifyTeam: notify, orderFrom }) : { count: 0 }
       const n = res.count
       if (notify && res.firstId) notifyNews({ id: res.firstId })
       for (const d of updates) {
@@ -469,10 +492,24 @@ function PasteEmail({ ctx, list, email, onDone }) {
           <strong>{drafts.length} found · {chosen.length} ticked</strong>
           <span className="caption">Untick anything you don’t want, fix titles, merge or split, and set regions. Only ticked ones are posted.</span>
         </div>
-        <label className="pp-label mg-date">Email date<input className="pp-input" type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+        <label className="pp-label mg-date">Email date<input className="pp-input" type="date" value={date} onChange={e => changeDate(e.target.value)} /></label>
         <label className="mg-check"><input type="checkbox" checked={notify} onChange={e => setNotify(e.target.checked)} /> <Icon name="bell" size={16} /> One notification to everyone’s phones</label>
         <button className="btn btn-secondary" onClick={() => setSuggesting(s => !s)}><Icon name="folder-kanban" size={16} /> {suggesting ? 'Hide project tracker' : 'Add from project tracker'}</button>
       </div>
+      {posted.length > 0 && (
+        <div className="card mg-note">
+          <span className="body-sm">
+            <strong>This week’s team update is already posted</strong> · {count(posted.length, 'item')}, week of {shortDate(mondayOf(date))}.{' '}
+            {repeats.length > 0 && <>{repeats.length - reworded.length} here {repeats.length - reworded.length === 1 ? 'is' : 'are'} the same{reworded.length > 0 && <> and {reworded.length} reworded</>}, so {repeats.length === 1 ? 'it starts' : 'they start'} unticked; anything new is ticked. </>}
+            {missing.length > 0 && <>{count(missing.length, 'posted one')} {missing.length === 1 ? 'isn’t' : 'aren’t'} in this email and {missing.length === 1 ? 'stays' : 'stay'} as {missing.length === 1 ? 'it is' : 'they are'}.</>}
+          </span>
+          {reworded.some(d => !d.updating && canEdit(ctx.me, d.match)) && (
+            <span className="mg-newtool-actions">
+              <button className="btn btn-secondary" onClick={updateReworded}>Update the reworded {reworded.length === 1 ? 'one' : 'ones'}</button>
+            </span>
+          )}
+        </div>
+      )}
       {suggesting && (
         <div className="card pp-section">
           <span className="caption">Click one to add it as an announcement.</span>
@@ -503,7 +540,8 @@ function PasteEmail({ ctx, list, email, onDone }) {
               {(d.people.length > 0 || d.note) && (
                 <span className="caption">{d.note}{d.note && d.people.length ? ' · ' : ''}{d.people.length ? `People: ${d.people.map(u => names.get(u)).filter(Boolean).join(', ')}` : ''}</span>
               )}
-              {d.match && (
+              {d.match && d.same && <span className="caption mg-match">Already posted this week, word for word.</span>}
+              {d.match && !d.same && (
                 <div className="mg-match">
                   <span className="caption">
                     {d.updating

@@ -3,7 +3,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
-import { buildEmail, findSimilar, linkParts, mergeNews, mondayOf, photoCountOf, sortNews, teamNews } from '../src/news.js'
+import { buildEmail, findSimilar, linkParts, matchPostedWeek, mergeNews, mondayOf, photoCountOf, postedWeek, sortNews, teamNews } from '../src/news.js'
+import { splitEmail } from '../src/emailSplit.js'
 import { andList, suggestFromProjects } from '../src/suggest.js'
 import { feedbackSummary, sortRequests } from '../src/requests.js'
 
@@ -155,4 +156,77 @@ test('requests: most +1s first, finished ones last; feedback averages, worst fir
     { kind: 'feedback', tool: 'hub', rating: 2 }, { kind: 'tool', tool: 'x', rating: 1 },
   ])
   assert.deepEqual(f.map(x => [x.tool, x.average, x.count]), [['hub', 2, 1], ['demo', 4.5, 2]])
+})
+
+// ── A team update whose week is already posted (matchPostedWeek) ──────────
+
+const EMAIL = [
+  'Hi All,',
+  '',
+  'The week that’s been:',
+  '• Jack installed the new monitors at Waikato Hospital',
+  '• Theresa ran training at Middlemore',
+  '',
+  'Next week:',
+  '• Pat is in Christchurch for the Burwood demo',
+  '',
+  'Thanks,',
+].join('\n')
+
+// What posting EMAIL made: the drafts as records, in order, one week.
+const postedFrom = (text, fields = {}) => splitEmail({ text }).map((d, i) => item(`p${i}`, {
+  title: d.title, body: d.body, section: d.section, date: '2026-11-26', weekOf: '2026-11-23', order: i, batchId: 'email-2026-11-26-abcde', ...fields,
+}))
+
+test('postedWeek: only that week’s Team news bullets, in posted order', () => {
+  const list = [
+    item('b', { section: 'next', weekOf: '2026-11-23', order: 1 }),
+    item('a', { section: 'been', weekOf: '2026-11-23', order: 0 }),
+    item('lastWeek', { section: 'been', weekOf: '2026-11-16' }),
+    item('noSection', { section: '', weekOf: '2026-11-23' }),
+    item('event', { category: 'Events', section: 'been', weekOf: '2026-11-23' }),
+    item('gone', { section: 'been', weekOf: '2026-11-23', deleted: true }),
+    item('byDate', { section: 'next', date: '2026-11-27' }), // no weekOf: from its date
+  ]
+  assert.deepEqual(postedWeek(list, '2026-11-23').map(a => a.id), ['a', 'byDate', 'b'])
+  assert.deepEqual(postedWeek(list, '2026-11-30'), [])
+})
+
+test('the same email again: every bullet is already posted, word for word, and starts unticked', () => {
+  const posted = postedFrom(EMAIL)
+  const { drafts, missing } = matchPostedWeek(splitEmail({ text: EMAIL }), posted)
+  assert.equal(drafts.length, 3)
+  assert.ok(drafts.every(d => d.same && d.weekMatch && !d.include && !d.updating))
+  assert.deepEqual(drafts.map(d => d.match.id), ['p0', 'p1', 'p2'])
+  assert.deepEqual(missing, [])
+})
+
+test('a corrected email: a reworded bullet pairs with its post, a new one is ticked, a dropped one is left alone', () => {
+  const posted = postedFrom(EMAIL)
+  const again = EMAIL
+    .replace('Jack installed the new monitors at Waikato Hospital', 'Jack installed the new A9 monitors at Waikato Hospital ICU')
+    .replace('• Theresa ran training at Middlemore\n', '')
+    .replace('• Pat is in Christchurch for the Burwood demo', '• Pat is in Christchurch for the Burwood demo\n• Sam is at the Wellington expo')
+  const { drafts, missing } = matchPostedWeek(splitEmail({ text: again }), posted)
+  const [jack, pat, sam] = drafts
+  assert.equal(jack.match.id, 'p0'); assert.equal(jack.same, false); assert.equal(jack.include, false)
+  assert.equal(pat.match.id, 'p2'); assert.equal(pat.same, true)
+  assert.equal(sam.match, undefined); assert.equal(sam.include, true)
+  assert.deepEqual(missing.map(a => a.id), ['p1']) // Theresa's stays posted
+})
+
+test('week matching stays within a section, and leaves features and their own match alone', () => {
+  const posted = postedFrom(EMAIL)
+  // The same words under Next week don't pair with The week that's been's post
+  const moved = [{ title: 'Jack installed the new monitors at Waikato Hospital', body: '', category: 'Team news', section: 'next', include: true }]
+  assert.equal(matchPostedWeek(moved, posted).drafts[0].match, undefined)
+  const feature = { title: 'StepUp4ICU Challenge', body: '', category: 'Events', section: '', include: false, match: { id: 'step' } }
+  assert.deepEqual(matchPostedWeek([feature], posted).drafts[0], feature)
+})
+
+test('picking another week clears the old pairs before pairing again', () => {
+  const posted = postedFrom(EMAIL)
+  const first = matchPostedWeek(splitEmail({ text: EMAIL }), posted).drafts
+  const { drafts } = matchPostedWeek(first, []) // a week with nothing posted
+  assert.ok(drafts.every(d => d.include && !d.match && !d.same && !d.weekMatch))
 })
