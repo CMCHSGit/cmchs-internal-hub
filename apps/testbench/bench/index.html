@@ -2913,11 +2913,28 @@ const Sheet = {
     else if (this.state === 'needs-permission') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint">The browser needs your OK to read it again.</span><button type="button" class="btn secondary sm" data-sheet="connect">Reconnect</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button>`;
     else if (this.state === 'error') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint" style="color:var(--critical)">${esc(this.error)}</span><button type="button" class="btn secondary sm" data-sheet="reload">Try again</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button>`;
     else bar.innerHTML = `<div class="sheet-top"><b>${esc(this.file)}</b><span class="hint">${this.rows.length} devices${when ? ` · file saved ${esc(when)}` : ''}</span>
-        <button type="button" class="btn quiet sm" data-sheet="reload">Read again</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button><button type="button" class="btn quiet sm" data-sheet="forget">Stop using</button></div>
+        <button type="button" class="btn quiet sm" data-sheet="reload">Read again</button>${window.parent !== window ? '<button type="button" class="btn quiet sm" data-sheet="open" title="Open this customer’s asset list workbook (the link kept on the Customers tab)">Open workbook</button>' : ''}<button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button><button type="button" class="btn quiet sm" data-sheet="forget">Stop using</button></div>
       <div class="sheet-find"><div class="field"><label for="sheetCust">Customer on the report</label><input class="input" id="sheetCust" value="${esc(this.customer)}"></div></div>
       <p class="hint" style="margin:0">Enter or scan the serial number: it is looked up in this list by itself.</p>`;
     bar.querySelectorAll('[data-sheet]').forEach(b => b.addEventListener('click', () => this[b.dataset.sheet]()));
     $('#sheetCust')?.addEventListener('change', (e) => { this.customer = e.target.value.trim(); DB.putKV('sheetCustomer', this.customer); });
+  },
+  /** "Open workbook": the customer's asset list opened from the link kept on the Customers tab (the hub finds the customer the same way Add to the asset list does; if it can't tell, the person chooses). */
+  async open(customerId) {
+    let r;
+    try { r = await this.hubAsk({ type: 'chs-bench:open-workbook', customer: this.customer, file: this.file, customerId: customerId || '' }); }
+    catch (e) { dialog({ title: 'Couldn’t open the workbook', body: `<p>${esc(e.message)}</p>` }); return; }
+    if (r.url) {
+      log('in', 'SHEET', 'Opened the workbook');
+      const w = window.open(r.url, '_blank'); if (w) w.opener = null;   // (a "noopener" open always answers null, so a blocked tab couldn't be told from an opened one)
+      if (!w) dialog({ title: 'Open the workbook', body: `<p>The browser blocked the new tab. <a href="${esc(r.url)}" target="_blank" rel="noopener">Open ${esc(r.customer)}’s asset list</a>.</p>` });
+      return;
+    }
+    const list = r.list || [];
+    if (!list.length) { dialog({ title: 'Couldn’t open the workbook', body: '<p>There are no customers on the Customers tab yet.</p>' }); return; }
+    const res = await dialog({ title: 'Which customer’s asset list?', body: `<p class="muted" style="margin-top:0">The bench can’t tell which customer ${esc(this.file)} belongs to. It is remembered once you choose.</p><div class="field"><label for="ow_cust">Customer</label><select class="select" id="ow_cust"><option value="">Choose the customer…</option>${list.map(c => `<option value="${esc(c.id)}">${esc(c.name)}${c.link ? '' : ' (no link yet)'}</option>`).join('')}</select></div>`, focus: '#ow_cust',
+      buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Open workbook', value: true }], collect: (ov) => ({ customerId: $('#ow_cust', ov).value }) });
+    if (res && res.value && res.data.customerId) return this.open(res.data.customerId);
   },
   keyOf(r) { return [r['Serial Number'], r['CHS Asset Number'], r['Customer Asset Number'], r['Device/Monitor Name']].join('|'); },
   /** The red (mandatory) columns of the asset list that are empty for this device. */

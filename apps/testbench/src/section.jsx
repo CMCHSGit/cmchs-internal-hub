@@ -36,7 +36,7 @@ import { handoffUrl, idbHandoff, putHandoff } from './newequip/handoff.js'
 import { watchCustomers } from './newequip/customers-firebase.js'
 import { addPendingQueued, listPending } from './newequip/pending-firebase.js'
 import { clashes } from './newequip/pending.js'
-import { matchCustomer, rowFromBench } from './newequip/from-bench.js'
+import { matchCustomer, rowFromBench, workbookFor } from './newequip/from-bench.js'
 import './testbench.css'
 
 const BENCH_URL = '/bench-app/index.html'
@@ -238,6 +238,15 @@ function TestBench() {
         } catch (err) {
           return reply({ error: err?.code === 'permission-denied' ? 'The database refused it: the rules for pending rows (pendingAssets) haven’t been published yet (rules/README.md), or you aren’t on a team that can use the Test Bench.' : (err?.message || 'Couldn’t add it.') })
         }
+      }
+      if (m?.type === 'chs-bench:open-workbook') {   // "Open workbook" on the bench's asset list: the customer's link on the Customers tab
+        const reply = (x) => toBench({ type: 'chs-bench:pending-reply', reqId: m.reqId, ...x })
+        if (!user) return reply({ error: 'Sign in to the hub to open the asset list.' })
+        const { list, error } = customersRef.current
+        if (!list.length) return reply({ error: error || 'There are no customers on the Customers tab yet.' })
+        const r = workbookFor(list, { customer: m.customer, file: m.file, customerId: m.customerId }, rememberedCustomers())
+        if (r.url && m.file) rememberCustomer(m.file, r.customerId)
+        return reply(r)
       }
       if (m?.type === 'chs-bench:sheet-state') { setSheet({ name: m.name, state: m.state, devices: m.devices }); return }
       if (m?.type === 'chs-bench:sheet-file') {   // the bench's answer to a request for the loaded asset list

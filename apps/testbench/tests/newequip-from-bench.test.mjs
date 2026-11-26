@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { fileStem, matchCustomer, rowFromBench } from '../src/newequip/from-bench.js'
+import { fileStem, matchCustomer, rowFromBench, workbookFor } from '../src/newequip/from-bench.js'
 import { FIELD_KEYS } from '../src/newequip/pending.js'
 
 const customers = [
@@ -72,4 +72,26 @@ test('the model and type boxes drop down what the list already has; a known mode
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
   assert.match(html, /lists = \{ model: listOf\('Device Model'\), type: listOf\('Device Type'\) \}/, 'the bench’s Add to the asset list form too')
   assert.match(html, /\$\('#pa_model', ov\)\?\.addEventListener\('change'/)
+})
+
+test('Open workbook: the customer\'s asset list link, found the way Add to the asset list finds the customer; the person chooses when it can\'t tell', () => {
+  const link = (url) => ({ subs: [{ name: 'Equipment list', link: url }] })
+  const cs = [{ id: 'c1', name: 'Grace Hospital', ...link('https://example.sharepoint.com/grace.xlsx') }, { id: 'c2', name: 'Southern Cross North Harbour', ...link('https://example.sharepoint.com/nh.xlsx') }, { id: 'c3', name: 'Southern Cross Brightside' }, { id: 'c4', name: 'Sth X', ...link('not a web address') }]
+  assert.deepEqual(workbookFor(cs, { customer: 'Grace Hospital', file: 'Other.xlsx' }), { url: 'https://example.sharepoint.com/grace.xlsx', customer: 'Grace Hospital', customerId: 'c1' }, 'known by the customer on the report')
+  assert.equal(workbookFor(cs, { file: 'Grace Hospital Asset List 13.03.2026.xlsx' }).url, 'https://example.sharepoint.com/grace.xlsx', 'or by the file name')
+  assert.equal(workbookFor(cs, { customer: 'Nobody', file: 'x.xlsx' }, { 'x.xlsx': 'c2' }).url, 'https://example.sharepoint.com/nh.xlsx', 'or the customer this file was matched to before')
+  assert.match(workbookFor(cs, { customer: 'Southern Cross Brightside' }).error, /no link to its asset list/, 'a customer with no link says so')
+  assert.match(workbookFor(cs, { customer: 'Sth X' }).error, /no link/, 'a link that is not a web address is no link')
+  const ask = workbookFor(cs, { customer: 'Southern Cross', file: '' })
+  assert.equal(ask.pick, ''); assert.deepEqual(ask.list.map((c) => [c.name, c.link]), [['Grace Hospital', true], ['Southern Cross Brightside', false], ['Southern Cross North Harbour', true], ['Sth X', false]], 'two customers fit: the list, marked with who has a link')
+  assert.equal(workbookFor(cs, { customer: 'Southern Cross', customerId: 'c2' }).url, 'https://example.sharepoint.com/nh.xlsx', 'once chosen')
+  assert.match(workbookFor(cs, { customerId: 'zz' }).error, /Choose the customer/)
+})
+
+test('the bench has Open workbook next to Read again (inside the hub only) and asks the hub for the link', () => {
+  const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
+  assert.match(html, /data-sheet="reload">Read again<\/button>\$\{window\.parent !== window \? '<button type="button" class="btn quiet sm" data-sheet="open"/, 'beside Read again, not in the standalone or offline copy')
+  assert.match(html, /type: 'chs-bench:open-workbook'/)
+  const section = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
+  assert.match(section, /chs-bench:open-workbook/); assert.match(section, /workbookFor\(list, \{ customer: m\.customer, file: m\.file, customerId: m\.customerId \}/)
 })
