@@ -2050,6 +2050,118 @@ export function toCsv(rows, columns) {
   return [columns.map(([, h]) => h).join(','), ...rows.map((r) => columns.map(([k]) => cell(r[k])).join(','))].join('\n')
 }
 
+/* ── Stock removal (Form 39, "Items removed from stock"): accessories taken for a demo or trial, read from photos of
+   their bag labels. The photo is read on the device (shared/ocr.js), and readLabelText picks the part numbers out of
+   what was read. A misread character can't always be told from the photo, so every field stays editable and a row
+   the reader wasn't sure of is marked to check. A form is { id, reason, date, by, job, items: [{ id, pn, desc, qty, lot, note, check }] }. ── */
+
+const STOCK_PN = '[0-9OoIl|]{3}[\\s]?[-–—_.][\\s]?[0-9OoIl|]{6}[\\s]?[-–—_.][\\s]?[0-9OoIl|]{2}' // Mindray's usual 040-001235-00 (O for 0, l and | for 1 are read wrongly most often)
+const STOCK_STD = new RegExp(`\\b${STOCK_PN}\\b`, 'g')
+const STOCK_LABEL = /\b(?:P\s?[/\\|I1l]\s?N|PN|P\.N\.?|Part\s*(?:No\.?|Number|#))\s*[:;#.\-]?\s*([^\n]{0,40})/gi
+const STOCK_ODD = /^[A-Z0-9][A-Z0-9\-–—/._]{4,}$/i
+const stockKey = (pn) => String(pn || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+const NOT_TITLE = /(p\s?[/\\|]\s?n|\bmodel\b|\blot\b|\bqty\b|\bref\b|\bsn\b|made in|china|shenzhen|bio-?medical|co\.?,?\s*ltd|www\.|\.com|\.cn|steril|latex|rx only|manufactur|expir|use by|\bdate\b|caution|warning|\bce\b|barcode|\bgs1\b|\bud[i1]\b|recycle|disposal)/i
+const STOCK_FORMAT_NOTE = 'Different format from the usual 040-xxxxxx-00. Check against SimPro.'
+
+// "O40-OO1235-OO" → "040-001235-00"; fixed says a look-alike was put right.
+function fixStdPn(raw) {
+  const digits = raw.replace(/[\s\-–—_.]/g, '')
+  const fixed = digits.replace(/[Oo]/g, '0').replace(/[Il|]/g, '1')
+  return { pn: `${fixed.slice(0, 3)}-${fixed.slice(3, 9)}-${fixed.slice(9)}`, fixed: fixed !== digits }
+}
+
+/** What a label's text holds: the part numbers (with model, lot and a description built from the label) and whether the
+    photo shows patient details. { patient, items: [{ pn, model, lot, desc, fixed, formatNote, labelled }] } */
+export function readLabelText(text) {
+  const lines = String(text || '').split(/\r?\n/).map((l) => l.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  const all = lines.join('\n')
+  if (/\bNHI\b|\bDOB\b|date of birth/i.test(all)) return { patient: true, items: [] } // QP33: patient details must not be in the photo
+  const found = [] // { pn, line, fixed, odd, labelled }
+  const seen = new Set()
+  const take = (c) => { const k = stockKey(c.pn); if (!k || seen.has(k)) return; seen.add(k); found.push(c) }
+  lines.forEach((line, i) => {
+    for (const m of line.matchAll(STOCK_LABEL)) {
+      const rest = m[1]
+      const std = new RegExp(STOCK_PN).exec(rest)
+      if (std) { const f = fixStdPn(std[0]); take({ pn: f.pn, line: i, fixed: f.fixed, odd: false, labelled: true }); continue }
+      const tok = (rest.match(/^[^\s]+/) || [''])[0].replace(/[,;]+$/, '')
+      if (STOCK_ODD.test(tok) && /\d/.test(tok)) take({ pn: tok.toUpperCase(), line: i, fixed: false, odd: true, labelled: true })
+    }
+  })
+  lines.forEach((line, i) => {
+    for (const m of line.matchAll(STOCK_STD)) { const f = fixStdPn(m[0]); take({ pn: f.pn, line: i, fixed: f.fixed, odd: false, labelled: false }) }
+  })
+  found.sort((a, b) => a.line - b.line)
+  const items = found.map((c, n) => {
+    // The lines that belong to this label: half way to the neighbouring part numbers, at most four either side.
+    const from = Math.max(n ? Math.ceil((found[n - 1].line + c.line) / 2) : 0, c.line - 4)
+    const to = Math.min(n < found.length - 1 ? Math.floor((c.line + found[n + 1].line) / 2) : lines.length - 1, c.line + 4)
+    const near = lines.slice(from, to + 1)
+    const nearText = near.join('\n')
+    const model = (/\bModel\s*(?:No\.?)?\s*[:;#.]?\s*([A-Z0-9][A-Z0-9\-/.]{2,})/i.exec(nearText) || [])[1] || ''
+    const lot = (/\b(?:LOT|BATCH)\s*(?:No\.?)?\s*[:;#.]?\s*([A-Z0-9][A-Z0-9\-]{2,})/i.exec(nearText) || [])[1] || ''
+    const title = near
+      .map((l) => l.replace(/^\W*mindray\b[\s:,\-]*/i, '').trim())
+      .filter((l) => l.length >= 6 && l.length <= 70 && !NOT_TITLE.test(l) && (l.match(/[A-Za-z]/g) || []).length / l.length >= 0.6)
+      .sort((a, b) => b.length - a.length)[0] || ''
+    const desc = ['Mindray', title || 'accessory'].join(' ') + (model ? ` (${model.toUpperCase()})` : '')
+    return { pn: c.pn, model: model.toUpperCase(), lot: lot.toUpperCase(), desc, titled: !!title, fixed: c.fixed, formatNote: c.odd ? STOCK_FORMAT_NOTE : '', labelled: c.labelled }
+  })
+  return { patient: false, items }
+}
+
+/** A read item as a form's row: described from the accessory list when its code is there, else as read from the label. */
+export function stockItemFrom(read, qty, list = [], id = '') {
+  const listed = read.pn ? listedAccessory({ code: read.pn }, list) : null
+  const notes = []
+  if (listed) { /* the list's own name: nothing to check */ }
+  else if (!read.titled) notes.push('The description wasn’t on the label’s text: check it.')
+  if (read.fixed) notes.push('A look-alike character was put right in the part number: check it against the label.')
+  if (!read.labelled) notes.push('No P/N line was found beside this number: check it is the part number.')
+  if (read.formatNote) notes.push(read.formatNote)
+  return { id, pn: read.pn, desc: listed?.name || read.desc, qty: Math.min(999, Math.max(1, Math.round(Number(qty) || 1))), lot: read.lot || '', note: notes.join(' '), check: notes.length > 0 }
+}
+
+/**
+ * Photo results put on a form: a part number not there yet is added; one already there with a different lot (or this
+ * lot read for the first time) is more of the same, so its quantity goes up; one already there with the same lot, or
+ * no lot read either time, might be the same bag again, so it is returned in `ask` for the person to decide.
+ * { items, added: [pn], bumped: [{ pn, qty }], ask: [{ pn, qty, lot, total }] }
+ */
+export function addStockItems(items, reads, qty, list = [], newId = () => Math.random().toString(36).slice(2, 10)) {
+  const out = items.map((i) => ({ ...i })), added = [], bumped = [], ask = []
+  for (const r of reads || []) {
+    const at = out.find((i) => r.pn && stockKey(i.pn) === stockKey(r.pn))
+    if (!at) { out.push(stockItemFrom(r, qty, list, newId())); added.push(r.pn); continue }
+    const add = Math.min(999, Math.max(1, Math.round(Number(qty) || 1)))
+    if (r.lot && at.lot && r.lot.toLowerCase() !== at.lot.toLowerCase()) { at.qty = Math.min(999, at.qty + add); bumped.push({ pn: at.pn, qty: at.qty }) }
+    else if (r.lot && !at.lot) { at.lot = r.lot; ask.push({ pn: at.pn, qty: add, lot: r.lot, total: at.qty + add }) }
+    else ask.push({ pn: at.pn, qty: add, lot: r.lot || at.lot || '', total: at.qty + add })
+  }
+  return { items: out, added, bumped, ask }
+}
+
+export const STOCK_COLUMNS = [['date', 'Date taken'], ['pn', 'Item’s part number'], ['desc', 'Item description'], ['qty', 'Quantity taken'], ['reason', 'Reason for taking'], ['job', 'SimPro Job Number'], ['by', 'Taken by']]
+
+/** The form as rows for the sheet or the paper form: one row an item, the shared fields repeated. */
+export function stockRows(form) {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(form?.date || '') // dd-mmm-yyyy
+  const date = d ? `${d[3]}-${MONTHS[Number(d[2]) - 1]}-${d[1]}` : String(form?.date || '')
+  return (form?.items || []).filter((i) => String(i.pn || '').trim() || String(i.desc || '').trim())
+    .map((i) => ({ date, pn: String(i.pn || '').trim(), desc: String(i.desc || '').trim(), qty: Math.max(1, Math.round(Number(i.qty) || 1)), reason: form.reason || '', job: form.job || '', by: form.by || '' }))
+}
+
+/** What stops a form being handed in, as short sentences (empty when it is complete). */
+export function stockProblems(form) {
+  const rows = stockRows(form), out = []
+  if (!rows.length) out.push('No items yet.')
+  if (!String(form?.reason || '').trim()) out.push('Add the reason for taking them.')
+  if (!String(form?.by || '').trim()) out.push('Add who took them.')
+  if (!String(form?.job || '').trim()) out.push('The SimPro job number is still blank.')
+  if ((form?.items || []).some((i) => i.check)) out.push('Some items are marked to check.')
+  return out
+}
+
 const COL_MAP = {
   model: 'Model', description: 'Description', 'serial number': 'SerialNo', 'serial no': 'SerialNo', serial: 'SerialNo',
   'battery serial number': 'BatterySerialNo', 'battery serial no': 'BatterySerialNo', 'battery serial': 'BatterySerialNo',

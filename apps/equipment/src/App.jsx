@@ -10,10 +10,11 @@
      New loan   (NewLoan), finished on its loan form (LoanForm)
      Scan       return, count, stocktake, by keyboard, scanner or camera
      Calendar   loans across the weeks
+     Stock      Form 39, items removed from stock, filled in from photos of bag labels (StockRemoval)
      History    devices' history and the audit log
      Manage     retired items, kits, import/export, Simpro, test mode */
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
-import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, MoreHorizontal, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
+import { Boxes, CalendarDays, History as HistoryIcon, LayoutDashboard, MapPin, MoreHorizontal, PackageMinus, PlusCircle, ScanLine, SlidersHorizontal, Truck } from 'lucide-react'
 import { Alert, Badge, Button, Dialog, Loading, Toast, useConfirm, useToast } from '../../../shared/ui/index.jsx'
 import { StoreProvider, useStore } from './store.jsx'
 import { FIELDS, STATUSES, actionCount, findByIdOrNo, fmtDate, historyFor, isLoanLongTerm, isOut, linkTarget, loanSections, overviewOf, searchEquipment, statusOf, tileSeen, upcomingFor } from './model.js'
@@ -31,10 +32,11 @@ const Labels = lazy(() => import('./Labels.jsx')) // brings the QR drawing with 
 import Calendar from './Calendar.jsx'
 import History from './History.jsx'
 import Manage from './Manage.jsx'
+import StockRemoval from './StockRemoval.jsx'
 
 // In the old tracker's order (Scan / Loan, Database, History, Loans, Calendar, then Import, Sold / Retired and
 // Settings, which are Manage), after Overview, the old phone's home screen.
-const VIEWS = [['overview', 'Overview', LayoutDashboard], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['equipment', 'Equipment', Boxes], ['history', 'History', HistoryIcon], ['loans', 'Loans', Truck], ['calendar', 'Calendar', CalendarDays], ['manage', 'Manage', SlidersHorizontal]]
+const VIEWS = [['overview', 'Overview', LayoutDashboard], ['new', 'New loan', PlusCircle], ['scan', 'Scan', ScanLine], ['equipment', 'Equipment', Boxes], ['history', 'History', HistoryIcon], ['loans', 'Loans', Truck], ['calendar', 'Calendar', CalendarDays], ['stock', 'Stock', PackageMinus], ['manage', 'Manage', SlidersHorizontal]]
 
 function routeOf() {
   const [v, q] = location.hash.replace(/^#\/?/, '').split('?')
@@ -115,6 +117,7 @@ function Shell() {
         : route.view === 'calendar' ? <Calendar s={s} params={route.params} setParams={setParams} go={go} />
         : route.view === 'history' ? <History s={s} params={route.params} setParams={setParams} />
         : route.view === 'scan' ? <Scan s={s} params={route.params} setParams={setParams} go={go} onDone={showToast} />
+        : route.view === 'stock' ? <StockRemoval s={s} />
         : route.view === 'labels' ? <Suspense fallback={<Loading />}><Labels s={s} params={route.params} /></Suspense>
         : route.view === 'new' ? <NewLoan key={JSON.stringify(route.params)} s={s} params={route.params} go={go} onDone={showToast} />
         : route.view === 'loans' ? <Loans s={s} params={route.params} setParams={setParams} go={go} />
