@@ -5,10 +5,10 @@ import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
 import { uniqueModels } from './model-name.js'
-import { devicesFromTitle, expectedText, expectedTotal, jobNumber, orderProblem, progress, rowsToExpected } from './orders.js'
+import { devicesFromTitle, expectedText, expectedTotal, jobNumber, nzDate, orderProblem, progress, rowsToExpected } from './orders.js'
 import { saveOrder, removeOrder } from './orders-firebase.js'
 
-const today = () => new Date().toISOString().slice(0, 10)
+const today = () => nzDate(new Date().toISOString())   // today in New Zealand (the UTC date is the day before until about 1 pm)
 const when = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : new Intl.DateTimeFormat('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }).format(d) }
 const blank = () => ({ number: '', jobLabel: '', customer: '', expected: {}, since: today(), note: '', status: 'open' })
 

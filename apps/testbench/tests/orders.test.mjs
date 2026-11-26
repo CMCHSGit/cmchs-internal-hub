@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { belongs, cleanOrder, devicesFromTitle, expectedText, expectedTotal, jobNumber, modelKey, ordersForCustomer, orderProblem, parseExpected, progress, sameCustomer, summaryLine } from '../src/orders.js'
+import { belongs, cleanOrder, devicesFromTitle, expectedText, expectedTotal, jobNumber, modelKey, nzDate, ordersForCustomer, orderProblem, parseExpected, progress, sameCustomer, summaryLine } from '../src/orders.js'
 import { forBench, summaryOf } from '../src/bench-tests.js'
 
 const order = { id: 'o1', number: '209676', customer: 'Waikato', expected: { D30: 15, D60: 2 }, since: '2026-11-03', status: 'open' }
@@ -137,4 +137,17 @@ test('Orders: picking a job fills the model rows from its title, and does not ov
   assert.ok(src.includes("const typed = rows.some((r) => r.model || r.qty)\n    if (!typed) setRows(withSpare(listed))"), 'only blank rows are filled')
   assert.ok(src.includes('Use this list instead'), 'with rows already typed, the title\'s list is offered, not forced')
   assert.ok(readFileSync(new URL('../src/JobPicker.jsx', import.meta.url), 'utf8').includes("name: j.Name || '', description: j.Description || ''"), 'the picker passes the title on')
+})
+
+test('orders count days as New Zealand sees them: a test finished on a NZ morning counts for an order started that morning', () => {
+  assert.equal(nzDate('2026-11-26T19:30:00Z'), '2026-11-27', 'NZDT is UTC+13: 8:30 am on the 27th is still the 26th in UTC')
+  assert.equal(nzDate('2026-07-26T11:30:00Z'), '2026-07-26', 'NZST is UTC+12: 11:30 pm on the 26th')
+  assert.equal(nzDate('2026-07-26T12:30:00Z'), '2026-07-27', 'and half past midnight is the 27th')
+  assert.equal(nzDate('2026-11-27T08:30:00+13:00'), '2026-11-27'); assert.equal(nzDate('2026-11-27'), '2026-11-27', 'a day with no time stays as it is')
+  assert.equal(nzDate(''), ''); assert.equal(nzDate(undefined), ''); assert.equal(nzDate('not a date'), 'not a date'.slice(0, 10))
+  const morning = { number: '1', customer: 'Waikato', expected: { D30: 1 }, since: '2026-11-27' }   // made at 8 am NZ on the 27th: the form's default day
+  assert.ok(belongs(morning, t('S1', 'D30', 'pass', '2026-11-26T20:00:00Z')), 'tested at 9 am NZ the same morning (the UTC date is still the 26th)')
+  assert.ok(!belongs(morning, t('S2', 'D30', 'pass', '2026-11-26T10:00:00Z')), 'tested at 11 pm NZ the night before: not this order')
+  const c = cleanOrder({ number: '1', customer: 'X', expected: { D30: 1 } }, { email: 'a@x.nz' }, Date.parse('2026-11-26T20:00:00Z'))
+  assert.equal(c.since, '2026-11-27', 'an order saved with no start day gets the NZ day')
 })
