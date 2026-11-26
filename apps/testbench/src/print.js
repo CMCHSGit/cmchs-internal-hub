@@ -41,6 +41,14 @@ export function bookletOrder(n) {
   return sides
 }
 
+/** One booklet for each report, one after another in a single PDF (one print dialog): a test's last page never shares a sheet with the next
+    test's first, and each test starts on a new sheet when printed double-sided. */
+export async function bookletsPdf(buffers) {
+  const each = []
+  for (const b of buffers) each.push(await bookletPdf(b))
+  return each.length === 1 ? each[0] : mergePdfs(each)
+}
+
 /** The pages laid out as a booklet: two to each side of a landscape sheet of the same paper (A4 reports: two A5 halves on A4),
     in booklet order. Print it double-sided, flipping on the short edge, and fold. */
 export async function bookletPdf(bytes) {

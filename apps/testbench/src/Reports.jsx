@@ -10,7 +10,7 @@ import { clearableIds, storageSummary, withStatus } from './bench-status.js'
 import { PERIODS, UPLOAD_EXTS, categorise, customersIn, describeFile, filterGroups, groupReports, modelOf, modelTotals, nzDay, pickFiles, sharedGroups, startedOf, statusByStart, withOnJob } from './reports.js'
 import { makeZip } from './zip.js'
 import { startJobFor } from './jobDraft.js'
-import { bookletPdf, mergePdfs, printPdf } from './print.js'
+import { bookletsPdf, mergePdfs, printPdf } from './print.js'
 
 /** Downloaded PDFs go in a folder of their own (inside the folder chosen, or in the zip); the Ansur records stay beside it. */
 export const PDF_FOLDER = 'PDF reports'
@@ -237,11 +237,11 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
     try {
       const { list, skipped } = await pickedPdfs()
       if (!list.length) throw new Error('There is no report to print.' + skippedNote(skipped))
-      let bytes = list.length === 1 ? list[0].buffer : await mergePdfs(list.map((f) => f.buffer))
-      if (booklet) bytes = await bookletPdf(bytes)
+      const buffers = list.map((f) => f.buffer)
+      const bytes = booklet ? await bookletsPdf(buffers) : buffers.length === 1 ? buffers[0] : await mergePdfs(buffers)   // a booklet for each test, never all of them in one
       const how = await printPdf(new Blob([bytes], { type: 'application/pdf' }))
       logActivity(null, `Printed ${list.length} test report${list.length === 1 ? '' : 's'}${booklet ? ' as a booklet' : ''} from the Test Bench`, { app: 'testbench' })
-      setNote({ text: (how === 'tab' ? `The report${list.length === 1 ? '' : 's'} opened in a new tab: print from there.` : `${list.length === 1 ? '1 report' : `${list.length} reports, one after another,`} sent to the print dialog.`) + (booklet ? ' Booklet: choose landscape and print on both sides, flipping on the short edge, then fold the pages in half.' : '') + skippedNote(skipped), tone: skipped ? 'warning' : 'success' })
+      setNote({ text: (how === 'tab' ? `The report${list.length === 1 ? '' : 's'} opened in a new tab: print from there.` : `${list.length === 1 ? '1 report' : `${list.length} reports, one after another,`} sent to the print dialog.`) + (booklet ? ' Booklet: choose landscape and print on both sides, flipping on the short edge, then fold the pages in half.' + (list.length > 1 ? ' Each test is a booklet of its own.' : '') : '') + skippedNote(skipped), tone: skipped ? 'warning' : 'success' })
     } catch (e) { setNote({ text: 'Not printed: ' + (e.message || e), tone: 'warning' }) } finally { setBusy(false) }
   }
 
@@ -460,7 +460,7 @@ Their files stay on this laptop and in Simpro, and orders still count them. If y
               {canPickFolder && folderName && <Button variant="ghost" disabled={busy || !count} onClick={() => download(false, true)} title="Choose a different folder to save into">Other folder…</Button>}
               {canPickFolder && <Button variant="ghost" disabled={busy || !count} onClick={() => download(true)} title="All the ticked files in one zip, with nothing written into a synced folder">Download as zip</Button>}
               <Button variant="ghost" disabled={busy || !attachCount} onClick={() => print()} title="Prints the report (PDF) of each ticked test, all in one print dialog">{attachCount > 1 ? `Print ${attachCount} reports` : 'Print'}</Button>
-              <Button variant="ghost" disabled={busy || !attachCount} onClick={() => print(true)} title="Two pages to each side of a landscape sheet, in booklet order: print on both sides, flipping on the short edge, and fold">Print as booklet</Button>
+              <Button variant="ghost" disabled={busy || !attachCount} onClick={() => print(true)} title="Two pages to each side of a landscape sheet, in booklet order: print on both sides, flipping on the short edge, and fold. Each ticked test is a booklet of its own">Print as booklet</Button>
               <Button variant="ghost" disabled={busy || !(removable.length || sharedPicked.length)} onClick={() => remove([...removable, ...stale], `${picked} test${picked === 1 ? '' : 's'}${removable.length + stale.length ? ` (${removable.length + stale.length} file${removable.length + stale.length === 1 ? '' : 's'})` : ''}`, sharedPicked)} title="Clears the ticked tests from this laptop, whatever files are included above. Tests other engineers shared are only hidden from this list.">Remove</Button>
             </div>
             <div className="tb-actionbar-row tb-attach">
