@@ -5,6 +5,7 @@
    chooses. Plain functions (no Firebase, no React) so the tests run them as they are. */
 import { sameCustomer } from '../orders.js'
 import { cleanPending } from './pending.js'
+import { assetListHref } from './customers.js'
 
 /** "Sth X Asset List 13.03.2025.xlsx" -> "Sth X": the file name without its extension, "Asset List" and anything after it, or a date. */
 export function fileStem(name) {
@@ -31,6 +32,23 @@ export function matchCustomer(customers, { customer = '', file = '' } = {}, reme
     if (hits.length === 1) return { pick: hits[0].id, list }
   }
   return { pick: '', list }
+}
+
+/**
+ * "Open workbook" in the bench: the web address of the customer's asset list. { url, customer } when the customer is known (chosen, remembered,
+ * or the only one the name fits) and has a link; { error } when it has none; otherwise { pick: '', list } for the person to choose from
+ * (each with `link`: whether it has one).
+ */
+export function workbookFor(customers, { customer = '', file = '', customerId = '' } = {}, remembered = {}) {
+  const { pick, list } = matchCustomer(customers, { customer, file }, remembered)
+  const id = String(customerId || pick || ''), byId = (x) => (customers || []).find((c) => String(c.id) === String(x))
+  if (id) {
+    const c = byId(id)
+    if (!c) return { error: 'Choose the customer this list belongs to.' }
+    const url = assetListHref(c)
+    return url ? { url, customer: c.name, customerId: id } : { error: `${c.name} has no link to its asset list yet. Add it on the Customers tab (Edit customer).` }
+  }
+  return { pick: '', list: list.map((c) => ({ ...c, link: !!assetListHref(byId(c.id)) })) }
 }
 
 /** The bench's form as a pending row: { row, errors } (cleanPending: the known fields only, one line each, a serial number needed). */
