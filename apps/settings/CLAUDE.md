@@ -141,7 +141,8 @@ Timed proxy jobs report to `jobRuns` through `trackJob_` and rethrow, so Google'
 match a person by email, then name (`hubTokensFor_`), and skip anyone switched off (`hubDemoOff_`); their sent markers live in
 `equipmentReminders` (no client access). Most other proxy dedupe is a 6-hour CacheService key; checklists keep `notified`, loan emails
 `meta.formEmail`. The GitHub jobs keep no sent record: a second real run sends again. Nothing goes out by Teams, Graph or Slack.
-`backend/apps-script/news-inbox/` (in progress) sends nothing: it imports the team update email into `newsInbox` for Manage.
+`backend/apps-script/news-inbox/` sends nothing: every 10 minutes it imports the team update email (saved to a Drive folder by a
+Power Automate flow) into `newsInbox`, which Manage → News offers to posters as drafts.
 
 ### In the app
 
