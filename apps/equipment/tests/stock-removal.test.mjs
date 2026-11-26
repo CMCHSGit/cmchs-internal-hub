@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { STOCK_COLUMNS, addStockItems, readLabelText, stockItemFrom, stockProblems, stockRows, toCsv } from '../src/model.js'
+import { STOCK_COLUMNS, addStockItems, cleanAccessories, labelEvidence, loanSections, matchAccessory, readLabelText, stockItemFrom, stockLoanChoices, stockOnLoan, stockProblems, stockReasonText, stockRows, toCsv } from '../src/model.js'
 
 const CUFF = `Mindray
 NIBP Cuff, Bladderless, Infant
@@ -107,10 +107,163 @@ test('the rows have the form’s columns, the date as dd-mmm-yyyy and the shared
   assert.equal(lines[1], '"27-Nov-2026","040-000973-00","NIBP cuff","2","Wanganui trial","12345","Sam Lee"')
 })
 
+/* What the reader really returned on three photographed bags (7.jpg, 8.jpg, 9.jpg of 27-Nov-2026), turned the right way up: the P/N
+   line itself is lost or cut short because the barcode is beside it. */
+const BAG_SPO2 = `SpO2 Cable
+Masimo SpO2 Extension Cable(8 pin)
+582A
+Qty. (4&2) : 1
+040-000332-0
+9970029517
+2026-04-15
+01)06944904030845
+9970029517(11)260415
+Rx Only
+Made in China
+Tel(EE): +86-755-8188 8998 Fax(fF): +86-755-2658 2680`
+const BAG_ECG = `ECG LEADSET
+3-Lead Leadset, Adt/Ped AHA Clip.Long
+EL6303A
+Qty. (4H) : 1
+0-42731
+9970035371
+2026-07-06
+035371(11)260706`
+const BAG_HOSE = `NIBP HOSE
+NIBP Hose. Inbuilt connector(3m)
+CM1903
+Qty. (2428) : 1
+200-30-09688
+9130053470
+2026.05.07
+Rx Only
+Made in China`
+const LIST = [
+  { code: '040-000332-00', name: 'SpO2 extension cable, Masimo, 8 pin', group: 'SpO2', models: [] },
+  { code: '0010-30-42731', name: '3-Lead wires, Adu/Ped, Clip, TPU, AHA, (1m)', group: 'ECG', models: [] },
+  { code: '0010-30-42721', name: 'ECG trunk cable: 12-lead, 12 Pin, Defib-Proof, AHA', group: 'ECG', models: [] },
+  { code: '6200-30-09688', name: 'NIBP Tubing, Adu/Ped/Infant/Neo, with air plug connectors (3m)', group: 'NIBP', models: [] },
+  { code: '040-000973-00', name: 'CM1301 Bladderless cuff, Infant, reusable, 10-19 cm', group: 'NIBP', models: [] },
+  { code: 'CHS4053', name: 'Masimo RD SET TCI, Reuseable Tip-Clip Ear Sensor', group: 'SpO2', models: [] },
+]
+
 test('what is left to do before the form is handed in', () => {
-  assert.deepEqual(stockProblems({ reason: '', by: '', job: '', items: [] }), ['No items yet.', 'Add the reason for taking them.', 'Add who took them.', 'The SimPro job number is still blank.'])
-  assert.deepEqual(stockProblems({ reason: 'Trial', by: 'Sam', job: '1', items: [{ pn: 'a', desc: 'b', qty: 1 }] }), [])
-  assert.ok(stockProblems({ reason: 'Trial', by: 'Sam', job: '1', items: [{ pn: 'a', qty: 1, check: true }] }).includes('Some items are marked to check.'))
+  const ready = { kind: 'demo', loan: { key: 'b1', label: 'Whanganui Hospital' }, by: 'Sam', job: '1', items: [{ pn: 'a', desc: 'b', qty: 1 }] }
+  assert.deepEqual(stockProblems({ kind: 'demo', reason: '', by: '', job: '', items: [] }), ['No items yet.', 'Choose the loan this demo is for.', 'Add who took them.', 'The SimPro job number is still blank.'])
+  assert.deepEqual(stockProblems(ready), [])
+  assert.deepEqual(stockProblems({ ...ready, kind: 'other', reason: '' }), ['Say what they are being taken for.'])
+  assert.deepEqual(stockProblems({ ...ready, kind: 'other', reason: 'Repair', loan: null }), [])
+  assert.ok(stockProblems({ ...ready, items: [{ pn: 'a', qty: 1, check: true }] }).includes('Some items are marked to check.'))
+  assert.ok(stockProblems(ready, LIST).includes('1 part number isn’t on the accessory list.'))
+})
+
+test('the reason is Demo with the loan, or what was typed; a form kept before kinds existed is read as it was', () => {
+  assert.equal(stockReasonText({ kind: 'demo' }), 'Demo')
+  assert.equal(stockReasonText({ kind: 'demo', loan: { key: 'b1', label: 'Whanganui Hospital' }, reason: 'ignored' }), 'Demo – Whanganui Hospital')
+  assert.equal(stockReasonText({ kind: 'other', reason: ' Repair ' }), 'Repair')
+  assert.equal(stockReasonText({ reason: 'Wanganui trial' }), 'Wanganui trial')
+  assert.equal(stockReasonText({ reason: '' }), 'Demo')
+})
+
+test('a number the reader got right is matched to the list, a look-alike character aside', () => {
+  assert.equal(matchAccessory('0010-30-42731', LIST).status, 'exact')
+  assert.equal(matchAccessory('OO1O-3O-42731', LIST).item.code, '0010-30-42731')
+  assert.equal(matchAccessory('chs 4053', LIST).item.code, 'CHS4053')
+  assert.equal(matchAccessory('999-999999-99', LIST).status, 'none')
+})
+
+test('a number with a digit lost or wrong is the list’s one character away; a piece of one is the one that holds it', () => {
+  assert.deepEqual(['200-30-09688', '040-000332-0'].map((x) => matchAccessory(x, LIST).item.code), ['6200-30-09688', '040-000332-00'])
+  assert.equal(matchAccessory('200-30-09688', LIST).status, 'near')
+  const piece = matchAccessory('0-42731', LIST)
+  assert.equal(piece.status, 'fragment')
+  assert.equal(piece.item.code, '0010-30-42731')
+  assert.equal(matchAccessory('0010-30-42711', LIST).status, 'ambiguous', 'one character from two list codes: not guessed')
+  assert.deepEqual(matchAccessory('0010-30-42711', LIST).candidates.map((a) => a.code).sort(), ['0010-30-42721', '0010-30-42731'])
+})
+
+test('the real bags: each is found on the list and described by it, with the label’s own wording beside', () => {
+  const rows = [BAG_SPO2, BAG_ECG, BAG_HOSE].map((t) => { const r = readLabelText(t, LIST); assert.equal(r.items.length, 1, t.split('\n')[0]); return stockItemFrom(r.items[0], 1, LIST, 'x') })
+  assert.deepEqual(rows.map((r) => r.pn), ['040-000332-00', '0010-30-42731', '6200-30-09688'])
+  assert.equal(rows[0].desc, 'SpO2 extension cable, Masimo, 8 pin')
+  assert.equal(rows[2].desc, 'NIBP Tubing, Adu/Ped/Infant/Neo, with air plug connectors (3m)')
+  assert.match(rows[2].label, /NIBP Hose/)
+  assert.ok(rows.every((r) => r.check && /closest accessory-list item/.test(r.note)), 'a near miss says to check it')
+  assert.match(rows[2].note, /Read as “200-30-09688”/)
+})
+
+test('a bag’s lot, model and label description are read around the number', () => {
+  const r = readLabelText(BAG_HOSE, LIST).items[0]
+  assert.equal(r.model, 'CM1903')
+  assert.equal(r.lot, '9130053470')
+  assert.equal(r.desc, 'Mindray NIBP Hose. Inbuilt connector(3m) (CM1903)')
+  assert.equal(readLabelText(BAG_SPO2, LIST).items[0].model, '582A')
+})
+
+test('the phone numbers, dates and barcode digits on a label are not taken for parts', () => {
+  assert.equal(readLabelText(BAG_SPO2, LIST).items.length, 1)
+  assert.deepEqual(readLabelText(BAG_SPO2, []).items.map((i) => i.pn), ['040-000332-0'], 'with no list: the one shaped like a part number')
+})
+
+test('a part the list hasn’t got is kept as read, and says so', () => {
+  const r = readLabelText('Masimo cable\nP/N: 040-000999-00\nLOT 123456', LIST).items[0]
+  assert.equal(r.match, 'none')
+  const row = stockItemFrom(r, 1, LIST, 'x')
+  assert.equal(row.pn, '040-000999-00')
+  assert.match(row.note, /Not on the accessory list/)
+  assert.equal(row.check, true)
+})
+
+test('which way up a photo was read: the label’s own words, not noise', () => {
+  assert.ok(labelEvidence(BAG_SPO2) >= 2)
+  assert.ok(labelEvidence(BAG_HOSE) >= 2)
+  assert.equal(labelEvidence('—= | TE | a | [Al | i | | -y | he | » | #i | ERE]'), 0)
+})
+
+test('stock taken for a demo is put on the loan’s accessories: the line’s stock count, or a new line', () => {
+  const loan = [{ code: '040-000973-00', name: 'CM1301 cuff', qty: 4 }, { code: '6200-30-09688', name: 'NIBP Tubing', qty: 8, stock: 1 }]
+  const items = [{ pn: '6200-30-09688', desc: 'NIBP Tubing', qty: 2 }, { pn: '0010-30-42731', desc: '3-Lead wires', qty: 1 }, { pn: '040-000973-00', desc: 'cuff', qty: 6 }]
+  const r = stockOnLoan(loan, items, { list: LIST })
+  assert.deepEqual(r.lines, [
+    { code: '040-000973-00', name: 'CM1301 cuff', qty: 6, stock: 6 },
+    { code: '6200-30-09688', name: 'NIBP Tubing', qty: 8, stock: 3 },
+    { code: '0010-30-42731', name: '3-Lead wires, Adu/Ped, Clip, TPU, AHA, (1m)', qty: 1, stock: 1 }])
+  assert.deepEqual(r.changes.map((c) => [c.code, c.added, c.before?.stock ?? null, c.after.stock, c.after.qty]),
+    [['6200-30-09688', false, 1, 3, 8], ['0010-30-42731', true, null, 1, 1], ['040-000973-00', false, 0, 6, 6]])
+  assert.equal(loan[1].stock, 1, 'what was passed in is not changed')
+})
+
+test('recording the same form again counts the difference, never twice; an item taken off takes its stock back', () => {
+  const loan = [{ code: '6200-30-09688', name: 'NIBP Tubing', qty: 8 }]
+  const first = stockOnLoan(loan, [{ pn: '6200-30-09688', qty: 3 }], { list: LIST })
+  assert.equal(first.lines[0].stock, 3)
+  const again = stockOnLoan(first.lines, [{ pn: '6200-30-09688', qty: 3 }], { applied: first.applied, list: LIST })
+  assert.deepEqual(again.changes, [])
+  assert.equal(again.lines[0].stock, 3)
+  const more = stockOnLoan(first.lines, [{ pn: '6200-30-09688', qty: 5 }], { applied: first.applied, list: LIST })
+  assert.equal(more.lines[0].stock, 5)
+  const gone = stockOnLoan(first.lines, [], { applied: first.applied, list: LIST })
+  assert.equal(gone.lines[0].stock, undefined)
+  assert.deepEqual(gone.applied, {})
+})
+
+test('a part that is neither on the accessory list nor the loan is not put on the loan', () => {
+  const r = stockOnLoan([], [{ pn: '040-000999-00', qty: 1 }, { pn: '', qty: 1 }], { list: LIST })
+  assert.deepEqual(r.lines, [])
+  assert.deepEqual(r.problems, [{ code: '040-000999-00' }])
+  assert.deepEqual(r.applied, {})
+})
+
+test('a loan’s accessory line keeps how many came from stock, and adds them when a code repeats', () => {
+  assert.deepEqual(cleanAccessories([{ code: 'A1', name: 'x', qty: 2, stock: 1 }, { code: 'a-1', qty: 1, stock: 2 }, { code: 'B2', qty: 1, stock: 0 }]), [{ code: 'A1', name: 'x', qty: 3, stock: 3 }, { code: 'B2', name: '', qty: 1 }])
+})
+
+test('the loans a demo can be chosen from: every loan and booking that matches, current ones first', () => {
+  const eq = (id, to, start, end, batch) => ({ id, CHSAssetNo: id, Model: 'TV80', Returned: 'No', OnLoanTo: to, Location: 'ED', LoanStartDate: start, LoanEndDate: end, BatchID: batch })
+  const sections = loanSections({ equipment: [eq('1', 'Whanganui Hospital', '2026-11-01', '2026-12-11', 'b1'), eq('2', 'Hutt Hospital', '2026-11-01', '2026-12-01', 'b2')], upcoming: [{ id: 'bk1', loanTo: 'Whangarei Hospital', startDate: '2026-12-20', endDate: '2027-01-10', items: [] }], loanMeta: {}, loanDocs: {}, today: '2026-11-27' })
+  assert.deepEqual(stockLoanChoices(sections, 'wh').map((c) => [c.key, c.label]), [['b1', 'Whanganui Hospital'], ['bk1', 'Whangarei Hospital']])
+  assert.deepEqual(stockLoanChoices(sections, 'hutt').map((c) => c.key), ['b2'])
+  assert.equal(stockLoanChoices(sections, '').length, 3)
 })
 
 test('the screen is wired in, reads photos on the device, and sends nothing anywhere', () => {

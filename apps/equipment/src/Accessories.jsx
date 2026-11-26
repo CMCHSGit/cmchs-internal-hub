@@ -89,7 +89,7 @@ export function AccessoryEditor({ value = [], onChange, s, models = [], notKey =
                   {listed ? (
                     <>
                       <td className="eq-mono eq-acc-fixed">{a.code}</td>
-                      <td className="eq-acc-fixed">{a.name || listed.name}</td>
+                      <td className="eq-acc-fixed">{a.name || listed.name}{a.stock ? <span className="eq-small">{a.stock} from stock</span> : null}</td>
                     </>
                   ) : (
                     <>
@@ -158,10 +158,11 @@ export function AccessoryEditor({ value = [], onChange, s, models = [], notKey =
 export function AccessoryList({ list = [] }) {
   const acc = cleanAccessories(list)
   if (!acc.length) return null
+  const fromStock = acc.some((a) => a.stock) // lines recorded from the Stock tab (model.js stockOnLoan)
   return (
     <table className="eq-acc-table eq-acc-view">
-      <thead><tr><th>Accessory code</th><th>Accessory</th><th className="eq-acc-qty">Qty</th></tr></thead>
-      <tbody>{acc.map((a, i) => <tr key={i}><td className="eq-mono">{a.code}</td><td>{a.name}</td><td className="eq-acc-qty">{a.qty}</td></tr>)}</tbody>
+      <thead><tr><th>Accessory code</th><th>Accessory</th><th className="eq-acc-qty">Qty</th>{fromStock && <th className="eq-acc-qty" title="How many of the Qty were taken out of stock">From stock</th>}</tr></thead>
+      <tbody>{acc.map((a, i) => <tr key={i}><td className="eq-mono">{a.code}</td><td>{a.name}</td><td className="eq-acc-qty">{a.qty}</td>{fromStock && <td className="eq-acc-qty">{a.stock || ''}</td>}</tr>)}</tbody>
     </table>
   )
 }

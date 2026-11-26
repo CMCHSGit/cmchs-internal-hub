@@ -1002,9 +1002,10 @@ export function StoreProvider({ children }) {
    * A loan's accessories changed from its card (LoanActions, Accessories): kept on its form as accessories,
    * nothing else there touched; none left, the field goes. `opened`: the list the dialog started from; then the
    * person's additions, changes and removals are applied to the lines stored now (mergeAccessories), so lines
-   * someone else saved meanwhile are kept. One audit line, in counts.
+   * someone else saved meanwhile are kept. One audit line, in counts (`entry`: { type, summary, detail } when the change is
+   * something else that touches accessories, as the Stock tab's "stock taken", and says so in its own words).
    */
-  const saveAccessories = useCallback(async (g, list, opened = null) => {
+  const saveAccessories = useCallback(async (g, list, opened = null, entry = null) => {
     const key = g.kind === 'booking' ? g.batchId : loanDocKey(g)
     if (!key) throw new Error('This loan has no loan form to keep its accessories on.')
     let acc = [], before = [], was = 0
@@ -1016,7 +1017,8 @@ export function StoreProvider({ children }) {
       if (acc.length) d.accessories = acc; else delete d.accessories
       return d
     })
-    await audit('loan_accessories', `Accessories for ${g.loanTo} changed: ${acc.length} line${acc.length === 1 ? '' : 's'} (was ${was})`, { loanTo: g.loanTo, batchId: key, lines: acc.length, was })
+    if (entry) await audit(entry.type, entry.summary, { loanTo: g.loanTo, batchId: key, lines: acc.length, was, ...(entry.detail || {}) })
+    else await audit('loan_accessories', `Accessories for ${g.loanTo} changed: ${acc.length} line${acc.length === 1 ? '' : 's'} (was ${was})`, { loanTo: g.loanTo, batchId: key, lines: acc.length, was })
     await listTypedAccessories(acc, before, `the loan for ${g.loanTo}`) // typed ones go on the list too
     await touch()
     return acc
