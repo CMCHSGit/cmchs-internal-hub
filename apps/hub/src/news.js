@@ -84,6 +84,53 @@ export function findSimilar(draft, list, today = isoToday()) {
   return best
 }
 
+/** The team update already posted for a week: its Team news bullets (sections been/next), in posted order. */
+export function postedWeek(list, weekOf) {
+  return list
+    .filter(a => !a.deleted && !a.legacy && categoryOf(a) === 'Team news' && (a.section === 'been' || a.section === 'next')
+      && (a.weekOf || mondayOf(a.date || isoToday())) === weekOf)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+}
+
+const fullText = x => String(x.body || x.title || '').replace(/\s+/g, ' ').trim().toLowerCase()
+
+/**
+ * A week's team update being split when that week is already posted (pasted, then
+ * brought in from its Drive folder; or sent again with a correction). Each weekly
+ * bullet is paired with the posted item it repeats, in the same section, best
+ * pair first: word for word → `same`, unticked, nothing to do; reworded (most of
+ * its words shared) → unticked with `match`, so "Update that one instead" offers
+ * it; neither → a new post, as before. Both kinds are marked `weekMatch`, so a
+ * second run (another week picked) clears them first. Features and anything
+ * without a section keep findSimilar's match. Returns the drafts and the posted
+ * items no draft repeats (`missing`: they stay as they are).
+ */
+export function matchPostedWeek(drafts, posted) {
+  const reset = drafts.map(d => (d.weekMatch ? { ...d, include: true, updating: false, match: null, same: false, weekMatch: false } : d))
+  const weekly = d => d.category === 'Team news' && (d.section === 'been' || d.section === 'next')
+  const pairs = []
+  reset.forEach((d, i) => {
+    if (!weekly(d)) return
+    const mine = words(`${d.title} ${d.body}`)
+    posted.forEach((a, j) => {
+      if (a.section !== d.section) return
+      if (fullText(a) === fullText(d)) { pairs.push({ i, j, score: 2, same: true }); return }
+      const theirs = words(`${a.title} ${a.body || ''}`)
+      const shared = [...mine].filter(w => theirs.has(w)).length
+      const score = shared / Math.min(mine.size || 1, theirs.size || 1)
+      if (shared >= 2 && score >= 0.6) pairs.push({ i, j, score, same: false })
+    })
+  })
+  pairs.sort((a, b) => b.score - a.score)
+  const out = [...reset], usedDraft = new Set(), usedPosted = new Set()
+  for (const p of pairs) {
+    if (usedDraft.has(p.i) || usedPosted.has(p.j)) continue
+    usedDraft.add(p.i); usedPosted.add(p.j)
+    out[p.i] = { ...out[p.i], include: false, updating: false, match: posted[p.j], same: p.same, weekMatch: true }
+  }
+  return { drafts: out, missing: posted.filter((_, j) => !usedPosted.has(j)) }
+}
+
 /** What the home page's Team news panel shows: the newest week of Team news, split by section. */
 export function teamNews(list) {
   const team = list.filter(a => categoryOf(a) === 'Team news')
@@ -355,9 +402,10 @@ export async function saveAnnouncement(me, a, photos) {
  * Returns { count, firstId }; the first one's id is what the proxy is given
  * to send the one "Team update" push for the lot.
  */
-export async function postDrafts(me, drafts, { date, weekOf, notifyTeam = false }) {
+export async function postDrafts(me, drafts, { date, weekOf, notifyTeam = false, orderFrom = 0 }) {
   const batchId = `email-${date}-${Math.random().toString(36).slice(2, 7)}`
-  const recs = drafts.map((d, i) => record({ ...d, date, weekOf, order: i, batchId, author: undefined, authorUid: undefined }, me))
+  // orderFrom: after the week's items already posted, so new ones follow them in Team news.
+  const recs = drafts.map((d, i) => record({ ...d, date, weekOf, order: orderFrom + i, batchId, author: undefined, authorUid: undefined }, me))
   if (devMode) { recs.forEach(r => local.news.set(Math.random().toString(36).slice(2), r)); return { count: recs.length, firstId: null } }
   const { f, db } = await fs()
   let firstId = null
