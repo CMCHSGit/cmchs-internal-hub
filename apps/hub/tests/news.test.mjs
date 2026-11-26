@@ -45,6 +45,19 @@ test('findSimilar spots a repeat of a recent post, not a near-miss or an old one
   assert.equal(findSimilar({ title: 'StepUp4ICU' }, [{ ...list[0], deleted: true }], today), null)
 })
 
+test('findSimilar: this week’s “week that’s been” never updates last week’s “next week”', () => {
+  const today = '2026-11-26'
+  const lastWeek = [item('n1', { title: 'Pat in Christchurch for the Burwood demo', category: 'Team news', section: 'next', date: '2026-11-19' })]
+  // The same work, now done: a new post in this week's been, not an update
+  assert.equal(findSimilar({ title: 'Pat did the Burwood demo in Christchurch', section: 'been' }, lastWeek, today), null)
+  assert.equal(findSimilar({ title: 'Pat in Christchurch for the Burwood demo', section: 'next' }, lastWeek, today), null)
+  // Nor does a feature block take over a weekly bullet
+  assert.equal(findSimilar({ title: 'Burwood demo in Christchurch with Pat' }, lastWeek, today), null)
+  // A running feature is still spotted
+  const feature = [item('s', { title: 'StepUp4ICU Challenge', category: 'Events', date: '2026-11-19' })]
+  assert.equal(findSimilar({ title: 'StepUp4ICU Challenge week three' }, feature, today)?.id, 's')
+})
+
 test('teamNews shows only the newest week, split by section, with the regions in it', () => {
   const t = teamNews([
     item('old', { weekOf: '2026-10-05', section: 'been' }),

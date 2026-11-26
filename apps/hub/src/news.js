@@ -60,15 +60,21 @@ const words = s => new Set(String(s || '').toLowerCase().split(/[^a-z0-9]+/).fil
  * The existing post a pasted draft looks like a repeat of (StepUp4ICU in
  * this week's email when it already has its own post), or null. Compares
  * titles, over the last 60 days; one shared word is enough only when it is
- * a title on its own and a distinctive one ("StepUp4ICU").
+ * a title on its own and a distinctive one ("StepUp4ICU"). Team news
+ * bullets (section been/next) neither match nor are matched.
  */
 export function findSimilar(draft, list, today = isoToday()) {
+  // The week's bullets are never repeats, nor anything to update: "The week
+  // that's been" naturally reads like last week's "Next week", and each email's
+  // items belong to its own week.
+  const weekly = x => x.section === 'been' || x.section === 'next'
+  if (weekly(draft)) return null
   const mine = words(draft.title)
   if (!mine.size) return null
   const since = addDays(today, -60)
   let best = null, bestScore = 0
   for (const a of list) {
-    if (a.deleted || (a.date || '') < since) continue
+    if (a.deleted || (a.date || '') < since || weekly(a)) continue
     const theirs = words(a.title)
     const shared = [...mine].filter(w => theirs.has(w))
     const score = shared.length / Math.min(mine.size, theirs.size || 1)
