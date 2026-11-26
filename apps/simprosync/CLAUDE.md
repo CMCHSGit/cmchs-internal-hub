@@ -60,7 +60,12 @@ add" row reads the Test Bench's saved reports on this computer (`apps/testbench/
   Keep that shape (the long comment in Apply).
 - **Concurrency is for batching, not speed per se**: pools of 25–50 fill the transport's 25-call batches; narrower pools leave
   each ~1.5–3s proxy round trip mostly empty. `call()` tries 4 times with backoff on network errors, 429s and 5xx, and says so on screen.
-- **Jobs**: left alone if not found, already Complete/Invoiced/Archived, for a different site than its assets, or with no cost
+- **Already Complete or Archived** (27 Nov 2026; Invoiced is still left alone): the job's Notes are checked for each device by
+  serial (`SyncCore.jobNotesMissing`, spaces and case ignored) and only the devices **not** in them are appended (with the
+  "EST and PVT completed" line unless the notes already have one); assets not yet attached are attached; the **stage and status are
+  never touched**. A job whose notes already list every device and has nothing to attach is left alone, as before. Not yet run
+  against real Simpro: Simpro may refuse to attach to a closed job (then the job shows an error and no note is added).
+- **Jobs**: left alone if not found, already Invoiced, for a different site than its assets, or with no cost
   centre; assets go on the first cost centre. The job closes **only if every asset attached**. Notes are only **appended**
   (never edited), and skipped only when the exact block is already there. The note's text comes from `SyncCore.jobNoteBlock`, used
   by both the preview and Apply, so they can't drift. One `<div>` with `<br>`s: Simpro's editor runs block elements together.

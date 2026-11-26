@@ -275,6 +275,7 @@ export function startApp({ transport, who }) {
 
   /* ---------- jobs ---------- */
   const CLOSED_STAGES = ['Complete', 'Invoiced', 'Archived'];
+  const CLOSE_CHECKED = ['Complete', 'Archived'];   // closed jobs whose notes are still checked and updated (Invoiced is left alone)
   const todayNZ = () => { const d = new Date(); return `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; };
   const noteText = () => `EST and PVT completed - ${todayNZ()}`;
   const plainNotes = SyncCore.plainNotes;
@@ -298,7 +299,10 @@ export function startApp({ transport, who }) {
       if (elsewhere.length) jp.problems.push(`${elsewhere.length} asset(s) are in Simpro on a different site than the sheet says - job left alone until the Site ID is corrected`);
       const wrong = items.filter(x => String(x.site) !== String(jp.job.site.ID));
       if (wrong.length) jp.problems.push(`Job is for site ${jp.job.site.ID} (${jp.job.site.Name}) but ${wrong.length} asset(s) are on site ${[...new Set(wrong.map(x => x.site))].join(', ')} - job left alone`);
-      if (CLOSED_STAGES.includes(jp.job.stage)) jp.problems.push(`Job is already at stage "${jp.job.stage}" - left alone`);
+      // Already Complete or Archived: not left alone any more. Its notes are checked for the devices and the ones missing are added
+      // (and any asset not attached yet is attached); its stage and status stay as they are. Worked out below, once the assets are known.
+      if (CLOSE_CHECKED.includes(jp.job.stage)) jp.closedStage = jp.job.stage;
+      else if (CLOSED_STAGES.includes(jp.job.stage)) jp.problems.push(`Job is already at stage "${jp.job.stage}" - left alone`);
       if (!p.completedStatus) jp.problems.push('Status "Job : Completed" was not found in Simpro');
       const ccs = [];
       for (const sec of await getAll(`/companies/${p.cid}/jobs/${jobNo}/sections/`))
@@ -313,6 +317,11 @@ export function startApp({ transport, who }) {
         const ex = p.existing.get(`${it.site}|${it.ser}`);
         if (ex && attached.has(String(ex.id))) jp.already.push(Object.assign({}, it, { assetId: ex.id }));
         else jp.attach.push(Object.assign({}, it, { assetId: ex ? ex.id : null }));
+      }
+      if (jp.closedStage && !jp.problems.length) {
+        const missing = SyncCore.jobNotesMissing(jp);
+        if (!missing.length && !jp.attach.length) jp.problems.push(`Job is already "${jp.closedStage}" and its notes already list every device - left alone`);
+        else jp.notes.push(`Job is already "${jp.closedStage}": its stage and status stay as they are. ${jp.attach.length ? `${jp.attach.length} asset(s) are attached` : 'Every asset is attached already'}; ${missing.length ? `${missing.length} device(s) not in its notes are added to them` : 'its notes already list every device'}.`);
       }
     }
   }
@@ -662,8 +671,22 @@ export function startApp({ transport, who }) {
           if (okStatus(r)) { it.status = 'ok'; jp.result.attached++; }
           else { it.status = 'fail'; jp.result.failed++; log(`  ERROR job ${jp.jobNo}: attaching ${it.ser} (asset ${aid}) failed: ${r.status} ${brief(r.data)}`); }
         }));
-        if (jp.result.failed) { errors++; log(`  Job ${jp.jobNo} LEFT OPEN - ${jp.result.failed} asset(s) could not be attached`); progress(`Applying… ${++done} of ${total}`, done, total); continue; }
+        if (jp.result.failed) { errors++; if (jp.closedStage) jp.closeError = `${jp.result.failed} asset(s) could not be attached`; log(`  Job ${jp.jobNo} ${jp.closedStage ? `(already ${jp.closedStage}): notes not added` : 'LEFT OPEN'} - ${jp.result.failed} asset(s) could not be attached`); progress(`Applying… ${++done} of ${total}`, done, total); continue; }
         const note = noteText();
+        if (jp.closedStage) {
+          // Already Complete or Archived: add only the devices missing from its notes; never touch its stage or status.
+          const blk = SyncCore.jobNoteBlock(jp, warranty, note);
+          if (!blk.lines.length) log(`  Job ${jp.jobNo} (already ${jp.closedStage}): attached ${jp.result.attached} asset(s); its notes already list every device`);
+          else {
+            const rn = await call('PATCH', `/companies/${p.cid}/jobs/${jp.jobNo}`, { Notes: (jp.job.notes ? jp.job.notes + '\n' : '') + blk.html });
+            if (!okStatus(rn)) { errors++; jp.closeError = `notes: ${rn.status} ${brief(rn.data)}`; log(`  ERROR job ${jp.jobNo} (already ${jp.closedStage}): could not add the devices to its notes: ${rn.status} ${brief(rn.data)}`); progress(`Applying… ${++done} of ${total}`, done, total); continue; }
+            jp.noteAdded = note;
+            log(`  Job ${jp.jobNo} (already ${jp.closedStage}): attached ${jp.result.attached} asset(s), ${blk.lines.filter(l => l.text).length} line(s) added to its notes; stage and status left as they are`);
+          }
+          jp.updatedClosed = true;
+          progress(`Applying… ${++done} of ${total}`, done, total);
+          continue;
+        }
         // Skip only when the exact block about to be written is already
         // there. This used to test for the "EST and PVT completed - <date>"
         // line alone, which silently swallowed the whole write - asset list
@@ -698,7 +721,7 @@ export function startApp({ transport, who }) {
     p.applied = true; p.result = { added, updated, errors, closedJobs };
     progressDone(); setBusy(false);
     renderResults();
-    $('tiles').insertAdjacentHTML('afterbegin', `<div class="banner ${errors ? 'bad' : 'ok'}">${errors ? '⚠' : '✓'} Applied: ${added} added, ${updated} updated${jl.length ? `, ${closedJobs} of ${jl.length} job${jl.length === 1 ? '' : 's'} completed` : ''}, ${errors} error${errors === 1 ? '' : 's'}. Run the preview again to confirm everything matches.</div>`);
+    $('tiles').insertAdjacentHTML('afterbegin', `<div class="banner ${errors ? 'bad' : 'ok'}">${errors ? '⚠' : '✓'} Applied: ${added} added, ${updated} updated${jl.some(j => !j.closedStage) ? `, ${closedJobs} of ${jl.filter(j => !j.closedStage).length} job${jl.filter(j => !j.closedStage).length === 1 ? '' : 's'} completed` : ''}${jl.some(j => j.closedStage) ? `, ${jl.filter(j => j.updatedClosed).length} of ${jl.filter(j => j.closedStage).length} already-closed job${jl.filter(j => j.closedStage).length === 1 ? '' : 's'} updated` : ''}, ${errors} error${errors === 1 ? '' : 's'}. Run the preview again to confirm everything matches.</div>`);
     downloadReport(true);
     updateReportsRow();
   };
@@ -715,7 +738,7 @@ export function startApp({ transport, who }) {
     (p.jobPlans || []).forEach(j => {
       j.attach.forEach(a => rows.push(['JOB ATTACH', a.sheet || '', a.rownum, a.site, a.ser, a.assetId || '', 'Job ' + j.jobNo, '', '', a.status || (j.problems.length ? 'skipped' : '')]));
       j.already.forEach(a => rows.push(['JOB ALREADY ATTACHED', a.sheet || '', a.rownum, a.site, a.ser, a.assetId, 'Job ' + j.jobNo, '', '', '']));
-      rows.push(['JOB COMPLETE', '', '', j.job ? j.job.site.ID : '', '', '', 'Job ' + j.jobNo, j.job ? `${j.job.stage} / ${j.job.status}` : '', `Complete / Job : Completed / note: ${noteText()}`, j.closed ? 'ok' : (j.problems.length ? 'skipped: ' + j.problems.join('; ') : (j.result ? 'left open ' + (j.closeError || '') : ''))]);
+      rows.push(['JOB COMPLETE', '', '', j.job ? j.job.site.ID : '', '', '', 'Job ' + j.jobNo, j.job ? `${j.job.stage} / ${j.job.status}` : '', `Complete / Job : Completed / note: ${noteText()}`, j.closed ? 'ok' : j.updatedClosed ? 'updated, stage left as ' + j.closedStage : (j.problems.length ? 'skipped: ' + j.problems.join('; ') : (j.result ? (j.closedStage ? 'not updated ' : 'left open ') + (j.closeError || '') : ''))]);
     });
     p.simproErrors.forEach(e => rows.push(['ERROR IN SIMPRO', e.sheet || '', '', e.site, e.ser, e.id, e.field, e.value, '', '']));
     const csv = '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n\r\n' + logLines.map(l => csvCell(l)).join('\r\n');

@@ -204,7 +204,19 @@ const SyncCore = (() => {
   // ONE <div> with <br> between lines: Simpro's editor runs adjacent block elements together.
   const jobNoteListHtml = lines => lines.length ? `<div>${lines.map(l => escHtml(l.text)).join('<br>')}</div>` : '';
   /* What gets appended to the job's Notes, and how it relates to what is there. */
+  /* A job that is already Complete or Archived (jp.closedStage): its notes are checked for each device, by serial (spaces and case
+     ignored), and only the devices that are not in them are added. */
+  const compactText = s => String(s || '').replace(/\s+/g, '').toUpperCase();
+  function jobNotesMissing(jp) {
+    const have = compactText(plainNotes((jp.job && jp.job.notes) || ''));
+    return jp.attach.concat(jp.already).filter(a => { const s = compactText(a.ser); return !!s && !have.includes(s); });
+  }
   function jobNoteBlock(jp, warranty, stampText) {
+    if (jp.closedStage) {
+      // The "EST and PVT completed" line is not added a second time when the notes already have one.
+      const lines = jobNoteLines(jobNotesMissing(jp), warranty), stamped = /EST and PVT completed/i.test(plainNotes((jp.job && jp.job.notes) || ''));
+      return { lines, html: jobNoteListHtml(lines) + (stamped ? '' : `<div>${stampText}</div>`), stampText };
+    }
     const all = jp.attach.concat(jp.already);
     const lines = jobNoteLines(all, warranty);
     return { lines, html: jobNoteListHtml(lines) + `<div>${stampText}</div>`, stampText };
@@ -217,6 +229,7 @@ const SyncCore = (() => {
     const existing = (jp.job && jp.job.notes) || '';
     let state;
     if (jp.problems.length) state = 'skipped';
+    else if (jp.closedStage) state = lines.length ? (plainNotes(existing) ? 'append' : 'write') : 'unchanged';   // already Complete/Archived: only devices missing from the notes
     else if (plainNotes(existing).includes(plainNotes(html))) state = 'unchanged';
     else state = plainNotes(existing) ? 'append' : 'write';
     return {
@@ -242,6 +255,6 @@ const SyncCore = (() => {
     return s;
   }
   return { MATCH_FIELD, SITE_COL, JOB_COL, XL_ERRORS, asText, asDateIso, isErr, toRecords, mapColumns, compare,
-    splitMoved, plainNotes, assetText, warrantyScan, jobNoteLines, jobNoteBlock, jobNotePreview, summariseNotes };
+    splitMoved, plainNotes, assetText, warrantyScan, jobNoteLines, jobNotesMissing, jobNoteBlock, jobNotePreview, summariseNotes };
 })();
 export { SyncCore };

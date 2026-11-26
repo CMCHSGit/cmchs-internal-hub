@@ -49,7 +49,7 @@
     <details style="margin-top:14px"><summary class="muted">Run log</summary><pre id="log"></pre></details>
   </section>
 
-  <p class="help">How it works: assets are matched on <b>Serial Number</b> within each <b>Site ID</b>. Existing assets are updated, new serials are created. Blank cells never clear Simpro, values not in a Simpro list are rejected, Excel errors such as #REF! are skipped, and the sync never deletes anything. If the sheet has a <b>Simpro Job</b> column, each job's assets are attached to it after the import and the job is set to stage <b>Complete</b> / status <b>Job : Completed</b> &mdash; only if every asset attached.</p>
+  <p class="help">How it works: assets are matched on <b>Serial Number</b> within each <b>Site ID</b>. Existing assets are updated, new serials are created. Blank cells never clear Simpro, values not in a Simpro list are rejected, Excel errors such as #REF! are skipped, and the sync never deletes anything. If the sheet has a <b>Simpro Job</b> column, each job's assets are attached to it after the import and the job is set to stage <b>Complete</b> / status <b>Job : Completed</b> &mdash; only if every asset attached. A job that is already <b>Complete</b> or <b>Archived</b> keeps its stage and status: its Notes are checked for each device (by serial) and the ones missing are added, and any asset not attached yet is attached.</p>
 
   <details class="card danger-zone" id="delCard">
     <summary><h2>Delete assets by type</h2></summary>
