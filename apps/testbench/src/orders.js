@@ -8,6 +8,14 @@
 
 import { modelContains, modelId } from './model-name.js'
 
+/** The New Zealand calendar day (YYYY-MM-DD) of a time such as a test's `finished` ("2026-11-26T19:30:00Z" is 27 Nov in NZ). A value with no time in it is
+    taken as the day it already says. Orders count tests from a day as people in NZ see it: the UTC date is a day behind until about 1 pm. */
+export function nzDate(v) {
+  const s = String(v ?? ''), ms = Date.parse(s)
+  if (!s.includes('T') || isNaN(ms)) return s.slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms))
+}
+
 /** Lower case, letters and digits only, one space between words. */
 export const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
@@ -58,7 +66,7 @@ export const expectedTotal = (expected) => Object.values(expected || {}).reduce(
 export function belongs(order, t) {
   if (t.order) return jobNumber(t.order) === jobNumber(order.number)
   if (!sameCustomer(t.customer, order.customer)) return false
-  return !order.since || String(t.finished || '').slice(0, 10) >= order.since
+  return !order.since || nzDate(t.finished) >= order.since
 }
 
 /** The order's expected model that a tested model is, e.g. "BeneHeart D30" and "D30, MR6502 Paddles" are "D30": the longest expected name found as whole words. */
@@ -110,7 +118,7 @@ export function cleanOrder(o, who, now = Date.now()) {
   for (const [m, n] of Object.entries(o.expected || {})) { const k = s(m, 80), c = Math.floor(+n); if (k && c > 0 && c <= 5000) expected[k] = c }
   return {
     number: jobNumber(s(o.number, 40)), jobLabel: s(o.jobLabel), customer: s(o.customer), expected,
-    since: /^\d{4}-\d{2}-\d{2}$/.test(o.since || '') ? o.since : new Date(now).toISOString().slice(0, 10),
+    since: /^\d{4}-\d{2}-\d{2}$/.test(o.since || '') ? o.since : nzDate(new Date(now).toISOString()),
     note: s(o.note, 500), status: o.status === 'closed' ? 'closed' : 'open',
     createdBy: s(o.createdBy || who.email, 120).toLowerCase(), createdByName: s(o.createdByName || who.name || who.email, 120),
     createdAt: +o.createdAt || now, updatedAt: now, ...(o.status === 'closed' ? { closedAt: +o.closedAt || now, closedBy: s(o.closedBy || who.email, 120).toLowerCase() } : {}),
