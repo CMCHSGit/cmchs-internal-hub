@@ -137,3 +137,68 @@ export function jobClosesOrder(order, job, jobCustomer = '') {
   if (!norm(jobCustomer) || !norm(order.customer)) return true
   return sameCustomer(order.customer, jobCustomer) || norm(order.jobLabel).includes(norm(jobCustomer))
 }
+
+/* ---- Reading the devices off a Simpro job's title -------------------------------------------------------------------------------
+   Test-and-add jobs are titled by hand ("Test and add assets - 16x VS9", "test and add asset 2X N19 2X N1 4x VS9", "Test and add
+   asset D60 & 3X AED"), so picking the job can fill in the models and how many of each. This is a best guess for people to check:
+   a title that lists nothing readable gives no rows. */
+const FILLER = new Set(['assets', 'asset', 'assests', 'added', 'into', 'simpro', 'to', 'customer', 'please', 'demo', 'only', 'mindray', 'benevision', 'and', 'the', 'a', 'for'])
+const WITH_CODE = new Set(['monitor', 'monitors', 'unit', 'units', 'device', 'devices'])   // dropped only when a model code is there ("N22 monitors" = N22)
+const CODE = /^[A-Za-z]{1,5}-?\d{1,4}[A-Za-z]{0,2}$/   // D30, VS9, EPM12, ePM12, TM80, R700, VS-600, C1A
+const CAPS = /^[a-z]?[A-Z]{2,6}$/                      // AED, BISX, EPM, ePM
+const isCode = (t) => CODE.test(t) || CAPS.test(t)
+const CHATTER = /\b(please|put|notes?|order|warranty|invoic\w*|need|them)\b/i   // an instruction to staff, not a device
+const isSerial = (t) => (t.match(/\d/g) || []).length >= 6
+
+/** Words of one piece of a title -> the model(s) it names, or []. `counted`: it has a quantity in front of it. */
+function modelsIn(text, counted) {
+  if (CHATTER.test(text)) return []
+  let toks = text.replace(/\([^)]*\)/g, ' ').split(/\s+/).map((t) => t.replace(/^[.,:;"']+|[.,:;"']+$/g, '')).filter((t) => t && !isSerial(t))
+  toks = toks.flatMap((t) => (t.includes('-') && t.split('-').every((p) => CODE.test(p)) ? t.split('-') : [t]))
+  toks = toks.map((t) => (/\ds$/i.test(t) && CODE.test(t.slice(0, -1)) ? t.slice(0, -1) : t))   // VS9s, R700s
+  for (let i = 0; i + 1 < toks.length; i++) if (CAPS.test(toks[i]) && /^\d{1,4}$/.test(toks[i + 1])) toks.splice(i, 2, toks[i] + ' ' + toks[i + 1])   // EPM 15
+  toks = toks.filter((t) => !FILLER.has(t.toLowerCase()))
+  const isModel = (t) => isCode(t) || /^[a-z]?[A-Z]{2,6} \d{1,4}$/.test(t)
+  if (toks.some(isModel)) toks = toks.filter((t) => !WITH_CODE.has(t.toLowerCase()))
+  const lead = toks.findIndex((t) => !isModel(t))
+  if (lead !== 0 && toks.length) return lead < 0 ? toks : toks.slice(0, lead)   // "N15 N1": each is its own model; "D30 battery charger" is a D30
+  return toks.length && (counted || toks.some(isModel)) ? [toks.join(' ')] : []   // other words with a count (or a code in them) are one model; the rest is chatter
+}
+
+/**
+ * "Test and add assets 6x N22 6XN1 6X secondary monitor" -> [{ model: 'N22', qty: 6 }, { model: 'N1', qty: 6 }, { model: 'secondary monitor', qty: 6 }].
+ * Quantities in front ("3X", "3 x", "21 xVS9") or behind ("ePM12 X4"); a model with none counts as 1; pieces split at , ; & + and " - ";
+ * serial numbers, the words "test and add asset" and chatter without a model (names, instructions) are left out.
+ */
+export function devicesFromTitle(title) {
+  const text = String(title ?? '').replace(/<[^>]*>/g, ' ').replace(/\btest(?:ed)?\s+(?:and|&)\s+add(?:ed)?\b/gi, ' - ')
+  const out = new Map()
+  const add = (model, qty, counted) => {   // "PM-60, PM60 Main Unit" is one device: the same model with no quantity again adds nothing
+    const k = norm(model).replace(/ /g, ''); if (!k) return
+    const e = out.get(k)
+    if (!e) out.set(k, { model, qty, counted })
+    else if (counted) { e.qty = e.counted ? e.qty + qty : qty; e.counted = true }
+  }
+  const pieces = []
+  for (const part of text.split(/\s+[-–—]\s*|\s*[-–—]\s+|[,;&+\n]|\s+and\s+/i)) {
+    const cuts = [...part.matchAll(/(?<![A-Za-z0-9])(\d+)\s*[x×]\s*(?=[A-Za-z0-9])/gi)]
+    if (!cuts.length) {
+      let t = part.trim()
+      for (let w; (w = t.match(/^(\S+)\s+(.*)$/)) && FILLER.has(w[1].toLowerCase());) t = w[2]   // "asset 8 vs9": the 8 is a quantity
+      const lead = t.match(/^(\d{1,3})\s+(?=[A-Za-z])(.*)$/), trail = t.match(/^(.*?\S)\s+[x×]\s*(\d{1,4})$/i)
+      pieces.push(lead ? { qty: +lead[1], text: lead[2] } : trail ? { qty: +trail[2], text: trail[1] } : { qty: null, text: part })
+      continue
+    }
+    pieces.push({ qty: null, text: part.slice(0, cuts[0].index) })
+    cuts.forEach((m, i) => pieces.push({ qty: +m[1], text: part.slice(m.index + m[0].length, i + 1 < cuts.length ? cuts[i + 1].index : undefined) }))
+  }
+  for (let i = 1; i < pieces.length; i++) if (/^\d+$/.test(pieces[i].text.trim()) && pieces[i - 1].qty == null && pieces[i - 1].text.trim()) {   // "EPM 15 x 4": the 15 is part of the name
+    pieces[i - 1] = { qty: +pieces[i].text, text: `${pieces[i - 1].text.trim()} ${pieces[i].qty}` }; pieces.splice(i, 1)
+  }
+  for (const p of pieces) for (const m of modelsIn(p.text, p.qty != null)) add(m, p.qty && p.qty > 0 && p.qty <= 5000 ? p.qty : 1, p.qty != null)
+  if (!out.size) {   // nothing with a code or count: a short plain name is still the device ("docking mount")
+    const rest = text.replace(/\([^)]*\)/g, ' ').replace(/\s+[-–—]\s*|\s*[-–—]\s+/g, ' ').split(/\s+/).filter((t) => t && !isSerial(t) && !FILLER.has(t.toLowerCase()))
+    if (rest.length && rest.length <= 4 && !CHATTER.test(rest.join(' '))) add(rest.join(' '), 1, false)
+  }
+  return [...out.values()].map(({ model, qty }) => ({ model, qty }))
+}

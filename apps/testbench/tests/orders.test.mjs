@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { belongs, cleanOrder, expectedText, expectedTotal, jobNumber, modelKey, ordersForCustomer, orderProblem, parseExpected, progress, sameCustomer, summaryLine } from '../src/orders.js'
+import { belongs, cleanOrder, devicesFromTitle, expectedText, expectedTotal, jobNumber, modelKey, ordersForCustomer, orderProblem, parseExpected, progress, sameCustomer, summaryLine } from '../src/orders.js'
 import { forBench, summaryOf } from '../src/bench-tests.js'
 
 const order = { id: 'o1', number: '209676', customer: 'Waikato', expected: { D30: 15, D60: 2 }, since: '2026-11-03', status: 'open' }
@@ -89,4 +89,52 @@ test('the order form takes one row per model, each with a quantity', async () =>
   assert.deepEqual(rowsToExpected([{ model: 'D30', qty: '' }, { model: 'D60', qty: '0' }, { model: 'A9', qty: '1.5' }, { model: '', qty: '4' }]).bad, ['D30', 'D60', 'A9', 'a row with no model'], 'a row that can\'t be used is named, not guessed')
   const ui = readFileSync(new URL('../src/Orders.jsx', import.meta.url), 'utf8')
   assert.ok(ui.includes('Device model') && ui.includes('Quantity') && ui.includes('type="number"') && !ui.includes('15 D30, 2 D60, banana') && ui.includes('tb-modelrow'))
+})
+
+// The titles below are the ways real test-and-add jobs were titled (made up from the pattern: no customers, no serial numbers that exist).
+const listed = (title) => devicesFromTitle(title).map((d) => `${d.qty} ${d.model}`)
+
+test('a job title lists its devices: quantities in front or behind, one model or several', () => {
+  assert.deepEqual(listed('Test and add assets - 16x VS9'), ['16 VS9'])
+  assert.deepEqual(listed('Test and add asset 3X A9'), ['3 A9'])
+  assert.deepEqual(listed('test and add asset TM80'), ['1 TM80'], 'no quantity is one')
+  assert.deepEqual(listed('test and add asset ePM12 X4'), ['4 ePM12'])
+  assert.deepEqual(listed('test and add assets EPM 15 x 4'), ['4 EPM 15'], 'the 15 is the model, the 4 the quantity')
+  assert.deepEqual(listed('Test and add assets- 21 xVS9, 2xN12, 3XN1'), ['21 VS9', '2 N12', '3 N1'])
+  assert.deepEqual(listed('test and add asset 2X N19 2X N1 4x VS9 1X 16bed Work station'), ['2 N19', '2 N1', '4 VS9', '1 16bed Work station'])
+  assert.deepEqual(listed('Test and add asset D60 & 3X AED'), ['1 D60', '3 AED'])
+  assert.deepEqual(listed('test and add asset 2X N15 and 3X N1'), ['2 N15', '3 N1'])
+  assert.deepEqual(listed('Test and add assets EPM12-N15-N1'), ['1 EPM12', '1 N15', '1 N1'])
+  assert.deepEqual(listed('test and add assets - 3 x N15 N1, 1 x VS9'), ['3 N15', '3 N1', '1 VS9'], 'a quantity goes with every model after it, up to the comma')
+  assert.deepEqual(listed('test and add assets - A7, TE7,VS9 R700,AED'), ['1 A7', '1 TE7', '1 VS9', '1 R700', '1 AED'])
+  assert.deepEqual(listed('was job 209336 test and add assets 6X D30 -5x AED'), ['6 D30', '5 AED'], 'the old job number is not a device')
+  assert.deepEqual(listed('Test and add assets 28 x AED 26 X cabinets'), ['28 AED', '26 cabinets'])
+  assert.deepEqual(listed('Test and add asset 8 vs9'), ['8 vs9'])
+})
+
+test('a job title: the extra words around a model are dropped, so the model matches what the bench records', () => {
+  assert.deepEqual(listed('test and add asset 2x N22 monitors'), ['2 N22'])
+  assert.deepEqual(listed('Test and Add asset 2x Benevision N1'), ['2 N1'])
+  assert.deepEqual(listed('Please test and add assests into Simpro - 3 x R700s - extended warranty to be ordered'), ['3 R700'], 'plural and instructions')
+  assert.deepEqual(listed('Test and add asset D30 battery charger'), ['1 D30'])
+  assert.deepEqual(listed('Test and add asset R700 - TP1-64004419'), ['1 R700'], 'a serial number is not a device')
+  assert.deepEqual(listed('R700 - please test and add asset'), ['1 R700'], 'a model before the words works too')
+  assert.deepEqual(listed('test and add assets TEX20 -Rollstand'), ['1 TEX20'], 'TEX20 is not "TE" times 20')
+  assert.deepEqual(listed('test and add asset MX5& trolly'), ['1 MX5'])
+  assert.deepEqual(listed('Test and add asset PM-60, PM60 Main Unit, English(Software)'), ['1 PM-60'], 'the same device named twice is one')
+  assert.deepEqual(listed('Test and add asset 4x Te Air on Roll stands'), ['4 Te Air on Roll stands'], 'a counted name with no model code is kept as written')
+  assert.deepEqual(listed('Test and Add asset docking mount'), ['1 docking mount'], 'a short plain name is still the device')
+})
+
+test('a job title that names no device gives no rows (the person types them)', () => {
+  for (const t of ['Test and add assets', 'please test and add asset', 'Please test and add assets into Simpro', 'Please test and add assets into Simpro - please put S/Ns of AEDs in the notes need them for Invoicing', 'test and add asset Mindray', '', null, undefined]) assert.deepEqual(devicesFromTitle(t), [], String(t))
+  assert.deepEqual(devicesFromTitle('<p>Test and add 2x VS9</p>').map((d) => d.model), ['VS9'], 'Simpro descriptions can carry HTML')
+})
+
+test('Orders: picking a job fills the model rows from its title, and does not overwrite rows already typed', () => {
+  const src = readFileSync(new URL('../src/Orders.jsx', import.meta.url), 'utf8').replaceAll('\r', '')
+  assert.ok(src.includes('onJob={pickJob}') && src.includes('devicesFromTitle(j.name)') && src.includes('devicesFromTitle(j.description)'))
+  assert.ok(src.includes("const typed = rows.some((r) => r.model || r.qty)\n    if (!typed) setRows(withSpare(listed))"), 'only blank rows are filled')
+  assert.ok(src.includes('Use this list instead'), 'with rows already typed, the title\'s list is offered, not forced')
+  assert.ok(readFileSync(new URL('../src/JobPicker.jsx', import.meta.url), 'utf8').includes("name: j.Name || '', description: j.Description || ''"), 'the picker passes the title on')
 })
