@@ -1826,13 +1826,21 @@ const Layout = {
   /** The one template for a device model (e.g. "BeneHeart D30"), or null when none, or more than one, fits best. A word with a digit
       (D30, N12) names the model, so a template must match all of those; plain words (BeneHeart) only add to the score. */
   rank(list, model) {
-    const words = this.words(model), model_ = words.filter(w => /\d/.test(w)); if (!words.length) return [];
+    const words = this.modelWords(model), model_ = words.filter(w => /\d/.test(w)); if (!words.length) return [];
     const scored = list.map(t => {
       const h = words.map(w => this.hit(t, w));
       if (model_.length && !words.every((w, i) => h[i] > 0 || !/\d/.test(w))) return { t, s: 0 };
       return { t, s: words.reduce((a, w, i) => a + (h[i] ? (/\d/.test(w) ? 3 : 1) * (h[i] === 4 ? 2 : h[i] === 3 ? 1.5 : 1) : 0), 0) };
     }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
     return scored;
+  },
+  /** A model's words, whatever spaces and hyphens it was written with: "VS600", "VS 600", "VS-600" are all [vs600]; "BeneHeart R12", "Beneheart-R12" and
+      "BeneHeart R 12" are all [beneheart, r12]; "TM80 II", "TM80II" and "TM80-II" are all [tm80, ii]. It is cut into runs of letters and runs of digits, then up to
+      five letters and the digits after them go back together as the model code. The same rule as src/model-name.js (tests/model-name.test.mjs checks both). */
+  modelWords(model) {
+    const p = String(model || '').toLowerCase().match(/[a-z]+|[0-9]+/g) || [], out = [];
+    for (let i = 0; i < p.length; i++) { if (/^[a-z]{1,5}$/.test(p[i]) && /^[0-9]/.test(p[i + 1] || '')) { out.push(p[i] + p[i + 1]); i++; } else out.push(p[i]); }
+    return out;
   },
   bestFor(list, model) { const scored = this.rank(list, model); return scored.length && (scored.length === 1 || scored[0].s > scored[1].s) ? scored[0].t : null; },
   /** The templates that fit a model equally well (the best score), e.g. to colour it when no single one wins. */

@@ -6,6 +6,8 @@
    copied into the order: this file only decides which tests belong to which order and how far along it is. Plain functions (the tests
    run them); the Firestore calls are in orders-firebase.js. */
 
+import { modelContains, modelId } from './model-name.js'
+
 /** Lower case, letters and digits only, one space between words. */
 export const norm = (s) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
@@ -41,7 +43,8 @@ export function rowsToExpected(rows) {
     const n = Number(raw)
     if (!model) { bad.push('a row with no model'); continue }
     if (!raw || !Number.isInteger(n) || n < 1 || n > 5000) { bad.push(model); continue }
-    expected[model] = (expected[model] || 0) + n
+    const same = Object.keys(expected).find((k) => modelId(k) === modelId(model)) || model   // "VS600" and "VS 600" on two rows are one model: they add up under the first spelling
+    expected[same] = (expected[same] || 0) + n
   }
   return { expected, bad }
 }
@@ -60,8 +63,7 @@ export function belongs(order, t) {
 
 /** The order's expected model that a tested model is, e.g. "BeneHeart D30" and "D30, MR6502 Paddles" are "D30": the longest expected name found as whole words. */
 export function modelKey(order, model) {
-  const nm = ` ${norm(model)} `
-  return Object.keys(order.expected || {}).sort((a, b) => norm(b).length - norm(a).length).find((k) => norm(k) && nm.includes(` ${norm(k)} `)) || null
+  return Object.keys(order.expected || {}).sort((a, b) => modelId(b).length - modelId(a).length).find((k) => modelContains(model, k)) || null   // "VS600", "VS 600" and "VS-600" are one model (model-name.js)
 }
 
 /**
