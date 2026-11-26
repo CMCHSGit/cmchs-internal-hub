@@ -66,6 +66,7 @@ stops when the tab is left; the bench behind it stays loaded.
 - **Never break the hardware rules** (bench-notes §6): 150 ms gap after an ESA612 reply, wait for the expected reply type, skip late `!21`,
   `IDLE` not `POL=OFF`, no `EARTH=` under earth leakage, MAP order `IDLE, MAP, AP=…, MAP=NORM, POL=N`, never the blocked ProSim commands.
   The simulator (`simPort`) passing is **not** hardware verification — say what is unverified on the real units.
+- **A model is one model however it is written** ("VS600" = "VS 600" = "VS-600", any capitals): compare models with `src/model-name.js` (`sameModel`, `modelContains`, `modelId`) in the hub side and `Layout.modelWords` in the bench page, never with a raw string compare or `includes`. Keep the name as written for display. `tests/model-name.test.mjs` has the spellings and the pairs that must stay different (N1/N12, TM80 I/II, T1/T8, ePM 12/12M).
 - **Never change a test limit silently.** AS/NZS 3551 wins for electrical safety, the latest manufacturer manual for performance; note
   disagreements in the template `desc` and leave the decision to Jonathan (the open ones are in bench-notes §11).
 - **Never overwrite a template from an older copy** — diff against the live SharePoint file first; engineers edit them there.

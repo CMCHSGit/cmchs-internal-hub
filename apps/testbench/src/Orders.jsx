@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Alert, Badge, Button } from '../../../shared/ui/index.jsx'
 import { logActivity } from '../../../shared/activity.js'
 import JobPicker from './JobPicker.jsx'
+import { uniqueModels } from './model-name.js'
 import { devicesFromTitle, expectedText, expectedTotal, jobNumber, orderProblem, progress, rowsToExpected } from './orders.js'
 import { saveOrder, removeOrder } from './orders-firebase.js'
 
@@ -137,7 +138,7 @@ export default function Orders({ orders, ordersError, tests, who, user, online, 
   const [show, setShow] = useState('open')
   const [note, setNote] = useState({ text: '', tone: 'info' })
   const customers = useMemo(() => [...new Set(tests.map((t) => t.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [tests])
-  const models = useMemo(() => [...new Set(tests.map((t) => String(t.model || '').split(/[,;]/)[0].trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [tests])   // models already tested: suggestions for the model field
+  const models = useMemo(() => uniqueModels(tests.map((t) => String(t.model || '').split(/[,;]/)[0].trim()).filter(Boolean)).sort((a, b) => a.localeCompare(b)), [tests])   // models already tested: suggestions for the model field
   const shown = orders.filter((o) => (show === 'open' ? o.status !== 'closed' : o.status === 'closed'))
 
   async function save(o) {
