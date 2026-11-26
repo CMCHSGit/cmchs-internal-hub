@@ -50,13 +50,29 @@ export function toCanvas(source, max = 1800) {
   return canvas
 }
 
+/** A canvas turned a quarter, half or three-quarter turn clockwise (a label photographed sideways). */
+export function rotateCanvas(canvas, degrees) {
+  const turn = ((degrees % 360) + 360) % 360
+  if (!turn) return canvas
+  const sideways = turn === 90 || turn === 270
+  const out = document.createElement('canvas')
+  out.width = sideways ? canvas.height : canvas.width
+  out.height = sideways ? canvas.width : canvas.height
+  const g = out.getContext('2d')
+  g.translate(out.width / 2, out.height / 2)
+  g.rotate((turn * Math.PI) / 180)
+  g.drawImage(canvas, -canvas.width / 2, -canvas.height / 2)
+  return out
+}
+
 /** Read the text in a canvas. `enough(text)` says whether it holds what was wanted; if not, a second pass
-    looks for scattered text instead of one block (a label, a screen with a lot around it). */
-export async function readPhoto(canvas, { onProgress, enough = () => true } = {}) {
+    looks for scattered text instead of one block (a label, a screen with a lot around it). `modes` are the
+    layouts tried in turn (tesseract's page segmentation modes: 6 one block of text, 11 sparse text anywhere). */
+export async function readPhoto(canvas, { onProgress, enough = () => true, modes = ['6', '11'] } = {}) {
   progress = onProgress || (() => {})
   const w = await worker()
   let text = ''
-  for (const psm of ['6', '11']) { // 6: one block of text (a screen's lines); 11: sparse text anywhere
+  for (const psm of modes) { // 6: one block of text (a screen's lines); 11: sparse text anywhere
     await w.setParameters({ tessedit_pageseg_mode: psm })
     text += '\n' + (await w.recognize(canvas)).data.text
     if (enough(text)) break
