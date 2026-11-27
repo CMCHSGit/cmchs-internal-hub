@@ -295,7 +295,11 @@ list yet, and see which units have been tested.
   the new test carries `run.replaces`, and **when it finishes with a pass** (not stopped, not failed) it takes the old one's place: the old
   test leaves this laptop's Previous tests, and the hub (`chs-bench:replace-test`) removes its shared record (its engineer or an admin, as
   Remove for everyone) and its saved report files (`removeTestFiles`, by start time; files someone added themselves stay). A failed or
-  stopped re-test is kept beside the old pass, which stays. Someone else's test is only mentioned and never replaced. **Run again** on a
+  stopped re-test is kept beside the old pass, which stays. **The earlier answers are kept** (`carryEarlier`, the earlier test fetched from the
+  shared list when it was done on another laptop): on checklist steps, Pass and N/A answers and typed readings (judged again by the new
+  template's limits), matched by step id, then title, and items by wording, so it opens on the first step still to do; a Fail, ESA612
+  measurements and simulator steps are done again. **A different template:** when the earlier test used another template than the one on
+  screen, the question has a button for each ("Test again with …"); the choice is made once, and answers carry across by title and wording. Someone else's test is only mentioned and never replaced. **Run again** on a
   summary is separate and unchanged (a new test with the old results, files named "(rerun N)"). The replaced test's report files already on
   a Simpro job or in a folder are not touched. Logs one line to the activity log, counts only.
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
