@@ -3028,7 +3028,7 @@ const Runner = {
 
   start(tpl, dut, model, attempt) {
     this.run = { id: uid(), templateId: tpl.id, template: clone(tpl), dut, started: new Date().toISOString(), idx: 0, results: {}, stdSet: false };
-    if (attempt > 1) this.run.attempt = attempt;   // a rerun: its report files are named "(rerun N)", so the earlier test's are kept
+    if (attempt > 1) this.run.attempt = attempt;   // a rerun: which attempt it is (its files are no longer named for it)
     if (model) {
       const out = this.run.template.steps.filter(s => !stepForModel(s, model));
       this.run.template.steps = this.run.template.steps.filter(s => stepForModel(s, model));
@@ -5771,7 +5771,7 @@ function outName(run, ext, when) {   // `when`: the test's own day (a download f
   let sn = all[0] || String(dut[Object.keys(dut)[0]] || '').trim() || 'Device', model = pick(/^model$/i);
   for (let i = 1; i < all.length; i++) { const more = `${sn}, ${all[i]}`; if (more.length > 110) { sn += ` and ${all.length - i} more`; break; } sn = more; }   // a set: "AA3F46248926, AA3D58264234 - N1 Handle …"
   const d = when && !isNaN(new Date(when)) ? new Date(when) : new Date(), dd = `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
-  return `${safeName(sn)}${model ? ` - ${safeName(model)}` : ''} ${dd}${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}`;   // a rerun has its own files, so the first test's are not replaced
+  return `${safeName(sn)}${model ? ` - ${safeName(model)}` : ''} ${dd}.${ext}`;   // no "(rerun N)" any more (27 Nov 2026): a rerun of the same device on the same day has the same file names and takes the place of the earlier files
 }
 
 /* ======================= app ======================= */
