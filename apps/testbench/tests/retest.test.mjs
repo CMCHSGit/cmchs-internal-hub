@@ -10,7 +10,11 @@ const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8
 const hub = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 const a = html.indexOf('function otherDevices('), b = html.indexOf('const Extras = {')
-const { earlierPasses } = vm.runInNewContext('const overallOf = (r) => r.overall;' + html.slice(a, b) + '; ({ earlierPasses })')
+const cut = (from, to) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)))
+const { earlierPasses, carryEarlier } = vm.runInNewContext([
+  'const overallOf = (r) => r.overall; const TYPES = { check: { group: "check" } }; const clone = (o) => JSON.parse(JSON.stringify(o));',
+  cut('function judge(', 'function isSteady('), cut('function limitText(', '/* ======================= test library'),   // the bench's own judging and limit text
+  cut('function stepChecks(', '/**\n * What a finished test answered'), html.slice(a, b), '; ({ earlierPasses, carryEarlier })'].join('\n'))
 const plain = (v) => JSON.parse(JSON.stringify(v))
 
 const T1 = '2026-11-05T01:00:00.000Z', T2 = '2026-11-10T01:00:00.000Z', T3 = '2026-11-12T01:00:00.000Z'
@@ -59,10 +63,58 @@ test('the saved files of the replaced test go, and nothing else', async () => {
   assert.equal(await removeTestFiles(store, 'nothing'), 0)
 })
 
+const setter = (run) => (s) => status(run.results[s.id], (s.params.items || []).length + (s.params.readings || []).length)
+// A checklist step as the bench has it: pass / fail items, then typed readings.
+const checkStep = (id, title, items, readings = []) => ({ id, type: 'check', title, params: { items, readings } })
+const blank = (steps) => ({ template: { steps }, results: Object.fromEntries(steps.map((s) => [s.id, { status: 'pending', rows: [] }])) })
+const finished = (steps, results) => ({ template: { steps }, results })
+const status = (s, count) => {   // the bench's checksStatus: one result for each item of the step, so an unanswered one is a gap
+  const v = Array.from({ length: count }, (_, k) => s.rows[k] && s.rows[k].result)
+  s.status = v.includes('fail') ? 'fail' : !v.every(Boolean) ? 'pending' : v.every((x) => x === 'na') ? 'done' : v.some((x) => x === 'pass') ? 'pass' : 'info'
+}
+
+test('a re-test keeps what was answered by hand: Pass, N/A and typed readings, judged again by the new limits', () => {
+  const oldSteps = [checkStep('v', 'Visual', ['Case undamaged', 'Labels legible', 'Cable intact']), checkStep('s', 'SpO2', [], [{ label: 'SpO2 on a healthy finger', unit: '%', lo: 95, hi: 100 }, { label: 'Pulse rate', unit: 'bpm', lo: 77, hi: 83 }])]
+  const old = finished(oldSteps, {
+    v: { status: 'pass', rows: [{ label: 'Case undamaged', result: 'pass' }, { label: 'Labels legible', result: 'na' }, { label: 'Cable intact', result: 'fail' }] },
+    s: { status: 'pass', rows: [{ label: 'SpO2 on a healthy finger', value: '97', unit: '%', result: 'pass', limit: '95 – 100 %' }, { label: 'Pulse rate', value: '80', unit: 'bpm', result: 'pass', limit: '77 – 83 bpm' }] },
+  })
+  const run = blank(oldSteps), kept = carryEarlier(run, old, setter(run))
+  assert.equal(kept, 4, 'Pass, N/A and both readings; the Fail is left to answer again')
+  assert.equal(run.results.v.rows[0].result, 'pass'); assert.equal(run.results.v.rows[1].result, 'na'); assert.equal(run.results.v.rows[1].display, 'N/A')
+  assert.equal(run.results.v.rows[2], undefined, 'a Fail is not carried')
+  assert.equal(run.results.v.status, 'pending', 'the step is not done until the Fail one is answered')
+  assert.equal(run.results.s.rows[0].value, '97'); assert.equal(run.results.s.rows[1].value, '80'); assert.equal(run.results.s.status, 'pass')
+  // The same readings on a template with tighter limits are judged again, not carried as passes.
+  const tight = blank([checkStep('s', 'SpO2', [], [{ label: 'SpO2 on a healthy finger', unit: '%', lo: 98, hi: 100 }, { label: 'Pulse rate', unit: 'bpm', lo: 77, hi: 83 }])])
+  carryEarlier(tight, old, setter(tight))
+  assert.equal(tight.results.s.rows[0].result, 'fail'); assert.equal(tight.results.s.rows[0].limit, '98 – 100 %'); assert.equal(tight.results.s.status, 'fail')
+  assert.equal(old.results.s.rows[0].result, 'pass', 'the earlier test itself is not changed')
+})
+
+test('a re-test with another template: steps match by title, items by wording; nothing else is carried', () => {
+  const old = finished([checkStep('a1', 'Visual inspection', ['Case undamaged', 'Old wording']), checkStep('a2', 'Performance', [], [{ label: 'SpO2', unit: '%', lo: 90, hi: 100 }]), { id: 'e1', type: 'esa_pe', title: 'Protective earth', params: { hi: 0.2 } }], {
+    a1: { status: 'pass', rows: [{ label: 'Case undamaged', result: 'pass' }, { label: 'Old wording', result: 'pass' }] },
+    a2: { status: 'pass', rows: [{ label: 'SpO2', value: '96', unit: '%', result: 'pass' }] },
+    e1: { status: 'pass', rows: [{ label: 'PE', value: '0.05', result: 'pass' }] },
+  })
+  const run = blank([checkStep('b1', ' visual  INSPECTION ', ['case undamaged', 'New wording']), checkStep('b2', 'Performance', [], [{ label: 'SpO2', unit: '%', lo: 95, hi: 100 }, { label: 'Respiration', unit: 'bpm' }]), { id: 'e9', type: 'esa_pe', title: 'Protective earth', params: { hi: 0.2 } }, checkStep('b3', 'Extra', ['Something new'])])
+  assert.equal(carryEarlier(run, old, setter(run)), 2, 'one item by wording (any capitals and spaces), one reading')
+  assert.equal(run.results.b1.rows[0].label, 'case undamaged', 'the new template’s own wording')
+  assert.equal(run.results.b1.rows[1], undefined, 'a reworded item is answered again')
+  assert.equal(run.results.b2.rows[0].value, '96'); assert.equal(run.results.b2.rows[1], undefined)
+  assert.deepEqual(plain(run.results.e9), { status: 'pending', rows: [] }, 'ESA612 measurements are done again')
+  assert.deepEqual(plain(run.results.b3), { status: 'pending', rows: [] }, 'a step the earlier test did not have')
+  assert.equal(carryEarlier(blank([checkStep('x', 'Visual', ['Case'])]), finished([checkStep('x', 'Visual', ['Case'])], { x: { status: 'skipped', rows: [{ label: 'Case', result: 'pass' }] } }), () => {}), 0, 'a skipped step is not carried')
+})
+
 test('the wiring: the question at the start, the replace after a pass, the hub’s part', () => {
-  assert.match(html, /earlierPasses\(\[sk \? dut\[sk\] : '', \.\.\.devices\.map\(d => d\.serial\)\], await Records\.list\(\), SharedTests\.list, SharedTests\.me\)/, 'asked from the start screen')
+  assert.match(html, /earlierPasses\(\[sk \? dut\[sk\] : '', \.\.\.devices\.map\(d => d\.serial\)\], local, SharedTests\.list, SharedTests\.me\)/, 'asked from the start screen')
   assert.match(html, /title: 'Already tested'/)
-  assert.match(html, /if \(!go2\) return;/, 'Cancel starts nothing')
+  assert.match(html, /if \(!pick\) return;/, 'Cancel starts nothing')
+  assert.match(html, /carryEarlier\(Runner\.run, earlier, \(s\) => Runner\.checksStatus\(s\)\)/, 'the earlier answers go into the new test')
+  assert.match(html, /if \(pick === 'other'\) \{ this\.pick\(other\.id\); return this\.startRun\(\{ replaces, earlier \}\); \}/, 'the earlier template can be used instead, without asking twice')
+  assert.match(html, /async startRun\(again\)/)
   assert.match(html, /if \(prior\.mine\) replaces = \{ id: prior\.id, started: prior\.started \}/, 'someone else’s test is not replaced')
   assert.match(html, /if \(replaces\) Runner\.run\.replaces = replaces/, 'carried on the test, so autosave and Carry on keep it')
   assert.match(html, /if \(!stopped && run\.overall === 'pass' && run\.replaces\) this\.replaceEarlier\(run\)/, 'only a passed, finished re-test replaces')
