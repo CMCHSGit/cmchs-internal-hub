@@ -5516,10 +5516,11 @@ function carryEarlier(run, old, setStatus) {
   return n;
 }
 const splitSerialsOf = (s) => String(s ?? '').split(/\s\+\s|,\s*/).map(x => x.trim()).filter(Boolean);
-/** The question put before a device that passed is tested again (from Start test, or from Rerun test on its opened test). `thisTemplate`: the template this test would use, when it isn't the earlier one's. */
-function retestBody(prior, day, thisTemplate) {
+/** The question put before a device that passed is tested again (from Start test, or from Rerun test on its opened test). `thisTemplate`: the template this test would use, when it isn't the earlier one's. `keepAllWith`: the earlier test's template, when it can be used again (a box to keep every result, ticked). */
+function retestBody(prior, day, thisTemplate, keepAllWith) {
   return `<p><b>${esc(prior.serial)}</b> passed on ${esc(day)}${prior.template ? ` with “${esc(prior.template)}”` : ''}${prior.mine ? '' : `, tested by ${esc(prior.byName)}`}.</p><p>Do you want to test it again?</p>`
-    + `<p class="muted">What was answered by hand last time on the checklists, including typed readings, is kept: change any that differ. ESA612 measurements and simulator steps are done again.${thisTemplate ? ` This test uses “${esc(thisTemplate)}”: answers carry across where the step and item wording match.` : ''}</p>`
+    + `<p class="muted">What was answered by hand last time on the checklists, including typed readings, is kept: change any that differ.${keepAllWith ? '' : ' ESA612 measurements and simulator steps are done again.'}${thisTemplate ? ` This test uses “${esc(thisTemplate)}”: answers carry across where the step and item wording match.` : ''}</p>`
+    + (keepAllWith ? `<label class="check" style="margin:10px 0"><input type="checkbox" id="rtAll" checked> Keep all results, including the ESA612 and simulator steps, when testing with “${esc(keepAllWith)}”: they are not measured again. Untick it to measure them again.</label>` : '')
     + (prior.mine ? '<p class="muted">When the new test passes, it replaces the earlier one: its place in Previous tests, its shared record and its saved report files. If it doesn’t pass, the earlier test stays.</p>'
       : '<p class="muted">That test belongs to someone else, so it stays. The new test is added beside it.</p>');
 }
@@ -6086,9 +6087,10 @@ const App = {
     const t = Store.get(prev.templateId) || Store.templates.find(x => norm(x.name) === norm(prev.template && prev.template.name));
     const prior = { id: prev.id, serial: allSerials(prev), started: prev.started, finished: prev.finished, template: (prev.template && prev.template.name) || '', byName: prev.sharedBy || '', mine: !prev.sharedBy || !SharedTests.me || prev.sharedBy === SharedTests.me };
     const day = new Date(prev.finished).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
-    const pick = await dialog({ title: 'Already tested', body: retestBody(prior, day, ''),
+    const ans = await dialog({ title: 'Already tested', body: retestBody(prior, day, '', t ? prior.template : ''), collect: (el) => ({ all: !!$('#rtAll', el)?.checked }),
       buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, ...(t ? [{ label: 'Test again', value: 'same' }] : []), { label: 'Use a different template…', value: 'other' }] });
-    if (!pick) return;
+    const pick = ans && ans.value; if (!pick) return;
+    const keepAll = pick === 'same' && !!ans.data.all;   // every result: only with this test's own template, not another one
     if (Power.on) Power.off(true);
     const replaces = prior.mine && prev.started ? { id: prev.id, started: prev.started } : null;
     log('in', 'RUN', `Retest of “${prior.template}”: the earlier test passed on ${day}${replaces ? '; it is replaced if this one passes' : ''}${pick === 'other' ? '; another template will be chosen' : ''}`);
@@ -6098,7 +6100,7 @@ const App = {
       $$('#dutFields input').forEach(i => { const k = Object.keys(prev.dut || {}).find(x => norm(x) === norm(i.dataset.k)); if (k != null && prev.dut[k] != null) i.value = prev.dut[k]; });
       Extras.set(otherDevices(prev));
     }
-    if (pick === 'same') { await this.startRun({ replaces, earlier: prev }); if ($('#runActive').hidden) { $('#runSetup').hidden = false; } return; }
+    if (pick === 'same') { await this.startRun({ replaces, earlier: prev, keepAll }); if ($('#runActive').hidden) { $('#runSetup').hidden = false; } return; }
     this.retest = { replaces, earlier: prev };   // taken by Start test, once a template is chosen
     toast('Choose the template to test it with, then Start test. The earlier answers carry across where the steps and wording match.', 7000);
     window.scrollTo({ top: 0 });
@@ -6125,7 +6127,7 @@ const App = {
     // The earlier test's own template can be used again, or the one on screen: answers match across templates by step title and item wording.
     // "Rerun test" on an opened test, then "different template…": the question was answered there, so it is not asked again (only while the serial number is still that test's).
     if (!again && this.retest) { const r = this.retest; this.retest = null; const had = new Set(splitSerialsOf(allSerials(r.earlier)).map(x => x.toUpperCase())); if (splitSerialsOf(allSerials({ dut, devices })).some(x => had.has(x.toUpperCase()))) again = r; }
-    let replaces = again ? again.replaces : null, earlier = again ? again.earlier : null;
+    let replaces = again ? again.replaces : null, earlier = again ? again.earlier : null, keepAll = again ? !!again.keepAll : false;
     const local = again ? [] : await Records.list();
     const sk = Object.keys(dut).find(k => /^serial/i.test(k.trim())), prior = again ? null : earlierPasses([sk ? dut[sk] : '', ...devices.map(d => d.serial)], local, SharedTests.list, SharedTests.me)[0];
     if (prior) {
@@ -6133,15 +6135,16 @@ const App = {
       const day = new Date(prior.finished).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
       const was = Store.get(prior.templateId) || Store.templates.find(x => norm(x.name) === norm(prior.template));
       const other = was && was.id !== t.id && was.steps.length ? was : null, differs = !!prior.template && norm(prior.template) !== norm(t.name);
-      const pick = await dialog({ title: 'Already tested', body: retestBody(prior, day, differs ? t.name : ''),
+      const ans = await dialog({ title: 'Already tested', body: retestBody(prior, day, differs ? t.name : '', !differs ? t.name : other ? other.name : ''), collect: (el) => ({ all: !!$('#rtAll', el)?.checked }),
         buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: other ? `Test again with “${t.name}”` : 'Test again', value: 'here' }, ...(other ? [{ label: `Test again with “${other.name}”`, value: 'other' }] : [])] });
-      if (!pick) return;
+      const pick = ans && ans.value; if (!pick) return;
+      keepAll = !!ans.data.all && (pick === 'other' || !differs);   // every result: only when the earlier test's own template is used
       if (prior.mine) replaces = { id: prior.id, started: prior.started };
       // What was answered: the earlier test itself, from this laptop, or fetched from the shared list when it was done on another one.
       earlier = local.find(r => r.id === prior.id) || null;
       if (!earlier && prior.size !== 0) { try { earlier = await SharedTests.fetch(prior.id); } catch (e) { log('er', 'RUN', 'Couldn’t fetch the earlier test to keep its answers: ' + e.message); } }
       log('in', 'RUN', `Tested again: the earlier test passed on ${day}${replaces ? '; it is replaced if this one passes' : ''}${earlier ? '' : '; its answers could not be kept'}`);
-      if (pick === 'other') { this.pick(other.id); return this.startRun({ replaces, earlier }); }   // the details stay (matched by name); the question is not asked twice
+      if (pick === 'other') { this.pick(other.id); return this.startRun({ replaces, earlier, keepAll }); }   // the details stay (matched by name); the question is not asked twice
     }
     const go = (...a) => {
       Runner.start(...a);
@@ -6149,7 +6152,19 @@ const App = {
         if (order) Runner.run.order = order;
         if (replaces) Runner.run.replaces = replaces;
         if (devices.length) { Runner.run.devices = devices; $('#runDut').textContent = Runner.dutText(); Runner.autosave(); }
-        if (earlier) {   // a re-test: the checklist answers and readings come across, and it opens on the first step still to do
+        const norm = (x) => String(x ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (earlier && keepAll && earlier.template && (earlier.templateId === t.id || norm(earlier.template.name) === norm(t.name))) {
+          // a re-test that keeps every result (the earlier test's own template): the steps and every result as they were, opened on the first step still to do, as Rerun does
+          const r = Runner.run;
+          r.template = clone(earlier.template); r.results = clone(earlier.results); r.stdSet = earlier.stdSet; r.keptFrom = { id: earlier.id, finished: earlier.finished };
+          if (earlier.model) r.model = earlier.model;
+          if (earlier.extra) r.extra = clone(earlier.extra);
+          Runner.restorePhotos(r); $('#editAp').hidden = !usesAP(r.template);
+          const left = Runner.steps.findIndex(s => !['pass', 'done', 'info', 'na'].includes(Runner.res(s).status));
+          Runner.go(left < 0 ? 0 : left); Runner.autosave();
+          log('in', 'RUN', 'Re-test: every result from the earlier test is kept, ESA612 and simulator steps included');
+          toast(left < 0 ? 'Every result from the earlier test is kept, the ESA612 and simulator steps too (not measured again). Go back to any step to redo it.' : 'Every result from the earlier test is kept (not measured again) and it opens on the first step still to do. Redo any step from the list.', 9000);
+        } else if (earlier) {   // a re-test: the checklist answers and readings come across, and it opens on the first step still to do
           const kept = carryEarlier(Runner.run, earlier, (s) => Runner.checksStatus(s));
           if (kept) {
             const left = Runner.steps.findIndex(s => !['pass', 'done', 'info', 'na'].includes(Runner.res(s).status));
