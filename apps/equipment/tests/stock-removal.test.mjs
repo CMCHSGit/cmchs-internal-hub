@@ -258,10 +258,16 @@ test('a loan’s accessory line keeps how many came from stock, and adds them wh
   assert.deepEqual(cleanAccessories([{ code: 'A1', name: 'x', qty: 2, stock: 1 }, { code: 'a-1', qty: 1, stock: 2 }, { code: 'B2', qty: 1, stock: 0 }]), [{ code: 'A1', name: 'x', qty: 3, stock: 3 }, { code: 'B2', name: '', qty: 1 }])
 })
 
-test('the loans a demo can be chosen from: every loan and booking that matches, current ones first', () => {
+test('the loans a demo can be chosen from: every loan and booking that matches, those starting soon first', () => {
   const eq = (id, to, start, end, batch) => ({ id, CHSAssetNo: id, Model: 'TV80', Returned: 'No', OnLoanTo: to, Location: 'ED', LoanStartDate: start, LoanEndDate: end, BatchID: batch })
   const sections = loanSections({ equipment: [eq('1', 'Whanganui Hospital', '2026-11-01', '2026-12-11', 'b1'), eq('2', 'Hutt Hospital', '2026-11-01', '2026-12-01', 'b2')], upcoming: [{ id: 'bk1', loanTo: 'Whangarei Hospital', startDate: '2026-12-20', endDate: '2027-01-10', items: [] }], loanMeta: {}, loanDocs: {}, today: '2026-11-27' })
-  assert.deepEqual(stockLoanChoices(sections, 'wh').map((c) => [c.key, c.label]), [['b1', 'Whanganui Hospital'], ['bk1', 'Whangarei Hospital']])
+  // Not yet started first (stock is taken before a demo goes out), then the current loans
+  assert.deepEqual(stockLoanChoices(sections, 'wh').map((c) => [c.key, c.label]), [['bk1', 'Whangarei Hospital'], ['b1', 'Whanganui Hospital']])
+  assert.deepEqual(stockLoanChoices(sections, '').map((c) => c.key), ['bk1', 'b1', 'b2'], 'starting soon, then current, most recent start first')
+  const many = loanSections({ equipment: [], upcoming: Array.from({ length: 20 }, (_, n) => ({ id: 'u' + n, loanTo: 'Customer ' + n, startDate: '2026-12-' + String(30 - n).padStart(2, '0'), endDate: '2027-02-01', items: [] })), loanMeta: {}, loanDocs: {}, today: '2026-11-27' })
+  const got = stockLoanChoices(many, '')
+  assert.equal(got.length, 20, 'a long list of upcoming loans is not cut short')
+  assert.equal(got[0].key, 'u19', 'soonest start first')
   assert.deepEqual(stockLoanChoices(sections, 'hutt').map((c) => c.key), ['b2'])
   assert.equal(stockLoanChoices(sections, '').length, 3)
 })
@@ -272,4 +278,11 @@ test('the screen is wired in, reads photos on the device, and sends nothing anyw
   assert.match(screen, /from '\.\.\/\.\.\/\.\.\/shared\/ocr\.js'/, 'reads with the shared on-device reader')
   assert.ok(!/fetch\(|XMLHttpRequest|sendBeacon/.test(screen.replace(/\/\*[\s\S]*?\*\//g, '')), 'the photo goes nowhere')
   assert.match(read('../src/App.jsx'), /'stock'/)
+})
+
+test('the app does not reload onto a new version while a photo is being taken or read', () => {
+  // Coming back from the camera is when the app checks for an update: without this the page reloads and the photo is lost.
+  const screen = readFileSync(new URL('../src/StockRemoval.jsx', import.meta.url), 'utf8')
+  assert.ok(screen.includes('data-working={reading > 0 || picking'), 'the screen says it is working while reading or picking')
+  assert.equal(screen.split('onClick={() => setPicking(true)}').length - 1, 2, 'both photo buttons say a picker is open')
 })
