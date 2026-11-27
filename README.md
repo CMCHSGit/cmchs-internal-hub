@@ -299,8 +299,12 @@ list yet, and see which units have been tested.
   shared list when it was done on another laptop): on checklist steps, Pass and N/A answers and typed readings (judged again by the new
   template's limits), matched by step id, then title, and items by wording, so it opens on the first step still to do; a Fail, ESA612
   measurements and simulator steps are done again. **A different template:** when the earlier test used another template than the one on
-  screen, the question has a button for each ("Test again with …"); the choice is made once, and answers carry across by title and wording. Someone else's test is only mentioned and never replaced. **Run again** on a
-  summary is separate and unchanged (a new test with the old results, files named "(rerun N)"). The replaced test's report files already on
+  screen, the question has a button for each ("Test again with …"); the choice is made once, and answers carry across by title and wording. Someone else's test is only mentioned and never replaced. **Retest** on an opened
+  test's summary (it was "Rerun test"; 27 Nov 2026) asks the same question when that test **passed**, then does the same thing
+  (`retestPassed`): **Test again** starts at once on that test's template and details; **Use a different template…** opens the template list
+  with the details filled in, and Start test then carries the retest (`this.retest`, kept only while the serial number is still that
+  test's). A test that did **not** pass (or an imported record) keeps the old rerun: a new test with every result kept, opened on the
+  first step that did not pass, files named "(rerun N)". The replaced test's report files already on
   a Simpro job or in a folder are not touched. Logs one line to the activity log, counts only.
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
   `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under

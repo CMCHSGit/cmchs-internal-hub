@@ -11,10 +11,10 @@ const hub = readFileSync(new URL('../src/section.jsx', import.meta.url), 'utf8')
 
 const a = html.indexOf('function otherDevices('), b = html.indexOf('const Extras = {')
 const cut = (from, to) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)))
-const { earlierPasses, carryEarlier } = vm.runInNewContext([
-  'const overallOf = (r) => r.overall; const TYPES = { check: { group: "check" } }; const clone = (o) => JSON.parse(JSON.stringify(o));',
+const { earlierPasses, carryEarlier, retestBody } = vm.runInNewContext([
+  'const overallOf = (r) => r.overall; const esc = (v) => String(v).replace(/</g, "&lt;"); const TYPES = { check: { group: "check" } }; const clone = (o) => JSON.parse(JSON.stringify(o));',
   cut('function judge(', 'function isSteady('), cut('function limitText(', '/* ======================= test library'),   // the bench's own judging and limit text
-  cut('function stepChecks(', '/**\n * What a finished test answered'), html.slice(a, b), '; ({ earlierPasses, carryEarlier })'].join('\n'))
+  cut('function stepChecks(', '/**\n * What a finished test answered'), html.slice(a, b), '; ({ earlierPasses, carryEarlier, retestBody })'].join('\n'))
 const plain = (v) => JSON.parse(JSON.stringify(v))
 
 const T1 = '2026-11-05T01:00:00.000Z', T2 = '2026-11-10T01:00:00.000Z', T3 = '2026-11-12T01:00:00.000Z'
@@ -124,3 +124,25 @@ test('the wiring: the question at the start, the replace after a pass, the hub�
   assert.match(hub, /chs-bench:replace-test/); assert.match(hub, /removeTestFiles\(reportStore, m\.started\)/)
   assert.match(hub, /old\.by === who\.current\.email \|\| who\.current\.admin/, 'the shared record: its engineer or an admin, as Remove for everyone')
 })
+
+test('Retest on an opened test asks the same question, then goes the same way as Start test', () => {
+  const prior = { serial: 'EX-1', template: 'Class I', mine: true, byName: '' }
+  const body = retestBody(prior, '27 Nov 2026', '')
+  assert.match(body, /EX-1<\/b> passed on 27 Nov 2026 with “Class I”/); assert.match(body, /Do you want to test it again\?/); assert.match(body, /replaces the earlier one/)
+  assert.doesNotMatch(body, /This test uses/, 'no template note when it is the earlier test’s own')
+  assert.match(retestBody(prior, 'd', 'Other <b>'), /This test uses “Other &lt;b>”/, 'and the other template is named, escaped')
+  assert.match(retestBody({ ...prior, mine: false, byName: 'Sam' }, 'd', ''), /tested by Sam[\s\S]*belongs to someone else/, 'someone else’s test stays')
+  const rerun = html.slice(html.indexOf('  rerun() {'), html.indexOf('  nextDevice() {'))
+  assert.match(rerun, /overallOf\(prev\) === 'pass'\) \{ this\.retestPassed\(prev\); return; \}/, 'a passed test is asked about first')
+  assert.ok(rerun.indexOf('retestPassed') < rerun.indexOf('Rerun of'), 'before the old rerun, which a test that did not pass still gets')
+  assert.match(html, /id="sumRerun"[^>]*>[^<]*<svg[^>]*><use[^>]*\/><\/svg>Retest<\/button>/, 'the button reads Retest')
+  const fn = html.slice(html.indexOf('  async retestPassed(prev) {'), html.indexOf('  updateStartHint() {'))
+  assert.match(fn, /title: 'Already tested', body: retestBody\(prior, day, ''\)/)
+  assert.match(fn, /\(t \? \[\{ label: 'Test again', value: 'same' \}\] : \[\]\), \{ label: 'Use a different template…', value: 'other' \}/, 'the same template, or another')
+  assert.match(fn, /if \(!pick\) return;/, 'Cancel changes nothing')
+  assert.match(fn, /await this\.startRun\(\{ replaces, earlier: prev \}\)/, 'the same template starts at once, with the earlier answers and the replace')
+  assert.match(fn, /this\.retest = \{ replaces, earlier: prev \}/, 'another template: the retest waits for Start test')
+  assert.match(html, /if \(!again && this\.retest\) \{ const r = this\.retest; this\.retest = null;/, 'taken once, and only for that device’s serial number')
+  assert.match(html, /this\.picked = null; this\.retest = null;/, 'dropped when the setup is left')
+})
+
