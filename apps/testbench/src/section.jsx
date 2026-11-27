@@ -18,7 +18,7 @@ import { PROXY_URL } from '../../../shared/proxy.js'
 import { logActivity } from '../../../shared/activity.js'
 import { COMPANY_KEY, DEFAULT_COMPANY, SendError, attachFile, customerOf, getJob, listCompanies, listJobFiles, makeCall } from './simpro-api.js'
 import { drain, enqueueReplacing, idbStore, retryFailed } from './outbox.js'
-import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
+import { addOnJob, loadOnJob, saveOnJob, withOnJob, groupReports, idbReports, markDownloaded, markSent, modelOf, removeTestFiles, reportsFromSearch, saveReport, saveUpload, sharedFileBase } from './reports.js'
 import Reports from './Reports.jsx'
 import Orders from './Orders.jsx'
 import Customers from './newequip/Customers.jsx'
@@ -212,6 +212,15 @@ function TestBench() {
         let reply
         try { await removeTest(m.id); logActivity(null, 'Removed a shared test', { app: 'testbench' }); reply = { ok: true } } catch (err) { reply = { error: err?.code === 'permission-denied' ? 'Only the engineer who shared it, or an admin, can remove it.' : (err?.message || 'Couldn’t remove it.') } }
         toBench({ type: 'chs-bench:deleted', reqId: m.reqId, id: m.id, ...reply })
+        return
+      }
+      if (m?.type === 'chs-bench:replace-test' && typeof m.started === 'string') {   // a passed re-test took the place of the device's earlier test: that test's shared record and saved files go
+        let files = 0, record = false
+        try { if (reportStore) { files = await removeTestFiles(reportStore, m.started); if (files) refreshReports() } } catch { /* storage blocked: the files stay */ }
+        const old = typeof m.id === 'string' && shared.current.list.find((t) => t.id === m.id)
+        // Only the engineer's own test (or any, for an admin): the same rule as Remove for everyone. Someone else's is left as it is.
+        if (old && (old.by === who.current.email || who.current.admin)) { try { await removeTest(m.id); record = true } catch { /* the rules refused: it stays shared */ } }
+        if (files || record) logActivity(null, `A passed re-test replaced the earlier test of the same device (${record ? 'shared record removed' : 'not shared'}, ${files} saved file${files === 1 ? '' : 's'} removed)`, { app: 'testbench' })
         return
       }
       if (m?.type === 'chs-bench:pending-customers' || m?.type === 'chs-bench:add-pending') {   // a device not in the asset list, added as a pending row

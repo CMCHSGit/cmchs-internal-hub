@@ -3806,8 +3806,21 @@ const Runner = {
     SharedTests.share(run);
     $('#runActive').hidden = true; $('#runSummary').hidden = false;
     this.renderSummary(); window.scrollTo({ top: 0 }); Records.tickOnly(run);
+    if (!stopped && run.overall === 'pass' && run.replaces) this.replaceEarlier(run);   // not awaited either
     if (!stopped && run.overall === 'pass') this.autoSave(run);   // not awaited either
     if (!stopped && !Power.on) this.chargeAfterTests();   // not awaited: the summary is already showing
+  },
+  /** A passed re-test takes the place of the device's earlier pass (run.replaces, set when "Test again" was chosen): that test goes from this laptop's
+      Previous tests here, and from the shared list and Saved reports by the hub. Only done for a pass that was finished, never a stopped or failed re-test. */
+  async replaceEarlier(run) {
+    const old = run.replaces; if (!old || !old.id) return;
+    delete run.replaces; run.replaced = old.id;
+    try { await DB.del('runs', old.id); } catch (e) { log('er', 'RUN', 'Couldn’t remove the earlier test from this PC: ' + e.message); }
+    DB.put('runs', this.storedRun(run)).catch(() => {});
+    if (window.parent !== window) window.parent.postMessage({ type: 'chs-bench:replace-test', id: old.id, started: old.started }, location.origin);
+    log('in', 'RUN', 'Passed again: this test replaces the earlier one for the device');
+    Records.renderList();
+    toast('This test replaces the earlier one for this device.', 5000);
   },
   /** A test that finishes with a pass goes into Saved reports by itself (Devices page: "Save a passed test…"), the same as pressing Save.
       Only inside the hub (Saved reports live there) and once per test: Save again replaces it, since the hub keeps one copy of each kind. */
@@ -5476,6 +5489,21 @@ function allSerials(run) {
   const dut = (run && run.dut) || {}, k = Object.keys(dut).find(k => /^serial/i.test(k.trim()));
   return [k ? String(dut[k] || '').trim() : '', ...otherDevices(run).map(d => d.serial)].filter(Boolean).join(' + ');
 }
+/** Earlier tests of this device (any serial of a set matches) that passed, newest first: this laptop's own (not Ansur records or files opened from elsewhere)
+    and the shared list's, each once. `mine`: this engineer's own, or only on this laptop, so a passed re-test may replace it; someone else's is never replaced. */
+function earlierPasses(serials, local, shared, me) {
+  const want = new Set((serials || []).map(s => String(s ?? '').trim().toUpperCase()).filter(Boolean));
+  if (!want.size) return [];
+  const split = (s) => String(s ?? '').split(/\s\+\s|,\s*/).map(x => x.trim().toUpperCase()).filter(Boolean), hit = (s) => split(s).some(x => want.has(x));
+  const out = new Map();
+  for (const s of shared || []) if (s && s.id && s.overall === 'pass' && hit(s.serial)) out.set(s.id, { id: s.id, serial: s.serial, started: s.started, finished: s.finished, template: s.template || '', byName: s.byName || s.by || '', mine: !s.by || !me || s.by === me });
+  for (const r of local || []) {
+    if (!r || !r.id || r.inProgress || r.imported || !r.finished || overallOf(r) !== 'pass' || !hit(allSerials(r))) continue;
+    const o = out.get(r.id);
+    out.set(r.id, { id: r.id, serial: allSerials(r), started: r.started, finished: r.finished, template: (r.template && r.template.name) || '', byName: o ? o.byName : '', mine: o ? o.mine : (!r.sharedBy || !me || r.sharedBy === me) });
+  }
+  return [...out.values()].filter(c => c.started).sort((a, b) => String(b.finished).localeCompare(String(a.finished)));
+}
 const Extras = {
   list: [],   // the start screen's other devices: [{ serial, model, asset, look }]; look = what the asset list said
   set(devs) { this.list = (devs || []).map(d => ({ serial: d.serial || '', model: d.model || '', asset: d.asset || '' })); this.render(); },
@@ -6031,7 +6059,21 @@ const App = {
     const order = BenchOrders.chosen();   // the order this test counts toward, or '' for automatic
     const devices = Extras.collect(), noSerial = devices.findIndex(d => !d.serial);
     if (noSerial >= 0) { toast(`Enter device ${noSerial + 2}’s serial number, or remove it.`, 4500); $(`#xd${Extras.list.findIndex(d => (d.model || d.asset) && !d.serial.trim())}serial`)?.focus(); return; }
-    const go = (...a) => { Runner.start(...a); if (Runner.run) { if (order) Runner.run.order = order; if (devices.length) { Runner.run.devices = devices; $('#runDut').textContent = Runner.dutText(); Runner.autosave(); } } Draft.clear(); };
+    // A device that has passed before: ask, then (when the new test passes) the new test takes the old one's place instead of sitting beside it.
+    let replaces = null;
+    const sk = Object.keys(dut).find(k => /^serial/i.test(k.trim())), prior = earlierPasses([sk ? dut[sk] : '', ...devices.map(d => d.serial)], await Records.list(), SharedTests.list, SharedTests.me)[0];
+    if (prior) {
+      const day = new Date(prior.finished).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+      const go2 = await dialog({ title: 'Already tested',
+        body: `<p><b>${esc(prior.serial)}</b> passed on ${esc(day)}${prior.template ? ` (${esc(prior.template)})` : ''}${prior.mine ? '' : `, tested by ${esc(prior.byName)}`}.</p><p>Do you want to test it again?</p>`
+          + (prior.mine ? '<p class="muted">When the new test passes, it replaces the earlier one: its place in Previous tests, its shared record and its saved report files. If it doesn’t pass, the earlier test stays.</p>'
+            : '<p class="muted">That test belongs to someone else, so it stays. The new test is added beside it.</p>'),
+        buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: 'Test again', value: true }] });
+      if (!go2) return;
+      if (prior.mine) replaces = { id: prior.id, started: prior.started };
+      log('in', 'RUN', `Tested again: the earlier test passed on ${day}${replaces ? '; it is replaced if this one passes' : ''}`);
+    }
+    const go = (...a) => { Runner.start(...a); if (Runner.run) { if (order) Runner.run.order = order; if (replaces) Runner.run.replaces = replaces; if (devices.length) { Runner.run.devices = devices; $('#runDut').textContent = Runner.dutText(); Runner.autosave(); } } Draft.clear(); };
     const models = tplModels(t);
     if (models.length > 1) {
       const mk = Object.keys(dut).find(k => /^model$/i.test(k.trim()));

@@ -289,6 +289,15 @@ list yet, and see which units have been tested.
   a mixed Ansur container ("Performance Testing") offered section by section in its order; a container the file holds twice left out (the fuller
   copy kept); and **Save to the shared templates folder**. **Import as it is** skips all of it. Still for a person: the service manual,
   deciding whether an odd Ansur limit is deliberate, and tests that are only in another record.
+- **Testing a device again (27 Nov 2026).** **Start test** on a serial number (or any serial of a set) that has an earlier **passed** test
+  asks "Already tested… Do you want to test it again?" (`earlierPasses` in the bench page: this laptop's tests and the shared list; Ansur
+  records and tests still in progress don't count). Cancel starts nothing. If that earlier test is the engineer's own (or only on this laptop)
+  the new test carries `run.replaces`, and **when it finishes with a pass** (not stopped, not failed) it takes the old one's place: the old
+  test leaves this laptop's Previous tests, and the hub (`chs-bench:replace-test`) removes its shared record (its engineer or an admin, as
+  Remove for everyone) and its saved report files (`removeTestFiles`, by start time; files someone added themselves stay). A failed or
+  stopped re-test is kept beside the old pass, which stays. Someone else's test is only mentioned and never replaced. **Run again** on a
+  summary is separate and unchanged (a new test with the old results, files named "(rerun N)"). The replaced test's report files already on
+  a Simpro job or in a folder are not touched. Logs one line to the activity log, counts only.
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
   `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under
   Previous tests ("Shared by …"); opening one fetches it onto that PC. The PDF and the Ansur record (.mtr) aren't stored: the bench
