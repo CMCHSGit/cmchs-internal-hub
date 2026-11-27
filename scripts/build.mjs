@@ -16,10 +16,12 @@
 import { execSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { injectManifest } from 'workbox-build'
+import { SECTION_SOURCES } from '../apps/hub/src/section-sources.js'
 import { OCR_BASE, OCR_FILES, OCR_VERSION } from '../shared/ocr-assets.js'
+import { buildInfo, closure } from './build-info.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const DIST = join(ROOT, 'dist')
@@ -103,19 +105,15 @@ for (const app of APPS) {
 // then (sw.js tool-assets), rather than every phone downloading all of them on
 // install. Choosing by the import graph rather than by file name means a piece
 // two sections share, which Vite names after one of its modules, can't slip in.
-const shellFiles = (() => {
-  const manifest = JSON.parse(readFileSync(join(DIST, '.vite', 'manifest.json'), 'utf8'))
-  const files = new Set()
-  const visit = (key) => {
-    const chunk = manifest[key]
-    if (!chunk || files.has(chunk.file)) return
-    files.add(chunk.file)
-    for (const css of chunk.css || []) files.add(css)
-    for (const imp of chunk.imports || []) visit(imp)
-  }
-  for (const [key, chunk] of Object.entries(manifest)) if (chunk.isEntry) visit(key)
-  return [...files].filter(f => f.startsWith('assets/'))
-})()
+//
+// The sections are build entries too (vite.config.js), but not part of the shell: left out here, and
+// recorded in build-info.json (written last, below) with a hash each.
+const viteManifest = JSON.parse(readFileSync(join(DIST, '.vite', 'manifest.json'), 'utf8'))
+// The manifest names files relative to the app's folder (../asks/src/section.jsx).
+const manifestKey = (file) => relative(join(ROOT, 'apps/hub'), join(ROOT, file)).split(sep).join('/')
+const sectionKeys = Object.fromEntries(Object.entries(SECTION_SOURCES).map(([id, file]) => [id, manifestKey(file)]))
+const shellKeys = Object.entries(viteManifest).filter(([key, chunk]) => chunk.isEntry && !Object.values(sectionKeys).includes(key)).map(([key]) => key)
+const shellFiles = [...closure(viteManifest, shellKeys, { dynamic: false })].filter(f => f.startsWith('assets/'))
 rmSync(join(DIST, '.vite'), { recursive: true, force: true })
 
 const { count, size, warnings } = await injectManifest({
@@ -161,6 +159,48 @@ const { count, size, warnings } = await injectManifest({
 })
 warnings.forEach(w => console.warn('  workbox: ' + w))
 rmSync(join(DIST, 'sw-src.js'))
+
+// build-info.json: what is in this deploy, per section, so a page that is already open can tell which part of
+// it a later deploy changed (shared/buildInfo.js; README "Updates: only what changed"). `shell` is the hash of
+// sw.js, which lists every file the shell precaches (its scripts, shared/, the page, the icons) and so changes
+// when any of them does; a section's hash comes from the file names of everything it loads that the shell does
+// not (scripts/build-info.mjs). Written after sw.js and never precached, so a page always reads this deploy's.
+// The Test Bench's own page (/bench-app/, shown in a frame by that section) belongs to the testbench section,
+// minus its templates, which are data the bench reads fresh.
+{
+  const digest = (dir, skip = () => false) => {
+    const h = createHash('sha1')
+    const walk = (d) => {
+      for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const p = join(d, e.name)
+        if (skip(relative(dir, p).split(sep).join('/'))) continue
+        if (e.isDirectory()) walk(p)
+        else h.update(relative(dir, p).split(sep).join('/')).update(readFileSync(p))
+      }
+    }
+    walk(dir)
+    return h.digest('hex').slice(0, 12)
+  }
+  const info = buildInfo({
+    manifest: viteManifest,
+    sections: sectionKeys,
+    mainKey: manifestKey('apps/hub/index.html'),
+    entryKeys: shellKeys,
+    shell: createHash('sha1').update(readFileSync(join(DIST, 'sw.js'))).digest('hex').slice(0, 12),
+    extra: { testbench: 'bench-app:' + digest(join(DIST, 'bench-app'), rel => rel === 'templates') },
+  })
+  // A page checks build-info.json is the one for the script it is running by this (shared/updates.js).
+  if (!/^assets\/main-.+\.js$/.test(info.entry)) throw new Error(`build-info.json has no start-page script (entry "${info.entry}")`)
+  // The shell imports each section's default export by name at run time, where the bundler cannot see it
+  // (apps/hub/src/sections.js), so a build that left it out would ship an empty section and fail nothing.
+  for (const [id, s] of Object.entries(info.sections)) {
+    if (!/export\s*\{[^}]*\bas default\b|export default/.test(readFileSync(join(DIST, s.js), 'utf8'))) {
+      throw new Error(`Section "${id}" (${s.js}) has no default export: its screen was left out of the build (vite.config.js preserveEntrySignatures).`)
+    }
+  }
+  writeFileSync(join(DIST, 'build-info.json'), JSON.stringify(info, null, 1) + '\n')
+  console.log(`  build-info.json: shell ${info.shell}, ${Object.keys(info.sections).length} sections`)
+}
 
 // The sign-in settings, published for pages that are not part of this build —
 // the demo tracker, which lives in the chs-equipment repo and runs on two

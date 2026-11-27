@@ -53,6 +53,14 @@ registerRoute(
 
 precacheAndRoute(self.__WB_MANIFEST)
 
+// build-info.json (scripts/build-info.mjs): which files each section has in this deploy, and so what changed
+// since a page loaded. Never precached, so it is always this deploy's. Network first, the last copy offline:
+// the shell reads it to find a section's files (apps/hub/src/sections.js), and offline use must keep working.
+registerRoute(
+  ({ url }) => url.origin === self.location.origin && url.pathname === '/build-info.json',
+  new NetworkFirst({ cacheName: 'build-info', networkTimeoutSeconds: 4 }),
+)
+
 registerRoute(
   ({ url }) => url.origin === 'https://firestore.googleapis.com',
   new NetworkFirst({ cacheName: 'firestore-cache' })

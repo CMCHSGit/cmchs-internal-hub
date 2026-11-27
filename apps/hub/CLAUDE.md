@@ -47,7 +47,9 @@ and hero line go; Asks unreadable → panel goes).
 | `src/dev-fixture.js` | Made-up people for `npm run dev` without a `.env` (never in real builds). |
 
 **The shell, same folder:** `main.jsx` (redirect restore, start page `hub:start`, link interception, service worker),
-`App.jsx` (sign-in, profile creation, header, lazy-loads every section, `SectionBoundary` for chunks lost to a deploy),
+`App.jsx` (sign-in, profile creation, header, lazy-loads every section by id through `sections.js`, `SectionBoundary` for chunks lost to a deploy;
+**never `import()` a section's file there**: the shell must not name section files, or every deploy reloads everyone, see README "Updates: only what changed"),
+`sections.js` + `section-sources.js` (how a section's file is found, from `build-info.json`; the list of sections, checked against `router.js` by a test),
 `router.js` (`SECTIONS`; hub pages still route on `#/people`, `#/manage`, `#/news/<id>`), `Header.jsx`, `Palette.jsx` +
 `search.js` (Ctrl+K), `sw.js` (built separately by `vite.sw.config.js`), `public/404.html` (deep links, `MOVED`),
 `public/manifest.webmanifest`. Changing these affects **every** section — read README's shell section first.

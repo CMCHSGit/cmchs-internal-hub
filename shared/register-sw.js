@@ -1,5 +1,7 @@
-import { shouldCheck, shouldReload, startGuard } from './updateGuard.js'
+import { shouldCheck, shouldReload, startGuard, workInProgress } from './updateGuard.js'
 import { enablePullToRefresh } from './pullToRefresh.js'
+import { mattersHere } from './buildInfo.js'
+import { hasShellMismatch, isStale, refreshStale, staleSections, startBuildInfo, subscribe } from './updates.js'
 
 // Registers the single service worker for this origin, at scope "/", and tells
 // people when a newer version of the site is ready.
@@ -7,8 +9,8 @@ import { enablePullToRefresh } from './pullToRefresh.js'
 // Every app calls this. Whichever page someone lands on first installs the
 // worker; the rest just keep it fresh. Registering the same URL and scope more
 // than once is a no-op, so there's no harm in calling it from everywhere — and
-// real benefit: a person who only ever opens /maintenance/ still gets
-// the update check.
+// real benefit: a person who only ever opens /maintenance/ still gets the update
+// check.
 //
 // A new deploy: sw.js takes over at once (skipWaiting + clients.claim), which
 // fires controllerchange here. The page still shows the copy it loaded, so the
@@ -25,7 +27,19 @@ import { enablePullToRefresh } from './pullToRefresh.js'
 //
 // It also asks for a new version when the page comes back into view (at most every
 // 15 seconds), after 10 idle minutes, and every 30 minutes.
-export function registerServiceWorker() {
+//
+// The one app (main.jsx passes `app`) is more selective. A deploy that changed only some of its
+// sections does not replace sw.js, so nothing fires controllerchange; what changed is read from
+// /build-info.json instead (shared/updates.js, shared/buildInfo.js), on the same checks as above. The shell
+// changing reloads exactly as described. Only sections changing doesn't reload anyone: they are marked
+// stale, and the page reloads when someone opens a stale section (reloadIfStale, from sections.js and
+// App.jsx), or, if they are already in one, when the guard says it is safe. The banner only shows for a
+// change that matters to the page they are on. Plain pages (the gate's) pass nothing and reload on any
+// new version, as before.
+//
+//   app.entry    the app's own script path ("assets/main-<hash>.js"), to tell build-info.json belongs to it
+//   app.section  () => the id of the section the person is in now ('hub' for the hub's own pages)
+export function registerServiceWorker({ app = null } = {}) {
   const guard = startGuard()
   // Phones: drag down at the top of a page to refresh (pullToRefresh.js). Before the
   // dev-mode return below, so it can be tried in `npm run dev` too.
@@ -36,24 +50,55 @@ export function registerServiceWorker() {
   if (!import.meta.env.PROD) return
   if (!('serviceWorker' in navigator)) return
 
+  if (app) {
+    startBuildInfo(app.entry)
+      // A deploy landed between this page and its build-info.json loading: they do not belong together.
+      .then(() => { if (hasShellMismatch()) reloadOnce('hub:infoReload') })
+    // A file a deploy has removed (an old section's script, a stylesheet) while the page was open: the
+    // same recovery as the "didn't load" message, without waiting for something to fail visibly.
+    window.addEventListener('vite:preloadError', () => reloadOnce('hub:preloadReload'))
+  }
+
   // A first-ever install also "takes over" an uncontrolled page. That's not
   // an update, and prompting (or reloading) on it would be pointless.
   const hadController = !!navigator.serviceWorker.controller
   const phone = matchMedia('(pointer: coarse)').matches
-  let ready = false
+  let ready = false   // the shell changed: every page needs the new version
   let waiting = 0
+  let dismissed = false
+  // Does the new version matter to the page they are on? The shell changing does; so does their own section.
+  const matters = () => mattersHere({ shellChanged: ready, stale: staleSections(), section: app?.section() })
   // Reload if a new version is ready and nobody is in the middle of anything.
   const reloadWhenSafe = () => {
-    if (shouldReload({ ready, busy: guard.busy(), sinceActiveMs: guard.sinceActive() })) window.location.reload()
+    if (shouldReload({ ready: matters(), busy: guard.busy(), sinceActiveMs: guard.sinceActive() })) window.location.reload()
   }
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || ready) return
-    ready = true
-    if (!phone) showUpdateBanner(guard.running)
+  // The banner shows only while it matters to this page (computers only).
+  const syncBanner = () => {
+    if (phone) return
+    if (!matters()) { dismissed = false; hideUpdateBanner(); return }
+    if (!dismissed) showUpdateBanner(guard.running, () => { dismissed = true })
+  }
+  const announce = () => {
+    syncBanner()
     reloadWhenSafe()
     // Held back by something in progress: look again until it is done.
-    if (!waiting) waiting = setInterval(reloadWhenSafe, 2000)
+    if (matters() && !waiting) waiting = setInterval(() => { syncBanner(); reloadWhenSafe() }, 2000)
+  }
+  navigator.serviceWorker.addEventListener('controllerchange', async () => {
+    if (!hadController || ready) return
+    if (app) {
+      // A new worker means a new shell, but make sure: build-info.json says whether it is only sections.
+      // Unreadable (offline, or the page never got one) counts as the shell, as it always did.
+      const seen = await refreshStale()
+      if (seen.known && !seen.shell) return announce()
+    }
+    ready = true
+    announce()
   })
+  if (app) {
+    subscribe(announce)                             // an update check found sections changed
+    window.addEventListener('popstate', syncBanner) // moved to another section (router.js announces it)
+  }
   document.addEventListener('visibilitychange', reloadWhenSafe)
 
   window.addEventListener('load', () => {
@@ -68,6 +113,7 @@ export function registerServiceWorker() {
           if (ready || !shouldCheck({ resumed, sinceActiveMs: guard.sinceActive(), sinceCheckMs: Date.now() - last })) return
           last = Date.now()
           reg.update().catch(() => {})
+          if (app) refreshStale()
         }
         last = Date.now()
         reg.update().catch(() => {})
@@ -81,6 +127,32 @@ export function registerServiceWorker() {
   })
 }
 
+// Reload onto the newest deploy, at most once a minute per `key`, never from under a run in progress. For
+// failures that point at a deploy (a build-info.json that is not this page's, a missing file), where reloading
+// again straight away would only loop if the cause is a real fault.
+function reloadOnce(key) {
+  let last = 0
+  try { last = Number(sessionStorage.getItem(key)) || 0 } catch { /* private mode */ }
+  if (Date.now() - last < 60_000 || workInProgress()) return
+  try { sessionStorage.setItem(key, String(Date.now())) } catch { /* private mode */ }
+  reloadOntoLatest()
+}
+
+/**
+ * Someone is opening section `id`. If a deploy has changed it since this page loaded, reload onto the new
+ * version (nothing there has started, so nothing is lost) and return true: the caller then shows its loading
+ * state rather than the old section. A run in progress elsewhere on the page holds the reload until it ends.
+ */
+export function reloadIfStale(id) {
+  if (!isStale(id)) return false
+  const go = () => {
+    if (workInProgress()) return setTimeout(go, 1000)
+    reloadOntoLatest()
+  }
+  go()
+  return true
+}
+
 // Reload onto the newest deploy. A plain reload isn't enough when a page asks
 // for a file a deploy has removed: until the new sw.js has taken over, the old
 // one hands back its cached copy of the old page, which asks for the same
@@ -89,7 +161,14 @@ export function registerServiceWorker() {
 // there is no newer one (a real fault, not a deploy), it reloads straight away.
 // The new worker downloads about 1 MB before it takes over, which on a phone's
 // mobile data can take a while (8 s was too short), hence `timeout`.
-export async function reloadOntoLatest(timeout = 30000) {
+// Called again while one is under way (a missing file can be reported twice: by the page's
+// preload-error listener and by the "didn't load" message), it is the same reload.
+let reloading = null
+export function reloadOntoLatest(timeout = 30000) {
+  if (!reloading) reloading = reload(timeout)
+  return reloading
+}
+async function reload(timeout) {
   try {
     const sw = navigator.serviceWorker
     const reg = sw && await sw.getRegistration('/')
@@ -105,16 +184,24 @@ export async function reloadOntoLatest(timeout = 30000) {
     }
   } catch { /* offline, or no worker: a plain reload is all there is */ }
   window.location.reload()
+  // Still here a moment later (a "leave this page?" prompt was declined): a later call may try again.
+  setTimeout(() => { reloading = null }, 5000)
+}
+
+function hideUpdateBanner() {
+  document.getElementById('sw-update')?.remove()
 }
 
 // The banner: plain DOM, so it works on every page (the React app and the
 // plain /service tools alike), in the site's colours where the page has its
 // tokens and sensible ones where it doesn't. Below the header, where it can't
 // cover a phone's bottom bar or the notifications card.
-function showUpdateBanner(working) {
+function showUpdateBanner(working, onLater = () => {}) {
   if (document.getElementById('sw-update')) return
-  const css = document.createElement('style')
-  css.textContent = `
+  if (!document.getElementById('sw-update-css')) {
+    const css = document.createElement('style')
+    css.id = 'sw-update-css'
+    css.textContent = `
 #sw-update{position:fixed;z-index:2147483600;left:50%;top:calc(var(--shell-header-h,64px) + 12px);transform:translateX(-50%);
   box-sizing:border-box;width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:12px 12px 12px 16px;
   border-radius:14px;background:var(--surface-inverse,#1d1d1d);color:var(--text-inverse,#fff);box-shadow:0 12px 32px rgba(0,0,0,.28);
@@ -132,6 +219,8 @@ function showUpdateBanner(working) {
 @media (max-width:480px){#sw-update{gap:10px;padding:10px 10px 10px 12px}#sw-update .sw-sub{display:none}#sw-update .sw-icon{width:30px;height:30px}#sw-update .sw-later{padding:0 4px}}
 @media (prefers-reduced-motion:reduce){#sw-update{animation:none}}
 @media print{#sw-update{display:none}}`
+    document.head.appendChild(css)
+  }
   const el = document.createElement('div')
   el.id = 'sw-update'
   el.setAttribute('role', 'status')
@@ -152,7 +241,6 @@ function showUpdateBanner(working) {
     window.location.reload()
   })
   // Later: out of the way; it updates by itself next time the app is in the background.
-  el.querySelector('.sw-later').addEventListener('click', () => el.remove())
-  document.head.appendChild(css)
+  el.querySelector('.sw-later').addEventListener('click', () => { onLater(); el.remove() })
   document.body.appendChild(el)
 }

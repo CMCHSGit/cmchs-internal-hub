@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import { extname, join, normalize } from 'node:path'
 import { OCR_BASE, OCR_FILES } from '../../shared/ocr-assets.js'
+import { SECTION_SOURCES } from './src/section-sources.js'
 
 /**
  * Two older looks are kept to their own part of the one app until they are
@@ -66,6 +67,44 @@ function scopeHubCss() {
 }
 scopeHubCss.postcss = true
 
+/**
+ * `virtual:hub-sections` (apps/hub/src/sections.js): how the shell gets a section's code.
+ * `npm run dev`: a plain import of each section's source, so Vite's usual dev server and hot reload apply.
+ * A build: nothing (`null`); each section is its own build entry instead (emitted below) and the shell finds
+ * its file in build-info.json, so no section's hashed file name is written into the shell. Entries, not import()s,
+ * so that changing one section changes only that section's files and leaves the shell's (and so the service
+ * worker) as they were.
+ *
+ * They are emitted here rather than listed in `input` because of `preserveSignature`: Vite drops an entry's
+ * exports that nothing imports, which is right for a page's script and wrong for a section, whose default export
+ * the shell imports at run time by a name Rollup cannot see. Keeping every entry's exports
+ * (`preserveEntrySignatures`) would have changed how the start page's own script is built; this keeps it to the
+ * sections. scripts/build.mjs checks every section file still exports its screen.
+ */
+const repoFile = (file) => fileURLToPath(new URL('../../' + file, import.meta.url))
+function hubSections() {
+  const id = 'virtual:hub-sections'
+  let serve = false
+  return {
+    name: 'hub-sections',
+    configResolved(config) { serve = config.command === 'serve' },
+    buildStart() {
+      if (serve) return
+      for (const [name, file] of Object.entries(SECTION_SOURCES)) {
+        this.emitFile({ type: 'chunk', id: repoFile(file), name: 'section-' + name, preserveSignature: 'strict' })
+      }
+    },
+    resolveId(source) { return source === id ? '\0' + id : undefined },
+    load(source) {
+      if (source !== '\0' + id) return undefined
+      if (!serve) return 'export const loaders = null'
+      const lines = Object.entries(SECTION_SOURCES).map(([name, file]) =>
+        `  ${JSON.stringify(name)}: () => import(${JSON.stringify('/@fs/' + repoFile(file).replace(/\\/g, '/'))}),`)
+      return `export const loaders = {\n${lines.join('\n')}\n}`
+    },
+  }
+}
+
 /** `npm run dev` only: the Test Bench's page at /bench-app/ (scripts/build.mjs copies it there in the real site). */
 function serveBench() {
   const root = fileURLToPath(new URL('../testbench/bench', import.meta.url))
@@ -106,23 +145,31 @@ function serveOcr() {
 //  - index.html: the hub itself, and the shell the moved tools open inside
 //  - src/gate.js: the sign-in check that plain pages (the /service tools)
 //    load as /shared/gate.js, so it keeps a fixed, unhashed name.
+// Plus one entry per section (section-sources.js), which hubSections() emits: the shell finds each one's
+// file through build-info.json instead of naming it (sections.js).
 export default defineConfig({
   base: '/',
   // One .env at the repo root for every app
   envDir: fileURLToPath(new URL('../..', import.meta.url)),
-  plugins: [react(), serveBench(), serveOcr()],
+  plugins: [react(), hubSections(), serveBench(), serveOcr()],
   css: { postcss: { plugins: [scopeHubCss()] } },
   build: {
     // dist/.vite/manifest.json: scripts/build.mjs reads it to precache only
     // what the start page loads, then deletes it.
     manifest: true,
     rollupOptions: {
+      // (The sections are entries too: hubSections() above emits them.)
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         gate: fileURLToPath(new URL('./src/gate.js', import.meta.url)),
       },
       output: {
         entryFileNames: chunk => chunk.name === 'gate' ? 'shared/gate.js' : 'assets/[name]-[hash].js',
+        // React is used by the shell and every section. Left to Rollup, it can end up inside a section's own
+        // file when that section has little code of its own (the old New equipment redirect did), and then
+        // that file is the shell's and a change to the section would change the shell. scripts/build-info.mjs
+        // fails the build if any section is ever folded into shared code like that.
+        manualChunks: (id) => /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id) ? 'react' : undefined,
       },
     },
   },
