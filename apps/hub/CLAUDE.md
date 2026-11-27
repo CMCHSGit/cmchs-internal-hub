@@ -42,7 +42,8 @@ and hero line go; Asks unreadable → panel goes).
 | `src/home-layout.js`, `HomeCustomise.jsx` | The quick-launch row: tool ids and `{ label, url }` links, max 30, `safeUrl` only (https or a path on this site). Saved to `users/{uid}.homeLayout = { quick: [...] }` and localStorage `hub:home-layout:<uid>`. |
 | `src/Calendar.jsx` + root `events.json` | "Coming up": `events.json` plus NZ public holidays from the schedule's list (never type holidays in). |
 | `src/PushPrompt.jsx` | "Turn on notifications?" on phones only, until that phone is registered (`users/{uid}.fcmTokens`). |
-| `src/People.jsx` / `people.js`, `Manage.jsx` (+ `emailSplit.js`, `suggest.js`, `requests.js`) | The hub's other pages: directory/HR profiles (`#/people`), and News / Tool requests / Feedback (`#/manage`). README has their rules. |
+| `src/People.jsx` / `people.js` | The staff directory and HR profiles (`#/people`). **Read `PEOPLE.md` (this folder) before changing it**: its data, who may edit what, the email-keyed private records, placeholders and first sign-in. |
+| `src/Manage.jsx` (+ `emailSplit.js`, `suggest.js`, `requests.js`) | News / Tool requests / Feedback (`#/manage`). README has its rules. |
 | Styles | `hub.css` (home look; `vite.config.js` scopes it inside `.hub-page` / `body[data-section="hub"]` so it can't restyle other sections), `shell.css`, `palette.css`; components and tokens from `shared/ui`, `shared/tokens`. |
 | `src/dev-fixture.js` | Made-up people for `npm run dev` without a `.env` (never in real builds). |
 

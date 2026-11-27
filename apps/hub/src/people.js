@@ -1,8 +1,8 @@
 // The People page's data: the staff directory and each person's HR profile.
 //
-// Three layers of visibility, and Firestore's rules (chs-equipment's
-// cmchs-staff-schedule/firestore.rules) are what enforce them — the page only
-// avoids asking for what it can't have:
+// Three layers of visibility, and Firestore's rules (rules/firestore.rules)
+// are what enforce them — the page only avoids asking for what it can't have.
+// apps/hub/PEOPLE.md is the map: read it before changing this page.
 //
 //   users/{uid}              everyone signed in   name, team, work email, work mobile
 //   staffPhotos/{email}      everyone signed in   profile picture (a small JPEG data URL)
