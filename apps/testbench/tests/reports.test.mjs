@@ -173,7 +173,7 @@ test('saving to a folder leaves a file that is already there unchanged alone, tr
   assert.ok(ui.includes('download(true)') && ui.includes('Download as zip') && ui.includes('onClick={() => download()}'), 'a zip button beside Save to a folder')
 })
 
-test('a rerun the same day keeps the first test: its files have their own names, and both tests are listed', async () => {
+test('files saved before 27 Nov 2026 with "(rerun N)" in their names still read, and both tests are listed', async () => {
   const { describeFile, groupReports } = await import('../src/reports.js')
   const d = describeFile('FP5-6A036789 - BeneHeart D30 05.11.2026 (rerun 2).pdf')
   assert.deepEqual([d.serial, d.model, d.date, d.rerun, d.ext], ['FP5-6A036789', 'BeneHeart D30', '05.11.2026', 2, 'pdf'])
@@ -184,7 +184,7 @@ test('a rerun the same day keeps the first test: its files have their own names,
   assert.equal(groups.length, 2, 'two tests, neither replaced')
   assert.deepEqual(groups.map((g) => [g.rerun, g.files.length]).sort(), [[0, 2], [2, 2]])
   const html = readFileSync(new URL('../bench/index.html', import.meta.url), 'utf8')
-  assert.ok(html.includes("${run.attempt > 1 ? ` (rerun ${run.attempt})` : ''}.${ext}"), 'the bench names a rerun\'s files that way')
+  assert.ok(!html.includes('(rerun ${run.attempt})'), 'the bench no longer puts "(rerun N)" in a file name (27 Nov 2026); files saved before still read and group as above')
   assert.ok(html.includes('Runner.start(t, clone(prev.dut), prev.model, (prev.attempt || 1) + 1)'))
   const ui = readFileSync(new URL('../src/Reports.jsx', import.meta.url), 'utf8')
   assert.ok(!ui.includes('rerun ${g.rerun}'), 'Saved reports does not label a rerun')

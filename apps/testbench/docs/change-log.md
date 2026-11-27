@@ -465,3 +465,6 @@ File `Masimo Root with Radical-7 - Test Bench template.json` (Promed), 18 steps:
 
 ## Saved reports renamed when a device is added after testing (25/11/2026)
 When **Edit details** changes the file name of a test whose report is already in Saved reports (saved automatically or with Save), the PDF and Ansur record are saved again under the new name, e.g. "2000240705, 1000353956 - Root 25.11.2026.pdf", and the hub drops the old-named copies (same test, same kind). A replaced copy forgets which Simpro job it was sent to, so send it again if it had been. A test saved before this change has no record of being saved: press Save once after editing. Files already downloaded or written to the Results folder keep their names.
+
+## No "(rerun N)" in report file names (27/11/2026)
+A rerun's PDF, Ansur record and results file are named like any other test's ("AB1 - A9 02.11.2026.pdf"); the "(rerun 2)" ending (05/11/2026) is gone. A rerun on the same day as the first test therefore has the same names and takes the place of the earlier files of that device in Saved reports; a folder save still asks Replace or Keep both. Files saved earlier with "(rerun N)" still read and group (`describeFile`). Test: `tests/testbench.test.mjs` (outName), `tests/reports.test.mjs`.

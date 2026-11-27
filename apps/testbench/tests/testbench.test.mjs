@@ -455,7 +455,7 @@ test('Previous tests is the one list (customer, ticks, sent) with a bar at the r
   const outName = new Function('otherDevices', 'safeName', `${fn}; return outName`)(() => [], (s) => String(s))
   const ran = new Date(2026, 10, 2, 12).toISOString(), today = new Date()
   assert.equal(outName({ dut: { 'Serial number': 'AB1', Model: 'A9' } }, 'pdf', ran), 'AB1 - A9 02.11.2026.pdf')
-  assert.equal(outName({ dut: { 'Serial number': 'AB1', Model: 'A9' }, attempt: 2 }, 'mtr', ran), 'AB1 - A9 02.11.2026 (rerun 2).mtr')
+  assert.equal(outName({ dut: { 'Serial number': 'AB1', Model: 'A9' }, attempt: 2 }, 'mtr', ran), 'AB1 - A9 02.11.2026.mtr', 'a rerun’s files carry no "(rerun N)" any more')
   assert.equal(outName({ dut: { 'Serial number': 'AB1' } }, 'pdf'), `AB1 ${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}.pdf`)
   // the New equipment link is out of the tools list; the old address still goes to the Customers tab
   const tools = JSON.parse(readFileSync(new URL('../../../tools.json', import.meta.url), 'utf8'))

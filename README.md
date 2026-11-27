@@ -308,7 +308,8 @@ list yet, and see which units have been tested.
   (`retestPassed`): **Test again** starts at once on that test's template and details; **Use a different template…** opens the template list
   with the details filled in, and Start test then carries the retest (`this.retest`, kept only while the serial number is still that
   test's). A test that did **not** pass (or an imported record) keeps the old rerun: a new test with every result kept, opened on the
-  first step that did not pass, files named "(rerun N)". The replaced test's report files already on
+  first step that did not pass. Its files are named like any other test's (the "(rerun N)" ending went on 27 Nov 2026; older files with it
+  still read and group), so on the same day they take the place of the earlier files of that device. The replaced test's report files already on
   a Simpro job or in a folder are not touched. Logs one line to the activity log, counts only.
 - **Previous tests are shared.** Inside the hub, each finished test is also kept in Firestore (`benchTests`: one small line per test;
   `benchTestData`: the whole test as one JSON string, about 50-100 KB, no step photos), so every engineer sees everyone's tests under
