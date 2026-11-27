@@ -518,7 +518,7 @@ dl.kv dt{color:var(--text-muted)} dl.kv dd{margin:0;color:var(--text-strong);fon
         </div>
         <div class="row">
           <button class="btn" id="sumNew" type="button" title="Start the next device with this same template and these details, without the serial number"><svg class="i"><use href="#i-plus"/></svg>Test another device</button>
-          <button class="btn secondary" id="sumRerun" type="button" title="Start a new test on the same device with all of this test's results kept as they were, opened on the first step that did not pass. This test stays in Previous tests."><svg class="i"><use href="#i-refresh"/></svg>Rerun test</button>
+          <button class="btn secondary" id="sumRerun" type="button" title="Test this device again. A test that passed asks first: its checklist answers and readings are kept, the ESA612 and simulator steps are done again, and the new test replaces this one when it passes. A test that did not pass starts again with all its results kept, opened on the first step that did not pass."><svg class="i"><use href="#i-refresh"/></svg>Retest</button>
           <button class="btn secondary" id="sumResume" type="button" hidden><svg class="i"><use href="#i-play"/></svg>Continue test</button>
           <button class="btn quiet" id="sumSkipRest" type="button" hidden>Skip steps not done</button>
           <button class="btn quiet" id="sumEdit" type="button">Edit details</button>
@@ -5515,6 +5515,14 @@ function carryEarlier(run, old, setStatus) {
   }
   return n;
 }
+const splitSerialsOf = (s) => String(s ?? '').split(/\s\+\s|,\s*/).map(x => x.trim()).filter(Boolean);
+/** The question put before a device that passed is tested again (from Start test, or from Rerun test on its opened test). `thisTemplate`: the template this test would use, when it isn't the earlier one's. */
+function retestBody(prior, day, thisTemplate) {
+  return `<p><b>${esc(prior.serial)}</b> passed on ${esc(day)}${prior.template ? ` with “${esc(prior.template)}”` : ''}${prior.mine ? '' : `, tested by ${esc(prior.byName)}`}.</p><p>Do you want to test it again?</p>`
+    + `<p class="muted">What was answered by hand last time on the checklists, including typed readings, is kept: change any that differ. ESA612 measurements and simulator steps are done again.${thisTemplate ? ` This test uses “${esc(thisTemplate)}”: answers carry across where the step and item wording match.` : ''}</p>`
+    + (prior.mine ? '<p class="muted">When the new test passes, it replaces the earlier one: its place in Previous tests, its shared record and its saved report files. If it doesn’t pass, the earlier test stays.</p>'
+      : '<p class="muted">That test belongs to someone else, so it stays. The new test is added beside it.</p>');
+}
 /** Earlier tests of this device (any serial of a set matches) that passed, newest first: this laptop's own (not Ansur records or files opened from elsewhere)
     and the shared list's, each once. `mine`: this engineer's own, or only on this laptop, so a passed re-test may replace it; someone else's is never replaced. */
 function earlierPasses(serials, local, shared, me) {
@@ -6034,13 +6042,14 @@ const App = {
     if (e) e.preventDefault();
     if (!$('#runActive').hidden) { this.show('run'); return; }
     if (!$('#runSummary').hidden) { if (Power.on) Power.off(true); $('#runSummary').hidden = true; $('#runSetup').hidden = false; }
-    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.pendingDevice = null; $('#dutCard').hidden = true; Extras.set([]); Draft.clear();
+    $('#runSetup').classList.remove('next-device'); $('#tplSearch').value = ''; this.picked = null; this.retest = null; this.pendingDevice = null; $('#dutCard').hidden = true; Extras.set([]); Draft.clear();
     this.show('run'); this.refreshRunPicker(); window.scrollTo({ top: 0 });
   },
   /** Run the test again on the same device: a new test that starts with every result of the last one kept exactly as it was (statuses, readings,
       checklist answers), opened on the first step that did not pass, so only what needs redoing is redone. The finished test itself is not touched. */
   rerun() {
     const prev = Runner.run, t = prev && Store.get(prev.templateId); if (!prev) return;
+    if (!prev.imported && prev.finished && !prev.inProgress && overallOf(prev) === 'pass') { this.retestPassed(prev); return; }   // a test that passed: asked first, then a retest (below)
     if (!t) { toast('This test’s template is no longer here, so it can’t be run again.', 5000); return; }
     if (Power.on) Power.off(true);
     log('in', 'RUN', `Rerun of “${t.name}” on the same device, keeping the earlier results`);
@@ -6068,6 +6077,32 @@ const App = {
     (inputs.find(isSerial) || inputs.find(i => !i.value) || inputs[0])?.focus();
     window.scrollTo({ top: 0 });
   },
+  /** Rerun test on an opened test that passed: the same question as starting its device again, then the same retest (its hand answers and readings kept, ESA612 and
+      simulator steps done again, replacing this test when the new one passes). "Test again" uses this test's template; the other button opens the template list with this
+      device's details filled in, and the retest goes ahead with whichever template is picked. A test that did not pass keeps the old Rerun (every result kept). */
+  async retestPassed(prev) {
+    if (Runner.busy || Runner.autoRunning) { toast('Wait for the measurement to finish first.'); return; }
+    const norm = (x) => String(x ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const t = Store.get(prev.templateId) || Store.templates.find(x => norm(x.name) === norm(prev.template && prev.template.name));
+    const prior = { id: prev.id, serial: allSerials(prev), started: prev.started, finished: prev.finished, template: (prev.template && prev.template.name) || '', byName: prev.sharedBy || '', mine: !prev.sharedBy || !SharedTests.me || prev.sharedBy === SharedTests.me };
+    const day = new Date(prev.finished).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+    const pick = await dialog({ title: 'Already tested', body: retestBody(prior, day, ''),
+      buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, ...(t ? [{ label: 'Test again', value: 'same' }] : []), { label: 'Use a different template…', value: 'other' }] });
+    if (!pick) return;
+    if (Power.on) Power.off(true);
+    const replaces = prior.mine && prev.started ? { id: prev.id, started: prev.started } : null;
+    log('in', 'RUN', `Retest of “${prior.template}”: the earlier test passed on ${day}${replaces ? '; it is replaced if this one passes' : ''}${pick === 'other' ? '; another template will be chosen' : ''}`);
+    $('#runSummary').hidden = true; $('#runSetup').hidden = false; $('#runSetup').classList.remove('next-device');
+    if (t) {   // the setup form with this test's details, so a retest starts on the same device
+      this.pick(t.id);
+      $$('#dutFields input').forEach(i => { const k = Object.keys(prev.dut || {}).find(x => norm(x) === norm(i.dataset.k)); if (k != null && prev.dut[k] != null) i.value = prev.dut[k]; });
+      Extras.set(otherDevices(prev));
+    }
+    if (pick === 'same') { await this.startRun({ replaces, earlier: prev }); if ($('#runActive').hidden) { $('#runSetup').hidden = false; } return; }
+    this.retest = { replaces, earlier: prev };   // taken by Start test, once a template is chosen
+    toast('Choose the template to test it with, then Start test. The earlier answers carry across where the steps and wording match.', 7000);
+    window.scrollTo({ top: 0 });
+  },
   updateStartHint() {
     const t = this.picked && Store.get(this.picked); if (!t) return;
     const g = new Set(t.steps.map(s => TYPES[s.type].group)); const miss = [];
@@ -6088,6 +6123,8 @@ const App = {
     if (noSerial >= 0) { toast(`Enter device ${noSerial + 2}’s serial number, or remove it.`, 4500); $(`#xd${Extras.list.findIndex(d => (d.model || d.asset) && !d.serial.trim())}serial`)?.focus(); return; }
     // A device that has passed before: ask, then keep what was answered by hand (the checklists), and (when the new test passes) the new test takes the old one's place instead of sitting beside it.
     // The earlier test's own template can be used again, or the one on screen: answers match across templates by step title and item wording.
+    // "Rerun test" on an opened test, then "different template…": the question was answered there, so it is not asked again (only while the serial number is still that test's).
+    if (!again && this.retest) { const r = this.retest; this.retest = null; const had = new Set(splitSerialsOf(allSerials(r.earlier)).map(x => x.toUpperCase())); if (splitSerialsOf(allSerials({ dut, devices })).some(x => had.has(x.toUpperCase()))) again = r; }
     let replaces = again ? again.replaces : null, earlier = again ? again.earlier : null;
     const local = again ? [] : await Records.list();
     const sk = Object.keys(dut).find(k => /^serial/i.test(k.trim())), prior = again ? null : earlierPasses([sk ? dut[sk] : '', ...devices.map(d => d.serial)], local, SharedTests.list, SharedTests.me)[0];
@@ -6096,11 +6133,7 @@ const App = {
       const day = new Date(prior.finished).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
       const was = Store.get(prior.templateId) || Store.templates.find(x => norm(x.name) === norm(prior.template));
       const other = was && was.id !== t.id && was.steps.length ? was : null, differs = !!prior.template && norm(prior.template) !== norm(t.name);
-      const pick = await dialog({ title: 'Already tested',
-        body: `<p><b>${esc(prior.serial)}</b> passed on ${esc(day)}${prior.template ? ` with “${esc(prior.template)}”` : ''}${prior.mine ? '' : `, tested by ${esc(prior.byName)}`}.</p><p>Do you want to test it again?</p>`
-          + `<p class="muted">What was answered by hand last time on the checklists, including typed readings, is kept: change any that differ. ESA612 measurements and simulator steps are done again.${differs ? ` This test uses “${esc(t.name)}”: answers carry across where the step and item wording match.` : ''}</p>`
-          + (prior.mine ? '<p class="muted">When the new test passes, it replaces the earlier one: its place in Previous tests, its shared record and its saved report files. If it doesn’t pass, the earlier test stays.</p>'
-            : '<p class="muted">That test belongs to someone else, so it stays. The new test is added beside it.</p>'),
+      const pick = await dialog({ title: 'Already tested', body: retestBody(prior, day, differs ? t.name : ''),
         buttons: [{ label: 'Cancel', value: false, cls: 'quiet', cancel: true }, { label: other ? `Test again with “${t.name}”` : 'Test again', value: 'here' }, ...(other ? [{ label: `Test again with “${other.name}”`, value: 'other' }] : [])] });
       if (!pick) return;
       if (prior.mine) replaces = { id: prior.id, started: prior.started };
