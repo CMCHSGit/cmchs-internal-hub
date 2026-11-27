@@ -298,7 +298,11 @@ list yet, and see which units have been tested.
   stopped re-test is kept beside the old pass, which stays. **The earlier answers are kept** (`carryEarlier`, the earlier test fetched from the
   shared list when it was done on another laptop): on checklist steps, Pass and N/A answers and typed readings (judged again by the new
   template's limits), matched by step id, then title, and items by wording, so it opens on the first step still to do; a Fail, ESA612
-  measurements and simulator steps are done again. **A different template:** when the earlier test used another template than the one on
+  measurements and simulator steps are done again, **unless the question's box "Keep all results" is ticked** (it is, by default; 27 Nov 2026):
+  with the earlier test's own template (same id or name) the new test then starts with the earlier test's steps and every result as they were,
+  ESA612 and simulator steps included, opened on the first step still to do, like the old rerun (`r.keptFrom` records which test they came
+  from; Retest from the summary offers the box with **Test again** only). They are not measured again, so redo any step that should be.
+  **A different template:** when the earlier test used another template than the one on
   screen, the question has a button for each ("Test again with …"); the choice is made once, and answers carry across by title and wording. Someone else's test is only mentioned and never replaced. **Retest** on an opened
   test's summary (it was "Rerun test"; 27 Nov 2026) asks the same question when that test **passed**, then does the same thing
   (`retestPassed`): **Test again** starts at once on that test's template and details; **Use a different template…** opens the template list
