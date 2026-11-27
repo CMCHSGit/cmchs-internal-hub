@@ -468,3 +468,6 @@ When **Edit details** changes the file name of a test whose report is already in
 
 ## No "(rerun N)" in report file names (27/11/2026)
 A rerun's PDF, Ansur record and results file are named like any other test's ("AB1 - A9 02.11.2026.pdf"); the "(rerun 2)" ending (05/11/2026) is gone. A rerun on the same day as the first test therefore has the same names and takes the place of the earlier files of that device in Saved reports; a folder save still asks Replace or Keep both. Files saved earlier with "(rerun N)" still read and group (`describeFile`). Test: `tests/testbench.test.mjs` (outName), `tests/reports.test.mjs`.
+
+## Asset list bar shows while the list is read (27/11/2026)
+The asset list bar on Device under test stayed hidden until the saved spreadsheet had been read at start-up. A read that never finished (a OneDrive workbook still downloading, for example) left no bar at all and no way to choose another list. It now shows "Reading the asset list…" with **Choose another** and **Stop using** straight away; a read overtaken by either is dropped. A list that is already loaded stays usable while it is read again.

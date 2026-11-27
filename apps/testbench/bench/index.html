@@ -2795,7 +2795,7 @@ const Sheet = {
     if (perm !== 'granted') { toast('The browser didn’t allow access to the spreadsheet.'); return; }
     await this.load();
   },
-  forget() { this.handle = null; this.rows = []; this.state = 'none'; DB.delKV('sheetHandle'); DB.delKV('sheetCustomer'); this.render(); },
+  forget() { this.reading = (this.reading || 0) + 1; this.handle = null; this.rows = []; this.state = 'none'; DB.delKV('sheetHandle'); DB.delKV('sheetCustomer'); this.render(); },
   async reload() { await this.load(); },
   /** After the list is read again: look up the serial (or asset number) already in the form, as if it had just been entered. */
   relookup() {
@@ -2805,13 +2805,20 @@ const Sheet = {
   },
   /** Reads the file again (it may have changed). Quiet when it is the automatic load at start-up. */
   async load(quiet) {
+    // The bar shows straight away while the file is read: a OneDrive workbook that is still downloading (or a read that never finishes)
+    // used to leave it hidden, with no way to choose another. A read overtaken by Choose another or Stop using is dropped.
+    const mine = this.reading = (this.reading || 0) + 1, h = this.handle;
+    if (this.state !== 'ready' || h !== this.readFrom) { this.state = 'loading'; this.render(); }   // the same list read again stays usable meanwhile
+    this.readFrom = h;
     try {
-      const f = await this.handle.getFile(); this.modified = f.lastModified;
-      this.rows = this.parse(await XlsxLite.read(await f.arrayBuffer())); this.state = 'ready'; this.error = ''; this.cur = null; this.result = null; this.renderAlert();
+      const f = await h.getFile(); const rows = this.parse(await XlsxLite.read(await f.arrayBuffer()));
+      if (mine !== this.reading) return;
+      this.modified = f.lastModified; this.rows = rows; this.state = 'ready'; this.error = ''; this.cur = null; this.result = null; this.renderAlert();
       log('in', 'SHEET', `Read ${this.file}: ${this.rows.length} devices`);
       if (!quiet) toast(`${this.rows.length} devices read from ${this.file}`);
       this.relookup(); refreshModelOptions();   // the serial number already in the form is looked up again, without retyping it
     } catch (e) {
+      if (mine !== this.reading) return;
       this.state = 'error'; this.error = e.message; this.rows = [];
       log('er', 'SHEET', `Couldn’t read ${this.file}: ${e.message}`);
       if (!quiet) toast('Couldn’t read the spreadsheet: ' + e.message, 5000);
@@ -2911,6 +2918,7 @@ const Sheet = {
     const when = this.modified ? new Date(this.modified).toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
     if (this.state === 'none') bar.innerHTML = `<span class="hint">Fill the details from a customer’s equipment spreadsheet, so they are only typed once.</span><button type="button" class="btn secondary sm" data-sheet="choose">Choose spreadsheet…</button>`;
     else if (this.state === 'needs-permission') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint">The browser needs your OK to read it again.</span><button type="button" class="btn secondary sm" data-sheet="connect">Reconnect</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button>`;
+    else if (this.state === 'loading') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint">Reading the asset list… A workbook still downloading from OneDrive can take a while.</span><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button><button type="button" class="btn quiet sm" data-sheet="forget">Stop using</button>`;
     else if (this.state === 'error') bar.innerHTML = `<b>${esc(this.file)}</b><span class="hint" style="color:var(--critical)">${esc(this.error)}</span><button type="button" class="btn secondary sm" data-sheet="reload">Try again</button><button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button>`;
     else bar.innerHTML = `<div class="sheet-top"><b>${esc(this.file)}</b><span class="hint">${this.rows.length} devices${when ? ` · file saved ${esc(when)}` : ''}</span>
         <button type="button" class="btn quiet sm" data-sheet="reload">Read again</button>${window.parent !== window ? '<button type="button" class="btn quiet sm" data-sheet="open" title="Open this customer’s asset list workbook (the link kept on the Customers tab)">Open workbook</button>' : ''}<button type="button" class="btn quiet sm" data-sheet="choose">Choose another</button><button type="button" class="btn quiet sm" data-sheet="forget">Stop using</button></div>
