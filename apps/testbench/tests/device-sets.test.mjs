@@ -244,3 +244,12 @@ test('a device added after the report was saved: the report is saved again under
   for (const n of ['R-1, R-2 - Root 25.11.2026.pdf', 'R-1, R-2 - Root 25.11.2026.mtr']) await saveReport(store, { name: n, buffer, meta: { ...meta, serial: 'R-1 + R-2' } })
   assert.deepEqual((await store.all()).map((r) => r.name).sort(), ['R-1, R-2 - Root 25.11.2026.mtr', 'R-1, R-2 - Root 25.11.2026.pdf'])
 })
+
+test('the asset list bar shows while a saved list is still being read, with Choose another and Stop using; an overtaken read is dropped', () => {
+  const s = html.indexOf('async load(quiet)'), body = html.slice(s, html.indexOf('\n  },', s))
+  assert.match(body, /const mine = this\.reading = \(this\.reading \|\| 0\) \+ 1/)
+  assert.match(body, /if \(this\.state !== 'ready' \|\| h !== this\.readFrom\) \{ this\.state = 'loading'; this\.render\(\); \}/, 'shown straight away, before the file is read')
+  assert.equal((body.match(/if \(mine !== this\.reading\) return;/g) || []).length, 2, 'a read overtaken by Choose another or Stop using changes nothing')
+  assert.match(html, /this\.state === 'loading'\) bar\.innerHTML = [^\n]*data-sheet="choose"[^\n]*data-sheet="forget"/)
+  assert.match(html, /forget\(\) \{ this\.reading = \(this\.reading \|\| 0\) \+ 1;/)
+})
