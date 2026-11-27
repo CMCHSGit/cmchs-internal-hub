@@ -5,9 +5,10 @@
 // moving between them never reloads the page (router.js).
 import { Component, lazy, Suspense, useEffect, useState } from 'react'
 import { configured, nextPath, watchUser } from '../../../shared/session.js'
-import { reloadOntoLatest } from '../../../shared/register-sw.js'
+import { reloadIfStale, reloadOntoLatest } from '../../../shared/register-sw.js'
 import { workInProgress } from '../../../shared/updateGuard.js'
 import { sectionOf, useAddress } from './router.js'
+import { loadSection } from './sections.js'
 import Header from './Header.jsx'
 import Home from './Home.jsx'
 import Manage from './Manage.jsx'
@@ -18,27 +19,28 @@ import PushPrompt from './PushPrompt.jsx'
 import SignIn from './SignIn.jsx'
 import useAsksBadge from './useAsksBadge.js'
 
-// Each moved tool loads the first time someone opens it, not with the home page.
-const AsksSection = lazy(() => import('../../asks/src/section.jsx'))
-const ProjectsSection = lazy(() => import('../../projects/src/section.jsx'))
-const SettingsSection = lazy(() => import('../../settings/src/section.jsx'))
-const ServiceOrdersSection = lazy(() => import('../../service-orders/src/section.jsx'))
-const MaintenanceSection = lazy(() => import('../../maintenance/src/section.jsx'))
-const OncallSection = lazy(() => import('../../oncall/src/section.jsx'))
-const ServiceSection = lazy(() => import('../../service-home/src/section.jsx'))
-const ChecklistsSection = lazy(() => import('../../checklists/src/section.jsx'))
-const KnowledgeSection = lazy(() => import('../../knowledge/src/section.jsx'))
-const SimproSyncSection = lazy(() => import('../../simprosync/src/section.jsx'))
-const SimproSearchSection = lazy(() => import('../../simprosearch/src/section.jsx'))
-const SimproJobsSection = lazy(() => import('../../simprojobs/src/section.jsx'))
-const AnsurSection = lazy(() => import('../../ansurtopdf/src/section.jsx'))
-const TestBenchSection = lazy(() => import('../../testbench/src/section.jsx'))
-const NewEquipmentSection = lazy(() => import('../../testbench/src/newequip/section.jsx'))
-const PdfEditorSection = lazy(() => import('../../pdf-editor/src/section.jsx'))
-const LogReaderSection = lazy(() => import('../../logreader/src/section.jsx'))
-const QrSection = lazy(() => import('../../qr/src/section.jsx'))
-const EquipmentSection = lazy(() => import('../../equipment/src/section.jsx'))
-const ScheduleSection = lazy(() => import('../../schedule/src/section.jsx'))
+// Each moved tool loads the first time someone opens it, not with the home page. By id, through sections.js: the shell
+// never names a section's file (see there), so a deploy that changes one section leaves the shell as it was.
+const AsksSection = lazy(() => loadSection('asks'))
+const ProjectsSection = lazy(() => loadSection('projects'))
+const SettingsSection = lazy(() => loadSection('settings'))
+const ServiceOrdersSection = lazy(() => loadSection('service-orders'))
+const MaintenanceSection = lazy(() => loadSection('maintenance'))
+const OncallSection = lazy(() => loadSection('oncall'))
+const ServiceSection = lazy(() => loadSection('service'))
+const ChecklistsSection = lazy(() => loadSection('checklists'))
+const KnowledgeSection = lazy(() => loadSection('knowledge'))
+const SimproSyncSection = lazy(() => loadSection('simprosync'))
+const SimproSearchSection = lazy(() => loadSection('simprosearch'))
+const SimproJobsSection = lazy(() => loadSection('simprojobs'))
+const AnsurSection = lazy(() => loadSection('ansurtopdf'))
+const TestBenchSection = lazy(() => loadSection('testbench'))
+const NewEquipmentSection = lazy(() => loadSection('new-equipment'))
+const PdfEditorSection = lazy(() => loadSection('pdf-editor'))
+const LogReaderSection = lazy(() => loadSection('logreader'))
+const QrSection = lazy(() => loadSection('qr'))
+const EquipmentSection = lazy(() => loadSection('equipment'))
+const ScheduleSection = lazy(() => loadSection('schedule'))
 
 /** A touch-screen phone or tablet: no Reload button there (SectionBoundary). */
 const PHONE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
@@ -116,6 +118,10 @@ export default function App() {
   // The service tools highlight the Service tab
   const page = section === 'hub' ? route.page : SERVICE_TOOLS.includes(section) ? 'service' : section
 
+  // Opening a section a deploy has changed since this page loaded: reload onto the new version. A section
+  // that was never opened is caught as it loads (sections.js); this is for one opened earlier, whose old code
+  // React keeps. Nothing else reloads for a section the person isn't in (shared/register-sw.js).
+  useEffect(() => { if (section !== 'hub') reloadIfStale(section) }, [section])
   // The hub pages' page colour (hub.css) only applies while they're showing.
   useEffect(() => { document.body.dataset.section = section }, [section])
   // The header's height, for sections with their own sticky bars (--shell-header-h).

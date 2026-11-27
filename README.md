@@ -363,6 +363,37 @@ Two things about the build are easy to trip over:
 
 If you add a page people should be able to install *from* (iOS reads only the metas of the page being added, not the manifest's), copy the `<link rel="manifest">` block out of `apps/hub/index.html`.
 
+### Updates: only what changed
+
+A deploy that changes one section (say the Test Bench) does not reload everyone's hub. Only someone who opens that section needs the new version, and the page gets it for them. Anything the shell runs on changing (the start page, `shared/`, the service worker, a chunk the shell loads, the icons) still updates every open page, as it always did: it reloads once the person has paused and nothing is in progress (`shared/updateGuard.js`), with the banner on computers. The service worker's precache, the 15-second, 10-minute and 30-minute checks and pull-to-refresh are unchanged.
+
+**What makes it possible.** The shell never names a section's file. A section is imported with `import()`, Vite writes that hashed file name into the importing chunk, and a changed name changes the chunk, so one changed section used to change the shell, then `sw.js` (which lists the shell's files), then everyone. Now each section is its own build entry (`hubSections()` in `apps/hub/vite.config.js`, from the list in `apps/hub/src/section-sources.js`) and the shell finds its file at run time in **`/build-info.json`**, through `apps/hub/src/sections.js` (`loadSection(id)`). With only a section changed, `index.html`, the shell's script and `sw.js` are byte for byte what they were; only `build-info.json` and that section's files differ.
+
+**`build-info.json`** is written last by `scripts/build.mjs` (`scripts/build-info.mjs`) and is never precached (the worker serves it network-first, with the last copy offline; pages ask for it with `cache: 'no-cache'`):
+
+```json
+{ "v": 1, "shell": "<hash of sw.js>", "entry": "assets/main-<hash>.js",
+  "sections": { "testbench": { "hash": "…", "js": "assets/section-testbench-<hash>.js", "css": [...], "preload": [...] }, … } }
+```
+
+- `shell` is the hash of `sw.js`, which lists every file the shell precaches, so it changes exactly when a page would be handed a new worker.
+- A section's `hash` is made from the hashed file names of everything it loads (its entry, its imports, its stylesheets, anything it loads on demand) **minus what the shell already loads**. Vite puts a content hash in every file name, so a section whose code or styles changed gets a new hash, and a chunk two sections share marks both. The Test Bench's own page (`/bench-app/`, minus its templates) counts as the `testbench` section.
+- `entry` is the start page's script: a page that finds a `build-info.json` for a different one (a deploy landed between the two loading) reloads once rather than load sections that do not match it.
+
+**On the page** (`shared/updates.js`, rules in `shared/buildInfo.js`, wiring in `shared/register-sw.js`): the page remembers the `build-info.json` it started with, and compares a fresh copy on the same occasions it used to look for a new worker (a worker taking over, coming back into view, 10 idle minutes, every 30 minutes) and whenever a section opens. A changed `shell` reloads as described above. Changed sections are only marked stale. The page then reloads when:
+- someone opens a stale section (`sections.js`; or `App.jsx`, for one opened earlier whose old code React kept): at once, as nothing there has started, unless a run is in progress;
+- they are already in a stale section: when the update guard says it is safe, with the usual banner on computers. **The banner only shows for a change that matters to the current page**: the shell, or the section they are in. A change to another section shows nothing until they go there.
+- a file a deploy removed fails to load (Vite's `vite:preloadError`, or a section's import failing and the "This part of the hub didn't load" message): the same reload, at most once a minute, as a safety net. A page opened before the deploy has the old file names and the deploy deleted those files, so this is what catches someone who opens a section in the seconds before a check has run.
+
+Plain pages outside the one app (`gate.js`: the demo tracker's forward, other single-file tools) pass nothing to `registerServiceWorker()` and keep reloading on any new worker.
+
+**Things that bite.**
+- A new section needs a line in `section-sources.js`, in `router.js` `SECTIONS` and a `lazy(() => loadSection('id'))` in `App.jsx`; `apps/hub/tests/build-info.test.mjs` fails if one is missing, and `App.jsx` must never `import()` a section file itself (that puts its hash back in the shell).
+- Sections are emitted with `preserveSignature: 'strict'`; without it Vite strips the section's `export default` as unused. `scripts/build.mjs` fails the build if a section file has no default export, or if Rollup folded a section into a chunk the shell loads (a section with almost no code of its own was merged into React's chunk once; React now has its own named chunk).
+- Code both the shell and a section use is shell code: changing it still reloads everyone. That includes the shared kit (`shared/ui`), anything in `shared/`, and the modules `Palette.jsx` imports for search (`apps/*/src/search-source.js`). Keep section-only code out of those.
+- Trying the update path needs a real service worker, which `npm run dev` never installs and the Claude app's built-in browser cannot register: use Chrome or Edge on `npm run build` output (`npm run preview`). The test copy's sign-in list is development-only (`import.meta.env.DEV`), so a built site needs a local-only change to those checks (`shared/firebase.js`, `shared/firestore.js`, `shared/proxy.js`, `SignIn.jsx`) and the emulator values in `.env`; never commit that. The pure rules are tested in `apps/hub/tests/build-info.test.mjs` and `apps/hub/tests/updates.test.mjs`.
+- The page keeps one copy of the `build-info.json` it started with in `localStorage` (`hub:build-info`), for use offline and while a deploy lands mid-load.
+
 ## Run it locally
 ```
 npm install

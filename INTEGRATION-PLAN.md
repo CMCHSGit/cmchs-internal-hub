@@ -264,8 +264,11 @@ Asks was the first; do the next the same way.
 1. **A section entry**: `apps/<tool>/src/section.jsx` exports a component with
    the tool's own stylesheet import, its providers and its `App`. No header,
    fonts, kit stylesheet, service worker or update handling: the shell has them.
-2. **Register it**: `SECTIONS` in `apps/hub/src/router.js`, a lazy import and a
-   line in `apps/hub/src/App.jsx`, a tab in `Header.jsx` (and the phone icon).
+2. **Register it**: `SECTIONS` in `apps/hub/src/router.js`, its file in
+   `apps/hub/src/section-sources.js`, a `lazy(() => loadSection('<id>'))` and a
+   line in `apps/hub/src/App.jsx` (never an `import()` of the section file there:
+   it would put the file's hash in the shell and make every deploy reload everyone,
+   README "Updates: only what changed"), a tab in `Header.jsx` (and the phone icon).
 3. **Deep links**: add its prefix to `SECTIONS` in `apps/hub/public/404.html` and
    to the NavigationRoute `allowlist` in `apps/hub/src/sw.js`.
 4. **Drop the separate build**: its entry in `scripts/build.mjs` `APPS` (and any
