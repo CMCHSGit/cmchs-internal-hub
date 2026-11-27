@@ -2268,14 +2268,16 @@ export function stockProblems(form, list = []) {
 }
 
 /**
- * The loans a demo's stock can be recorded on: every loan and booking, the ones that match what was typed (matchLoan),
- * current first, then those starting soonest. [{ key, label, g }] (at most `limit`)
+ * The loans a demo's stock can be recorded on: every loan and booking, the ones that match what was typed (matchLoan).
+ * Stock is taken before a demo goes out, so the loans not yet started (scheduled, bookings) come first, soonest start
+ * first; then the current loans, most recently started first. [{ key, label, g }] (at most `limit`)
  */
-export function stockLoanChoices(sections, q = '', { limit = 8 } = {}) {
-  const order = ['needsReassign', 'current', 'upcoming', 'longTerm']
+export function stockLoanChoices(sections, q = '', { limit = Infinity } = {}) {
+  const order = ['upcoming', 'needsReassign', 'current', 'longTerm']
   const all = order.flatMap((sec, n) => (sections?.[sec] || []).map((g) => ({ g, n })))
+  const start = (g) => String(g.startDate || '')
   return all.filter(({ g }) => matchLoan(g, q))
-    .sort((a, b) => a.n - b.n || String(a.g.startDate || '9999').localeCompare(String(b.g.startDate || '9999')))
+    .sort((a, b) => a.n - b.n || (a.n === 0 ? (start(a.g) || '9999').localeCompare(start(b.g) || '9999') : start(b.g).localeCompare(start(a.g))))
     .slice(0, limit).map(({ g }) => ({ key: g.key, label: g.loanTo || 'a loan', g }))
 }
 

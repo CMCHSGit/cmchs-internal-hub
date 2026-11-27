@@ -70,6 +70,7 @@ export default function StockRemoval({ s }) {
   const [recording, setRecording] = useState(false) // the "Record on the loan" dialog
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState('')
+  const [picking, setPicking] = useState(false) // the camera or photo picker is open (the page is in the background)
   const [toast, showToast] = useToast()
   const thumbs = useRef({}) // item id -> the photo it was read from (this visit only)
   const queue = useRef(Promise.resolve())
@@ -78,6 +79,8 @@ export default function StockRemoval({ s }) {
 
   useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify(drafts)) } catch { /* private window */ } }, [drafts])
   useEffect(() => () => { closeOcr(); Object.values(thumbs.current).forEach((u) => URL.revokeObjectURL(u)) }, [])
+  // Cancelling the camera sends nothing back, so the hold on the app's update reload ends by itself after a while.
+  useEffect(() => { if (!picking) return undefined; const t = setTimeout(() => setPicking(false), 3 * 60_000); return () => clearTimeout(t) }, [picking])
 
   const patch = (id, fn) => setDrafts((d) => ({ ...d, forms: d.forms.map((f) => (f.id === id ? fn(f) : f)) }))
   const setField = (k, v) => patch(form.id, (f) => ({ ...f, [k]: v }))
@@ -132,6 +135,7 @@ export default function StockRemoval({ s }) {
     const picked = [...(files || [])]
     if (!picked.length) return
     const formId = form.id, each = qty
+    setPicking(false)
     setNotice(null)
     setReading((n) => n + picked.length)
     for (const file of picked) queue.current = queue.current.then(() => readOne(file, formId, each)).finally(() => setReading((n) => n - 1))
@@ -169,7 +173,8 @@ export default function StockRemoval({ s }) {
   }
 
   return (
-    <div className="eq-stock">
+    // data-working: coming back from the camera must not let the app reload onto a new version before the photo is read (shared/updateGuard.js)
+    <div className="eq-stock" data-working={reading > 0 || picking ? '' : undefined}>
       <p className="eq-small eq-stock-intro">Form 39, items removed from stock. Set how many of each you are taking, then photograph each bag’s label. The photo is read on this {typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches ? 'phone' : 'device'}: nothing is uploaded. Keep anything about a patient out of the picture.</p>
 
       <div className="eq-stock-switch">
@@ -224,9 +229,9 @@ export default function StockRemoval({ s }) {
         </div>
         <div className="eq-stock-buttons">
           <label className="btn btn-primary eq-stock-photo"><Camera size={16} aria-hidden="true" /> Photograph a label
-            <input type="file" accept="image/*" capture="environment" hidden onChange={(e) => { enqueue(e.target.files); e.target.value = '' }} /></label>
+            <input type="file" accept="image/*" capture="environment" hidden onClick={() => setPicking(true)} onChange={(e) => { enqueue(e.target.files); e.target.value = '' }} /></label>
           <label className="btn btn-secondary"><ImagePlus size={16} aria-hidden="true" /> Choose photos
-            <input type="file" accept="image/*" multiple hidden onChange={(e) => { enqueue(e.target.files); e.target.value = '' }} /></label>
+            <input type="file" accept="image/*" multiple hidden onClick={() => setPicking(true)} onChange={(e) => { enqueue(e.target.files); e.target.value = '' }} /></label>
         </div>
         {reading > 0 && (
           <div className="eq-stock-busy" role="status">
@@ -340,7 +345,7 @@ export default function StockRemoval({ s }) {
 function LoanPicker({ sections, chosen, g, locked, me, onPick, onClear }) {
   const [q, setQ] = useState('')
   const [open, setOpen] = useState(false)
-  const choices = useMemo(() => (open ? stockLoanChoices(sections, q, { limit: 8 }) : []), [open, sections, q])
+  const choices = useMemo(() => (open ? stockLoanChoices(sections, q) : []), [open, sections, q])
   if (chosen?.key) {
     return (
       <div className="field">
