@@ -268,6 +268,8 @@ test('the loans a demo can be chosen from: every loan and booking that matches, 
   const got = stockLoanChoices(many, '')
   assert.equal(got.length, 20, 'a long list of upcoming loans is not cut short')
   assert.equal(got[0].key, 'u19', 'soonest start first')
+  const lots = loanSections({ equipment: [], upcoming: Array.from({ length: 150 }, (_, n) => ({ id: 'l' + n, loanTo: 'Customer ' + n, startDate: '2026-12-01', endDate: '2027-02-01', items: [] })), loanMeta: {}, loanDocs: {}, today: '2026-11-27' })
+  assert.equal(stockLoanChoices(lots, '').length, 150, 'every loan is listed, however many')
   assert.deepEqual(stockLoanChoices(sections, 'hutt').map((c) => c.key), ['b2'])
   assert.equal(stockLoanChoices(sections, '').length, 3)
 })

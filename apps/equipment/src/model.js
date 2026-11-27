@@ -2272,7 +2272,7 @@ export function stockProblems(form, list = []) {
  * Stock is taken before a demo goes out, so the loans not yet started (scheduled, bookings) come first, soonest start
  * first; then the current loans, most recently started first. [{ key, label, g }] (at most `limit`)
  */
-export function stockLoanChoices(sections, q = '', { limit = 60 } = {}) {
+export function stockLoanChoices(sections, q = '', { limit = Infinity } = {}) {
   const order = ['upcoming', 'needsReassign', 'current', 'longTerm']
   const all = order.flatMap((sec, n) => (sections?.[sec] || []).map((g) => ({ g, n })))
   const start = (g) => String(g.startDate || '')
