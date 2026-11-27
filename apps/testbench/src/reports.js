@@ -74,6 +74,15 @@ export async function saveReport(store, { name, mime, buffer, meta }, now = Date
   return rec
 }
 
+/** A passed re-test replaces the earlier test of the device: the files the bench saved for that earlier test (told apart by its start time) go.
+    Files someone added themselves are never touched. Returns how many were removed. */
+export async function removeTestFiles(store, testedAt) {
+  const at = String(testedAt || '').trim(); if (!at) return 0
+  let n = 0
+  for (const o of await store.all()) if (o.meta && o.meta.testedAt === at && !o.meta.uploaded) { await store.remove(o.id); n++ }
+  return n
+}
+
 /** Notes that these files have been downloaded (saved to a folder, or as a zip, or one at a time), so the list can say which tests have been and which not. */
 export async function markDownloaded(store, names, now = Date.now()) {
   for (const name of names) { const rec = await store.get(name); if (rec) { rec.downloadedAt = now; await store.put(rec) } }
